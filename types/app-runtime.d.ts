@@ -597,7 +597,34 @@ export type ViewportController = {
   ensureBoardExtentForBounds: (
     bounds: { maxX: number; maxY: number } | null | undefined,
   ) => boolean;
+  boardCoordinateToLayout: (value: unknown) => number;
   pageCoordinateToBoard: (value: unknown) => number;
+  boardRectToViewportRect: (rect: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }) => {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+    width: number;
+    height: number;
+  };
+  clientRectToBoardLayoutRect: (rect: {
+    left?: unknown;
+    top?: unknown;
+    right?: unknown;
+    bottom?: unknown;
+    width?: unknown;
+    height?: unknown;
+  }) => {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
   panBy: (dx: number, dy: number) => void;
   panTo: (left: number, top: number) => void;
   zoomAt: (scale: number, pageX: number, pageY: number) => number;

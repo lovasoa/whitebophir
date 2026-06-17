@@ -524,8 +524,44 @@ function createHarness() {
           this.ensuredBounds.push(bounds);
           return true;
         },
+        boardCoordinateToLayout: (/** @type {unknown} */ value) =>
+          (Number(value) || 0) * globalAny.Tools.viewportState.scale,
         pageCoordinateToBoard: (/** @type {unknown} */ value) =>
           globalAny.Tools.coordinates.pageCoordinateToBoard(value),
+        boardRectToViewportRect: (
+          /** @type {{x: number, y: number, width: number, height: number}} */ rect,
+        ) => {
+          const scale = globalAny.Tools.viewportState.scale;
+          const scrollLeft =
+            Number(globalAny.document?.documentElement?.scrollLeft) || 0;
+          const scrollTop =
+            Number(globalAny.document?.documentElement?.scrollTop) || 0;
+          const left = rect.x * scale - scrollLeft;
+          const top = rect.y * scale - scrollTop;
+          const width = rect.width * scale;
+          const height = rect.height * scale;
+          return {
+            left,
+            top,
+            right: left + width,
+            bottom: top + height,
+            width,
+            height,
+          };
+        },
+        clientRectToBoardLayoutRect: (
+          /** @type {{left?: unknown, top?: unknown, right?: unknown, bottom?: unknown, width?: unknown, height?: unknown}} */ rect,
+        ) => {
+          const left = Number(rect.left) || 0;
+          const top = Number(rect.top) || 0;
+          const width = Number.isFinite(Number(rect.width))
+            ? Math.max(0, Number(rect.width))
+            : Math.max(0, (Number(rect.right) || left) - left);
+          const height = Number.isFinite(Number(rect.height))
+            ? Math.max(0, Number(rect.height))
+            : Math.max(0, (Number(rect.bottom) || top) - top);
+          return { x: left, y: top, width, height };
+        },
         panBy: () => {},
         panTo: () => {},
         zoomAt: (/** @type {number} */ scale) => {
@@ -853,8 +889,14 @@ function createUnavailableViewportRuntime() {
       unavailableCapability("viewport.ensureBoardExtentForPoint"),
     ensureBoardExtentForBounds: () =>
       unavailableCapability("viewport.ensureBoardExtentForBounds"),
+    boardCoordinateToLayout: () =>
+      unavailableCapability("viewport.boardCoordinateToLayout"),
     pageCoordinateToBoard: () =>
       unavailableCapability("viewport.pageCoordinateToBoard"),
+    boardRectToViewportRect: () =>
+      unavailableCapability("viewport.boardRectToViewportRect"),
+    clientRectToBoardLayoutRect: () =>
+      unavailableCapability("viewport.clientRectToBoardLayoutRect"),
     panBy: () => unavailableCapability("viewport.panBy"),
     panTo: () => unavailableCapability("viewport.panTo"),
     zoomAt: () => unavailableCapability("viewport.zoomAt"),

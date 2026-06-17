@@ -10,6 +10,10 @@ async function loadViewportModule() {
   return import("../client-data/js/board_viewport.js");
 }
 
+async function loadOverlayModule() {
+  return import("../client-data/js/board_html_overlay.js");
+}
+
 /**
  * @param {string} [initialHash]
  */
@@ -124,11 +128,68 @@ function createBoardTouchTarget() {
     },
     /**
      * @param {string} type
+     * @param {(event: any) => void} listener
+     */
+    removeEventListener(type, listener) {
+      const typeListeners = listeners.get(type) || [];
+      listeners.set(
+        type,
+        typeListeners.filter((entry) => entry.listener !== listener),
+      );
+    },
+    /**
+     * @param {string} type
      * @param {any} event
      */
     dispatch(type, event) {
       for (const entry of listeners.get(type) || []) entry.listener(event);
     },
+    /** @param {{type: string}} event */
+    dispatchEvent(event) {
+      this.dispatch(event.type, event);
+      return true;
+    },
+  };
+}
+
+/**
+ * @param {{left?: number, top?: number}} [rect]
+ * @returns {any}
+ */
+function createOverlayBoardElement(rect = {}) {
+  const board = createBoardTouchTarget();
+  return {
+    ...board,
+    children: /** @type {any[]} */ ([]),
+    /** @param {any} child */
+    appendChild(child) {
+      this.children.push(child);
+      child.parentNode = this;
+      return child;
+    },
+    /** @param {any} child */
+    removeChild(child) {
+      this.children = this.children.filter(
+        /** @param {any} candidate */
+        (candidate) => candidate !== child,
+      );
+      child.parentNode = null;
+      return child;
+    },
+    getBoundingClientRect() {
+      return {
+        left: rect.left || 0,
+        top: rect.top || 0,
+      };
+    },
+  };
+}
+
+/** @returns {any} */
+function createOverlayElement() {
+  return {
+    style: /** @type {Record<string, string>} */ ({}),
+    parentNode: null,
   };
 }
 
@@ -303,6 +364,250 @@ test("viewport layout size follows scaled svg while filling the viewport", async
     width: 1200,
     height: 800,
   });
+});
+
+test("viewport converts board coordinates to layout coordinates", async () => {
+  const { createViewportController } = await loadViewportModule();
+  const tools = createViewportHashTestTools(0.25);
+  const viewport = createViewportController(tools);
+
+  assert.equal(viewport.boardCoordinateToLayout(80), 20);
+  assert.equal(viewport.boardCoordinateToLayout("12"), 3);
+  assert.equal(viewport.boardCoordinateToLayout(Number.NaN), 0);
+});
+
+test("viewport converts board rects to viewport rects with scroll", async () => {
+  const env = createViewportHashTestEnvironment();
+  try {
+    const { createViewportController } = await loadViewportModule();
+    const tools = createViewportHashTestTools(0.5);
+    attachViewportDom(tools);
+    env.document.documentElement.scrollLeft = 30;
+    env.document.documentElement.scrollTop = 50;
+    const viewport = createViewportController(tools);
+
+    assert.deepEqual(
+      viewport.boardRectToViewportRect({
+        x: 10,
+        y: 20,
+        width: 30,
+        height: 40,
+      }),
+      {
+        left: -25,
+        top: -40,
+        right: -10,
+        bottom: -20,
+        width: 15,
+        height: 20,
+      },
+    );
+  } finally {
+    env.restore();
+  }
+});
+
+test("viewport converts client rects to board layout rects", async () => {
+  const env = createViewportHashTestEnvironment();
+  try {
+    const { createViewportController } = await loadViewportModule();
+    const tools = createViewportHashTestTools(0.5);
+    attachViewportDom(tools);
+    env.document.documentElement.scrollLeft = 30;
+    env.document.documentElement.scrollTop = 50;
+    const viewport = createViewportController(tools);
+
+    assert.deepEqual(
+      viewport.clientRectToBoardLayoutRect({
+        left: -25,
+        top: -40,
+        right: -10,
+        bottom: -20,
+      }),
+      {
+        x: 5,
+        y: 10,
+        width: 15,
+        height: 20,
+      },
+    );
+  } finally {
+    env.restore();
+  }
+});
+
+test("viewport rect converters work when board DOM is detached", async () => {
+  const env = createViewportHashTestEnvironment();
+  try {
+    const { createViewportController } = await loadViewportModule();
+    const tools = createViewportHashTestTools(2);
+    env.document.documentElement.scrollLeft = 7;
+    env.document.documentElement.scrollTop = 9;
+    const viewport = createViewportController(tools);
+
+    assert.deepEqual(
+      viewport.boardRectToViewportRect({
+        x: 10,
+        y: 11,
+        width: 12,
+        height: 13,
+      }),
+      {
+        left: 13,
+        top: 13,
+        right: 37,
+        bottom: 39,
+        width: 24,
+        height: 26,
+      },
+    );
+    assert.deepEqual(
+      viewport.clientRectToBoardLayoutRect({
+        left: 13,
+        top: 13,
+        width: 24,
+        height: 26,
+      }),
+      {
+        x: 20,
+        y: 22,
+        width: 24,
+        height: 26,
+      },
+    );
+  } finally {
+    env.restore();
+  }
+});
+
+test("board html overlay positions board-space bounds at multiple scales", async () => {
+  const { VIEWPORT_LAYOUT_EVENT } = await loadViewportModule();
+  const { createBoardHtmlOverlay } = await loadOverlayModule();
+  let scale = 0.5;
+  const board = createOverlayBoardElement();
+  const element = createOverlayElement();
+  const viewport = {
+    getScale: () => scale,
+    /** @param {unknown} value */
+    boardCoordinateToLayout: (value) => (Number(value) || 0) * scale,
+    /** @param {{left?: unknown, top?: unknown, width?: unknown, height?: unknown}} rect */
+    clientRectToBoardLayoutRect: (rect) => ({
+      x: Number(rect.left) || 0,
+      y: Number(rect.top) || 0,
+      width: Number(rect.width) || 0,
+      height: Number(rect.height) || 0,
+    }),
+  };
+  const overlay = createBoardHtmlOverlay({ board, viewport, element });
+
+  overlay.syncBoardRect({ x: 20, y: 30, width: 40, height: 50 });
+  assert.equal(element.parentNode, board);
+  assert.deepEqual(element.style, {
+    position: "absolute",
+    left: "10px",
+    top: "15px",
+    width: "20px",
+    height: "25px",
+    display: "",
+  });
+
+  scale = 0.25;
+  board.dispatchEvent({ type: VIEWPORT_LAYOUT_EVENT });
+  assert.equal(element.style.left, "5px");
+  assert.equal(element.style.top, "7.5px");
+  assert.equal(element.style.width, "10px");
+  assert.equal(element.style.height, "12.5px");
+});
+
+test("board html overlay updates from a rect factory on viewport layout", async () => {
+  const { VIEWPORT_LAYOUT_EVENT } = await loadViewportModule();
+  const { createBoardHtmlOverlay } = await loadOverlayModule();
+  let scale = 1;
+  let x = 10;
+  let reads = 0;
+  const board = createOverlayBoardElement();
+  const element = createOverlayElement();
+  const viewport = {
+    getScale: () => scale,
+    /** @param {unknown} value */
+    boardCoordinateToLayout: (value) => (Number(value) || 0) * scale,
+    /** @param {{left?: unknown, top?: unknown, width?: unknown, height?: unknown}} rect */
+    clientRectToBoardLayoutRect: (rect) => ({
+      x: Number(rect.left) || 0,
+      y: Number(rect.top) || 0,
+      width: Number(rect.width) || 0,
+      height: Number(rect.height) || 0,
+    }),
+  };
+  const overlay = createBoardHtmlOverlay({ board, viewport, element });
+
+  overlay.syncBoardRect(() => {
+    reads += 1;
+    return { x, y: 5, width: 10, height: 10 };
+  });
+  assert.equal(reads, 1);
+  assert.equal(element.style.left, "10px");
+
+  x = 20;
+  scale = 2;
+  board.dispatchEvent({ type: VIEWPORT_LAYOUT_EVENT });
+  assert.equal(reads, 2);
+  assert.equal(element.style.left, "40px");
+  assert.equal(element.style.width, "20px");
+});
+
+test("board html overlay projects client rects and cleans up listeners", async () => {
+  const { VIEWPORT_LAYOUT_EVENT } = await loadViewportModule();
+  const { createBoardHtmlOverlay } = await loadOverlayModule();
+  const board = createOverlayBoardElement({ left: -10, top: -20 });
+  const element = createOverlayElement();
+  const viewport = {
+    getScale: () => 0.5,
+    /** @param {unknown} value */
+    boardCoordinateToLayout: (value) => (Number(value) || 0) * 0.5,
+    /** @param {{left?: unknown, top?: unknown, right?: unknown, bottom?: unknown, width?: unknown, height?: unknown}} rect */
+    clientRectToBoardLayoutRect: (rect) => {
+      const left = Number(rect.left) || 0;
+      const top = Number(rect.top) || 0;
+      const width = Number.isFinite(Number(rect.width))
+        ? Number(rect.width)
+        : (Number(rect.right) || left) - left;
+      const height = Number.isFinite(Number(rect.height))
+        ? Number(rect.height)
+        : (Number(rect.bottom) || top) - top;
+      return {
+        x: left + 10,
+        y: top + 20,
+        width,
+        height,
+      };
+    },
+  };
+  const overlay = createBoardHtmlOverlay({ board, viewport, element });
+
+  overlay.syncClientRect({ left: 5, top: 10, right: 25, bottom: 30 });
+  assert.equal(board.listeners.get(VIEWPORT_LAYOUT_EVENT)?.length, 1);
+  assert.deepEqual(element.style, {
+    position: "absolute",
+    left: "15px",
+    top: "30px",
+    width: "20px",
+    height: "20px",
+    display: "",
+  });
+
+  overlay.hide();
+  assert.equal(board.listeners.get(VIEWPORT_LAYOUT_EVENT)?.length, 0);
+  assert.equal(element.style.display, "none");
+
+  overlay.syncBoardRect({ x: 1, y: 2, width: 3, height: 4 });
+  assert.equal(board.listeners.get(VIEWPORT_LAYOUT_EVENT)?.length, 1);
+  overlay.destroy();
+  assert.equal(board.listeners.get(VIEWPORT_LAYOUT_EVENT)?.length, 0);
+  assert.equal(element.parentNode, null);
+
+  board.dispatchEvent({ type: VIEWPORT_LAYOUT_EVENT });
+  assert.equal(element.style.display, "none");
 });
 
 test("viewport hash sync waits until hand pan ends", async () => {

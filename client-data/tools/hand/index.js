@@ -28,6 +28,7 @@ import {
   extendBoundsWithBounds,
   measureSvgElementBoundsAfterTransform,
 } from "../../js/board_extent.js";
+import { createBoardHtmlOverlay } from "../../js/board_html_overlay.js";
 import { messages as BoardMessages } from "../../js/board_transport.js";
 import { safePreventDefault } from "../../js/board_viewport.js";
 import { logFrontendEvent } from "../../js/frontend_logging.js";
@@ -49,7 +50,9 @@ import { TOOL_CODE_BY_ID } from "../tool-order.js";
 /** @typedef {HandUpdateMessage | HandDeleteMessage | HandCopyMessage | HandBatchMessage} HandDrawMessage */
 /** @typedef {HandDrawMessage | HandChildMessage} HandRenderableMessage */
 /** @typedef {{type?: unknown, id?: unknown, transform?: unknown, newid?: unknown, _children?: unknown}} HandMessageCandidate */
-/** @typedef {SVGImageElement & { origWidth: number, origHeight: number, drawCallback: (button: SelectionButton, bbox: {r:[number,number], a:[number,number], b:[number,number]}, scale:number) => void, clickCallback: (x:number, y:number, evt: { preventDefault(): void }) => void }} SelectionButton */
+/** @typedef {{x: number, y: number, width: number, height: number}} BoardRect */
+/** @typedef {ReturnType<typeof createBoardHtmlOverlay>} BoardHtmlOverlay */
+/** @typedef {{ name: string, element: HTMLButtonElement, overlay: BoardHtmlOverlay, origWidth: number, origHeight: number, drawCallback: (button: SelectionButton, bbox: {r:[number,number], a:[number,number], b:[number,number]}, scale:number) => BoardRect, clickCallback: (x:number, y:number, evt: { preventDefault(): void }) => void }} SelectionButton */
 /** @typedef {{x: number, y: number}} HandPointSelection */
 /** @typedef {{x: number, y: number, w: number, h: number}} HandScaleSelection */
 /** @typedef {{pan: true}} HandPanSelection */
@@ -260,6 +263,10 @@ function createInitialState(Tools, assetUrl) {
     selectionRect: /** @type {SVGRectElement} */ (
       /** @type {unknown} */ (null)
     ),
+    selectionChrome: /** @type {HTMLElement} */ (/** @type {unknown} */ (null)),
+    selectionOverlay: /** @type {BoardHtmlOverlay} */ (
+      /** @type {unknown} */ (null)
+    ),
     selectionRectTransform: /** @type {SelectionRectTransform} */ (undefined),
     currentTransform: /** @type {HandTransformHandler | null} */ (null),
     transformElements: /** @type {TransformState[]} */ ([]),
@@ -276,12 +283,54 @@ function createInitialState(Tools, assetUrl) {
 }
 
 /**
+ * @param {{r:[number,number], b:[number,number]}} bbox
+ * @param {number} buttonHeight
+ * @param {number} scale
+ * @returns {number}
+ */
+function selectionActionButtonY(bbox, buttonHeight, scale) {
+  const gap = 3 / scale;
+  const preferred = bbox.r[1] - buttonHeight / scale - gap;
+  const visibleTop = (document.documentElement.scrollTop || 0) / scale;
+  if (preferred >= visibleTop) return preferred;
+  return bbox.r[1] + bbox.b[1] + gap;
+}
+
+/**
+ * @param {HandState} state
+ * @param {number} preferred
+ * @param {number} scale
+ * @returns {number}
+ */
+function selectionActionButtonX(state, preferred, scale) {
+  const menu = document.getElementById("menu");
+  const rect =
+    menu &&
+    typeof menu.getBoundingClientRect === "function" &&
+    menu.getBoundingClientRect();
+  if (!rect || rect.right <= 0) return preferred;
+  const layoutRect = state.Tools.viewport.clientRectToBoardLayoutRect({
+    left: rect.right + 4,
+    top: 0,
+    width: 0,
+    height: 0,
+  });
+  return Math.max(preferred, layoutRect.x / scale);
+}
+
+/**
  * @param {HandRuntime} Tools
  * @param {(assetFile: string) => string} assetUrl
  */
 function createState(Tools, assetUrl) {
   const state = createInitialState(Tools, assetUrl);
   state.selectionRect = createSelectorRect(state);
+  state.selectionChrome = createSelectionChrome();
+  state.selectionOverlay = createBoardHtmlOverlay({
+    board: Tools.board,
+    viewport: Tools.viewport,
+    element: state.selectionChrome,
+  });
   state.selectionButtons = [
     createButton(
       state,
@@ -290,11 +339,13 @@ function createState(Tools, assetUrl) {
       24,
       24,
       (me, bbox, scale) => {
-        me.width.baseVal.value = me.origWidth / scale;
-        me.height.baseVal.value = me.origHeight / scale;
-        me.x.baseVal.value = bbox.r[0];
-        me.y.baseVal.value = bbox.r[1] - (me.origHeight + 3) / scale;
-        me.style.display = "";
+        const x = selectionActionButtonX(state, bbox.r[0], scale);
+        return {
+          x,
+          y: selectionActionButtonY(bbox, me.origHeight, scale),
+          width: me.origWidth / scale,
+          height: me.origHeight / scale,
+        };
       },
       (_x, _y, _evt) => deleteSelection(state),
     ),
@@ -305,11 +356,13 @@ function createState(Tools, assetUrl) {
       24,
       24,
       (me, bbox, scale) => {
-        me.width.baseVal.value = me.origWidth / scale;
-        me.height.baseVal.value = me.origHeight / scale;
-        me.x.baseVal.value = bbox.r[0] + (me.origWidth + 2) / scale;
-        me.y.baseVal.value = bbox.r[1] - (me.origHeight + 3) / scale;
-        me.style.display = "";
+        const x = selectionActionButtonX(state, bbox.r[0], scale);
+        return {
+          x: x + (me.origWidth + 2) / scale,
+          y: selectionActionButtonY(bbox, me.origHeight, scale),
+          width: me.origWidth / scale,
+          height: me.origHeight / scale,
+        };
       },
       () => duplicateSelection(state),
     ),
@@ -320,12 +373,12 @@ function createState(Tools, assetUrl) {
       14,
       14,
       (me, bbox, scale) => {
-        me.width.baseVal.value = me.origWidth / scale;
-        me.height.baseVal.value = me.origHeight / scale;
-        me.x.baseVal.value = bbox.r[0] + bbox.a[0] - me.origWidth / (2 * scale);
-        me.y.baseVal.value =
-          bbox.r[1] + bbox.b[1] - me.origHeight / (2 * scale);
-        me.style.display = "";
+        return {
+          x: bbox.r[0] + bbox.a[0] - me.origWidth / (2 * scale),
+          y: bbox.r[1] + bbox.b[1] - me.origHeight / (2 * scale),
+          width: me.origWidth / scale,
+          height: me.origHeight / scale,
+        };
       },
       (x, y, evt) => startScalingTransform(state, x, y, evt),
     ),
@@ -417,14 +470,62 @@ function createSelectorRect(state) {
   shape.y.baseVal.value = 0;
   shape.width.baseVal.value = 0;
   shape.height.baseVal.value = 0;
-  shape.setAttribute("stroke", "black");
+  shape.setAttribute("stroke", "transparent");
   shape.setAttribute("stroke-width", "1");
   shape.setAttribute("vector-effect", "non-scaling-stroke");
   shape.setAttribute("fill", "none");
   shape.setAttribute("stroke-dasharray", "5 5");
-  shape.setAttribute("opacity", "1");
+  shape.setAttribute("opacity", "0");
+  shape.style.pointerEvents = "none";
+  shape.style.display = "none";
   state.Tools.board.svg.appendChild(shape);
   return shape;
+}
+
+function createSelectionChrome() {
+  const element = document.createElement("div");
+  element.id = "selectionRectOverlay";
+  element.className = "hand-selection-rect";
+  element.style.display = "none";
+  return element;
+}
+
+/**
+ * @param {MouseEvent | TouchEvent} event
+ * @param {"pageX" | "pageY"} axis
+ * @returns {number}
+ */
+function getPointerPageCoord(event, axis) {
+  if ("changedTouches" in event) {
+    const touch = event.changedTouches[0];
+    return touch ? touch[axis] || 0 : 0;
+  }
+  return event[axis] || 0;
+}
+
+/**
+ * @param {Event} event
+ * @returns {void}
+ */
+function stopSelectionButtonEvent(event) {
+  event.preventDefault();
+  event.stopPropagation();
+}
+
+/**
+ * @param {HandState} state
+ * @param {MouseEvent | TouchEvent} event
+ * @returns {{x: number, y: number}}
+ */
+function eventBoardPoint(state, event) {
+  return {
+    x: state.Tools.viewport.pageCoordinateToBoard(
+      getPointerPageCoord(event, "pageX"),
+    ),
+    y: state.Tools.viewport.pageCoordinateToBoard(
+      getPointerPageCoord(event, "pageY"),
+    ),
+  };
 }
 
 /**
@@ -433,7 +534,7 @@ function createSelectorRect(state) {
  * @param {string} icon
  * @param {number} width
  * @param {number} height
- * @param {(button: SelectionButton, bbox: {r:[number,number], a:[number,number], b:[number,number]}, scale:number) => void} drawCallback
+ * @param {(button: SelectionButton, bbox: {r:[number,number], a:[number,number], b:[number,number]}, scale:number) => BoardRect} drawCallback
  * @param {(x:number, y:number, evt: { preventDefault(): void }) => void} clickCallback
  * @returns {SelectionButton}
  */
@@ -446,21 +547,57 @@ function createButton(
   drawCallback,
   clickCallback,
 ) {
-  const shape = /** @type {SelectionButton} */ (
-    state.Tools.board.createSVGElement("image", {
-      href: state.assetUrl(`${icon}.svg`),
-      width: width,
-      height: height,
-    })
+  const element = document.createElement("button");
+  element.id = `selectionButton-${name}`;
+  element.className = "hand-selection-button";
+  element.type = "button";
+  element.setAttribute("aria-label", name);
+  element.style.display = "none";
+  const image = document.createElement("img");
+  image.alt = "";
+  image.draggable = false;
+  image.src = state.assetUrl(`${icon}.svg`);
+  element.appendChild(image);
+
+  /** @type {SelectionButton} */
+  const button = {
+    name,
+    element,
+    overlay: createBoardHtmlOverlay({
+      board: state.Tools.board,
+      viewport: state.Tools.viewport,
+      element,
+    }),
+    origWidth: width,
+    origHeight: height,
+    drawCallback,
+    clickCallback,
+  };
+
+  element.addEventListener("mousedown", (event) => {
+    stopSelectionButtonEvent(event);
+    if (name !== "scaleHandle") return;
+    const point = eventBoardPoint(state, event);
+    clickCallback(point.x, point.y, event);
+  });
+  element.addEventListener(
+    "touchstart",
+    (event) => {
+      stopSelectionButtonEvent(event);
+      if (name !== "scaleHandle") return;
+      const point = eventBoardPoint(state, event);
+      clickCallback(point.x, point.y, event);
+    },
+    { passive: false },
   );
-  shape.id = `selectionButton-${name}`;
-  shape.style.display = "none";
-  shape.origWidth = width;
-  shape.origHeight = height;
-  shape.drawCallback = drawCallback;
-  shape.clickCallback = clickCallback;
-  state.Tools.board.svg.appendChild(shape);
-  return shape;
+  element.addEventListener("click", (event) => {
+    stopSelectionButtonEvent(event);
+    if (name === "scaleHandle") return;
+    const point = eventBoardPoint(state, event);
+    clickCallback(point.x, point.y, event);
+  });
+
+  return button;
 }
 
 /** @param {HandState} state */
@@ -469,13 +606,53 @@ function getCurrentScale(state) {
   return Number.isFinite(rawScale) && rawScale > 0 ? rawScale : 1;
 }
 
+/**
+ * @param {{r:[number,number], a:[number,number], b:[number,number]}} bbox
+ * @returns {BoardRect}
+ */
+function transformedBBoxToBoardRect(bbox) {
+  const x1 = bbox.r[0];
+  const y1 = bbox.r[1];
+  const x2 = bbox.r[0] + bbox.a[0];
+  const y2 = bbox.r[1] + bbox.a[1];
+  const x3 = bbox.r[0] + bbox.b[0];
+  const y3 = bbox.r[1] + bbox.b[1];
+  const x4 = bbox.r[0] + bbox.a[0] + bbox.b[0];
+  const y4 = bbox.r[1] + bbox.a[1] + bbox.b[1];
+  const left = Math.min(x1, x2, x3, x4);
+  const top = Math.min(y1, y2, y3, y4);
+  const right = Math.max(x1, x2, x3, x4);
+  const bottom = Math.max(y1, y2, y3, y4);
+  return {
+    x: left,
+    y: top,
+    width: right - left,
+    height: bottom - top,
+  };
+}
+
+/** @param {HandState} state */
+function syncSelectionChrome(state) {
+  state.selectionOverlay.syncBoardRect(() =>
+    state.selectionRect.style.display === "none"
+      ? null
+      : transformedBBoxToBoardRect(state.selectionRect.transformedBBox()),
+  );
+}
+
 /** @param {HandState} state */
 function showSelectionButtons(state) {
-  const scale = getCurrentScale(state);
-  const selectionBBox = state.selectionRect.transformedBBox();
+  syncSelectionChrome(state);
   for (let i = 0; i < state.selectionButtons.length; i++) {
     const button = state.selectionButtons[i];
-    if (button) button.drawCallback(button, selectionBBox, scale);
+    if (!button) continue;
+    button.overlay.syncBoardRect(() =>
+      button.drawCallback(
+        button,
+        state.selectionRect.transformedBBox(),
+        getCurrentScale(state),
+      ),
+    );
   }
 }
 
@@ -483,13 +660,14 @@ function showSelectionButtons(state) {
 function hideSelectionButtons(state) {
   for (let i = 0; i < state.selectionButtons.length; i++) {
     const button = state.selectionButtons[i];
-    if (button) button.style.display = "none";
+    if (button) button.overlay.hide();
   }
 }
 
 /** @param {HandState} state */
 function hideSelectionUI(state) {
   hideSelectionButtons(state);
+  state.selectionOverlay.hide();
   state.selectionRect.style.display = "none";
 }
 
@@ -584,6 +762,7 @@ function startSelector(state, x, y, evt) {
   const tmatrix = getTransformMatrix(state, state.selectionRect);
   tmatrix.e = 0;
   tmatrix.f = 0;
+  syncSelectionChrome(state);
 }
 
 /** @param {HandState} state @returns {(SVGGraphicsElement & { id: string })[]} */
@@ -622,14 +801,16 @@ function getSelectionViewportRect(state) {
     };
   }
 
-  const scale = getCurrentScale(state);
-  const scrollLeft = document.documentElement.scrollLeft || 0;
-  const scrollTop = document.documentElement.scrollTop || 0;
-  const left = rect.x.baseVal.value * scale - scrollLeft;
-  const top = rect.y.baseVal.value * scale - scrollTop;
-  const right = left + rect.width.baseVal.value * scale;
-  const bottom = top + rect.height.baseVal.value * scale;
-  return right > left && bottom > top ? { left, top, right, bottom } : null;
+  const viewportRect = state.Tools.viewport.boardRectToViewportRect({
+    x: rect.x.baseVal.value,
+    y: rect.y.baseVal.value,
+    width: rect.width.baseVal.value,
+    height: rect.height.baseVal.value,
+  });
+  return viewportRect.right > viewportRect.left &&
+    viewportRect.bottom > viewportRect.top
+    ? viewportRect
+    : null;
 }
 
 /**
@@ -799,6 +980,7 @@ function moveSelection(state, x, y, force) {
   const tmatrix = getTransformMatrix(state, state.selectionRect);
   tmatrix.e = dx + rectTranslation.x;
   tmatrix.f = dy + rectTranslation.y;
+  syncSelectionChrome(state);
   dispatchTransform(state, createBatchMessage(msgs), force);
 }
 
@@ -865,6 +1047,7 @@ function scaleSelection(state, x, y, force) {
   tmatrix.f =
     rectTransform.f +
     state.selectionRect.y.baseVal.value * (rectTransform.d - ry);
+  syncSelectionChrome(state);
   dispatchTransform(state, createBatchMessage(msgs), force);
 }
 
@@ -916,6 +1099,7 @@ function updateRect(state, x, y, rect) {
   rect.y.baseVal.value = Math.min(y, state.selected.y);
   rect.width.baseVal.value = Math.abs(x - state.selected.x);
   rect.height.baseVal.value = Math.abs(y - state.selected.y);
+  syncSelectionChrome(state);
 }
 
 /** @param {HandState} state */
@@ -932,6 +1116,7 @@ function resetSelectionRect(state) {
   tmatrix.d = 1;
   tmatrix.e = 0;
   tmatrix.f = 0;
+  syncSelectionChrome(state);
 }
 
 /**
@@ -1027,20 +1212,8 @@ export function draw(state, data, isLocal = false) {
  * @param {{ target: EventTarget | null, preventDefault(): void }} evt
  */
 function clickSelector(state, x, y, evt) {
-  let button;
-  for (let i = 0; i < state.selectionButtons.length; i++) {
-    const candidate = state.selectionButtons[i];
-    if (
-      candidate &&
-      evt.target &&
-      candidate.contains(/** @type {Node} */ (evt.target))
-    ) {
-      button = candidate;
-    }
-  }
-  if (button) {
-    button.clickCallback(x, y, evt);
-  } else if (
+  if (
+    state.selectionRect.style.display !== "none" &&
     pointInTransformedBBox([x, y], state.selectionRect.transformedBBox())
   ) {
     hideSelectionButtons(state);

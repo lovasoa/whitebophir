@@ -24,7 +24,7 @@
  * @licend
  */
 
-import { VIEWPORT_LAYOUT_EVENT } from "../../js/board_viewport.js";
+import { createBoardHtmlOverlay } from "../../js/board_html_overlay.js";
 import { logFrontendEvent } from "../../js/frontend_logging.js";
 import {
   clampSize,
@@ -40,7 +40,7 @@ import { TOOL_CODE_BY_ID } from "../tool-order.js";
 /** @typedef {Omit<ReturnType<typeof createTextMessage>, "opacity"> & {opacity?: number}} TextCreateMessage */
 /** @typedef {ReturnType<typeof updateTextMessage>} TextUpdateMessage */
 /** @typedef {TextCreateMessage | TextUpdateMessage} TextMessage */
-/** @typedef {{left: number, top: number, width: number, height: number, fontSize: number, caretColor: string}} EditorLayout */
+/** @typedef {{fontSize: number, caretColor: string}} EditorMetrics */
 /** @typedef {ReturnType<typeof createInitialState>} TextState */
 
 function createInitialText() {
@@ -73,13 +73,16 @@ function createInitialState(ctx, input) {
     runtimeConfig: ctx.runtime.config,
     ids: ctx.runtime.ids,
     interaction: ctx.runtime.interaction,
-    boardElement: ctx.runtime.board.board,
     input,
+    editorOverlay: createBoardHtmlOverlay({
+      board: ctx.runtime.board,
+      viewport: ctx.runtime.viewport,
+      element: input,
+    }),
     curText: createInitialText(),
     active: false,
     layoutFrame: /** @type {number | null} */ (null),
     boundTextChangeHandler: /** @type {TextChangeHandler} */ (() => {}),
-    boundViewportLayout: () => {},
     boundBlur: () => {},
   };
 }
@@ -267,23 +270,28 @@ function getActiveTextElement(state) {
 
 /**
  * @param {HTMLInputElement} input
- * @param {EditorLayout} layout
+ * @param {EditorMetrics} metrics
  */
-function applyEditorLayout(input, layout) {
+function applyEditorMetrics(input, metrics) {
   input.size = 1;
-  input.style.fontSize = `${layout.fontSize}px`;
-  input.style.lineHeight = `${layout.fontSize}px`;
-  input.style.height = `${Math.ceil(
-    layout.height + TEXT_INPUT_BORDER_PX * 2,
-  )}px`;
-  input.style.width = `${Math.ceil(
-    layout.width + TEXT_INPUT_EXTRA_WIDTH_PX,
-  )}px`;
-  input.style.left = `${
-    layout.left - TEXT_INPUT_HORIZONTAL_PADDING_PX - TEXT_INPUT_BORDER_PX
-  }px`;
-  input.style.top = `${layout.top - TEXT_INPUT_BORDER_PX}px`;
-  input.style.caretColor = layout.caretColor;
+  input.style.fontSize = `${metrics.fontSize}px`;
+  input.style.lineHeight = `${metrics.fontSize}px`;
+  input.style.caretColor = metrics.caretColor;
+}
+
+/**
+ * @param {{left: number, top: number, width: number, height: number}} rect
+ * @param {number} fontSize
+ * @returns {{left: number, top: number, width: number, height: number}}
+ */
+function expandedEditorClientRect(rect, fontSize) {
+  return {
+    left: rect.left - TEXT_INPUT_HORIZONTAL_PADDING_PX - TEXT_INPUT_BORDER_PX,
+    top: rect.top - TEXT_INPUT_BORDER_PX,
+    width:
+      Math.max(TEXT_INPUT_MIN_WIDTH_PX, rect.width) + TEXT_INPUT_EXTRA_WIDTH_PX,
+    height: Math.max(fontSize, rect.height) + TEXT_INPUT_BORDER_PX * 2,
+  };
 }
 
 /**
@@ -292,21 +300,18 @@ function applyEditorLayout(input, layout) {
  * and only be called from the coalesced editor layout frame.
  *
  * @param {TextState} state
- * @param {SVGTextElement} textElement
+ * @returns {{left: number, top: number, width: number, height: number} | null}
  */
-function syncSvgEditorLayout(state, textElement) {
+function readSvgEditorClientRect(state) {
+  const textElement = getActiveTextElement(state);
+  if (!textElement) return null;
   const rect = textElement.getBoundingClientRect();
-  const boardRect = state.boardElement.getBoundingClientRect();
   const style = getComputedStyle(textElement);
   const fontSize = Math.max(
     1,
     rect.height || state.curText.size * state.viewport.getScale(),
   );
-  applyEditorLayout(state.input, {
-    left: rect.left - boardRect.left,
-    top: rect.top - boardRect.top,
-    width: Math.max(TEXT_INPUT_MIN_WIDTH_PX, rect.width),
-    height: Math.max(fontSize, rect.height),
+  applyEditorMetrics(state.input, {
     fontSize,
     caretColor:
       style.getPropertyValue("fill") ||
@@ -314,27 +319,47 @@ function syncSvgEditorLayout(state, textElement) {
       state.curText.color ||
       "#000",
   });
+  return expandedEditorClientRect(rect, fontSize);
+}
+
+/** @param {TextState} state */
+function syncSvgEditorLayout(state) {
+  state.editorOverlay.syncClientRect(() => readSvgEditorClientRect(state));
+}
+
+/**
+ * @param {TextState} state
+ * @returns {{x: number, y: number, width: number, height: number} | null}
+ */
+function readPendingEditorBoardRect(state) {
+  if (!state.active) return null;
+  const scale = state.viewport.getScale();
+  const fontSize = Math.max(1, state.curText.size * scale);
+  const safeScale = Math.max(0.000001, scale);
+  applyEditorMetrics(state.input, {
+    fontSize,
+    caretColor: state.curText.color || "#000",
+  });
+  return {
+    x:
+      state.curText.x -
+      (TEXT_INPUT_HORIZONTAL_PADDING_PX + TEXT_INPUT_BORDER_PX) / safeScale,
+    y: state.curText.y - state.curText.size - TEXT_INPUT_BORDER_PX / safeScale,
+    width: (TEXT_INPUT_MIN_WIDTH_PX + TEXT_INPUT_EXTRA_WIDTH_PX) / safeScale,
+    height: (fontSize + TEXT_INPUT_BORDER_PX * 2) / safeScale,
+  };
 }
 
 /** @param {TextState} state */
 function syncPendingEditorLayout(state) {
-  const scale = state.viewport.getScale();
-  const fontSize = Math.max(1, state.curText.size * scale);
-  applyEditorLayout(state.input, {
-    left: state.curText.x * scale,
-    top: state.curText.y * scale - fontSize,
-    width: TEXT_INPUT_MIN_WIDTH_PX,
-    height: fontSize,
-    fontSize,
-    caretColor: state.curText.color || "#000",
-  });
+  state.editorOverlay.syncBoardRect(() => readPendingEditorBoardRect(state));
 }
 
 /** @param {TextState} state */
 function syncEditorLayoutNow(state) {
   if (!state.active) return;
   const textElement = getActiveTextElement(state);
-  if (textElement) syncSvgEditorLayout(state, textElement);
+  if (textElement) syncSvgEditorLayout(state);
   else syncPendingEditorLayout(state);
 }
 
@@ -350,6 +375,7 @@ function scheduleEditorLayout(state) {
 /** @param {TextState} state */
 function blurEditor(state) {
   if (state.active) return;
+  state.editorOverlay.hide();
   state.input.style.top = "-1000px";
 }
 
@@ -359,10 +385,6 @@ function stopEdit(state) {
   state.input.removeEventListener("keyup", state.boundTextChangeHandler);
   state.input.removeEventListener("blur", state.boundTextChangeHandler);
   state.input.removeEventListener("blur", state.boundBlur);
-  state.boardElement.removeEventListener(
-    VIEWPORT_LAYOUT_EVENT,
-    state.boundViewportLayout,
-  );
   if (state.layoutFrame !== null) {
     window.cancelAnimationFrame(state.layoutFrame);
     state.layoutFrame = null;
@@ -386,11 +408,6 @@ function stopEdit(state) {
 /** @param {TextState} state */
 function startEdit(state) {
   state.active = true;
-  if (!state.input.parentNode) state.boardElement.appendChild(state.input);
-  state.boardElement.addEventListener(
-    VIEWPORT_LAYOUT_EVENT,
-    state.boundViewportLayout,
-  );
   syncEditorLayoutNow(state);
   state.input.focus();
   state.input.addEventListener("input", state.boundTextChangeHandler);
@@ -535,7 +552,6 @@ export function boot(ctx) {
   input.setAttribute("autocomplete", "off");
   const state = createInitialState(ctx, input);
   state.boundTextChangeHandler = (evt) => textChangeHandler(state, evt);
-  state.boundViewportLayout = () => scheduleEditorLayout(state);
   state.boundBlur = () => blurEditor(state);
   return state;
 }
