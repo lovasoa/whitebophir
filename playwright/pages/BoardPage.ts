@@ -831,40 +831,54 @@ window.turnstile = {
   async duplicateSelectionAndDelete(id: string) {
     await this.waitForBoardWritable();
     await this.page.evaluate(
-      ({ handTool, targetId, copyType }) => {
+      ({ targetId }) => {
         const rect = document.getElementById(targetId);
         if (!rect) throw new Error(`Missing shape ${targetId}`);
-        const duplicateId = window.WBOApp.ids.generateUID(targetId[0] ?? "s");
-        window.WBOApp.writes.drawAndSend({
-          tool: handTool,
-          _children: [{ type: copyType, id: targetId, newid: duplicateId }],
+        const tool = window.WBOApp.toolRegistry.current;
+        if (!tool || tool.name !== "hand" || tool.secondary?.active !== true) {
+          throw new Error("Hand selector is not active");
+        }
+        const bbox = (rect as SVGGraphicsElement).getBBox();
+        const x = bbox.x + bbox.width / 2;
+        const y = bbox.y + bbox.height / 2;
+        const event = new MouseEvent("mousedown", {
+          bubbles: true,
+          cancelable: true,
         });
+        Object.defineProperty(event, "target", { value: rect });
+        tool.listeners.press?.(x, y, event, false);
+        tool.listeners.release?.(x, y, event, false);
       },
       {
-        handTool: TOOL_CODE_BY_ID.hand,
         targetId: id,
-        copyType: MutationType.COPY,
       },
     );
+    await expect(
+      this.page.locator("#selectionButton-scaleHandle"),
+    ).toBeVisible();
+
+    const handleBox = await this.page
+      .locator("#selectionButton-scaleHandle")
+      .boundingBox();
+    if (!handleBox) throw new Error("Missing selector scale handle box");
+    const handleCenter = {
+      x: handleBox.x + handleBox.width / 2,
+      y: handleBox.y + handleBox.height / 2,
+    };
+    await this.page.mouse.move(handleCenter.x, handleCenter.y);
+    await this.page.mouse.down();
+    await this.page.mouse.move(handleCenter.x + 20, handleCenter.y + 12);
+    await this.page.mouse.up();
+    await expect(this.page.locator("#selectionButton-duplicate")).toBeVisible();
+
+    await this.page.locator("#selectionButton-duplicate").click();
     await expect(this.page.locator("#drawingArea rect")).toHaveCount(2);
     const afterDuplicate = await this.page.evaluate(() => {
       return Array.from(document.querySelectorAll("#drawingArea rect")).map(
         (rect) => rect.id,
       );
     });
-    await this.page.evaluate(
-      ({ handTool, targetId, deleteType }) => {
-        window.WBOApp.writes.drawAndSend({
-          tool: handTool,
-          _children: [{ type: deleteType, id: targetId }],
-        });
-      },
-      {
-        handTool: TOOL_CODE_BY_ID.hand,
-        targetId: id,
-        deleteType: MutationType.DELETE,
-      },
-    );
+    await this.page.locator("#selectionButton-delete").click();
     await expect(this.page.locator("#drawingArea rect")).toHaveCount(1);
     const afterDelete = await this.page.evaluate(() => {
       return Array.from(document.querySelectorAll("#drawingArea rect")).map(

@@ -62,6 +62,26 @@ const TOUCH_EVENT_NAMES = [
  * }} ViewportState
  */
 
+/**
+ * @typedef {{
+ *   x: number,
+ *   y: number,
+ *   width: number,
+ *   height: number,
+ * }} BoardRect
+ */
+
+/**
+ * @typedef {{
+ *   left: number,
+ *   top: number,
+ *   right: number,
+ *   bottom: number,
+ *   width: number,
+ *   height: number,
+ * }} ViewportRect
+ */
+
 /** @typedef {"app-gesture" | "native-pan"} ViewportTouchPolicy */
 /** @typedef {"none" | "browser" | "viewport-gesture"} TouchGestureOwner */
 /** @typedef {Pick<import("../../types/app-runtime").AppToolsState, "config" | "coordinates" | "dom" | "preferences" | "toolRegistry" | "viewportState">} ViewportRuntime */
@@ -78,7 +98,10 @@ const TOUCH_EVENT_NAMES = [
  *   ensureBoardExtentAtLeast(width: number, height: number): boolean,
  *   ensureBoardExtentForPoint(x: number, y: number): boolean,
  *   ensureBoardExtentForBounds(bounds: {maxX: number, maxY: number} | null | undefined): boolean,
+ *   boardCoordinateToLayout(value: unknown): number,
  *   pageCoordinateToBoard(value: unknown): number,
+ *   boardRectToViewportRect(rect: BoardRect): ViewportRect,
+ *   clientRectToBoardLayoutRect(rect: {left?: unknown, top?: unknown, right?: unknown, bottom?: unknown, width?: unknown, height?: unknown}): BoardRect,
  *   panBy(dx: number, dy: number): void,
  *   panTo(left: number, top: number): void,
  *   zoomAt(scale: number, pageX: number, pageY: number): number,
@@ -102,6 +125,14 @@ const TOUCH_EVENT_NAMES = [
 function finiteOr(value, fallback) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
+}
+
+/**
+ * @param {unknown} value
+ * @returns {number}
+ */
+function finiteNonNegative(value) {
+  return Math.max(0, finiteOr(value, 0));
 }
 
 /**
@@ -456,6 +487,74 @@ export function createViewportController(Tools) {
    */
   function getAttachedDom() {
     return Tools.dom?.status === "attached" ? Tools.dom : null;
+  }
+
+  /**
+   * @returns {{left: number, top: number}}
+   */
+  function boardClientOrigin() {
+    const dom = getAttachedDom();
+    const rect =
+      dom &&
+      typeof dom.board.getBoundingClientRect === "function" &&
+      dom.board.getBoundingClientRect();
+    if (rect && Number.isFinite(rect.left) && Number.isFinite(rect.top)) {
+      return { left: rect.left, top: rect.top };
+    }
+    return {
+      left: -(document.documentElement.scrollLeft || 0),
+      top: -(document.documentElement.scrollTop || 0),
+    };
+  }
+
+  /**
+   * @param {unknown} value
+   * @returns {number}
+   */
+  function boardCoordinateToLayout(value) {
+    return boardToScroll(finiteOr(value, 0), getScale());
+  }
+
+  /**
+   * @param {BoardRect} rect
+   * @returns {ViewportRect}
+   */
+  function boardRectToViewportRect(rect) {
+    const origin = boardClientOrigin();
+    const left = origin.left + boardCoordinateToLayout(rect.x);
+    const top = origin.top + boardCoordinateToLayout(rect.y);
+    const width = boardCoordinateToLayout(finiteNonNegative(rect.width));
+    const height = boardCoordinateToLayout(finiteNonNegative(rect.height));
+    return {
+      left,
+      top,
+      right: left + width,
+      bottom: top + height,
+      width,
+      height,
+    };
+  }
+
+  /**
+   * @param {{left?: unknown, top?: unknown, right?: unknown, bottom?: unknown, width?: unknown, height?: unknown}} rect
+   * @returns {BoardRect}
+   */
+  function clientRectToBoardLayoutRect(rect) {
+    const origin = boardClientOrigin();
+    const left = finiteOr(rect.left, 0);
+    const top = finiteOr(rect.top, 0);
+    const width = Number.isFinite(Number(rect.width))
+      ? finiteNonNegative(rect.width)
+      : Math.max(0, finiteOr(rect.right, left) - left);
+    const height = Number.isFinite(Number(rect.height))
+      ? finiteNonNegative(rect.height)
+      : Math.max(0, finiteOr(rect.bottom, top) - top);
+    return {
+      x: left - origin.left,
+      y: top - origin.top,
+      width,
+      height,
+    };
   }
 
   /**
@@ -854,11 +953,14 @@ export function createViewportController(Tools) {
     ensureBoardExtentAtLeast,
     ensureBoardExtentForPoint,
     ensureBoardExtentForBounds,
+    boardCoordinateToLayout,
     pageCoordinateToBoard(value) {
       return Tools.coordinates.toBoardCoordinate(
         screenToBoard(value, getScale()),
       );
     },
+    boardRectToViewportRect,
+    clientRectToBoardLayoutRect,
     panBy(dx, dy) {
       panTo(
         document.documentElement.scrollLeft + dx,

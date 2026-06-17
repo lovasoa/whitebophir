@@ -82,6 +82,38 @@ body {
   display: block;
 }
 
+.hand-selection-rect {
+  z-index: 2;
+  box-sizing: border-box;
+  border: 1px dashed #111827;
+  pointer-events: none;
+}
+
+.hand-selection-button {
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  padding: 0;
+  border: 1px solid var(--board-control-border-strong);
+  border-radius: var(--board-control-radius);
+  background: var(--board-control-bg);
+  box-shadow: var(--board-control-shadow);
+  cursor: pointer;
+}
+
+.hand-selection-button:focus-visible {
+  outline: 2px solid var(--board-accent-strong);
+  outline-offset: 1px;
+}
+
+.hand-selection-button img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
 #menu,
 #boardHud,
 input,
