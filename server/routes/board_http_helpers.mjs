@@ -16,6 +16,8 @@ import { pinReplayBaseline } from "../board/registry.mjs";
 import { badRequest } from "../http/boundary_errors.mjs";
 import { requestScheme } from "../http/observation.mjs";
 import { publicPath } from "../http/request_url.mjs";
+import { isEditBanned } from "../socket/bans.mjs";
+import { resolveRequestClientIpSafe } from "../socket/policy.mjs";
 
 /** @import { HttpRequest, HttpResponse, ObservedHttpRequest, ServerConfig } from "../../types/server-runtime.d.ts" */
 
@@ -190,13 +192,22 @@ function ensureBoardUserSecretCookie(request, response, parsedUrl) {
  * @returns {ReturnType<typeof BoardPermissions.forBoard>}
  */
 function boardPermissionsForRequest(ctx, boardName) {
+  const config = ctx.runtime.config;
+  const userSecret = getUserSecretFromCookieHeader(ctx.request.headers.cookie);
   return BoardPermissions.forBoard({
-    config: ctx.runtime.config,
+    config,
     boardName,
-    userInfo: {
-      token: ctx.url.searchParams.get("token"),
-      userSecret: getUserSecretFromCookieHeader(ctx.request.headers.cookie),
-    },
+    userInfo: { token: ctx.url.searchParams.get("token"), userSecret },
+    // Render the served board state ban-aware too, so a banned user's HTML
+    // (board-state script + toolbar) is read-only from first paint, matching
+    // the socket. Same live predicate the socket path injects.
+    isBanned: () =>
+      isEditBanned(
+        boardName,
+        userSecret,
+        resolveRequestClientIpSafe(config, ctx.request),
+        Date.now(),
+      ),
   });
 }
 

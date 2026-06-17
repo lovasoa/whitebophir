@@ -234,27 +234,45 @@ function getClientIp(config, socket) {
 }
 
 /**
- * Last-resort client IP when the configured source is missing for a request.
- * Shared so bans and presence key on the same value.
+ * Last-resort client IP from a raw request when the configured source is missing.
+ * Shared so sockets, HTTP renders, bans, and presence all key on one value.
+ * @param {{socket?: {remoteAddress?: string}} | null | undefined} request
+ * @returns {string}
+ */
+function requestClientIpFallback(request) {
+  return request?.socket?.remoteAddress || "unknown";
+}
+
+/**
+ * Resolve a request's client IP without throwing.
+ * @param {SocketPolicyConfig} config
+ * @param {SocketRequest | {headers?: {[key: string]: string | string[] | undefined}, socket?: {remoteAddress?: string | undefined} | undefined}} request
+ * @returns {string}
+ */
+function resolveRequestClientIpSafe(config, request) {
+  try {
+    return getRequestClientIp(config, request);
+  } catch {
+    return requestClientIpFallback(request);
+  }
+}
+
+/**
  * @param {AppSocket} socket
  * @returns {string}
  */
 function clientIpFallback(socket) {
-  return socket.client?.request?.socket?.remoteAddress || "unknown";
+  return requestClientIpFallback(socket.client?.request);
 }
 
 /**
- * Resolve the client IP without throwing (falls back via {@link clientIpFallback}).
+ * Resolve a socket's client IP without throwing.
  * @param {SocketPolicyConfig} config
  * @param {AppSocket} socket
  * @returns {string}
  */
 function resolveClientIpSafe(config, socket) {
-  try {
-    return getClientIp(config, socket);
-  } catch {
-    return clientIpFallback(socket);
-  }
+  return resolveRequestClientIpSafe(config, socket.client?.request);
 }
 
 /**
@@ -444,6 +462,7 @@ export {
   canBanOnBoard,
   canEditBoard,
   clientIpFallback,
+  resolveRequestClientIpSafe,
   countConstructiveActions,
   countDestructiveActions,
   countTextCreationActions,
