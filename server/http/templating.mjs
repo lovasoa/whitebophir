@@ -13,7 +13,7 @@ import { parseRequestUrl } from "./request_url.mjs";
 
 /** @typedef {{[name: string]: string}} TranslationDictionary */
 /** @typedef {{[language: string]: TranslationDictionary}} TranslationMap */
-/** @typedef {{baseUrl: string, baseHref: string, languages: string[], language: string, translations: TranslationDictionary, configuration: object, moderator: boolean, htmlHeadSnippet: string, [name: string]: any}} TemplateParameters */
+/** @typedef {{baseUrl: string, baseHref: string, languages: string[], language: string, translations: TranslationDictionary, configuration: object, moderator: boolean, htmlHeadSnippet: string, varyCookie?: boolean, [name: string]: any}} TemplateParameters */
 /** @typedef {import("http").IncomingMessage} TemplateRequest */
 /** @typedef {import("http").ServerResponse} TemplateResponse */
 /** @typedef {string | string[] | undefined} HeaderValue */
@@ -211,6 +211,18 @@ function cacheControl(isDevelopment, prodValue) {
   return isDevelopment ? "no-store" : prodValue;
 }
 
+/**
+ * @param {URL} parsedUrl
+ * @param {TemplateParameters} parameters
+ * @returns {{Vary?: string}}
+ */
+function htmlVaryHeaders(parsedUrl, parameters) {
+  const vary = [];
+  if (!parsedUrl.searchParams.get("lang")) vary.push("Accept-Language");
+  if (parameters.varyCookie) vary.push("Cookie");
+  return vary.length === 0 ? {} : { Vary: vary.join(", ") };
+}
+
 const startHtmlResponse =
   /** @type {(response: TemplateResponse, request: TemplateRequest, parsedUrl: URL, parameters: TemplateParameters, cacheControlValue: string, contentLength?: number) => { stream: import("stream").Writable, encoding: import("./compression.mjs").CompressionEncoding | undefined }} */
   (
@@ -228,9 +240,7 @@ const startHtmlResponse =
       "Content-Type": "text/html",
       "Cache-Control": cacheControlValue,
       ...(typeof parameters.etag === "string" ? { ETag: parameters.etag } : {}),
-      ...(!parsedUrl.searchParams.get("lang")
-        ? { Vary: "Accept-Language" }
-        : {}),
+      ...htmlVaryHeaders(parsedUrl, parameters),
     });
 
 class StaticTemplate {

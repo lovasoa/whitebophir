@@ -135,7 +135,12 @@ async function serveLoadedBoardCacheHit(ctx, pageRequest) {
   const persistedSeq = loadedBoard.getPersistedSeq();
   if (!pageRequest.cachedSeqs.includes(persistedSeq)) return false;
 
-  respondWithBoardPageNotModified(ctx, pageRequest.boardName, persistedSeq);
+  respondWithBoardPageNotModified(
+    ctx,
+    pageRequest.boardName,
+    persistedSeq,
+    pageRequest.boardPermissions.boardState(loadedBoard),
+  );
   return true;
 }
 
@@ -189,10 +194,15 @@ function serveBoardDocumentCacheHit(ctx, pageRequest, document) {
   if (!matchesIfNoneMatch(ctx.request.headers["if-none-match"], etag)) {
     return false;
   }
+  const boardState = pageRequest.boardPermissions.boardState({
+    name: pageRequest.boardName,
+    readonly: document.metadata.readonly,
+  });
   respondWithBoardPageNotModified(
     ctx,
     pageRequest.boardName,
     document.metadata.seq || 0,
+    boardState,
     etag,
   );
   return true;
@@ -202,16 +212,50 @@ function serveBoardDocumentCacheHit(ctx, pageRequest, document) {
  * @param {HttpRouteContext} ctx
  * @param {string} boardName
  * @param {number} seq
+ * @param {AppBoardState} boardState
  * @param {string=} etag
  * @returns {void}
  */
-function respondWithBoardPageNotModified(ctx, boardName, seq, etag) {
+function respondWithBoardPageNotModified(
+  ctx,
+  boardName,
+  seq,
+  boardState,
+  etag,
+) {
   pinServedBoardBaseline(boardName, seq, ctx.runtime.config);
   ctx.response.writeHead(304, {
     "Cache-Control": ctx.runtime.boardTemplate.cacheControl(),
     ETag: etag || boardPageETag(seq),
+    Vary: boardHtmlVaryHeader(ctx.url, boardState),
   });
   ctx.response.end();
+}
+
+/**
+ * @param {AppBoardState} boardState
+ * @returns {boolean}
+ */
+function boardHtmlVariesByCookie(boardState) {
+  return (
+    boardState.readonly === true ||
+    boardState.canEdit !== true ||
+    boardState.canClear === true ||
+    boardState.canWrite !== true
+  );
+}
+
+/**
+ * @param {URL} parsedUrl
+ * @param {AppBoardState} boardState
+ * @returns {string}
+ */
+function boardHtmlVaryHeader(parsedUrl, boardState) {
+  const vary = [];
+  if (!parsedUrl.searchParams.get("lang")) vary.push("Accept-Language");
+  if (boardHtmlVariesByCookie(boardState)) vary.push("Cookie");
+  vary.push("Accept-Encoding");
+  return vary.join(", ");
 }
 
 /**
@@ -232,6 +276,7 @@ async function renderBoardDocument(ctx, pageRequest, document) {
   const renderOptions = {
     etag: boardPageETag(document.metadata.seq || 0),
     boardState,
+    varyCookie: boardHtmlVariesByCookie(boardState),
   };
 
   if (document.source === "svg" || document.source === "svg_backup") {
