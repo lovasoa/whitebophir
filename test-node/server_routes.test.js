@@ -1342,3 +1342,46 @@ test("board-scoped JWTs can access their authorized board pages", async () => {
     await closeServer(app);
   }
 });
+
+test("banned users get a read-only board page while other visitors do not", async () => {
+  const dirs = await createServerDirs();
+  const bans = require(
+    path.join(__dirname, "..", "server", "socket", "bans.mjs"),
+  );
+  const bannedSecret = "cccccccccccccccccccccccccccccccc";
+  const app = await createTestServer(
+    createServerConfig(dirs, { WEBROOT: CLIENT_WEBROOT }),
+  );
+  try {
+    bans.banBoardUser("ban-http-render", bannedSecret, null, Date.now());
+
+    const bannedResponse = await request(app, "/boards/ban-http-render", {
+      cookie: `wbo-user-secret-v1=${bannedSecret}`,
+    });
+    const visitorResponse = await request(app, "/boards/ban-http-render");
+
+    // The banned user can still view the board, but the served HTML is
+    // read-only: no edit capability and no drawing tools in the toolbar.
+    assert.equal(bannedResponse.statusCode, 200);
+    assert.deepEqual(parseRenderedBoardState(bannedResponse.body), {
+      readonly: false,
+      canEdit: false,
+      canClear: false,
+      canWrite: false,
+    });
+    assert.match(bannedResponse.body, /toolID-hand/);
+    assert.doesNotMatch(bannedResponse.body, /toolID-pencil/);
+
+    // A different visitor on the same board is unaffected by the ban.
+    assert.deepEqual(parseRenderedBoardState(visitorResponse.body), {
+      readonly: false,
+      canEdit: true,
+      canClear: false,
+      canWrite: true,
+    });
+    assert.match(visitorResponse.body, /toolID-pencil/);
+  } finally {
+    bans.resetBans();
+    await closeServer(app);
+  }
+});
