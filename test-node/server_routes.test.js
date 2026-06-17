@@ -163,6 +163,20 @@ function parseRenderedBoardState(body) {
   return JSON.parse(json);
 }
 
+/**
+ * @param {import("http").IncomingHttpHeaders} headers
+ * @param {string[]} expected
+ * @returns {void}
+ */
+function assertVaryTokens(headers, expected) {
+  const tokens = String(headers.vary || "")
+    .split(",")
+    .map((token) => token.trim())
+    .filter(Boolean)
+    .sort();
+  assert.deepEqual(tokens, expected.slice().sort());
+}
+
 test("in-process server imports do not register process signal handlers", async () => {
   const dirs = await createServerDirs();
   const sigintBefore = process.listenerCount("SIGINT");
@@ -947,6 +961,10 @@ test("board pages use seq-based etag and return 304 on cache hit", async () => {
 
     assert.equal(cachedResponse.statusCode, 304);
     assert.equal(cachedResponse.headers.etag, firstResponse.headers.etag);
+    assertVaryTokens(cachedResponse.headers, [
+      "Accept-Encoding",
+      "Accept-Language",
+    ]);
 
     const staleResponse = await request(app, "/boards/etag-board", {
       "If-None-Match": 'W/"wbo-seq-2"',
@@ -955,6 +973,90 @@ test("board pages use seq-based etag and return 304 on cache hit", async () => {
     assert.equal(staleResponse.statusCode, 200);
     assert.equal(staleResponse.headers.etag, 'W/"wbo-seq-3"');
   } finally {
+    await closeServer(app);
+  }
+});
+
+test("board page Vary headers include Cookie for non-default board shells", async () => {
+  const dirs = await createServerDirs();
+  const moderatorSecret = "dddddddddddddddddddddddddddddddd";
+  const bannedSecret = "cccccccccccccccccccccccccccccccc";
+  const bans = require(
+    path.join(__dirname, "..", "server", "socket", "bans.mjs"),
+  );
+  await fs.writeFile(
+    boardSvgFile(dirs.historyDir, "readonly-vary"),
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="2" data-wbo-readonly="true"><defs id="defs"></defs><g id="drawingArea"></g><g id="cursors"></g></svg>',
+    "utf8",
+  );
+
+  const app = await createTestServer(
+    createServerConfig(dirs, {
+      WEBROOT: CLIENT_WEBROOT,
+      BOARD_MODERATORS: new Map([
+        ["moderator-vary", new Set([moderatorSecret])],
+      ]),
+    }),
+  );
+  try {
+    bans.resetBans();
+    bans.banBoardUser("banned-vary", bannedSecret, null, Date.now());
+
+    const defaultResponse = await request(app, "/boards/default-vary");
+    const moderatorResponse = await request(app, "/boards/moderator-vary", {
+      cookie: `wbo-user-secret-v1=${moderatorSecret}`,
+    });
+    const readonlyResponse = await request(app, "/boards/readonly-vary");
+    const bannedResponse = await request(app, "/boards/banned-vary", {
+      cookie: `wbo-user-secret-v1=${bannedSecret}`,
+    });
+    const localizedModeratorResponse = await request(
+      app,
+      "/boards/moderator-vary?lang=fr",
+      {
+        cookie: `wbo-user-secret-v1=${moderatorSecret}`,
+      },
+    );
+    const cachedReadonlyResponse = await request(app, "/boards/readonly-vary", {
+      "If-None-Match": String(readonlyResponse.headers.etag),
+    });
+
+    assert.equal(defaultResponse.statusCode, 200);
+    assert.equal(moderatorResponse.statusCode, 200);
+    assert.equal(readonlyResponse.statusCode, 200);
+    assert.equal(bannedResponse.statusCode, 200);
+    assert.equal(localizedModeratorResponse.statusCode, 200);
+    assert.equal(cachedReadonlyResponse.statusCode, 304);
+    assertVaryTokens(defaultResponse.headers, [
+      "Accept-Encoding",
+      "Accept-Language",
+    ]);
+    assertVaryTokens(moderatorResponse.headers, [
+      "Accept-Encoding",
+      "Accept-Language",
+      "Cookie",
+    ]);
+    assertVaryTokens(readonlyResponse.headers, [
+      "Accept-Encoding",
+      "Accept-Language",
+      "Cookie",
+    ]);
+    assertVaryTokens(bannedResponse.headers, [
+      "Accept-Encoding",
+      "Accept-Language",
+      "Cookie",
+    ]);
+    assertVaryTokens(localizedModeratorResponse.headers, [
+      "Accept-Encoding",
+      "Cookie",
+    ]);
+    assertVaryTokens(cachedReadonlyResponse.headers, [
+      "Accept-Encoding",
+      "Accept-Language",
+      "Cookie",
+    ]);
+  } finally {
+    bans.resetBans();
     await closeServer(app);
   }
 });
