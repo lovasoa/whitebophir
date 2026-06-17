@@ -8,7 +8,11 @@ import { SocketEvents } from "../../client-data/js/socket_events.js";
 import { Cursor } from "../../client-data/tools/index.js";
 import { getBoardSession } from "../board/session.mjs";
 import observability from "../observability/index.mjs";
-import { canApplyBoardMessage, normalizeBroadcastData } from "./policy.mjs";
+import {
+  boardStateForSocket,
+  canApplyBoardMessage,
+  normalizeBroadcastData,
+} from "./policy.mjs";
 import { updateBoardUserFromMessage } from "./presence.mjs";
 import {
   enforceBroadcastPostNormalization,
@@ -319,6 +323,7 @@ function finishSuccessfulPersistentBoardWrite(
 
 /**
  * @param {AppSocket} socket
+ * @param {BoardData} board
  * @param {string} boardName
  * @param {NormalizedMessageData} data
  * @param {string} clientIp
@@ -330,6 +335,7 @@ function finishSuccessfulPersistentBoardWrite(
  */
 async function persistBoardBroadcast(
   socket,
+  board,
   boardName,
   data,
   clientIp,
@@ -339,7 +345,6 @@ async function persistBoardBroadcast(
   runtime,
 ) {
   if (!socket.rooms.has(boardName)) socket.join(boardName);
-  const board = await runtime.getBoard(boardName, config);
   if (!canApplyBoardMessage(config, board, data, socket)) {
     rejectBlockedBoardWrite(socket, board, boardName, data, clientIp, userName);
     return;
@@ -442,6 +447,8 @@ async function handleBroadcastWriteMessage(
   tracing.setActiveSpanAttributes(
     boardMutationTraceAttributes(boardName, userName, normalizedData),
   );
+  const board = await runtime.getBoard(boardName, config);
+  const boardState = boardStateForSocket(config, board, socket);
   if (
     !enforceBroadcastPostNormalization({
       socket,
@@ -451,12 +458,14 @@ async function handleBroadcastWriteMessage(
       userName,
       now,
       config,
+      boardState,
     })
   ) {
     return;
   }
   await persistBoardBroadcast(
     socket,
+    board,
     boardName,
     normalizedData,
     clientIp,

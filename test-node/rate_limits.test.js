@@ -1,7 +1,12 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
-const { Eraser, Pencil, Text } = require("../client-data/tools/index.js");
+const {
+  Clear,
+  Eraser,
+  Pencil,
+  Text,
+} = require("../client-data/tools/index.js");
 
 const {
   createConfig,
@@ -294,6 +299,97 @@ test("destructive per-IP rate limit closes the socket when exceeded", async () =
             limit: 0,
             periodMs: 10_000,
             retryAfterMs: 10_000,
+          },
+        },
+      );
+    },
+  );
+});
+
+test("canClear users bypass the destructive per-IP rate limit", async () => {
+  const moderatorSecret = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  await withSocketConfig(
+    {
+      GENERAL_RATE_LIMITS: { limit: 10, periodMs: 4096, overrides: {} },
+      DESTRUCTIVE_ACTION_RATE_LIMITS: {
+        limit: 0,
+        periodMs: 10_000,
+        overrides: {},
+      },
+      BOARD_MODERATORS: new Map([
+        ["clear-rate-limit-board", new Set([moderatorSecret])],
+      ]),
+    },
+    async (sockets) => {
+      const { socket, handlers, emitted } = createSocket({
+        headers: {
+          "user-agent": "test-agent",
+          cookie: `wbo-user-secret-v1=${moderatorSecret}`,
+        },
+        remoteAddress: "203.0.113.21",
+        query: { board: "clear-rate-limit-board" },
+      });
+      await sockets.__test.handleSocketConnection(socket, sockets.__config);
+
+      assert.ok(handlers.broadcast);
+      await handlers.broadcast({
+        tool: Clear.id,
+        type: MutationType.CLEAR,
+      });
+
+      assert.notEqual(socket.disconnected, true);
+      assert.equal(socket.disconnectCalls.length, 0);
+      assert.equal(
+        emitted.some((event) => event.event === "rate-limited"),
+        false,
+      );
+    },
+  );
+});
+
+test("canClear users still hit the general per-IP rate limit", async () => {
+  const moderatorSecret = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+  await withSocketConfig(
+    {
+      GENERAL_RATE_LIMITS: { limit: 0, periodMs: 4096, overrides: {} },
+      DESTRUCTIVE_ACTION_RATE_LIMITS: {
+        limit: 0,
+        periodMs: 10_000,
+        overrides: {},
+      },
+      BOARD_MODERATORS: new Map([
+        ["general-rate-limit-board", new Set([moderatorSecret])],
+      ]),
+    },
+    async (sockets) => {
+      const { socket, handlers, emitted } = createSocket({
+        headers: {
+          "user-agent": "test-agent",
+          cookie: `wbo-user-secret-v1=${moderatorSecret}`,
+        },
+        remoteAddress: "203.0.113.22",
+        query: { board: "general-rate-limit-board" },
+      });
+      await sockets.__test.handleSocketConnection(socket, sockets.__config);
+
+      assert.ok(handlers.broadcast);
+      await handlers.broadcast({
+        tool: Clear.id,
+        type: MutationType.CLEAR,
+      });
+
+      assert.equal(socket.disconnected, true);
+      assert.equal(socket.disconnectCalls.length, 1);
+      assert.deepEqual(
+        emitted.find((event) => event.event === "rate-limited"),
+        {
+          event: "rate-limited",
+          payload: {
+            event: "GENERAL_RATE_LIMIT_EXCEEDED",
+            kind: "general",
+            limit: 0,
+            periodMs: 4096,
+            retryAfterMs: 4096,
           },
         },
       );

@@ -42,6 +42,7 @@ const { logger, metrics, tracing } = observability;
  *   userName: string,
  *   now: number,
  *   config: ServerConfig,
+ *   boardState?: {canClear?: boolean} | null,
  * }} RateLimitRequest
  */
 
@@ -340,6 +341,7 @@ function enforceGeneralRateLimit(request) {
  * @returns {boolean}
  */
 function enforceDestructiveRateLimit(request) {
+  if (request.boardState?.canClear === true) return true;
   return enforceIpRateLimit({
     ...request,
     kind: "destructive",
