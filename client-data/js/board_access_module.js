@@ -1,4 +1,3 @@
-import { boardStateGrantsCapability } from "../tools/manifest.js";
 import { DEFAULT_BOARD_STATE } from "./board_page_state.js";
 
 /** @import { AppBoardState, AppToolsState } from "../../types/app-runtime" */
@@ -30,35 +29,31 @@ export class AccessModule {
   applyBoardState(boardState) {
     const Tools = this.getTools();
     this.boardState = boardState;
-    const registry = Tools.toolRegistry;
 
-    // Tools and the style palette follow the live edit capability, so a
-    // read-only user (including one banned on an otherwise writable board) never
-    // keeps tools they cannot use. Mirrors the server-rendered toolbar, which
-    // filters the same way via boardStateGrantsCapability.
+    // Hide editing affordances whenever the user cannot edit (a read-only board,
+    // or a banned user on a writable one). The drawing tools themselves are
+    // gated by shouldDisplayTool, which is capability-aware.
+    const hideEditingTools = !this.canEdit;
     const settings = document.getElementById("settings");
-    if (settings) settings.style.display = this.canEdit ? "" : "none";
+    if (settings) settings.style.display = hideEditingTools ? "none" : "";
 
-    Object.keys(registry.mounted || {}).forEach((toolName) => {
+    Object.keys(Tools.toolRegistry.mounted || {}).forEach((toolName) => {
       const toolElem = document.getElementById(`toolID-${toolName}`);
       if (!toolElem) return;
-      const granted = boardStateGrantsCapability(
-        boardState,
-        registry.mounted[toolName]?.requiredCapability,
-      );
-      toolElem.style.display =
-        granted && registry.shouldDisplayTool(toolName) ? "" : "none";
+      toolElem.style.display = Tools.toolRegistry.shouldDisplayTool(toolName)
+        ? ""
+        : "none";
     });
 
-    registry.syncDrawToolAvailability(true);
+    Tools.toolRegistry.syncDrawToolAvailability(true);
 
-    const current = registry.current;
     if (
-      current &&
-      registry.mounted.hand &&
-      !boardStateGrantsCapability(boardState, current.requiredCapability)
+      hideEditingTools &&
+      Tools.toolRegistry.current &&
+      !Tools.toolRegistry.shouldDisplayTool(Tools.toolRegistry.current.name) &&
+      Tools.toolRegistry.mounted.hand
     ) {
-      registry.change("hand");
+      Tools.toolRegistry.change("hand");
     }
   }
 }
