@@ -1,4 +1,5 @@
 import {
+  boardStateGrantsCapability,
   getToolIconPath,
   getToolModuleImportPath,
   getToolStylesheetPath,
@@ -243,7 +244,14 @@ export class ToolRegistryModule {
 
   /** @param {string} toolName */
   shouldDisplayTool(toolName) {
-    return getToolButton(toolName) !== null;
+    if (getToolButton(toolName) === null) return false;
+    // A tool is only shown when the current board state grants its capability,
+    // mirroring the server's getVisibleTools. This keeps read-only users (e.g.
+    // banned ones) from seeing or activating tools they cannot use.
+    return boardStateGrantsCapability(
+      Tools.access.boardState,
+      TOOL_BY_ID[toolName]?.requiredCapability,
+    );
   }
 
   /** @param {string} toolName */
