@@ -114,3 +114,60 @@ test("board capabilities allow clear-capable JWT claims to clear boards", () => 
     canWrite: true,
   });
 });
+
+test("a live edit ban degrades a non-moderator to read-only", () => {
+  const { BoardPermissions } = require(BOARD_CAPABILITIES_PATH);
+  const config = createConfig({ AUTH_SECRET_KEY: "" });
+  const board = createBoard("open-board", false);
+  const permissions = BoardPermissions.forBoard({
+    config,
+    boardName: board.name,
+    userInfo: {},
+    isBanned: () => true,
+  });
+
+  assert.equal(permissions.canOpen(), true); // still allowed to view
+  assert.deepEqual(permissions.resolveCapabilities(board), {
+    canOpen: true,
+    canEdit: false,
+    canClear: false,
+  });
+});
+
+test("a moderator bypasses edit bans", () => {
+  const { BoardPermissions } = require(BOARD_CAPABILITIES_PATH);
+  const config = createConfig({ AUTH_SECRET_KEY: "test-secret" });
+  const token = tokenFor(config, { roles: ["moderator:clear-board"] });
+  const board = createBoard("clear-board", false);
+  const permissions = BoardPermissions.forBoard({
+    config,
+    boardName: board.name,
+    userInfo: { token },
+    isBanned: () => true,
+  });
+
+  assert.deepEqual(permissions.resolveCapabilities(board), {
+    canOpen: true,
+    canEdit: true,
+    canClear: true,
+  });
+});
+
+test("ban state is re-read live on each capability query", () => {
+  const { BoardPermissions } = require(BOARD_CAPABILITIES_PATH);
+  const config = createConfig({ AUTH_SECRET_KEY: "" });
+  const board = createBoard("open-board", false);
+  let banned = false;
+  const permissions = BoardPermissions.forBoard({
+    config,
+    boardName: board.name,
+    userInfo: {},
+    isBanned: () => banned,
+  });
+
+  assert.equal(permissions.resolveCapabilities(board).canEdit, true);
+  banned = true;
+  assert.equal(permissions.resolveCapabilities(board).canEdit, false);
+  banned = false; // e.g. the ban TTL expired
+  assert.equal(permissions.resolveCapabilities(board).canEdit, true);
+});

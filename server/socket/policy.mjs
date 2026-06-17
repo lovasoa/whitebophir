@@ -6,6 +6,7 @@ import {
 import RateLimitCommon from "../../client-data/js/rate_limit_common.js";
 import { BoardPermissions } from "../auth/board_capabilities.mjs";
 import observability from "../observability/index.mjs";
+import { isEditBanned } from "./bans.mjs";
 import { normalizeIncomingMessage } from "./message_validation.mjs";
 import { getSocketUserSecret } from "./request.mjs";
 
@@ -233,6 +234,30 @@ function getClientIp(config, socket) {
 }
 
 /**
+ * Last-resort client IP when the configured source is missing for a request.
+ * Shared so bans and presence key on the same value.
+ * @param {AppSocket} socket
+ * @returns {string}
+ */
+function clientIpFallback(socket) {
+  return socket.client?.request?.socket?.remoteAddress || "unknown";
+}
+
+/**
+ * Resolve the client IP without throwing (falls back via {@link clientIpFallback}).
+ * @param {SocketPolicyConfig} config
+ * @param {AppSocket} socket
+ * @returns {string}
+ */
+function resolveClientIpSafe(config, socket) {
+  try {
+    return getClientIp(config, socket);
+  } catch {
+    return clientIpFallback(socket);
+  }
+}
+
+/**
  * @param {MessageData | null | undefined} data
  * @returns {number}
  */
@@ -334,13 +359,22 @@ function boardPermissionsForSocket(config, boardName, socket) {
   const current = socket.boardPermissionContext;
   if (current?.boardName === boardName) return current.permissions;
 
+  const userSecret = getSocketUserSecret(socket);
   const permissions = BoardPermissions.forBoard({
     config,
     boardName,
-    userInfo: {
-      token: getSocketToken(socket),
-      userSecret: getSocketUserSecret(socket),
-    },
+    userInfo: { token: getSocketToken(socket), userSecret },
+    // Lazy + live: only resolved when a capability query depends on the ban
+    // (so canOpen never needs the IP), and re-read on every query so a ban and
+    // its expiry take effect without reconnecting. Tolerant of a missing IP
+    // source, keying on the same address presence records.
+    isBanned: () =>
+      isEditBanned(
+        boardName,
+        userSecret,
+        resolveClientIpSafe(config, socket),
+        Date.now(),
+      ),
   });
   socket.boardPermissionContext = { boardName, permissions };
   return permissions;
@@ -409,6 +443,7 @@ export {
   canApplyBoardMessage,
   canBanOnBoard,
   canEditBoard,
+  clientIpFallback,
   countConstructiveActions,
   countDestructiveActions,
   countTextCreationActions,
