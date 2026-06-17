@@ -14,8 +14,9 @@ import {
 } from "./request.mjs";
 
 /** @import { AppSocket, ConnectedUserPayload, NormalizedMessageData, ServerConfig } from "../../types/server-runtime.d.ts" */
-/** @typedef {{socketId: string, userId: string, userSecret: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number}} BoardUser */
+/** @typedef {{socketId: string, userId: string, userSecret: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number, canEdit: boolean, canClear: boolean}} BoardUser */
 /** @typedef {(socket: AppSocket, boardName: string, config: ServerConfig) => string} ResolveClientIp */
+/** @typedef {{canEdit: boolean, canClear: boolean}} UserCapabilities */
 
 /** @type {Map<string, Map<string, BoardUser>>} */
 const boardUsers = new Map();
@@ -44,10 +45,18 @@ function buildUserName(ip, userSecret) {
  * @param {string} boardName
  * @param {ServerConfig} config
  * @param {ResolveClientIp} resolveClientIp
+ * @param {UserCapabilities} capabilities
  * @param {number} [now]
  * @returns {BoardUser}
  */
-function buildBoardUserRecord(socket, boardName, config, resolveClientIp, now) {
+function buildBoardUserRecord(
+  socket,
+  boardName,
+  config,
+  resolveClientIp,
+  capabilities,
+  now,
+) {
   const userSecret = getSocketUserSecret(socket);
   const ip = resolveClientIp(socket, boardName, config);
   const size = WBOMessageCommon.clampSize(
@@ -68,6 +77,8 @@ function buildBoardUserRecord(socket, boardName, config, resolveClientIp, now) {
     size,
     lastTool: getSocketQueryValue(socket, "tool") || "hand",
     lastSeen: now || Date.now(),
+    canEdit: capabilities.canEdit,
+    canClear: capabilities.canClear,
   };
 }
 
@@ -115,6 +126,8 @@ function serializeBoardUser(user) {
     color: user.color,
     size: user.size,
     lastTool: user.lastTool,
+    canEdit: user.canEdit,
+    canClear: user.canClear,
   };
 }
 
@@ -123,14 +136,27 @@ function serializeBoardUser(user) {
  * @param {string} boardName
  * @param {ServerConfig} config
  * @param {ResolveClientIp} resolveClientIp
+ * @param {UserCapabilities} capabilities
  * @returns {BoardUser}
  */
-function ensureBoardUser(socket, boardName, config, resolveClientIp) {
+function ensureBoardUser(
+  socket,
+  boardName,
+  config,
+  resolveClientIp,
+  capabilities,
+) {
   const users = getBoardUserMap(boardName);
   const existing = users.get(socket.id);
   if (existing) return existing;
 
-  const user = buildBoardUserRecord(socket, boardName, config, resolveClientIp);
+  const user = buildBoardUserRecord(
+    socket,
+    boardName,
+    config,
+    resolveClientIp,
+    capabilities,
+  );
   users.set(socket.id, user);
   return user;
 }

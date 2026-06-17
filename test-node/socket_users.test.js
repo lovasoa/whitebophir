@@ -423,6 +423,166 @@ test("socket boardstate uses the same capability-shaped state as rendered board 
   );
 });
 
+test("presence payloads expose canEdit/canClear for sidebar status", async () => {
+  const moderatorSecret = "dddddddddddddddddddddddddddddddd";
+  await createSocketScenario(
+    {
+      historyDirPrefix: "wbo-users-presence-caps-",
+      config: {
+        BOARD_MODERATORS: new Map([["caps-board", new Set([moderatorSecret])]]),
+      },
+    },
+    async ({ connect }) => {
+      await connect({
+        id: "socket-caps-mod",
+        remoteAddress: "203.0.113.90",
+        headers: withUserSecretCookie(moderatorSecret),
+        query: { board: "caps-board", tool: "hand" },
+      });
+      const viewer = await connect({
+        id: "socket-caps-viewer",
+        remoteAddress: "203.0.113.91",
+        headers: withUserSecretCookie("99999999999999999999999999999999"),
+        query: { board: "caps-board", tool: "hand" },
+      });
+
+      const joined = viewer.emitted.filter(
+        (event) => event.event === "user_joined",
+      );
+      const moderatorPayload = getRequiredValue(
+        joined.find((event) => event.payload.socketId === "socket-caps-mod"),
+      ).payload;
+      const viewerPayload = getRequiredValue(
+        joined.find((event) => event.payload.socketId === "socket-caps-viewer"),
+      ).payload;
+
+      assert.equal(moderatorPayload.canEdit, true);
+      assert.equal(moderatorPayload.canClear, true);
+      assert.equal(viewerPayload.canEdit, true);
+      assert.equal(viewerPayload.canClear, false);
+    },
+  );
+});
+
+test("presence reflects JWT moderator role, not just configured moderators", async () => {
+  const authSecret = "test-secret";
+  const moderatorToken = jsonwebtoken.sign(
+    { sub: "mod", roles: ["moderator:jwt-caps-board"] },
+    authSecret,
+  );
+  const editorToken = jsonwebtoken.sign(
+    { sub: "ed", roles: ["editor:jwt-caps-board"] },
+    authSecret,
+  );
+
+  await createSocketScenario(
+    {
+      historyDirPrefix: "wbo-users-presence-jwt-mod-",
+      config: { AUTH_SECRET_KEY: authSecret },
+    },
+    async ({ connect }) => {
+      await connect({
+        id: "socket-jwt-mod",
+        remoteAddress: "203.0.113.92",
+        headers: withUserSecretCookie("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"),
+        token: moderatorToken,
+        query: { board: "jwt-caps-board", tool: "hand" },
+      });
+      const viewer = await connect({
+        id: "socket-jwt-viewer",
+        remoteAddress: "203.0.113.93",
+        headers: withUserSecretCookie("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac"),
+        token: editorToken,
+        query: { board: "jwt-caps-board", tool: "hand" },
+      });
+
+      const moderatorPayload = getRequiredValue(
+        viewer.emitted
+          .filter((event) => event.event === "user_joined")
+          .find((event) => event.payload.socketId === "socket-jwt-mod"),
+      ).payload;
+      assert.equal(moderatorPayload.canClear, true);
+      assert.equal(moderatorPayload.canEdit, true);
+    },
+  );
+});
+
+test("a banned user reconnects read-only in their own boardstate and in presence", async () => {
+  const moderatorSecret = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+  const targetSecret = "ffffffffffffffffffffffffffffffff";
+  await createSocketScenario(
+    {
+      historyDirPrefix: "wbo-users-banned-readonly-",
+      config: {
+        BOARD_MODERATORS: new Map([
+          ["ban-readonly-board", new Set([moderatorSecret])],
+        ]),
+      },
+    },
+    async ({ connect, handler }) => {
+      const moderator = await connect({
+        id: "socket-ban-mod",
+        remoteAddress: "203.0.113.94",
+        headers: withUserSecretCookie(moderatorSecret),
+        query: { board: "ban-readonly-board", tool: "hand" },
+      });
+      await connect({
+        id: "socket-ban-target",
+        remoteAddress: "203.0.113.95",
+        headers: withUserSecretCookie(targetSecret),
+        query: { board: "ban-readonly-board", tool: "hand" },
+      });
+
+      handler(moderator, "report_user")({ socketId: "socket-ban-target" });
+
+      // The banned user reconnects (same secret + ip): now read-only everywhere.
+      const reconnected = await connect({
+        id: "socket-ban-target-2",
+        remoteAddress: "203.0.113.95",
+        headers: withUserSecretCookie(targetSecret),
+        query: { board: "ban-readonly-board", tool: "hand" },
+      });
+
+      // Own boardstate hides editing tools.
+      assert.equal(
+        getRequiredValue(
+          reconnected.emitted.find((event) => event.event === "boardstate"),
+        ).payload.canEdit,
+        false,
+      );
+      // Own presence row.
+      assert.equal(
+        getRequiredValue(
+          reconnected.emitted
+            .filter((event) => event.event === "user_joined")
+            .find((event) => event.payload.socketId === "socket-ban-target-2"),
+        ).payload.canEdit,
+        false,
+      );
+      // What other users on the board receive.
+      assert.equal(
+        getRequiredValue(
+          reconnected.broadcasted.find(
+            (event) =>
+              event.event === "user_joined" &&
+              event.payload.socketId === "socket-ban-target-2",
+          ),
+        ).payload.canEdit,
+        false,
+      );
+
+      // The moderator stays fully capable.
+      const moderatorPayload = getRequiredValue(
+        moderator.emitted
+          .filter((event) => event.event === "user_joined")
+          .find((event) => event.payload.socketId === "socket-ban-mod"),
+      ).payload;
+      assert.equal(moderatorPayload.canEdit, true);
+      assert.equal(moderatorPayload.canClear, true);
+    },
+  );
+});
+
 test("connection replay records outcome metrics with signed seq gap inputs", async () => {
   await createSocketScenario(
     { historyDirPrefix: "wbo-users-connection-replay-metrics-" },
@@ -1985,7 +2145,7 @@ test("moderator report bans reported secret and ip without disconnecting moderat
         getRequiredValue(
           sameIp.emitted.find((event) => event.event === "mutation_rejected"),
         ).payload,
-        { clientMutationId: "cm-ip-ban", reason: "banned" },
+        { clientMutationId: "cm-ip-ban", reason: "write_blocked" },
       );
 
       const sameSecret = await connect({
@@ -2014,7 +2174,7 @@ test("moderator report bans reported secret and ip without disconnecting moderat
             (event) => event.event === "mutation_rejected",
           ),
         ).payload,
-        { clientMutationId: "cm-secret-ban", reason: "banned" },
+        { clientMutationId: "cm-secret-ban", reason: "write_blocked" },
       );
 
       await invoke(

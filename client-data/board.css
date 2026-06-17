@@ -363,6 +363,10 @@ select {
   font-weight: 700;
 }
 
+.connected-user-row-readonly .connected-user-name {
+  font-style: italic;
+}
+
 .connected-user-main {
   min-width: 0;
 }

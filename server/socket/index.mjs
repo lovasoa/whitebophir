@@ -20,6 +20,7 @@ import {
 import { resetBans } from "./bans.mjs";
 import {
   boardStateForSocket,
+  clientIpFallback,
   getClientIp,
   normalizeBroadcastData,
 } from "./policy.mjs";
@@ -56,7 +57,7 @@ import {
   handleReportUserMessage,
   resetSocketReports,
 } from "./reports.mjs";
-import { getSocketRequest, getSocketUserSecret } from "./request.mjs";
+import { getSocketUserSecret } from "./request.mjs";
 import { handleTurnstileTokenMessage } from "./turnstile.mjs";
 
 const { Server } = socketIO;
@@ -345,12 +346,7 @@ function resolveClientIp(socket, boardName, config) {
         }),
       );
     }
-    // Fallback to remoteAddress
-    const request = getSocketRequest(socket);
-    if (request.socket?.remoteAddress) {
-      return request.socket.remoteAddress;
-    }
-    return "unknown";
+    return clientIpFallback(socket);
   }
 }
 
@@ -473,6 +469,9 @@ async function bootstrapSocketBoard(socket, replay, config) {
           }),
         );
       }
+      // Capabilities the joining socket has on this board. Reused both as the
+      // socket's own BOARDSTATE and as the capabilities other users see for it.
+      const boardState = boardStateForSocket(config, board, socket);
       const wasJoined = board.users.has(socket.id);
       board.users.add(socket.id);
       if (!wasJoined || !getBoardUserMap(boardName).has(socket.id)) {
@@ -481,6 +480,10 @@ async function bootstrapSocketBoard(socket, replay, config) {
           boardName,
           config,
           resolveClientIp,
+          {
+            canEdit: boardState.canEdit === true,
+            canClear: boardState.canClear === true,
+          },
         );
         if (!wasJoined) {
           connectedUsersTotal += 1;
@@ -503,10 +506,7 @@ async function bootstrapSocketBoard(socket, replay, config) {
           "wbo.socket.replay.count": replayCount,
         });
       }
-      socket.emit(
-        SocketEvents.BOARDSTATE,
-        boardStateForSocket(config, board, socket),
-      );
+      socket.emit(SocketEvents.BOARDSTATE, boardState);
       syncedPersistentSockets.delete(socket.id);
       socket.emit(SocketEvents.BROADCAST, replay.replayBatch);
       syncedPersistentSockets.add(socket.id);
@@ -859,6 +859,7 @@ export const __test = {
       boardName,
       config,
       resolveClientIp,
+      { canEdit: true, canClear: false },
       now,
     );
   },

@@ -340,6 +340,8 @@ export type ConnectedUser = {
   color: string;
   size: number;
   lastTool: string;
+  canEdit?: boolean;
+  canClear?: boolean;
   lastFocusX?: number;
   lastFocusY?: number;
   lastActivityAt?: number;

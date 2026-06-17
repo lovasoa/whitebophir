@@ -537,7 +537,11 @@ function updateConnectedUserRow(getTools, row, user) {
   const name = /** @type {HTMLElement | null} */ (
     row.querySelector(".connected-user-name")
   );
-  if (name) name.textContent = user.name;
+  if (name) {
+    name.textContent = user.canClear ? `\u{1F338} ${user.name}` : user.name;
+  }
+
+  row.classList.toggle("connected-user-row-readonly", user.canEdit === false);
 
   const meta = /** @type {HTMLElement | null} */ (
     row.querySelector(".connected-user-meta")

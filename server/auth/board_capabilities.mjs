@@ -14,6 +14,7 @@ import { isConfiguredModerator } from "./board_moderators.mjs";
 /** @typedef {{AUTH_SECRET_KEY: string, BOARD_MODERATORS?: Map<string, Set<string>>}} BoardCapabilityConfig */
 /** @typedef {{name: string, readonly?: boolean, isReadOnly?: () => boolean}} BoardCapabilityBoard */
 /** @typedef {{token?: string | null, userSecret?: string | null}} BoardCapabilityUserInfo */
+/** @typedef {() => boolean} IsBannedPredicate */
 /** @typedef {import("../../types/app-runtime").BoardCapabilities} BoardCapabilities */
 /** @typedef {import("../../types/app-runtime").BoardCapability} BoardCapability */
 /** @typedef {import("../../types/app-runtime").AppBoardState} RenderedBoardState */
@@ -73,7 +74,12 @@ function capabilitiesGrant(capabilities, capability) {
  * Creates a per-request/per-socket resolver so JWT verification happens once
  * for a board and the resulting compatibility role stays inside this module.
  *
- * @param {{config: BoardCapabilityConfig, boardName: string, userInfo?: BoardCapabilityUserInfo}} input
+ * `isBanned` is a live predicate (re-evaluated on every capability query) so a
+ * time-based edit ban degrades `canEdit` to `false` without a separate
+ * enforcement path. Moderators bypass it. Defaults to never-banned, which keeps
+ * ban-unaware callers (HTTP rendering) untouched.
+ *
+ * @param {{config: BoardCapabilityConfig, boardName: string, userInfo?: BoardCapabilityUserInfo, isBanned?: IsBannedPredicate}} input
  * @returns {{
  *   canOpen: () => boolean,
  *   canBan: () => boolean,
@@ -86,6 +92,7 @@ function capabilitiesGrant(capabilities, capability) {
 function forBoard(input) {
   const jwtEnabled = input.config.AUTH_SECRET_KEY !== "";
   const role = roleForBoard(input.config, input.boardName, input.userInfo);
+  const isBanned = input.isBanned || (() => false);
 
   function canOpen() {
     return !jwtEnabled || role !== "forbidden";
@@ -98,10 +105,11 @@ function forBoard(input) {
   function resolveCapabilities(board) {
     const readonly = isBoardReadOnly(board);
     const moderator = isClearCapableRole(role);
+    const banned = !moderator && isBanned();
     if (!jwtEnabled && !moderator) {
       return {
         canOpen: true,
-        canEdit: !readonly,
+        canEdit: !readonly && !banned,
         canClear: false,
       };
     }
@@ -109,7 +117,7 @@ function forBoard(input) {
     const open = canOpen();
     return {
       canOpen: open,
-      canEdit: open && (!readonly || isEditCapableRole(role)),
+      canEdit: open && !banned && (!readonly || isEditCapableRole(role)),
       canClear: moderator,
     };
   }
