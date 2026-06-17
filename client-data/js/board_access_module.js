@@ -1,3 +1,4 @@
+import { boardStateGrantsCapability } from "../tools/manifest.js";
 import { DEFAULT_BOARD_STATE } from "./board_page_state.js";
 
 /** @import { AppBoardState, AppToolsState } from "../../types/app-runtime" */
@@ -29,28 +30,35 @@ export class AccessModule {
   applyBoardState(boardState) {
     const Tools = this.getTools();
     this.boardState = boardState;
+    const registry = Tools.toolRegistry;
 
-    const hideEditingTools = this.readOnly && !this.canEdit;
+    // Tools and the style palette follow the live edit capability, so a
+    // read-only user (including one banned on an otherwise writable board) never
+    // keeps tools they cannot use. Mirrors the server-rendered toolbar, which
+    // filters the same way via boardStateGrantsCapability.
     const settings = document.getElementById("settings");
-    if (settings) settings.style.display = hideEditingTools ? "none" : "";
+    if (settings) settings.style.display = this.canEdit ? "" : "none";
 
-    Object.keys(Tools.toolRegistry.mounted || {}).forEach((toolName) => {
+    Object.keys(registry.mounted || {}).forEach((toolName) => {
       const toolElem = document.getElementById(`toolID-${toolName}`);
       if (!toolElem) return;
-      toolElem.style.display = Tools.toolRegistry.shouldDisplayTool(toolName)
-        ? ""
-        : "none";
+      const granted = boardStateGrantsCapability(
+        boardState,
+        registry.mounted[toolName]?.requiredCapability,
+      );
+      toolElem.style.display =
+        granted && registry.shouldDisplayTool(toolName) ? "" : "none";
     });
 
-    Tools.toolRegistry.syncDrawToolAvailability(true);
+    registry.syncDrawToolAvailability(true);
 
+    const current = registry.current;
     if (
-      hideEditingTools &&
-      Tools.toolRegistry.current &&
-      !Tools.toolRegistry.shouldDisplayTool(Tools.toolRegistry.current.name) &&
-      Tools.toolRegistry.mounted.hand
+      current &&
+      registry.mounted.hand &&
+      !boardStateGrantsCapability(boardState, current.requiredCapability)
     ) {
-      Tools.toolRegistry.change("hand");
+      registry.change("hand");
     }
   }
 }
