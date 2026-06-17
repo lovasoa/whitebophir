@@ -9,6 +9,7 @@ import { Cursor } from "../../client-data/tools/index.js";
 import { getBoardSession } from "../board/session.mjs";
 import observability from "../observability/index.mjs";
 import {
+  boardCapabilitiesForSocket,
   boardStateForSocket,
   canApplyBoardMessage,
   normalizeBroadcastData,
@@ -437,7 +438,13 @@ async function handleBroadcastWriteMessage(
     return;
   }
 
-  const normalized = normalizeBroadcastData(config, boardName, data);
+  const capabilities = boardCapabilitiesForSocket(config, boardName, socket);
+  const normalized = normalizeBroadcastData(
+    config,
+    boardName,
+    data,
+    capabilities,
+  );
   if (normalized.ok === false) {
     markBoardMutationRejected(normalized.reason);
     emitMutationRejected(socket, data, normalized.reason);

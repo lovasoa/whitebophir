@@ -14,6 +14,7 @@ const { MutationType } = require("../client-data/js/mutation_type.js");
 const {
   Cursor,
   Eraser,
+  Hand,
   Pencil,
   Rectangle,
 } = require("../client-data/tools/index.js");
@@ -1407,6 +1408,117 @@ test("rejected board mutations emit mutation_rejected with the clientMutationId"
         },
       );
       assert.equal(liveBroadcastEvents(writer).length, 0);
+    },
+  );
+});
+
+test("canClear users bypass the socket batch child-count limit", async () => {
+  const moderatorSecret = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+  await createSocketScenario(
+    {
+      historyDirPrefix: "wbo-users-can-clear-large-batch-",
+      config: {
+        MAX_CHILDREN: 1,
+        BOARD_MODERATORS: new Map([
+          ["large-selection-board", new Set([moderatorSecret])],
+        ]),
+      },
+    },
+    async ({ connect, invoke }) => {
+      const moderator = await connect({
+        id: "socket-large-batch-mod",
+        remoteAddress: "203.0.113.96",
+        headers: withUserSecretCookie(moderatorSecret),
+        query: { board: "large-selection-board", tool: "hand" },
+      });
+      await invoke(
+        moderator,
+        "broadcast",
+        rectangleCreate({
+          id: "rect-large-1",
+          x: 0,
+          y: 0,
+          x2: 10,
+          y2: 10,
+          color: "#444444",
+          size: 10,
+        }),
+      );
+      await invoke(
+        moderator,
+        "broadcast",
+        rectangleCreate({
+          id: "rect-large-2",
+          x: 20,
+          y: 0,
+          x2: 30,
+          y2: 10,
+          color: "#444444",
+          size: 10,
+        }),
+      );
+
+      const normal = await connect({
+        id: "socket-large-batch-normal",
+        remoteAddress: "203.0.113.97",
+        headers: withUserSecretCookie("ffffffffffffffffffffffffffffffff"),
+        query: { board: "large-selection-board", tool: "hand" },
+      });
+      await invoke(normal, "broadcast", {
+        tool: Hand.id,
+        clientMutationId: "cm-normal-large-batch",
+        _children: [
+          {
+            type: MutationType.UPDATE,
+            id: "rect-large-1",
+            transform: { a: 1, b: 0, c: 0, d: 1, e: 5, f: 0 },
+          },
+          {
+            type: MutationType.UPDATE,
+            id: "rect-large-2",
+            transform: { a: 1, b: 0, c: 0, d: 1, e: 5, f: 0 },
+          },
+        ],
+      });
+      assert.deepEqual(
+        getRequiredValue(
+          normal.emitted.find((event) => event.event === "mutation_rejected"),
+        ).payload,
+        {
+          clientMutationId: "cm-normal-large-batch",
+          reason: "too many children",
+        },
+      );
+
+      await invoke(moderator, "broadcast", {
+        tool: Hand.id,
+        clientMutationId: "cm-mod-large-batch",
+        _children: [
+          {
+            type: MutationType.UPDATE,
+            id: "rect-large-1",
+            transform: { a: 1, b: 0, c: 0, d: 1, e: 10, f: 0 },
+          },
+          {
+            type: MutationType.UPDATE,
+            id: "rect-large-2",
+            transform: { a: 1, b: 0, c: 0, d: 1, e: 10, f: 0 },
+          },
+        ],
+      });
+
+      assert.equal(
+        moderator.emitted.some((event) => event.event === "mutation_rejected"),
+        false,
+      );
+      assert.equal(
+        liveBroadcastEvents(moderator).some(
+          (event) =>
+            event.payload.mutation?.clientMutationId === "cm-mod-large-batch" &&
+            event.payload.mutation?._children?.length === 2,
+        ),
+        true,
+      );
     },
   );
 });

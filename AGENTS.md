@@ -233,9 +233,11 @@ The server validates client messages, rejects malformed writes with
 
 Client write messages normally have top-level `tool` and `type` fields.
 Tool-owned batches have top-level `tool` plus `_children`; each child carries its
-own mutation `type`. Server `broadcast` payloads are either bare ephemeral
-messages, sequenced persistent mutations, or replay batches with `type: 5`,
-`fromSeq`, `seq`, and `_children`.
+own mutation `type`. Normal socket batches are capped by `WBO_MAX_CHILDREN`, but
+users with the existing `canClear` capability bypass that batch-size cap.
+Server `broadcast` payloads are either bare ephemeral messages, sequenced
+persistent mutations, or replay batches with `type: 5`, `fromSeq`, `seq`, and
+`_children`.
 
 Client `broadcast` payload examples. Comments are explanatory; they are not sent
 on the wire.

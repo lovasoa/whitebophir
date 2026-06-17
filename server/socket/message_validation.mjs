@@ -8,6 +8,7 @@ import { Cursor, TOOLS } from "../../client-data/tools/index.js";
 /** @typedef {{[key: string]: unknown}} RawRecord */
 /** @typedef {Pick<import("../../types/server-runtime.d.ts").ServerConfig, "MAX_BOARD_SIZE" | "MAX_CHILDREN">} MessageValidationConfig */
 /** @typedef {import("../../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
+/** @typedef {import("../../types/app-runtime.d.ts").BoardCapabilities} BoardCapabilities */
 /** @typedef {import("../../types/app-runtime.d.ts").ToolOwnedBatchMessage} ToolOwnedBatchMessage */
 /** @typedef {import("../../types/app-runtime.d.ts").ToolCode} ToolCode */
 /** @typedef {import("../../types/app-runtime.d.ts").Transform} Transform */
@@ -403,9 +404,10 @@ const LIVE_BATCH_CHILD_SCHEMAS = Object.fromEntries(
  * @param {unknown} raw
  * @param {number} maxBoardSize
  * @param {number} maxChildren
+ * @param {BoardCapabilities | undefined} capabilities
  * @returns {ValidationResult<NormalizedMessageData>}
  */
-function normalizeIncomingBatch(raw, maxBoardSize, maxChildren) {
+function normalizeIncomingBatch(raw, maxBoardSize, maxChildren, capabilities) {
   if (!isPlainObject(raw)) return rejected("expected object");
   if (!Object.prototype.hasOwnProperty.call(raw, "tool")) {
     return rejected("missing tool");
@@ -416,7 +418,7 @@ function normalizeIncomingBatch(raw, maxBoardSize, maxChildren) {
   const childSchemas = LIVE_BATCH_CHILD_SCHEMAS[toolCode.value];
   if (!childSchemas) return rejected("unsupported batch tool");
   if (!Array.isArray(raw._children)) return rejected("invalid _children");
-  if (raw._children.length > maxChildren) {
+  if (capabilities?.canClear !== true && raw._children.length > maxChildren) {
     return rejected("too many children");
   }
 
@@ -454,15 +456,16 @@ function normalizeIncomingBatch(raw, maxBoardSize, maxChildren) {
 /**
  * @param {MessageValidationConfig} config
  * @param {unknown} raw
+ * @param {BoardCapabilities} [capabilities]
  * @returns {ValidationResult<NormalizedMessageData>}
  */
-function normalizeIncomingMessage(config, raw) {
+function normalizeIncomingMessage(config, raw, capabilities) {
   const maxBoardSize = config.MAX_BOARD_SIZE;
   const maxChildren = config.MAX_CHILDREN;
 
   if (!isPlainObject(raw)) return rejected("expected object");
   if (Array.isArray(raw._children)) {
-    return normalizeIncomingBatch(raw, maxBoardSize, maxChildren);
+    return normalizeIncomingBatch(raw, maxBoardSize, maxChildren, capabilities);
   }
   if (!Object.prototype.hasOwnProperty.call(raw, "tool")) {
     return rejected("missing tool");

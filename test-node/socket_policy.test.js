@@ -208,8 +208,18 @@ test("normalizeBroadcastData uses supplied runtime limits for socket validation"
       createConfig({ MAX_CHILDREN: 1 }),
       "anonymous",
       handBatch,
+      { canOpen: true, canEdit: true, canClear: false },
     ),
     { ok: false, reason: "too many children" },
+  );
+  assert.equal(
+    socketPolicy.normalizeBroadcastData(
+      createConfig({ MAX_CHILDREN: 1 }),
+      "anonymous",
+      handBatch,
+      { canOpen: true, canEdit: true, canClear: true },
+    ).ok,
+    true,
   );
 });
 
@@ -309,6 +319,22 @@ test("socket board policy uses capabilities for cursor, edit, and clear decision
       canWrite: true,
     },
   );
+  assert.equal(
+    socketPolicy.boardCapabilitiesForSocket(
+      authenticatedConfig,
+      readonlyBoard.name,
+      createSocket({ token: moderatorToken }).socket,
+    ).canClear,
+    true,
+  );
+  assert.equal(
+    socketPolicy.boardCapabilitiesForSocket(
+      authenticatedConfig,
+      readonlyBoard.name,
+      createSocket({ token: editorToken }).socket,
+    ).canClear,
+    false,
+  );
 });
 
 test("configured moderator secret grants edit clear and ban on readonly board", async () => {
@@ -341,12 +367,28 @@ test("configured moderator secret grants edit clear and ban on readonly board", 
     socketPolicy.canBanOnBoard(config, readonlyBoard.name, moderatorSocket),
     true,
   );
+  assert.equal(
+    socketPolicy.boardCapabilitiesForSocket(
+      config,
+      readonlyBoard.name,
+      moderatorSocket,
+    ).canClear,
+    true,
+  );
 
   const unlistedSocket = createSocket({
     headers: { cookie: "wbo-user-secret-v1=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
   }).socket;
   assert.equal(
     socketPolicy.canBanOnBoard(config, readonlyBoard.name, unlistedSocket),
+    false,
+  );
+  assert.equal(
+    socketPolicy.boardCapabilitiesForSocket(
+      config,
+      readonlyBoard.name,
+      unlistedSocket,
+    ).canClear,
     false,
   );
 });

@@ -18,6 +18,7 @@ const { logger, metrics, tracing } = observability;
 /** @typedef {import("../../types/server-runtime.d.ts").MessageData} MessageData */
 /** @typedef {import("../../types/server-runtime.d.ts").RejectedBroadcast} RejectedBroadcast */
 /** @typedef {import("../../types/server-runtime.d.ts").SocketRequest} SocketRequest */
+/** @typedef {import("../../types/app-runtime").BoardCapabilities} BoardCapabilities */
 /** @typedef {import("../../types/app-runtime").AppBoardState} SocketBoardState */
 /**
  * @typedef {{
@@ -287,9 +288,10 @@ const countTextCreationActions = RateLimitCommon.countTextCreationActions;
  * @param {SocketPolicyConfig} config
  * @param {string} boardName
  * @param {MessageData | null | undefined} data
+ * @param {BoardCapabilities} [capabilities]
  * @returns {BroadcastResult}
  */
-function normalizeBroadcastData(config, boardName, data) {
+function normalizeBroadcastData(config, boardName, data, capabilities) {
   if (!data) {
     return rejectedBroadcast(boardName, "missing data");
   }
@@ -300,7 +302,7 @@ function normalizeBroadcastData(config, boardName, data) {
     return rejectedBroadcast(boardName, "blocked tool");
   }
 
-  const normalized = normalizeIncomingMessage(config, data);
+  const normalized = normalizeIncomingMessage(config, data, capabilities);
   if (normalized.ok === false) {
     return rejectedBroadcast(boardName, normalized.reason);
   }
@@ -420,6 +422,20 @@ function canBanOnBoard(config, boardName, socket) {
 
 /**
  * @param {SocketPolicyConfig} config
+ * @param {string} boardName
+ * @param {AppSocket} socket
+ * @returns {BoardCapabilities}
+ */
+function boardCapabilitiesForSocket(config, boardName, socket) {
+  return boardPermissionsForSocket(
+    config,
+    boardName,
+    socket,
+  ).resolveCapabilities({ name: boardName });
+}
+
+/**
+ * @param {SocketPolicyConfig} config
  * @param {BoardLike} board
  * @param {AppSocket} socket
  * @returns {SocketBoardState}
@@ -456,6 +472,7 @@ function canApplyBoardMessage(config, board, data, socket) {
 }
 
 export {
+  boardCapabilitiesForSocket,
   boardStateForSocket,
   canAccessBoard,
   canApplyBoardMessage,
