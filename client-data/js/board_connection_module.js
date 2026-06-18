@@ -243,6 +243,9 @@ export class ConnectionModule {
       socket.on(SocketEvents.USER_LEFT, function onUserLeft(user) {
         Tools.presence.removeConnectedUser(user.socketId);
       });
+      socket.on(SocketEvents.USER_REPORTED, function onUserReported(payload) {
+        Tools.status.showUserReportNotice(payload);
+      });
       socket.on(SocketEvents.RATE_LIMITED, function onRateLimited(payload) {
         const retryAfterMs = Math.max(0, Number(payload.retryAfterMs) || 0);
         Tools.writes.serverRateLimitedUntil = Date.now() + retryAfterMs;
