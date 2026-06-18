@@ -114,6 +114,45 @@ test("server-side Turnstile enforcement in broadcast", async () => {
   );
 });
 
+test("server-side Turnstile enforcement skips moderator-capable sockets", async () => {
+  const historyDir = await createHistoryDir();
+  const moderatorSecret = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  await withEnv(
+    {
+      TURNSTILE_SECRET_KEY: "test-secret",
+      WBO_BOARD_MODERATORS: `moderated:${moderatorSecret}`,
+      WBO_HISTORY_DIR: historyDir,
+    },
+    async () => {
+      const sockets = await loadSockets();
+      const { socket, handlers } = createSocket({
+        headers: { cookie: `wbo-user-secret-v1=${moderatorSecret}` },
+        query: { board: "moderated" },
+      });
+
+      await sockets.__test.handleSocketConnection(socket, sockets.__config);
+      disableSaves(await sockets.__test.getLoadedBoard("moderated"));
+
+      const broadcastHandler = handlers.broadcast;
+      assert.ok(broadcastHandler, "broadcast handler should be registered");
+
+      await broadcastHandler({
+        tool: Pencil.id,
+        type: MutationType.CREATE,
+        id: "lmod",
+        color: "#123456",
+        size: 10,
+      });
+
+      assert.equal(
+        socket.rooms.has("moderated"),
+        true,
+        "moderator writes should skip Turnstile validation",
+      );
+    },
+  );
+});
+
 test("server-side Turnstile token validation binds Siteverify to request context", async () => {
   const historyDir = await createHistoryDir();
   await withEnv(

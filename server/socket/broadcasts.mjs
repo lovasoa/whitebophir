@@ -428,9 +428,11 @@ async function handleBroadcastWriteMessage(
   ) {
     return;
   }
+  const capabilities = boardCapabilitiesForSocket(config, boardName, socket);
   if (
     config.TURNSTILE_SECRET_KEY &&
     data &&
+    capabilities.canClear !== true &&
     WBOMessageCommon.requiresTurnstile(boardName, data.tool) &&
     !isTurnstileValidationActive(socket, now)
   ) {
@@ -438,7 +440,6 @@ async function handleBroadcastWriteMessage(
     return;
   }
 
-  const capabilities = boardCapabilitiesForSocket(config, boardName, socket);
   const normalized = normalizeBroadcastData(
     config,
     boardName,
