@@ -486,6 +486,16 @@ function getConnectedUserFocusHash(Tools, user) {
 }
 
 /**
+ * @param {AppToolsState} Tools
+ * @returns {string}
+ */
+function getReportActionLabel(Tools) {
+  // The server currently treats clear-capable moderators as report-to-ban users.
+  // Keep this UI-only label aligned without broadening the capability model here.
+  return Tools.i18n.t(Tools.access.canClear === true ? "ban" : "report");
+}
+
+/**
  * @param {() => AppToolsState} getTools
  * @param {ConnectedUserRow} row
  * @param {ConnectedUser} user
@@ -552,6 +562,9 @@ function updateConnectedUserRow(getTools, row, user) {
     row.querySelector(".connected-user-report")
   );
   if (report) {
+    const reportLabel = getReportActionLabel(Tools);
+    report.title = reportLabel;
+    report.setAttribute("aria-label", reportLabel);
     report.hidden = !!(user.reported && !isCurrentSocketUser(Tools, user));
     report.disabled = isCurrentSocketUser(Tools, user);
     report.classList.toggle("connected-user-report-latched", !!user.reported);
@@ -589,8 +602,6 @@ function createConnectedUserRow(getTools, user, users) {
   report.type = "button";
   report.className = "connected-user-report";
   report.textContent = "!";
-  report.title = getTools().i18n.t("report");
-  report.setAttribute("aria-label", getTools().i18n.t("report"));
   report.addEventListener("click", (evt) => {
     evt.preventDefault();
     evt.stopPropagation();

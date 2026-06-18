@@ -49,7 +49,8 @@
     "selector": "محدد",
     "open_board": "فتح",
     "white_out": "مسح الكل",
-    "turnstile_status_prefix": "يقول فحص مكافحة الروبوتات:"
+    "turnstile_status_prefix": "يقول فحص مكافحة الروبوتات:",
+    "ban": "Ban"
   },
   "be": {
     "white-out": "Замазка",
@@ -101,7 +102,8 @@
     "selector": "Выбар",
     "open_board": "Адкрыць",
     "white_out": "Замазка",
-    "turnstile_status_prefix": "Антыробат-фільтр паведамляе:"
+    "turnstile_status_prefix": "Антыробат-фільтр паведамляе:",
+    "ban": "Ban"
   },
   "ca": {
     "white-out": "Corrector blanc",
@@ -153,7 +155,8 @@
     "selector": "Selector",
     "open_board": "Obre",
     "white_out": "Corrector blanc",
-    "turnstile_status_prefix": "El filtre antirobot indica:"
+    "turnstile_status_prefix": "El filtre antirobot indica:",
+    "ban": "Ban"
   },
   "de": {
     "board_name_placeholder": "Name des Whiteboards…",
@@ -205,7 +208,8 @@
     "selector": "Auswahl",
     "open_board": "Öffnen",
     "white_out": "Korrekturflüssigkeit",
-    "turnstile_status_prefix": "Der Anti-Roboter-Filter meldet:"
+    "turnstile_status_prefix": "Der Anti-Roboter-Filter meldet:",
+    "ban": "Ban"
   },
   "en": {
     "white-out": "White-out",
@@ -257,7 +261,8 @@
     "selector": "Selector",
     "open_board": "Go",
     "white_out": "White-out",
-    "turnstile_status_prefix": "The anti-robot check says:"
+    "turnstile_status_prefix": "The anti-robot check says:",
+    "ban": "Ban"
   },
   "es": {
     "board_name_placeholder": "Nombre de la pizarra …",
@@ -309,7 +314,8 @@
     "download": "Descargar",
     "open_board": "Ir",
     "white_out": "Blanqueado",
-    "turnstile_status_prefix": "El filtro anti-robot indica:"
+    "turnstile_status_prefix": "El filtro anti-robot indica:",
+    "ban": "Ban"
   },
   "fr": {
     "board_name_placeholder": "Nom du tableau…",
@@ -360,7 +366,8 @@
     "zoom": "Zoom",
     "open_board": "Ouvrir",
     "white_out": "Blanco",
-    "turnstile_status_prefix": "Le filtre anti-robot indique :"
+    "turnstile_status_prefix": "Le filtre anti-robot indique :",
+    "ban": "Ban"
   },
   "hu": {
     "white-out": "Lefedő",
@@ -412,7 +419,8 @@
     "selector": "Kijelölő",
     "open_board": "Megnyitás",
     "white_out": "Lefedő",
-    "turnstile_status_prefix": "A robotellenes szűrő jelzi:"
+    "turnstile_status_prefix": "A robotellenes szűrő jelzi:",
+    "ban": "Ban"
   },
   "id": {
     "white-out": "Cairan koreksi",
@@ -464,7 +472,8 @@
     "selector": "Pemilih",
     "open_board": "Buka",
     "white_out": "Cairan koreksi",
-    "turnstile_status_prefix": "Filter anti-robot menyatakan:"
+    "turnstile_status_prefix": "Filter anti-robot menyatakan:",
+    "ban": "Ban"
   },
   "it": {
     "board_name_placeholder": "Nome della lavagna…",
@@ -516,7 +525,8 @@
     "download": "Scarica",
     "open_board": "Apri",
     "white_out": "Bianchetto",
-    "turnstile_status_prefix": "Il filtro anti-robot indica:"
+    "turnstile_status_prefix": "Il filtro anti-robot indica:",
+    "ban": "Ban"
   },
   "ja": {
     "board_name_placeholder": "ボードの名前",
@@ -568,7 +578,8 @@
     "selector": "選択",
     "open_board": "開く",
     "white_out": "修正液",
-    "turnstile_status_prefix": "ロボット対策チェックの結果:"
+    "turnstile_status_prefix": "ロボット対策チェックの結果:",
+    "ban": "Ban"
   },
   "my": {
     "board_name_placeholder": "ဝှိုက်ဘုတ်အမည် ... ",
@@ -620,7 +631,8 @@
     "selector": "ရွေးချယ်ကိရိယာ",
     "open_board": "ဖွင့်ရန်",
     "white_out": "ပြုပြင်မှုအရည်",
-    "turnstile_status_prefix": "ရိုဘော့တ်တားဆီးရေးစစ်ဆေးမှုက ဖော်ပြသည်:"
+    "turnstile_status_prefix": "ရိုဘော့တ်တားဆီးရေးစစ်ဆေးမှုက ဖော်ပြသည်:",
+    "ban": "Ban"
   },
   "pt": {
     "white-out": "Branquejar",
@@ -672,7 +684,8 @@
     "download": "Baixar",
     "open_board": "Abrir",
     "white_out": "Branquejar",
-    "turnstile_status_prefix": "O filtro anti-robô indica:"
+    "turnstile_status_prefix": "O filtro anti-robô indica:",
+    "ban": "Ban"
   },
   "ru": {
     "board_name_placeholder": "Название доски",
@@ -724,7 +737,8 @@
     "click_to_zoom": "Нажмите, чтобы увеличить\nНажмите Shift и щёлкните, чтобы уменьшить",
     "open_board": "Открыть",
     "white_out": "Корректор",
-    "turnstile_status_prefix": "Антиробот-фильтр сообщает:"
+    "turnstile_status_prefix": "Антиробот-фильтр сообщает:",
+    "ban": "Ban"
   },
   "sw": {
     "board_name_placeholder": "Jina la ubao mweupe ...",
@@ -776,7 +790,8 @@
     "selector": "Kiteuzi",
     "open_board": "Fungua",
     "white_out": "maji ya kusahihisha",
-    "turnstile_status_prefix": "Kichujio cha kuzuia roboti kinasema:"
+    "turnstile_status_prefix": "Kichujio cha kuzuia roboti kinasema:",
+    "ban": "Ban"
   },
   "th": {
     "board_name_placeholder": "ชื่อไวท์บอร์ด ...",
@@ -828,7 +843,8 @@
     "selector": "ตัวเลือก",
     "open_board": "เปิด",
     "white_out": "น้ำยาลบคำผิด",
-    "turnstile_status_prefix": "ตัวกรองป้องกันหุ่นยนต์ระบุว่า:"
+    "turnstile_status_prefix": "ตัวกรองป้องกันหุ่นยนต์ระบุว่า:",
+    "ban": "Ban"
   },
   "uk": {
     "white-out": "Коректор",
@@ -880,7 +896,8 @@
     "selector": "Вибір",
     "open_board": "Відкрити",
     "white_out": "Коректор",
-    "turnstile_status_prefix": "Антиробот-фільтр повідомляє:"
+    "turnstile_status_prefix": "Антиробот-фільтр повідомляє:",
+    "ban": "Ban"
   },
   "vi": {
     "white-out": "Bút xóa",
@@ -932,7 +949,8 @@
     "selector": "Bộ chọn",
     "open_board": "Mở",
     "white_out": "Bút xóa",
-    "turnstile_status_prefix": "Bộ lọc chống robot cho biết:"
+    "turnstile_status_prefix": "Bộ lọc chống robot cho biết:",
+    "ban": "Ban"
   },
   "zh-CN": {
     "board_name_placeholder": "白板名称",
@@ -984,7 +1002,8 @@
     "selector": "选择器",
     "open_board": "打开",
     "white_out": "修正液",
-    "turnstile_status_prefix": "反机器人检查提示："
+    "turnstile_status_prefix": "反机器人检查提示：",
+    "ban": "Ban"
   },
   "zh-TW": {
     "board_name_placeholder": "白板名稱",
@@ -1036,7 +1055,8 @@
     "download": "下載",
     "open_board": "開啟",
     "white_out": "修正液",
-    "turnstile_status_prefix": "防機器人檢查提示："
+    "turnstile_status_prefix": "防機器人檢查提示：",
+    "ban": "Ban"
   },
   "pl": {
     "board_name_placeholder": "Nazwa tablicy",
@@ -1088,6 +1108,7 @@
     "click_to_zoom": "Kliknij, aby powiększyć\nNaciśnij Shift i kliknij, aby pomniejszyć",
     "open_board": "Otwórz",
     "white_out": "Korektor",
-    "turnstile_status_prefix": "Filtr antyrobotowy informuje:"
+    "turnstile_status_prefix": "Filtr antyrobotowy informuje:",
+    "ban": "Ban"
   }
 }
