@@ -2006,6 +2006,61 @@ test("report_user logs reporter and reported user details for active board membe
   );
 });
 
+test("report_user notifies connected moderators about reporter and reported users", async () => {
+  const moderatorSecret = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  await createSocketScenario(
+    {
+      historyDirPrefix: "wbo-users-report-moderator-notice-",
+      config: {
+        BOARD_MODERATORS: new Map([
+          ["board-report-moderator-notice", new Set([moderatorSecret])],
+        ]),
+      },
+    },
+    async ({ connect, handler, sockets }) => {
+      const moderator = await connect({
+        id: "socket-report-notice-mod",
+        headers: withUserSecretCookie(moderatorSecret),
+        query: { board: "board-report-moderator-notice", tool: "hand" },
+      });
+      const reporter = await connect({
+        id: "socket-report-notice-reporter",
+        remoteAddress: "203.0.113.92",
+        query: { board: "board-report-moderator-notice", tool: "hand" },
+      });
+      const reported = await connect({
+        id: "socket-report-notice-reported",
+        remoteAddress: "203.0.113.93",
+        query: { board: "board-report-moderator-notice", tool: "hand" },
+      });
+
+      handler(
+        reporter,
+        "report_user",
+      )({
+        socketId: "socket-report-notice-reported",
+      });
+
+      const reportLog = getRequiredValue(sockets.__test.getLastUserReportLog());
+      const notice = moderator.emitted.find(
+        (event) => event.event === "user_reported",
+      );
+      assert.deepEqual(notice?.payload, {
+        reporterName: reportLog.reporter_name,
+        reportedName: reportLog.reported_name,
+      });
+      assert.equal(
+        reporter.emitted.some((event) => event.event === "user_reported"),
+        false,
+      );
+      assert.equal(
+        reported.emitted.some((event) => event.event === "user_reported"),
+        false,
+      );
+    },
+  );
+});
+
 test("report_user respects custom header ip sources for active board members", async () => {
   await createSocketScenario(
     {

@@ -8,6 +8,18 @@ function getBoardStatusElements() {
   };
 }
 
+/**
+ * @param {string} template
+ * @param {{[key: string]: string}} values
+ * @returns {string}
+ */
+function formatStatusMessage(template, values) {
+  return template.replace(/\{([a-zA-Z0-9_]+)\}/g, (match, key) => {
+    if (!Object.prototype.hasOwnProperty.call(values, key)) return match;
+    return values[key] || "";
+  });
+}
+
 export class StatusModule {
   /**
    * @param {() => AppToolsState} getTools
@@ -78,6 +90,31 @@ export class StatusModule {
       title: Tools.i18n.t("unknown_error_reload_page"),
       detail: "",
     });
+  }
+
+  /**
+   * @param {{reporterName?: string, reportedName?: string}} payload
+   */
+  showUserReportNotice(payload) {
+    const Tools = this.getTools();
+    const reporterName =
+      typeof payload?.reporterName === "string" ? payload.reporterName : "";
+    const reportedName =
+      typeof payload?.reportedName === "string" ? payload.reportedName : "";
+    if (!reporterName || !reportedName) return;
+
+    this.showBoardStatus(
+      {
+        hidden: false,
+        state: "paused",
+        title: formatStatusMessage(Tools.i18n.t("user_report_notice"), {
+          reporter: reporterName,
+          reported: reportedName,
+        }),
+        detail: "",
+      },
+      6000,
+    );
   }
 
   /**
