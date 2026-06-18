@@ -50,6 +50,7 @@
     "open_board": "فتح",
     "white_out": "مسح الكل",
     "turnstile_status_prefix": "يقول فحص مكافحة الروبوتات:",
+    "ban": "Ban",
     "clear_confirmation_message": "⚠️ تحذير: سيؤدي هذا إلى مسح اللوحة بأكملها نهائيًا للجميع.\n\nهل أنت متأكد أنك تريد المتابعة؟"
   },
   "be": {
@@ -103,6 +104,7 @@
     "open_board": "Адкрыць",
     "white_out": "Замазка",
     "turnstile_status_prefix": "Антыробат-фільтр паведамляе:",
+    "ban": "Ban",
     "clear_confirmation_message": "⚠️ УВАГА: гэта назаўсёды ачысціць усю дошку для ўсіх.\n\nВы ўпэўненыя, што хочаце працягнуць?"
   },
   "ca": {
@@ -156,6 +158,7 @@
     "open_board": "Obre",
     "white_out": "Corrector blanc",
     "turnstile_status_prefix": "El filtre antirobot indica:",
+    "ban": "Ban",
     "clear_confirmation_message": "⚠️ AVÍS: això esborrarà permanentment tota la pissarra per a tothom.\n\nSegur que voleu continuar?"
   },
   "de": {
@@ -209,6 +212,7 @@
     "open_board": "Öffnen",
     "white_out": "Korrekturflüssigkeit",
     "turnstile_status_prefix": "Der Anti-Roboter-Filter meldet:",
+    "ban": "Ban",
     "clear_confirmation_message": "⚠️ WARNUNG: Dadurch wird das gesamte Board für alle dauerhaft gelöscht.\n\nMöchten Sie wirklich fortfahren?"
   },
   "en": {
@@ -262,6 +266,7 @@
     "open_board": "Go",
     "white_out": "White-out",
     "turnstile_status_prefix": "The anti-robot check says:",
+    "ban": "Ban",
     "clear_confirmation_message": "⚠️ WARNING: This will permanently clear the entire board for everyone.\n\nAre you sure you want to continue?"
   },
   "es": {
@@ -315,6 +320,7 @@
     "open_board": "Ir",
     "white_out": "Blanqueado",
     "turnstile_status_prefix": "El filtro anti-robot indica:",
+    "ban": "Ban",
     "clear_confirmation_message": "⚠️ ADVERTENCIA: Esto borrará permanentemente toda la pizarra para todos.\n\n¿Seguro que quieres continuar?"
   },
   "fr": {
@@ -367,6 +373,7 @@
     "open_board": "Ouvrir",
     "white_out": "Blanco",
     "turnstile_status_prefix": "Le filtre anti-robot indique :",
+    "ban": "Ban",
     "clear_confirmation_message": "⚠️ AVERTISSEMENT : cela effacera définitivement tout le tableau pour tout le monde.\n\nVoulez-vous vraiment continuer ?"
   },
   "hu": {
@@ -420,6 +427,7 @@
     "open_board": "Megnyitás",
     "white_out": "Lefedő",
     "turnstile_status_prefix": "A robotellenes szűrő jelzi:",
+    "ban": "Ban",
     "clear_confirmation_message": "⚠️ FIGYELMEZTETÉS: Ez véglegesen törli az egész táblát mindenki számára.\n\nBiztosan folytatni szeretné?"
   },
   "id": {
@@ -473,6 +481,7 @@
     "open_board": "Buka",
     "white_out": "Cairan koreksi",
     "turnstile_status_prefix": "Filter anti-robot menyatakan:",
+    "ban": "Ban",
     "clear_confirmation_message": "⚠️ PERINGATAN: Tindakan ini akan menghapus seluruh papan secara permanen untuk semua orang.\n\nApakah Anda yakin ingin melanjutkan?"
   },
   "it": {
@@ -526,6 +535,7 @@
     "open_board": "Apri",
     "white_out": "Bianchetto",
     "turnstile_status_prefix": "Il filtro anti-robot indica:",
+    "ban": "Ban",
     "clear_confirmation_message": "⚠️ ATTENZIONE: questa azione cancellerà definitivamente tutta la lavagna per tutti.\n\nVuoi davvero continuare?"
   },
   "ja": {
@@ -579,6 +589,7 @@
     "open_board": "開く",
     "white_out": "修正液",
     "turnstile_status_prefix": "ロボット対策チェックの結果:",
+    "ban": "Ban",
     "clear_confirmation_message": "⚠️ 警告: これにより、全員のボード全体が完全に消去されます。\n\n続行してもよろしいですか？"
   },
   "my": {
@@ -632,6 +643,7 @@
     "open_board": "ဖွင့်ရန်",
     "white_out": "ပြုပြင်မှုအရည်",
     "turnstile_status_prefix": "ရိုဘော့တ်တားဆီးရေးစစ်ဆေးမှုက ဖော်ပြသည်:",
+    "ban": "Ban",
     "clear_confirmation_message": "⚠️ သတိပေးချက်: ဤလုပ်ဆောင်ချက်သည် လူတိုင်းအတွက် ဘုတ်တစ်ခုလုံးကို အပြီးတိုင် ဖျက်ပစ်ပါမည်။\n\nဆက်လုပ်ရန် သေချာပါသလား။"
   },
   "pt": {
@@ -685,6 +697,7 @@
     "open_board": "Abrir",
     "white_out": "Branquejar",
     "turnstile_status_prefix": "O filtro anti-robô indica:",
+    "ban": "Ban",
     "clear_confirmation_message": "⚠️ AVISO: Isto apagará permanentemente todo o quadro para todos.\n\nTem certeza de que deseja continuar?"
   },
   "ru": {
@@ -738,6 +751,7 @@
     "open_board": "Открыть",
     "white_out": "Корректор",
     "turnstile_status_prefix": "Антиробот-фильтр сообщает:",
+    "ban": "Ban",
     "clear_confirmation_message": "⚠️ ВНИМАНИЕ: это навсегда очистит всю доску для всех.\n\nВы уверены, что хотите продолжить?"
   },
   "sw": {
@@ -791,6 +805,7 @@
     "open_board": "Fungua",
     "white_out": "maji ya kusahihisha",
     "turnstile_status_prefix": "Kichujio cha kuzuia roboti kinasema:",
+    "ban": "Ban",
     "clear_confirmation_message": "⚠️ ONYO: Hii itafuta kabisa ubao mzima kwa kila mtu.\n\nUna uhakika unataka kuendelea?"
   },
   "th": {
@@ -844,6 +859,7 @@
     "open_board": "เปิด",
     "white_out": "น้ำยาลบคำผิด",
     "turnstile_status_prefix": "ตัวกรองป้องกันหุ่นยนต์ระบุว่า:",
+    "ban": "Ban",
     "clear_confirmation_message": "⚠️ คำเตือน: การดำเนินการนี้จะล้างทั้งกระดานอย่างถาวรสำหรับทุกคน\n\nคุณแน่ใจหรือไม่ว่าต้องการดำเนินการต่อ?"
   },
   "uk": {
@@ -897,6 +913,7 @@
     "open_board": "Відкрити",
     "white_out": "Коректор",
     "turnstile_status_prefix": "Антиробот-фільтр повідомляє:",
+    "ban": "Ban",
     "clear_confirmation_message": "⚠️ УВАГА: це назавжди очистить усю дошку для всіх.\n\nВи впевнені, що хочете продовжити?"
   },
   "vi": {
@@ -950,6 +967,7 @@
     "open_board": "Mở",
     "white_out": "Bút xóa",
     "turnstile_status_prefix": "Bộ lọc chống robot cho biết:",
+    "ban": "Ban",
     "clear_confirmation_message": "⚠️ CẢNH BÁO: Thao tác này sẽ xóa vĩnh viễn toàn bộ bảng cho mọi người.\n\nBạn có chắc chắn muốn tiếp tục không?"
   },
   "zh-CN": {
@@ -1003,6 +1021,7 @@
     "open_board": "打开",
     "white_out": "修正液",
     "turnstile_status_prefix": "反机器人检查提示：",
+    "ban": "Ban",
     "clear_confirmation_message": "⚠️ 警告：这将为所有人永久清空整个白板。\n\n确定要继续吗？"
   },
   "zh-TW": {
@@ -1056,6 +1075,7 @@
     "open_board": "開啟",
     "white_out": "修正液",
     "turnstile_status_prefix": "防機器人檢查提示：",
+    "ban": "Ban",
     "clear_confirmation_message": "⚠️ 警告：這會為所有人永久清空整個白板。\n\n確定要繼續嗎？"
   },
   "pl": {
@@ -1109,6 +1129,7 @@
     "open_board": "Otwórz",
     "white_out": "Korektor",
     "turnstile_status_prefix": "Filtr antyrobotowy informuje:",
+    "ban": "Ban",
     "clear_confirmation_message": "⚠️ OSTRZEŻENIE: To trwale wyczyści całą tablicę dla wszystkich.\n\nCzy na pewno chcesz kontynuować?"
   }
 }
