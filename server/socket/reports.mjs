@@ -1,6 +1,7 @@
 import observability from "../observability/index.mjs";
+import { SocketEvents } from "../../client-data/js/socket_events.js";
 import { banBoardUser } from "./bans.mjs";
-import { getBoardUser } from "./presence.mjs";
+import { getBoardUser, getBoardUserMap } from "./presence.mjs";
 import { canBanOnBoard } from "./policy.mjs";
 
 const { logger, tracing } = observability;
@@ -68,6 +69,24 @@ function buildUserReportLog(boardName, { reported, reporter }, banned) {
     reported_name: reported.name,
     banned,
   };
+}
+
+/**
+ * @param {ReportUserContext} context
+ * @param {ReportUsers} users
+ * @returns {void}
+ */
+function notifyBoardModeratorsOfReport(context, users) {
+  const payload = {
+    reporterName: users.reporter.name,
+    reportedName: users.reported.name,
+  };
+  getBoardUserMap(context.boardName).forEach(function notifyUser(user) {
+    if (!user.canClear) return;
+    const socket = context.getActiveSocket(user.socketId);
+    if (!socket) return;
+    socket.emit(SocketEvents.USER_REPORTED, payload);
+  });
 }
 
 /**
@@ -205,6 +224,7 @@ function handleReportUserMessage(context) {
   const reportLog = buildUserReportLog(boardName, resolvedUsers, false);
   lastUserReportLog = reportLog;
   logger.warn("user.reported", reportLog);
+  notifyBoardModeratorsOfReport(context, resolvedUsers);
 
   // Disconnect the reporter too to prevent abuse.
   disconnectReporter(context);

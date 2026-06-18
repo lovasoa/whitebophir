@@ -58,6 +58,7 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
     "text",
     "turnstile_status_prefix",
     "unknown_error_reload_page",
+    "user_report_notice",
     "users",
     "view_source",
     "white-out",

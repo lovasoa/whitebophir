@@ -231,6 +231,15 @@ The server validates client messages, rejects malformed writes with
 `mutation_rejected`, and rebroadcasts accepted persistent writes as sequenced
 `broadcast` frames.
 
+User reports are sent by clients on the `report_user` event with a payload of
+`{ "socketId": "<reported socket id>" }`. Non-moderator reports disconnect the
+reporter and reported user after logging the report. For accepted non-moderator
+reports, the server emits `user_reported` only to connected moderators on that
+board. The `user_reported` payload is
+`{ "reporterName": "<display name>", "reportedName": "<display name>" }`.
+Moderator report-to-ban actions do not emit `user_reported`; they ban and
+disconnect the reported user directly.
+
 Client write messages normally have top-level `tool` and `type` fields.
 Tool-owned batches have top-level `tool` plus `_children`; each child carries its
 own mutation `type`. Normal socket batches are capped by `WBO_MAX_CHILDREN`, but

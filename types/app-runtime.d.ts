@@ -359,6 +359,11 @@ export type UserLeftPayload = {
   socketId: string;
 };
 
+export type UserReportedPayload = {
+  reporterName: string;
+  reportedName: string;
+};
+
 export type ClientSocketIncomingEventMap = {
   [SocketEvents.BOARDSTATE]: AppBoardState;
   [SocketEvents.BROADCAST]: IncomingBroadcast;
@@ -381,6 +386,7 @@ export type ClientSocketIncomingEventMap = {
     periodMs: number;
     retryAfterMs: number;
   };
+  [SocketEvents.USER_REPORTED]: UserReportedPayload;
   [SocketEvents.USER_JOINED]: ConnectedUser;
   [SocketEvents.USER_LEFT]: UserLeftPayload;
 };
