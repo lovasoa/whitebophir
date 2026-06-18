@@ -552,8 +552,10 @@ function updateConnectedUserRow(getTools, row, user) {
     row.querySelector(".connected-user-report")
   );
   if (report) {
-    report.hidden = !!(user.reported && !isCurrentSocketUser(Tools, user));
-    report.disabled = isCurrentSocketUser(Tools, user);
+    const currentSocketUser = isCurrentSocketUser(Tools, user);
+    report.hidden =
+      user.canClear === true || !!(user.reported && !currentSocketUser);
+    report.disabled = currentSocketUser;
     report.classList.toggle("connected-user-report-latched", !!user.reported);
   }
 }
@@ -597,7 +599,13 @@ function createConnectedUserRow(getTools, user, users) {
     const Tools = getTools();
     if (!Tools.connection.socket || !row.dataset.socketId) return;
     const connectedUser = users.get(row.dataset.socketId);
-    if (!connectedUser || isCurrentSocketUser(Tools, connectedUser)) return;
+    if (
+      !connectedUser ||
+      connectedUser.canClear === true ||
+      isCurrentSocketUser(Tools, connectedUser)
+    ) {
+      return;
+    }
     connectedUser.reported = true;
     updateConnectedUserRow(getTools, row, connectedUser);
     Tools.connection.socket.emit(SocketEvents.REPORT_USER, {

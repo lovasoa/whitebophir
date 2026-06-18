@@ -6,7 +6,7 @@ import { canBanOnBoard } from "./policy.mjs";
 const { logger, tracing } = observability;
 
 /** @import { AppSocket, ReportUserPayload, ServerConfig } from "../../types/server-runtime.d.ts" */
-/** @typedef {{socketId: string, name: string, ip: string, userSecret?: string, userAgent: string, language: string}} BoardUser */
+/** @typedef {{socketId: string, name: string, ip: string, userSecret?: string, userAgent: string, language: string, canClear?: boolean}} BoardUser */
 /** @typedef {{board: string, reporter_socket: string, reported_socket: string, reporter_ip: string, reported_ip: string, reporter_user_agent: string, reported_user_agent: string, reporter_language: string, reported_language: string, reporter_name: string, reported_name: string, banned: boolean}} UserReportLog */
 /** @typedef {(socketId: string) => AppSocket | undefined} GetActiveSocket */
 /** @typedef {(socket: AppSocket, eventName: string, infos: {[key: string]: any}) => void} CloseSocket */
@@ -40,9 +40,9 @@ function resolveReportedUsers(boardName, reporterSocketId, reportedSocketId) {
 /**
  * @returns {void}
  */
-function ignoreReportedUser() {
+function ignoreReportedUser(result = "ignored") {
   tracing.setActiveSpanAttributes({
-    "wbo.board.result": "ignored",
+    "wbo.board.result": result,
   });
 }
 
@@ -72,23 +72,15 @@ function buildUserReportLog(boardName, { reported, reporter }, banned) {
 
 /**
  * @param {string} boardName
- * @param {AppSocket[]} socketsToDisconnect
+ * @param {AppSocket} targetSocket
  * @param {CloseSocket} closeSocket
  * @returns {void}
  */
-function disconnectReportedSockets(
-  boardName,
-  socketsToDisconnect,
-  closeSocket,
-) {
-  socketsToDisconnect.forEach(
-    function disconnectReportedUser(/** @type {AppSocket} */ targetSocket) {
-      closeSocket(targetSocket, "report_user", {
-        board: boardName,
-        socket: targetSocket.id,
-      });
-    },
-  );
+function disconnectReportSocket(boardName, targetSocket, closeSocket) {
+  closeSocket(targetSocket, "report_user", {
+    board: boardName,
+    socket: targetSocket.id,
+  });
 }
 
 /**
@@ -110,58 +102,68 @@ function isSelfReportTarget(reporter, reported) {
  * @param {{reporter: BoardUser, reported: BoardUser}} users
  * @returns {void}
  */
-function handleModeratorReport(context, users) {
-  if (isSelfReportTarget(users.reporter, users.reported)) {
+function handleReportByModerator(context, { reporter, reported }) {
+  const board = context.boardName;
+  if (isSelfReportTarget(reporter, reported)) {
     tracing.setActiveSpanAttributes({
       "wbo.board.result": "self_report_ignored",
     });
     logger.warn("user.ban_skipped_self_report", {
-      board: context.boardName,
-      reporter_socket: users.reporter.socketId,
-      reported_socket: users.reported.socketId,
-      reporter_name: users.reporter.name,
-      reported_name: users.reported.name,
+      board,
+      reporter_socket: reporter.socketId,
+      reported_socket: reported.socketId,
+      reporter_name: reporter.name,
+      reported_name: reported.name,
     });
     return;
   }
 
   banBoardUser(
     context.boardName,
-    users.reported.userSecret,
-    users.reported.ip,
+    reported.userSecret,
+    reported.ip,
     context.now,
   );
   logger.warn("user.banned", {
-    board: context.boardName,
-    reported_ip: users.reported.ip,
-    reported_name: users.reported.name,
-    by: users.reporter.name,
+    board,
+    reported_ip: reported.ip,
+    reported_name: reported.name,
+    by: reporter.name,
   });
-  const reportedSocket = context.getActiveSocket(users.reported.socketId);
-  disconnectReportedSockets(
+  const reportedSocket = context.getActiveSocket(reported.socketId);
+  if (!reportedSocket) {
+    logger.error("user.ban.fail", { reported, reporter, board });
+    return;
+  }
+  disconnectReportSocket(board, reportedSocket, context.closeSocket);
+}
+
+/**
+ * @param {ReportUserContext} context
+ * @returns {void}
+ */
+function disconnectReporter(context) {
+  disconnectReportSocket(
     context.boardName,
-    reportedSocket ? [reportedSocket] : [],
+    context.socket,
     context.closeSocket,
   );
 }
 
 /**
  * @param {ReportUserContext} context
- * @param {{reporter: BoardUser, reported: BoardUser}} users
+ * @param {BoardUser} reported
  * @returns {void}
  */
-function handleLegacyReportDisconnect(context, users) {
-  const reportedSocket = context.getActiveSocket(users.reported.socketId);
-  disconnectReportedSockets(
-    context.boardName,
-    [
-      context.socket,
-      ...(reportedSocket && reportedSocket !== context.socket
-        ? [reportedSocket]
-        : []),
-    ],
-    context.closeSocket,
-  );
+function disconnectReported(context, reported) {
+  const reportedSocket = context.getActiveSocket(reported.socketId);
+  if (reportedSocket && reportedSocket !== context.socket) {
+    disconnectReportSocket(
+      context.boardName,
+      reportedSocket,
+      context.closeSocket,
+    );
+  }
 }
 
 /**
@@ -169,15 +171,16 @@ function handleLegacyReportDisconnect(context, users) {
  * @returns {void}
  */
 function handleReportUserMessage(context) {
-  const targetSocketId = getReportedSocketId(context.message);
-  if (!targetSocketId || !context.socket.rooms.has(context.boardName)) {
+  const { message, boardName, socket, config } = context;
+  const targetSocketId = getReportedSocketId(message);
+  if (!targetSocketId || !socket.rooms.has(boardName)) {
     ignoreReportedUser();
     return;
   }
 
   const resolvedUsers = resolveReportedUsers(
-    context.boardName,
-    context.socket.id,
+    boardName,
+    socket.id,
     targetSocketId,
   );
   if (!resolvedUsers) {
@@ -185,32 +188,48 @@ function handleReportUserMessage(context) {
     return;
   }
 
-  const banned = canBanOnBoard(
-    context.config,
-    context.boardName,
-    context.socket,
-  );
+  const banned = canBanOnBoard(config, boardName, socket);
 
-  const reportLog = buildUserReportLog(
-    context.boardName,
-    resolvedUsers,
-    banned,
-  );
-  lastUserReportLog = reportLog;
+  if (banned) {
+    handleReportByModerator(context, resolvedUsers);
+    return;
+  }
+
+  if (resolvedUsers.reported.canClear === true) {
+    handleReportedModerator(context, boardName, resolvedUsers);
+    return;
+  }
+
   tracing.setActiveSpanAttributes({
     "wbo.board.result": "reported",
     "user.name": resolvedUsers.reporter.name,
     "wbo.reported_user.name": resolvedUsers.reported.name,
   });
-
-  if (banned) {
-    handleModeratorReport(context, resolvedUsers);
-    return;
-  }
-
+  const reportLog = buildUserReportLog(boardName, resolvedUsers, banned);
+  lastUserReportLog = reportLog;
   logger.warn("user.reported", reportLog);
 
-  handleLegacyReportDisconnect(context, resolvedUsers);
+  // Disconnect the reporter too to prevent abuse.
+  disconnectReporter(context);
+  disconnectReported(context, resolvedUsers.reported);
+}
+
+/**
+ *
+ * @param {ReportUserContext} context
+ * @param {string} board
+ * @param {ReportUsers} resolvedUsers
+ */
+function handleReportedModerator(context, board, resolvedUsers) {
+  disconnectReporter(context);
+  ignoreReportedUser("protected_report_ignored");
+  logger.warn("user.report_skipped_protected_target", {
+    board,
+    reporter_socket: resolvedUsers.reporter.socketId,
+    reported_socket: resolvedUsers.reported.socketId,
+    reporter_name: resolvedUsers.reporter.name,
+    reported_name: resolvedUsers.reported.name,
+  });
 }
 
 /**
