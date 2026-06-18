@@ -9,11 +9,11 @@ jobs:
     name: deploy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Dokku
-        uses: dokku/github-action@v1.9.0
+        uses: dokku/github-action@v1.10.0
         with:
           git_remote_url: ssh://dokku@${{ secrets.SSH_SERVER }}:22/wbo
           ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Set env
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
       - name: Set up QEMU
@@ -39,7 +39,7 @@ jobs:
           username: lovasoa
           password: ${{ secrets.DOCKER_PASSWORD }}
       - name: Push to Docker Hub
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v7
         with:
           push: true
           tags: lovasoa/wbo:latest,lovasoa/wbo:${{ env.RELEASE_VERSION }}
