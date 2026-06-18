@@ -528,6 +528,17 @@ function createHarness() {
           (Number(value) || 0) * globalAny.Tools.viewportState.scale,
         pageCoordinateToBoard: (/** @type {unknown} */ value) =>
           globalAny.Tools.coordinates.pageCoordinateToBoard(value),
+        boardRectToLayoutRect: (
+          /** @type {{x: number, y: number, width: number, height: number}} */ rect,
+        ) => {
+          const scale = globalAny.Tools.viewportState.scale;
+          return {
+            left: rect.x * scale,
+            top: rect.y * scale,
+            width: rect.width * scale,
+            height: rect.height * scale,
+          };
+        },
         boardRectToViewportRect: (
           /** @type {{x: number, y: number, width: number, height: number}} */ rect,
         ) => {
@@ -549,7 +560,7 @@ function createHarness() {
             height,
           };
         },
-        clientRectToBoardLayoutRect: (
+        clientRectToLayoutRect: (
           /** @type {{left?: unknown, top?: unknown, right?: unknown, bottom?: unknown, width?: unknown, height?: unknown}} */ rect,
         ) => {
           const left = Number(rect.left) || 0;
@@ -560,7 +571,22 @@ function createHarness() {
           const height = Number.isFinite(Number(rect.height))
             ? Math.max(0, Number(rect.height))
             : Math.max(0, (Number(rect.bottom) || top) - top);
-          return { x: left, y: top, width, height };
+          return { left, top, width, height };
+        },
+        clientRectToBoardRect: (
+          /** @type {{left?: unknown, top?: unknown, right?: unknown, bottom?: unknown, width?: unknown, height?: unknown}} */ rect,
+        ) => {
+          const scale = globalAny.Tools.viewportState.scale;
+          const layoutRect =
+            globalAny.Tools.viewportState.controller.clientRectToLayoutRect(
+              rect,
+            );
+          return {
+            x: layoutRect.left / scale,
+            y: layoutRect.top / scale,
+            width: layoutRect.width / scale,
+            height: layoutRect.height / scale,
+          };
         },
         panBy: () => {},
         panTo: () => {},
@@ -893,10 +919,14 @@ function createUnavailableViewportRuntime() {
       unavailableCapability("viewport.boardCoordinateToLayout"),
     pageCoordinateToBoard: () =>
       unavailableCapability("viewport.pageCoordinateToBoard"),
+    boardRectToLayoutRect: () =>
+      unavailableCapability("viewport.boardRectToLayoutRect"),
     boardRectToViewportRect: () =>
       unavailableCapability("viewport.boardRectToViewportRect"),
-    clientRectToBoardLayoutRect: () =>
-      unavailableCapability("viewport.clientRectToBoardLayoutRect"),
+    clientRectToLayoutRect: () =>
+      unavailableCapability("viewport.clientRectToLayoutRect"),
+    clientRectToBoardRect: () =>
+      unavailableCapability("viewport.clientRectToBoardRect"),
     panBy: () => unavailableCapability("viewport.panBy"),
     panTo: () => unavailableCapability("viewport.panTo"),
     zoomAt: () => unavailableCapability("viewport.zoomAt"),

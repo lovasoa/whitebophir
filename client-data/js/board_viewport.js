@@ -72,6 +72,18 @@ const TOUCH_EVENT_NAMES = [
  */
 
 /**
+ * CSS-pixel rect relative to the board element. This is the coordinate space
+ * used by absolutely positioned HTML overlays inside the board.
+ *
+ * @typedef {{
+ *   left: number,
+ *   top: number,
+ *   width: number,
+ *   height: number,
+ * }} LayoutRect
+ */
+
+/**
  * @typedef {{
  *   left: number,
  *   top: number,
@@ -100,8 +112,10 @@ const TOUCH_EVENT_NAMES = [
  *   ensureBoardExtentForBounds(bounds: {maxX: number, maxY: number} | null | undefined): boolean,
  *   boardCoordinateToLayout(value: unknown): number,
  *   pageCoordinateToBoard(value: unknown): number,
+ *   boardRectToLayoutRect(rect: BoardRect): LayoutRect,
  *   boardRectToViewportRect(rect: BoardRect): ViewportRect,
- *   clientRectToBoardLayoutRect(rect: {left?: unknown, top?: unknown, right?: unknown, bottom?: unknown, width?: unknown, height?: unknown}): BoardRect,
+ *   clientRectToLayoutRect(rect: {left?: unknown, top?: unknown, right?: unknown, bottom?: unknown, width?: unknown, height?: unknown}): LayoutRect,
+ *   clientRectToBoardRect(rect: {left?: unknown, top?: unknown, right?: unknown, bottom?: unknown, width?: unknown, height?: unknown}): BoardRect,
  *   panBy(dx: number, dy: number): void,
  *   panTo(left: number, top: number): void,
  *   zoomAt(scale: number, pageX: number, pageY: number): number,
@@ -516,30 +530,49 @@ export function createViewportController(Tools) {
   }
 
   /**
+   * Converts unscaled board units to CSS pixels relative to the board element.
+   *
+   * @param {BoardRect} rect
+   * @returns {LayoutRect}
+   */
+  function boardRectToLayoutRect(rect) {
+    return {
+      left: boardCoordinateToLayout(rect.x),
+      top: boardCoordinateToLayout(rect.y),
+      width: boardCoordinateToLayout(finiteNonNegative(rect.width)),
+      height: boardCoordinateToLayout(finiteNonNegative(rect.height)),
+    };
+  }
+
+  /**
+   * Converts unscaled board units to a browser viewport client rect.
+   *
    * @param {BoardRect} rect
    * @returns {ViewportRect}
    */
   function boardRectToViewportRect(rect) {
     const origin = boardClientOrigin();
-    const left = origin.left + boardCoordinateToLayout(rect.x);
-    const top = origin.top + boardCoordinateToLayout(rect.y);
-    const width = boardCoordinateToLayout(finiteNonNegative(rect.width));
-    const height = boardCoordinateToLayout(finiteNonNegative(rect.height));
+    const layoutRect = boardRectToLayoutRect(rect);
+    const left = origin.left + layoutRect.left;
+    const top = origin.top + layoutRect.top;
     return {
       left,
       top,
-      right: left + width,
-      bottom: top + height,
-      width,
-      height,
+      right: left + layoutRect.width,
+      bottom: top + layoutRect.height,
+      width: layoutRect.width,
+      height: layoutRect.height,
     };
   }
 
   /**
+   * Converts a browser viewport client rect into CSS pixels relative to the
+   * board element. It removes board origin and scroll, but leaves zoom intact.
+   *
    * @param {{left?: unknown, top?: unknown, right?: unknown, bottom?: unknown, width?: unknown, height?: unknown}} rect
-   * @returns {BoardRect}
+   * @returns {LayoutRect}
    */
-  function clientRectToBoardLayoutRect(rect) {
+  function clientRectToLayoutRect(rect) {
     const origin = boardClientOrigin();
     const left = finiteOr(rect.left, 0);
     const top = finiteOr(rect.top, 0);
@@ -550,10 +583,27 @@ export function createViewportController(Tools) {
       ? finiteNonNegative(rect.height)
       : Math.max(0, finiteOr(rect.bottom, top) - top);
     return {
-      x: left - origin.left,
-      y: top - origin.top,
+      left: left - origin.left,
+      top: top - origin.top,
       width,
       height,
+    };
+  }
+
+  /**
+   * Converts a browser viewport client rect to unscaled board units.
+   *
+   * @param {{left?: unknown, top?: unknown, right?: unknown, bottom?: unknown, width?: unknown, height?: unknown}} rect
+   * @returns {BoardRect}
+   */
+  function clientRectToBoardRect(rect) {
+    const scale = getScale();
+    const layoutRect = clientRectToLayoutRect(rect);
+    return {
+      x: screenToBoard(layoutRect.left, scale),
+      y: screenToBoard(layoutRect.top, scale),
+      width: screenToBoard(layoutRect.width, scale),
+      height: screenToBoard(layoutRect.height, scale),
     };
   }
 
@@ -959,8 +1009,10 @@ export function createViewportController(Tools) {
         screenToBoard(value, getScale()),
       );
     },
+    boardRectToLayoutRect,
     boardRectToViewportRect,
-    clientRectToBoardLayoutRect,
+    clientRectToLayoutRect,
+    clientRectToBoardRect,
     panBy(dx, dy) {
       panTo(
         document.documentElement.scrollLeft + dx,

@@ -607,6 +607,17 @@ export type ViewportController = {
   ) => boolean;
   boardCoordinateToLayout: (value: unknown) => number;
   pageCoordinateToBoard: (value: unknown) => number;
+  boardRectToLayoutRect: (rect: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }) => {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  };
   boardRectToViewportRect: (rect: {
     x: number;
     y: number;
@@ -620,7 +631,20 @@ export type ViewportController = {
     width: number;
     height: number;
   };
-  clientRectToBoardLayoutRect: (rect: {
+  clientRectToLayoutRect: (rect: {
+    left?: unknown;
+    top?: unknown;
+    right?: unknown;
+    bottom?: unknown;
+    width?: unknown;
+    height?: unknown;
+  }) => {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  };
+  clientRectToBoardRect: (rect: {
     left?: unknown;
     top?: unknown;
     right?: unknown;

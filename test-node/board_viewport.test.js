@@ -194,6 +194,55 @@ function createOverlayElement() {
 }
 
 /**
+ * @param {() => number} getScale
+ * @param {{left?: number, top?: number}} [origin]
+ */
+function createOverlayViewport(getScale, origin = {}) {
+  /** @param {{left?: unknown, top?: unknown, right?: unknown, bottom?: unknown, width?: unknown, height?: unknown}} rect */
+  function clientRectToLayoutRect(rect) {
+    const left = Number(rect.left) || 0;
+    const top = Number(rect.top) || 0;
+    const width = Number.isFinite(Number(rect.width))
+      ? Number(rect.width)
+      : (Number(rect.right) || left) - left;
+    const height = Number.isFinite(Number(rect.height))
+      ? Number(rect.height)
+      : (Number(rect.bottom) || top) - top;
+    return {
+      left: left - (origin.left || 0),
+      top: top - (origin.top || 0),
+      width,
+      height,
+    };
+  }
+
+  return {
+    /** @param {{x: number, y: number, width: number, height: number}} rect */
+    boardRectToLayoutRect: (rect) => {
+      const scale = getScale();
+      return {
+        left: rect.x * scale,
+        top: rect.y * scale,
+        width: rect.width * scale,
+        height: rect.height * scale,
+      };
+    },
+    clientRectToLayoutRect,
+    /** @param {{left?: unknown, top?: unknown, right?: unknown, bottom?: unknown, width?: unknown, height?: unknown}} rect */
+    clientRectToBoardRect: (rect) => {
+      const layoutRect = clientRectToLayoutRect(rect);
+      const scale = getScale();
+      return {
+        x: layoutRect.left / scale,
+        y: layoutRect.top / scale,
+        width: layoutRect.width / scale,
+        height: layoutRect.height / scale,
+      };
+    },
+  };
+}
+
+/**
  * @param {any} tools
  * @param {ReturnType<typeof createBoardTouchTarget>} [board]
  */
@@ -374,6 +423,10 @@ test("viewport converts board coordinates to layout coordinates", async () => {
   assert.equal(viewport.boardCoordinateToLayout(80), 20);
   assert.equal(viewport.boardCoordinateToLayout("12"), 3);
   assert.equal(viewport.boardCoordinateToLayout(Number.NaN), 0);
+  assert.deepEqual(
+    viewport.boardRectToLayoutRect({ x: 8, y: 12, width: 16, height: 20 }),
+    { left: 2, top: 3, width: 4, height: 5 },
+  );
 });
 
 test("viewport converts board rects to viewport rects with scroll", async () => {
@@ -407,7 +460,7 @@ test("viewport converts board rects to viewport rects with scroll", async () => 
   }
 });
 
-test("viewport converts client rects to board layout rects", async () => {
+test("viewport converts client rects to board-relative layout rects", async () => {
   const env = createViewportHashTestEnvironment();
   try {
     const { createViewportController } = await loadViewportModule();
@@ -418,17 +471,31 @@ test("viewport converts client rects to board layout rects", async () => {
     const viewport = createViewportController(tools);
 
     assert.deepEqual(
-      viewport.clientRectToBoardLayoutRect({
+      viewport.clientRectToLayoutRect({
         left: -25,
         top: -40,
         right: -10,
         bottom: -20,
       }),
       {
-        x: 5,
-        y: 10,
+        left: 5,
+        top: 10,
         width: 15,
         height: 20,
+      },
+    );
+    assert.deepEqual(
+      viewport.clientRectToBoardRect({
+        left: -25,
+        top: -40,
+        right: -10,
+        bottom: -20,
+      }),
+      {
+        x: 10,
+        y: 20,
+        width: 30,
+        height: 40,
       },
     );
   } finally {
@@ -462,17 +529,31 @@ test("viewport rect converters work when board DOM is detached", async () => {
       },
     );
     assert.deepEqual(
-      viewport.clientRectToBoardLayoutRect({
+      viewport.clientRectToLayoutRect({
         left: 13,
         top: 13,
         width: 24,
         height: 26,
       }),
       {
-        x: 20,
-        y: 22,
+        left: 20,
+        top: 22,
         width: 24,
         height: 26,
+      },
+    );
+    assert.deepEqual(
+      viewport.clientRectToBoardRect({
+        left: 13,
+        top: 13,
+        width: 24,
+        height: 26,
+      }),
+      {
+        x: 10,
+        y: 11,
+        width: 12,
+        height: 13,
       },
     );
   } finally {
@@ -486,18 +567,7 @@ test("board html overlay positions board-space bounds at multiple scales", async
   let scale = 0.5;
   const board = createOverlayBoardElement();
   const element = createOverlayElement();
-  const viewport = {
-    getScale: () => scale,
-    /** @param {unknown} value */
-    boardCoordinateToLayout: (value) => (Number(value) || 0) * scale,
-    /** @param {{left?: unknown, top?: unknown, width?: unknown, height?: unknown}} rect */
-    clientRectToBoardLayoutRect: (rect) => ({
-      x: Number(rect.left) || 0,
-      y: Number(rect.top) || 0,
-      width: Number(rect.width) || 0,
-      height: Number(rect.height) || 0,
-    }),
-  };
+  const viewport = createOverlayViewport(() => scale);
   const overlay = createBoardHtmlOverlay({ board, viewport, element });
 
   overlay.syncBoardRect({ x: 20, y: 30, width: 40, height: 50 });
@@ -527,18 +597,7 @@ test("board html overlay updates from a rect factory on viewport layout", async 
   let reads = 0;
   const board = createOverlayBoardElement();
   const element = createOverlayElement();
-  const viewport = {
-    getScale: () => scale,
-    /** @param {unknown} value */
-    boardCoordinateToLayout: (value) => (Number(value) || 0) * scale,
-    /** @param {{left?: unknown, top?: unknown, width?: unknown, height?: unknown}} rect */
-    clientRectToBoardLayoutRect: (rect) => ({
-      x: Number(rect.left) || 0,
-      y: Number(rect.top) || 0,
-      width: Number(rect.width) || 0,
-      height: Number(rect.height) || 0,
-    }),
-  };
+  const viewport = createOverlayViewport(() => scale);
   const overlay = createBoardHtmlOverlay({ board, viewport, element });
 
   overlay.syncBoardRect(() => {
@@ -559,30 +618,10 @@ test("board html overlay updates from a rect factory on viewport layout", async 
 test("board html overlay projects client rects and cleans up listeners", async () => {
   const { VIEWPORT_LAYOUT_EVENT } = await loadViewportModule();
   const { createBoardHtmlOverlay } = await loadOverlayModule();
-  const board = createOverlayBoardElement({ left: -10, top: -20 });
+  const origin = { left: -10, top: -20 };
+  const board = createOverlayBoardElement(origin);
   const element = createOverlayElement();
-  const viewport = {
-    getScale: () => 0.5,
-    /** @param {unknown} value */
-    boardCoordinateToLayout: (value) => (Number(value) || 0) * 0.5,
-    /** @param {{left?: unknown, top?: unknown, right?: unknown, bottom?: unknown, width?: unknown, height?: unknown}} rect */
-    clientRectToBoardLayoutRect: (rect) => {
-      const left = Number(rect.left) || 0;
-      const top = Number(rect.top) || 0;
-      const width = Number.isFinite(Number(rect.width))
-        ? Number(rect.width)
-        : (Number(rect.right) || left) - left;
-      const height = Number.isFinite(Number(rect.height))
-        ? Number(rect.height)
-        : (Number(rect.bottom) || top) - top;
-      return {
-        x: left + 10,
-        y: top + 20,
-        width,
-        height,
-      };
-    },
-  };
+  const viewport = createOverlayViewport(() => 0.5, origin);
   const overlay = createBoardHtmlOverlay({ board, viewport, element });
 
   overlay.syncClientRect({ left: 5, top: 10, right: 25, bottom: 30 });

@@ -226,6 +226,77 @@ test.describe("drawing and persistence", () => {
     await expect(page.locator("#drawingArea text")).toBeVisible();
   });
 
+  test("empty active text editor remains editable", async ({
+    boardPage,
+    page,
+  }) => {
+    await boardPage.gotoBoard("text-editor-empty-rewrite");
+    await boardPage.selectTool("text");
+    await page.mouse.click(260, 240);
+    await page.keyboard.insertText("abc");
+    await boardPage.expectTextEditorToCoverText();
+
+    await page.keyboard.press(
+      process.platform === "darwin" ? "Meta+A" : "Control+A",
+    );
+    await page.keyboard.press("Backspace");
+
+    const input = page.locator("#textToolInput");
+    await expect(input).toBeVisible();
+    await expect(input).toBeFocused();
+    await expect(input).toHaveValue("");
+
+    await page.keyboard.insertText("def");
+    await expect(input).toHaveValue("def");
+    await expect(page.locator("#drawingArea text")).toHaveText("def");
+  });
+
+  test("text editor inserts at the clicked SVG text position", async ({
+    boardPage,
+    page,
+  }) => {
+    const prefixBeforeInsertion = "A7mW0iIl1Q9pB8zZ2xM4";
+    const suffixAfterInsertion = "iiiWWW";
+    const initialText = `${prefixBeforeInsertion}${suffixAfterInsertion}`;
+    const expectedText = `${prefixBeforeInsertion}X${suffixAfterInsertion}`;
+
+    await boardPage.gotoBoard("text-editor-svg-caret-hit-test");
+    await boardPage.selectTool("text");
+    await page.evaluate(() => {
+      window.WBOApp.viewportState.controller.setScale(0.22);
+    });
+    await page.mouse.click(260, 240);
+    await page.keyboard.insertText(initialText);
+    await boardPage.expectTextEditorToCoverText();
+
+    const insertionPoint = await page.evaluate((clickedCharIndex) => {
+      const text = document.querySelector("#drawingArea text");
+      if (!(text instanceof SVGTextElement)) {
+        throw new Error("Missing SVG text");
+      }
+      const matrix = text.getScreenCTM();
+      if (!matrix) throw new Error("Missing SVG text transform");
+
+      // The glyphs before the insertion point have different widths, so small
+      // editor/SVG text metric drift accumulates before the clicked position.
+      const clickedChar = text.getExtentOfChar(clickedCharIndex);
+      const point = new DOMPoint(
+        // Click in the right half of the glyph: browsers place the caret after
+        // that glyph, so the inserted marker should land after the prefix.
+        clickedChar.x + clickedChar.width * 0.75,
+        // Keep the click vertically centered inside the rendered glyph box.
+        clickedChar.y + clickedChar.height / 2,
+      ).matrixTransform(matrix);
+      return { x: point.x, y: point.y };
+    }, prefixBeforeInsertion.length - 1);
+
+    await page.mouse.click(insertionPoint.x, insertionPoint.y);
+    await page.keyboard.insertText("X");
+
+    await expect(page.locator("#textToolInput")).toHaveValue(expectedText);
+    await expect(page.locator("#drawingArea text")).toHaveText(expectedText);
+  });
+
   test("active new text editor follows zoom changes", async ({
     boardPage,
     page,

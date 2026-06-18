@@ -11,6 +11,15 @@ import { VIEWPORT_LAYOUT_EVENT } from "./board_viewport.js";
 
 /**
  * @typedef {{
+ *   left: number,
+ *   top: number,
+ *   width: number,
+ *   height: number,
+ * }} LayoutRect
+ */
+
+/**
+ * @typedef {{
  *   left?: unknown,
  *   top?: unknown,
  *   right?: unknown,
@@ -21,13 +30,14 @@ import { VIEWPORT_LAYOUT_EVENT } from "./board_viewport.js";
  */
 
 /** @typedef {BoardRect | (() => BoardRect | null | undefined)} BoardRectSource */
+/** @typedef {LayoutRect | (() => LayoutRect | null | undefined)} LayoutRectSource */
 /** @typedef {ClientRectLike | (() => ClientRectLike | null | undefined)} ClientRectSource */
 
 /**
  * @typedef {{
- *   getScale(): number,
- *   boardCoordinateToLayout(value: unknown): number,
- *   clientRectToBoardLayoutRect(rect: ClientRectLike): BoardRect,
+ *   boardRectToLayoutRect(rect: BoardRect): LayoutRect,
+ *   clientRectToLayoutRect(rect: ClientRectLike): LayoutRect,
+ *   clientRectToBoardRect(rect: ClientRectLike): BoardRect,
  * }} OverlayViewport
  */
 
@@ -72,6 +82,20 @@ function normalizeBoardRect(rect) {
 }
 
 /**
+ * @param {LayoutRect | null | undefined} rect
+ * @returns {LayoutRect | null}
+ */
+function normalizeLayoutRect(rect) {
+  if (!rect) return null;
+  return {
+    left: finiteOr(rect.left, 0),
+    top: finiteOr(rect.top, 0),
+    width: Math.max(0, finiteOr(rect.width, 0)),
+    height: Math.max(0, finiteOr(rect.height, 0)),
+  };
+}
+
+/**
  * @param {BoardRectSource} source
  * @returns {BoardRect | null}
  */
@@ -80,19 +104,11 @@ function readBoardRect(source) {
 }
 
 /**
- * @param {OverlayViewport} viewport
- * @param {ClientRectLike} rect
- * @returns {BoardRect}
+ * @param {LayoutRectSource} source
+ * @returns {LayoutRect | null}
  */
-function clientRectToBoardRect(viewport, rect) {
-  const scale = Math.max(0.000001, finiteOr(viewport.getScale(), 1));
-  const layoutRect = viewport.clientRectToBoardLayoutRect(rect);
-  return {
-    x: layoutRect.x / scale,
-    y: layoutRect.y / scale,
-    width: layoutRect.width / scale,
-    height: layoutRect.height / scale,
-  };
+function readLayoutRect(source) {
+  return normalizeLayoutRect(typeof source === "function" ? source() : source);
 }
 
 /**
@@ -100,7 +116,7 @@ function clientRectToBoardRect(viewport, rect) {
  */
 export function createBoardHtmlOverlay({ board, viewport, element }) {
   const boardElement = resolveBoardElement(board);
-  /** @type {{kind: "board", source: BoardRectSource} | {kind: "client", source: ClientRectSource} | null} */
+  /** @type {{kind: "board", source: BoardRectSource} | {kind: "client", source: ClientRectSource} | {kind: "layout", source: LayoutRectSource} | null} */
   let lastSync = null;
   let listening = false;
 
@@ -121,37 +137,34 @@ export function createBoardHtmlOverlay({ board, viewport, element }) {
     boardElement.addEventListener(VIEWPORT_LAYOUT_EVENT, render);
   }
 
-  /** @param {BoardRect} rect */
-  function applyBoardRect(rect) {
+  /** @param {LayoutRect} rect */
+  function applyLayoutRect(rect) {
     ensureAttached();
-    element.style.left = `${viewport.boardCoordinateToLayout(rect.x)}px`;
-    element.style.top = `${viewport.boardCoordinateToLayout(rect.y)}px`;
-    element.style.width = `${viewport.boardCoordinateToLayout(rect.width)}px`;
-    element.style.height = `${viewport.boardCoordinateToLayout(rect.height)}px`;
+    element.style.left = `${rect.left}px`;
+    element.style.top = `${rect.top}px`;
+    element.style.width = `${rect.width}px`;
+    element.style.height = `${rect.height}px`;
     element.style.display = "";
   }
 
   function render() {
     if (!lastSync) return;
-    const rect =
-      lastSync.kind === "board"
-        ? readBoardRect(lastSync.source)
-        : normalizeBoardRect(
-            (() => {
-              const source = lastSync && lastSync.source;
-              if (!source) return null;
-              const clientRect =
-                typeof source === "function" ? source() : source;
-              return clientRect
-                ? clientRectToBoardRect(viewport, clientRect)
-                : null;
-            })(),
-          );
+    let rect = null;
+    if (lastSync.kind === "board") {
+      const boardRect = readBoardRect(lastSync.source);
+      rect = boardRect ? viewport.boardRectToLayoutRect(boardRect) : null;
+    } else if (lastSync.kind === "client") {
+      const source = lastSync.source;
+      const clientRect = typeof source === "function" ? source() : source;
+      rect = clientRect ? viewport.clientRectToLayoutRect(clientRect) : null;
+    } else {
+      rect = readLayoutRect(lastSync.source);
+    }
     if (!rect) {
       element.style.display = "none";
       return;
     }
-    applyBoardRect(rect);
+    applyLayoutRect(rect);
   }
 
   return {
@@ -161,12 +174,18 @@ export function createBoardHtmlOverlay({ board, viewport, element }) {
       addLayoutListener();
       render();
     },
+    /** @param {LayoutRectSource} rect */
+    syncLayoutRect(rect) {
+      lastSync = { kind: "layout", source: rect };
+      addLayoutListener();
+      render();
+    },
     /** @param {ClientRectSource} rect */
     syncClientRect(rect) {
       lastSync =
         typeof rect === "function"
           ? { kind: "client", source: rect }
-          : { kind: "board", source: clientRectToBoardRect(viewport, rect) };
+          : { kind: "board", source: viewport.clientRectToBoardRect(rect) };
       addLayoutListener();
       render();
     },

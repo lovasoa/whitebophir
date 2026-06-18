@@ -299,23 +299,22 @@ function selectionActionButtonY(bbox, buttonHeight, scale) {
 /**
  * @param {HandState} state
  * @param {number} preferred
- * @param {number} scale
  * @returns {number}
  */
-function selectionActionButtonX(state, preferred, scale) {
+function selectionActionButtonX(state, preferred) {
   const menu = document.getElementById("menu");
   const rect =
     menu &&
     typeof menu.getBoundingClientRect === "function" &&
     menu.getBoundingClientRect();
   if (!rect || rect.right <= 0) return preferred;
-  const layoutRect = state.Tools.viewport.clientRectToBoardLayoutRect({
+  const boardRect = state.Tools.viewport.clientRectToBoardRect({
     left: rect.right + 4,
     top: 0,
     width: 0,
     height: 0,
   });
-  return Math.max(preferred, layoutRect.x / scale);
+  return Math.max(preferred, boardRect.x);
 }
 
 /**
@@ -339,7 +338,7 @@ function createState(Tools, assetUrl) {
       24,
       24,
       (me, bbox, scale) => {
-        const x = selectionActionButtonX(state, bbox.r[0], scale);
+        const x = selectionActionButtonX(state, bbox.r[0]);
         return {
           x,
           y: selectionActionButtonY(bbox, me.origHeight, scale),
@@ -356,7 +355,7 @@ function createState(Tools, assetUrl) {
       24,
       24,
       (me, bbox, scale) => {
-        const x = selectionActionButtonX(state, bbox.r[0], scale);
+        const x = selectionActionButtonX(state, bbox.r[0]);
         return {
           x: x + (me.origWidth + 2) / scale,
           y: selectionActionButtonY(bbox, me.origHeight, scale),

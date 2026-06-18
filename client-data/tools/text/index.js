@@ -40,7 +40,7 @@ import { TOOL_CODE_BY_ID } from "../tool-order.js";
 /** @typedef {Omit<ReturnType<typeof createTextMessage>, "opacity"> & {opacity?: number}} TextCreateMessage */
 /** @typedef {ReturnType<typeof updateTextMessage>} TextUpdateMessage */
 /** @typedef {TextCreateMessage | TextUpdateMessage} TextMessage */
-/** @typedef {{fontSize: number, caretColor: string}} EditorMetrics */
+/** @typedef {{fontSize: number, caretColor: string, fontFamily?: string, fontStyle?: string, fontWeight?: string, letterSpacing?: string}} EditorMetrics */
 /** @typedef {ReturnType<typeof createInitialState>} TextState */
 
 function createInitialText() {
@@ -277,9 +277,71 @@ function applyEditorMetrics(input, metrics) {
   input.style.fontSize = `${metrics.fontSize}px`;
   input.style.lineHeight = `${metrics.fontSize}px`;
   input.style.caretColor = metrics.caretColor;
+  input.style.fontFamily = metrics.fontFamily || "";
+  input.style.fontStyle = metrics.fontStyle || "";
+  input.style.fontWeight = metrics.fontWeight || "";
+  input.style.letterSpacing = metrics.letterSpacing || "";
 }
 
 /**
+ * @param {unknown} value
+ * @param {number} fallback
+ * @returns {number}
+ */
+function finiteNumber(value, fallback) {
+  if (value === null || value === "") return fallback;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+/**
+ * @param {CSSStyleDeclaration} style
+ * @returns {Pick<EditorMetrics, "fontFamily" | "fontStyle" | "fontWeight" | "letterSpacing">}
+ */
+function readTextFontMetrics(style) {
+  return {
+    fontFamily: style.getPropertyValue("font-family"),
+    fontStyle: style.getPropertyValue("font-style"),
+    fontWeight: style.getPropertyValue("font-weight"),
+    letterSpacing: style.getPropertyValue("letter-spacing"),
+  };
+}
+
+/**
+ * Returns the CSS font size that makes the HTML input's text advance match
+ * the SVG text advance. SVG bbox height is not reliable for caret metrics.
+ *
+ * @param {TextState} state
+ * @param {SVGTextElement} textElement
+ * @param {{width: number, height: number}} rect
+ * @param {CSSStyleDeclaration} style
+ * @returns {number}
+ */
+function readSvgEditorFontSize(state, textElement, rect, style) {
+  const svgFontSize = finiteNumber(
+    textElement.getAttribute("font-size"),
+    state.curText.size,
+  );
+  const measuredTextLength =
+    typeof textElement.getComputedTextLength === "function"
+      ? textElement.getComputedTextLength()
+      : 0;
+  if (measuredTextLength > 0 && rect.width > 0) {
+    return Math.max(1, (rect.width / measuredTextLength) * svgFontSize);
+  }
+  return Math.max(
+    1,
+    finiteNumber(
+      Number.parseFloat(style.getPropertyValue("font-size")),
+      state.viewport.boardCoordinateToLayout(svgFontSize),
+    ),
+  );
+}
+
+/**
+ * Expands the visible SVG text bounds to include the input border, padding,
+ * and a little room for the caret at the end of the line.
+ *
  * @param {{left: number, top: number, width: number, height: number}} rect
  * @param {number} fontSize
  * @returns {{left: number, top: number, width: number, height: number}}
@@ -295,64 +357,86 @@ function expandedEditorClientRect(rect, fontSize) {
 }
 
 /**
- * Measures only the active edited SVG text. `getBoundingClientRect()` can
- * force layout, so this helper must stay confined to the one active text item
- * and only be called from the coalesced editor layout frame.
+ * Builds a board-relative CSS layout rect for editing an existing SVG text
+ * element. `getBoundingClientRect()` can force layout, so this helper must stay
+ * confined to the one active text item and only be called from the coalesced
+ * editor layout frame.
  *
  * @param {TextState} state
  * @returns {{left: number, top: number, width: number, height: number} | null}
  */
-function readSvgEditorClientRect(state) {
+function readSvgEditorLayoutRect(state) {
   const textElement = getActiveTextElement(state);
   if (!textElement) return null;
   const rect = textElement.getBoundingClientRect();
   const style = getComputedStyle(textElement);
-  const fontSize = Math.max(
-    1,
-    rect.height || state.curText.size * state.viewport.getScale(),
-  );
+  if (rect.width <= 0 && rect.height <= 0) {
+    const layoutRect = readPendingEditorLayoutRect(state);
+    if (!layoutRect) return null;
+    applyEditorMetrics(state.input, {
+      fontSize: readSvgEditorFontSize(state, textElement, rect, style),
+      ...readTextFontMetrics(style),
+      caretColor:
+        style.getPropertyValue("fill") ||
+        textElement.getAttribute("fill") ||
+        state.curText.color ||
+        "#000",
+    });
+    return layoutRect;
+  }
+  const fontSize = readSvgEditorFontSize(state, textElement, rect, style);
   applyEditorMetrics(state.input, {
     fontSize,
+    ...readTextFontMetrics(style),
     caretColor:
       style.getPropertyValue("fill") ||
       textElement.getAttribute("fill") ||
       state.curText.color ||
       "#000",
   });
-  return expandedEditorClientRect(rect, fontSize);
+  return state.viewport.clientRectToLayoutRect(
+    expandedEditorClientRect(rect, fontSize),
+  );
 }
 
 /** @param {TextState} state */
 function syncSvgEditorLayout(state) {
-  state.editorOverlay.syncClientRect(() => readSvgEditorClientRect(state));
+  state.editorOverlay.syncLayoutRect(() => readSvgEditorLayoutRect(state));
 }
 
 /**
+ * Builds the initial board-relative CSS layout rect before there is measurable
+ * SVG text, or after the edited SVG text has been emptied.
+ *
  * @param {TextState} state
- * @returns {{x: number, y: number, width: number, height: number} | null}
+ * @returns {{left: number, top: number, width: number, height: number} | null}
  */
-function readPendingEditorBoardRect(state) {
+function readPendingEditorLayoutRect(state) {
   if (!state.active) return null;
-  const scale = state.viewport.getScale();
-  const fontSize = Math.max(1, state.curText.size * scale);
-  const safeScale = Math.max(0.000001, scale);
+  const textRect = state.viewport.boardRectToLayoutRect({
+    x: state.curText.x,
+    y: state.curText.y - state.curText.size,
+    width: 0,
+    height: state.curText.size,
+  });
+  const fontSize = Math.max(1, textRect.height);
   applyEditorMetrics(state.input, {
     fontSize,
+    fontFamily: "serif",
     caretColor: state.curText.color || "#000",
   });
   return {
-    x:
-      state.curText.x -
-      (TEXT_INPUT_HORIZONTAL_PADDING_PX + TEXT_INPUT_BORDER_PX) / safeScale,
-    y: state.curText.y - state.curText.size - TEXT_INPUT_BORDER_PX / safeScale,
-    width: (TEXT_INPUT_MIN_WIDTH_PX + TEXT_INPUT_EXTRA_WIDTH_PX) / safeScale,
-    height: (fontSize + TEXT_INPUT_BORDER_PX * 2) / safeScale,
+    left:
+      textRect.left - TEXT_INPUT_HORIZONTAL_PADDING_PX - TEXT_INPUT_BORDER_PX,
+    top: textRect.top - TEXT_INPUT_BORDER_PX,
+    width: TEXT_INPUT_MIN_WIDTH_PX + TEXT_INPUT_EXTRA_WIDTH_PX,
+    height: fontSize + TEXT_INPUT_BORDER_PX * 2,
   };
 }
 
 /** @param {TextState} state */
 function syncPendingEditorLayout(state) {
-  state.editorOverlay.syncBoardRect(() => readPendingEditorBoardRect(state));
+  state.editorOverlay.syncLayoutRect(() => readPendingEditorLayoutRect(state));
 }
 
 /** @param {TextState} state */
@@ -425,6 +509,8 @@ function editOldText(state, elem) {
   state.curText.sentText = elem.textContent || "";
   state.curText.size =
     Number(elem.getAttribute("font-size")) || state.curText.size;
+  state.curText.x = Number(elem.getAttribute("x")) || state.curText.x;
+  state.curText.y = Number(elem.getAttribute("y")) || state.curText.y;
   state.curText.opacity = Number(elem.getAttribute("opacity")) || 1;
   state.curText.color = elem.getAttribute("fill") || "#000";
   state.input.value = elem.textContent || "";
