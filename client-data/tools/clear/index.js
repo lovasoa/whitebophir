@@ -50,9 +50,18 @@ function createClearMessage(state) {
   };
 }
 
+const CLEAR_CONFIRMATION_MESSAGE =
+  "⚠️ WARNING: This will permanently clear the entire board for everyone.\n\nAre you sure you want to continue?";
+
+function confirmClearBoard() {
+  return window.confirm(CLEAR_CONFIRMATION_MESSAGE);
+}
+
 /** @param {ClearToolState} state */
 export function onstart(state) {
+  if (!confirmClearBoard()) return false;
   state.writes.drawAndSend(createClearMessage(state));
+  return true;
 }
 
 /** @param {ClearToolState} state */
