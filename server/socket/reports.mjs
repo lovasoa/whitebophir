@@ -124,12 +124,6 @@ function handleReportByModerator(context, { reporter, reported }) {
     reported.ip,
     context.now,
   );
-  logger.warn("user.banned", {
-    board,
-    reported_ip: reported.ip,
-    reported_name: reported.name,
-    by: reporter.name,
-  });
   const reportedSocket = context.getActiveSocket(reported.socketId);
   if (!reportedSocket) {
     logger.error("user.ban.fail", { reported, reporter, board });
@@ -191,6 +185,9 @@ function handleReportUserMessage(context) {
   const banned = canBanOnBoard(config, boardName, socket);
 
   if (banned) {
+    const reportLog = buildUserReportLog(boardName, resolvedUsers, true);
+    lastUserReportLog = reportLog;
+    logger.warn("user.reported", reportLog);
     handleReportByModerator(context, resolvedUsers);
     return;
   }
@@ -205,7 +202,7 @@ function handleReportUserMessage(context) {
     "user.name": resolvedUsers.reporter.name,
     "wbo.reported_user.name": resolvedUsers.reported.name,
   });
-  const reportLog = buildUserReportLog(boardName, resolvedUsers, banned);
+  const reportLog = buildUserReportLog(boardName, resolvedUsers, false);
   lastUserReportLog = reportLog;
   logger.warn("user.reported", reportLog);
 
