@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/devcontainers/javascript-node:1-24-bookworm
+FROM mcr.microsoft.com/devcontainers/javascript-node:24-trixie
 
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
