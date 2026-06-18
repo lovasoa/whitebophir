@@ -6,7 +6,7 @@ import { canBanOnBoard } from "./policy.mjs";
 const { logger, tracing } = observability;
 
 /** @import { AppSocket, ReportUserPayload, ServerConfig } from "../../types/server-runtime.d.ts" */
-/** @typedef {{socketId: string, name: string, ip: string, userSecret?: string, userAgent: string, language: string}} BoardUser */
+/** @typedef {{socketId: string, name: string, ip: string, userSecret?: string, userAgent: string, language: string, canClear?: boolean}} BoardUser */
 /** @typedef {{board: string, reporter_socket: string, reported_socket: string, reporter_ip: string, reported_ip: string, reporter_user_agent: string, reported_user_agent: string, reporter_language: string, reported_language: string, reporter_name: string, reported_name: string, banned: boolean}} UserReportLog */
 /** @typedef {(socketId: string) => AppSocket | undefined} GetActiveSocket */
 /** @typedef {(socket: AppSocket, eventName: string, infos: {[key: string]: any}) => void} CloseSocket */
@@ -40,9 +40,9 @@ function resolveReportedUsers(boardName, reporterSocketId, reportedSocketId) {
 /**
  * @returns {void}
  */
-function ignoreReportedUser() {
+function ignoreReportedUser(result = "ignored") {
   tracing.setActiveSpanAttributes({
-    "wbo.board.result": "ignored",
+    "wbo.board.result": result,
   });
 }
 
@@ -182,6 +182,18 @@ function handleReportUserMessage(context) {
   );
   if (!resolvedUsers) {
     ignoreReportedUser();
+    return;
+  }
+
+  if (resolvedUsers.reported.canClear === true) {
+    ignoreReportedUser("protected_report_ignored");
+    logger.warn("user.report_skipped_protected_target", {
+      board: context.boardName,
+      reporter_socket: resolvedUsers.reporter.socketId,
+      reported_socket: resolvedUsers.reported.socketId,
+      reporter_name: resolvedUsers.reporter.name,
+      reported_name: resolvedUsers.reported.name,
+    });
     return;
   }
 

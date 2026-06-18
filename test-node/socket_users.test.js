@@ -465,6 +465,45 @@ test("presence payloads expose canEdit/canClear for sidebar status", async () =>
   );
 });
 
+test("report_user ignores canClear targets without disconnecting either user", async () => {
+  const moderatorSecret = "fdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfd";
+  await createSocketScenario(
+    {
+      historyDirPrefix: "wbo-users-report-protected-",
+      config: {
+        BOARD_MODERATORS: new Map([
+          ["report-protected-board", new Set([moderatorSecret])],
+        ]),
+      },
+    },
+    async ({ connect, handler, test }) => {
+      const reporter = await connect({
+        id: "socket-report-protected-reporter",
+        remoteAddress: "203.0.113.92",
+        headers: withUserSecretCookie("88888888888888888888888888888888"),
+        query: { board: "report-protected-board", tool: "hand" },
+      });
+      const moderator = await connect({
+        id: "socket-report-protected-mod",
+        remoteAddress: "203.0.113.93",
+        headers: withUserSecretCookie(moderatorSecret),
+        query: { board: "report-protected-board", tool: "hand" },
+      });
+
+      handler(
+        reporter,
+        "report_user",
+      )({
+        socketId: "socket-report-protected-mod",
+      });
+
+      assert.equal(reporter.socket.client.conn.closeCalls.length, 0);
+      assert.equal(moderator.socket.client.conn.closeCalls.length, 0);
+      assert.equal(test.getLastUserReportLog(), null);
+    },
+  );
+});
+
 test("presence reflects JWT moderator role, not just configured moderators", async () => {
   const authSecret = "test-secret";
   const moderatorToken = jsonwebtoken.sign(
