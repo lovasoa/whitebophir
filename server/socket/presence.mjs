@@ -14,7 +14,7 @@ import {
 } from "./request.mjs";
 
 /** @import { AppSocket, ConnectedUserPayload, NormalizedMessageData, ServerConfig } from "../../types/server-runtime.d.ts" */
-/** @typedef {{socketId: string, userId: string, userSecret: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number, canEdit: boolean, canClear: boolean}} BoardUser */
+/** @typedef {{socketId: string, userId: string, userSecret: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number, lastFocusX: number, lastFocusY: number, canEdit: boolean, canClear: boolean}} BoardUser */
 /** @typedef {(socket: AppSocket, boardName: string, config: ServerConfig) => string} ResolveClientIp */
 /** @typedef {{canEdit: boolean, canClear: boolean}} UserCapabilities */
 
@@ -77,6 +77,8 @@ function buildBoardUserRecord(
     size,
     lastTool: getSocketQueryValue(socket, "tool") || "hand",
     lastSeen: now || Date.now(),
+    lastFocusX: 0,
+    lastFocusY: 0,
     canEdit: capabilities.canEdit,
     canClear: capabilities.canClear,
   };
@@ -126,6 +128,8 @@ function serializeBoardUser(user) {
     color: user.color,
     size: user.size,
     lastTool: user.lastTool,
+    lastFocusX: user.lastFocusX,
+    lastFocusY: user.lastFocusY,
     canEdit: user.canEdit,
     canClear: user.canClear,
   };
@@ -238,6 +242,15 @@ function updateBoardUserFromMessage(socket, boardName, data, now) {
   if (hasMessageSize(data)) user.size = data.size || user.size;
   const toolId = getToolId(data.tool);
   if (data.tool !== Cursor.id && toolId) user.lastTool = toolId;
+  if (
+    "x" in data &&
+    "y" in data &&
+    Number.isFinite(data.x) &&
+    Number.isFinite(data.y)
+  ) {
+    user.lastFocusX = data.x;
+    user.lastFocusY = data.y;
+  }
   return user;
 }
 

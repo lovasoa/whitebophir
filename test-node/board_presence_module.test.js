@@ -122,6 +122,8 @@ function createConnectedUser() {
     color: "#123456",
     size: 4,
     lastTool: "hand",
+    lastFocusX: 0,
+    lastFocusY: 0,
   };
 }
 
@@ -166,7 +168,7 @@ test("presence activity treats rendered focus measurement as best-effort", async
     const user = presence.users.get("sock-1");
     assert.ok(user);
     assert.equal(user.lastTool, "hand");
-    assert.equal(user.lastFocusX, undefined);
+    assert.equal(user.lastFocusX, 0);
   } finally {
     env.restore();
   }
@@ -194,7 +196,7 @@ test("presence focus ignores elements outside the attached drawing area", async 
     });
     const user = presence.users.get("sock-1");
     assert.ok(user);
-    assert.equal(user.lastFocusX, undefined);
+    assert.equal(user.lastFocusX, 0);
   } finally {
     env.restore();
   }

@@ -342,8 +342,8 @@ export type ConnectedUser = {
   lastTool: string;
   canEdit?: boolean;
   canClear?: boolean;
-  lastFocusX?: number;
-  lastFocusY?: number;
+  lastFocusX: number;
+  lastFocusY: number;
   lastActivityAt?: number;
   pulseMs?: number;
   pulseUntil?: number;
