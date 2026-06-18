@@ -1,0 +1,25 @@
+{
+  "name": "WBO development",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "remoteUser": "node",
+  "containerEnv": {
+    "PLAYWRIGHT_BROWSERS_PATH": "/ms-playwright",
+    "WBO_SILENT": "true"
+  },
+  "forwardPorts": [5001],
+  "portsAttributes": {
+    "5001": {
+      "label": "WBO dev server",
+      "onAutoForward": "notify"
+    }
+  },
+  "postCreateCommand": "npm ci",
+  "customizations": {
+    "vscode": {
+      "extensions": ["biomejs.biome", "ms-playwright.playwright"]
+    }
+  }
+}
