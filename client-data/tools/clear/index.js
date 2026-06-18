@@ -51,8 +51,15 @@ function createClearMessage(state) {
 }
 
 /** @param {ClearToolState} state */
+function confirmClearBoard(state) {
+  return window.confirm(state.i18n.t("clear_confirmation_message"));
+}
+
+/** @param {ClearToolState} state */
 export function onstart(state) {
+  if (!confirmClearBoard(state)) return false;
   state.writes.drawAndSend(createClearMessage(state));
+  return true;
 }
 
 /** @param {ClearToolState} state */
@@ -65,6 +72,7 @@ export function boot(ctx) {
   return {
     board: ctx.runtime.board,
     identity: ctx.runtime.identity,
+    i18n: ctx.runtime.i18n,
     writes: ctx.runtime.writes,
   };
 }

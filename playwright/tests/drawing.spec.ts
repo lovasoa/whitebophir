@@ -434,6 +434,9 @@ test.describe("drawing and persistence", () => {
       await expect(visibleStroke).toHaveCount(1);
       await expect(boardPage.statusIndicator).toBeVisible();
 
+      peerPage.once("dialog", async (dialog) => {
+        await dialog.accept();
+      });
       await peerBoard.tool("clear").click();
       await page.mouse.up();
 
