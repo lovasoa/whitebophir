@@ -115,7 +115,9 @@ test.describe("collaboration and rate limiting", () => {
 
     await peerBoard.forceScrollTopLeft();
     await peerPage
-      .locator("#connectedUsersList .connected-user-main-link[href^='#']")
+      .locator(
+        "#connectedUsersList .connected-user-row:not(.connected-user-row-self) .connected-user-main-link[href^='#']",
+      )
       .click();
     await expect
       .poll(() => peerBoard.scrollPosition())
