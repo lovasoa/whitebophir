@@ -72,6 +72,7 @@ test("configuration provides sane default rate-limit ordering", () => {
       },
     },
   });
+  assert.equal(config.TURNSTILE_VALIDATION_WINDOW_MS, 15 * 60 * 1000);
   assert.ok(
     config.GENERAL_RATE_LIMITS.limit >
       config.CONSTRUCTIVE_ACTION_RATE_LIMITS.limit,
