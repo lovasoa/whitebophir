@@ -465,7 +465,7 @@ test("presence payloads expose canEdit/canClear for sidebar status", async () =>
   );
 });
 
-test("report_user ignores canClear targets without disconnecting either user", async () => {
+test("report_user ignores canClear targets without disconnecting the moderator", async () => {
   const moderatorSecret = "fdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfd";
   await createSocketScenario(
     {
@@ -497,7 +497,7 @@ test("report_user ignores canClear targets without disconnecting either user", a
         socketId: "socket-report-protected-mod",
       });
 
-      assert.equal(reporter.socket.client.conn.closeCalls.length, 0);
+      assert.equal(reporter.socket.client.conn.closeCalls.length, 1);
       assert.equal(moderator.socket.client.conn.closeCalls.length, 0);
       assert.equal(test.getLastUserReportLog(), null);
     },
