@@ -154,7 +154,7 @@ export const TURNSTILE_VERIFY_URL = parseStringEnv(
 /** How long a successful Turnstile validation remains valid for a socket. */
 export const TURNSTILE_VALIDATION_WINDOW_MS = parseIntegerEnv(
   "TURNSTILE_VALIDATION_WINDOW_MS",
-  4 * 60 * 1000,
+  15 * 60 * 1000,
 );
 
 /** Optional board name used by the root route redirect. */

@@ -411,6 +411,7 @@ function canAccessBoard(config, boardName, socket) {
 }
 
 /**
+ * Returns true when the given socket belongs to an user who has the permission to ban others on the board.
  * @param {SocketPolicyConfig} config
  * @param {string} boardName
  * @param {AppSocket} socket

@@ -939,6 +939,9 @@ function createInputToolRuntime(tools) {
     toolRegistry: tools.toolRegistry,
     interaction: tools.interaction,
     config: tools.config,
+    i18n: tools.i18n || {
+      t: (s) => s,
+    },
     ids: tools.ids,
     messages: {
       messageForTool: () => unavailableCapability("messages.messageForTool"),
@@ -966,6 +969,7 @@ function createHarnessToolRuntime(app) {
     toolRegistry: app.toolRegistry,
     interaction: app.interaction,
     config: app.config,
+    i18n: app.i18n,
     ids: app.ids,
     messages: app.messages,
     permissions: app.access,
