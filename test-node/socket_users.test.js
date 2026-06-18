@@ -461,6 +461,8 @@ test("presence payloads expose canEdit/canClear for sidebar status", async () =>
       assert.equal(moderatorPayload.canClear, true);
       assert.equal(viewerPayload.canEdit, true);
       assert.equal(viewerPayload.canClear, false);
+      assert.deepEqual(moderatorPayload.position, { x: 0, y: 0 });
+      assert.deepEqual(viewerPayload.position, { x: 0, y: 0 });
     },
   );
 });
@@ -1867,6 +1869,7 @@ test("live broadcasts attach socket attribution and keep the user's latest non-c
       assert.equal(user.lastTool, "rectangle");
       assert.equal(user.color, "#abcdef");
       assert.equal(user.size, 12);
+      assert.deepEqual(user.position, { x: 9, y: 10 });
       let cursorBroadcast;
       for (let index = created.broadcasted.length - 1; index >= 0; index--) {
         const event = created.broadcasted[index];

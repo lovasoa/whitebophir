@@ -1,7 +1,8 @@
 import WBOMessageCommon from "../../client-data/js/message_common.js";
 import {
-  hasMessageColor,
-  hasMessageSize,
+  extractMessageColor,
+  extractMessagePosition,
+  extractMessageSize,
 } from "../../client-data/js/message_shape.js";
 import { getToolId } from "../../client-data/js/message_tool_metadata.js";
 import { SocketEvents } from "../../client-data/js/socket_events.js";
@@ -14,7 +15,7 @@ import {
 } from "./request.mjs";
 
 /** @import { AppSocket, ConnectedUserPayload, NormalizedMessageData, ServerConfig } from "../../types/server-runtime.d.ts" */
-/** @typedef {{socketId: string, userId: string, userSecret: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number, canEdit: boolean, canClear: boolean}} BoardUser */
+/** @typedef {{socketId: string, userId: string, userSecret: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number, position: {x: number, y: number}, canEdit: boolean, canClear: boolean}} BoardUser */
 /** @typedef {(socket: AppSocket, boardName: string, config: ServerConfig) => string} ResolveClientIp */
 /** @typedef {{canEdit: boolean, canClear: boolean}} UserCapabilities */
 
@@ -77,6 +78,7 @@ function buildBoardUserRecord(
     size,
     lastTool: getSocketQueryValue(socket, "tool") || "hand",
     lastSeen: now || Date.now(),
+    position: { x: 0, y: 0 },
     canEdit: capabilities.canEdit,
     canClear: capabilities.canClear,
   };
@@ -126,6 +128,7 @@ function serializeBoardUser(user) {
     color: user.color,
     size: user.size,
     lastTool: user.lastTool,
+    position: user.position,
     canEdit: user.canEdit,
     canClear: user.canClear,
   };
@@ -234,10 +237,14 @@ function updateBoardUserFromMessage(socket, boardName, data, now) {
   if (!user) return undefined;
 
   user.lastSeen = now;
-  if (hasMessageColor(data)) user.color = data.color;
-  if (hasMessageSize(data)) user.size = data.size || user.size;
+  const color = extractMessageColor(data);
+  if (color) user.color = color;
+  const size = extractMessageSize(data);
+  if (size) user.size = size;
   const toolId = getToolId(data.tool);
   if (data.tool !== Cursor.id && toolId) user.lastTool = toolId;
+  const position = extractMessagePosition(data);
+  if (position) user.position = position;
   return user;
 }
 

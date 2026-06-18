@@ -25,7 +25,7 @@ const { logger, metrics, tracing } = observability;
 
 /** @import { AppSocket, MessageData, MutationLogEntry, NormalizedMessageData, SequencedMutationBroadcastData, ServerConfig } from "../../types/server-runtime.d.ts" */
 /** @import { BoardData } from "../board/data.mjs" */
-/** @typedef {{socketId: string, userId: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number}} BoardUser */
+/** @typedef {{socketId: string, userId: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number, position: {x: number, y: number}}} BoardUser */
 /**
  * @typedef {{
  *   getActiveSocket: (socketId: string) => AppSocket | undefined,

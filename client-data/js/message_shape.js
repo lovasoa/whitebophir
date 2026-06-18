@@ -51,8 +51,19 @@ export function hasMessageNewId(message) {
  * @returns {message is MessageWithPoint}
  */
 export function hasMessagePoint(message) {
+  return extractMessagePosition(message) !== null;
+}
+
+/**
+ * @param {unknown} message
+ * @returns {{x: number, y: number} | null}
+ */
+export function extractMessagePosition(message) {
   const point = messageRecord(message);
-  return typeof point?.x === "number" && typeof point.y === "number";
+  const x = point?.x;
+  const y = point?.y;
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x: /** @type {number} */ (x), y: /** @type {number} */ (y) };
 }
 
 /**
@@ -60,7 +71,16 @@ export function hasMessagePoint(message) {
  * @returns {message is MessageWithColor}
  */
 export function hasMessageColor(message) {
-  return typeof messageRecord(message)?.color === "string";
+  return extractMessageColor(message) !== null;
+}
+
+/**
+ * @param {unknown} message
+ * @returns {string | null}
+ */
+export function extractMessageColor(message) {
+  const color = messageRecord(message)?.color;
+  return typeof color === "string" ? color : null;
 }
 
 /**
@@ -68,5 +88,14 @@ export function hasMessageColor(message) {
  * @returns {message is MessageWithSize}
  */
 export function hasMessageSize(message) {
-  return typeof messageRecord(message)?.size === "number";
+  return extractMessageSize(message) !== null;
+}
+
+/**
+ * @param {unknown} message
+ * @returns {number | null}
+ */
+export function extractMessageSize(message) {
+  const size = messageRecord(message)?.size;
+  return Number.isFinite(size) ? /** @type {number} */ (size) : null;
 }

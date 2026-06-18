@@ -297,7 +297,7 @@ function getConnectedUserToolLabel(Tools, user) {
  * @returns {boolean}
  */
 function hasConnectedUserFocus(user) {
-  return Number.isFinite(user.lastFocusX) && Number.isFinite(user.lastFocusY);
+  return Number.isFinite(user.position?.x) && Number.isFinite(user.position?.y);
 }
 
 /**
@@ -477,8 +477,8 @@ function markConnectedUserActivity(user, scheduleActivityRender) {
 function getConnectedUserFocusHash(Tools, user) {
   if (!hasConnectedUserFocus(user)) return "";
   const scale = Tools.viewportState.controller.getScale();
-  const x = /** @type {number} */ (user.lastFocusX);
-  const y = /** @type {number} */ (user.lastFocusY);
+  const x = user.position.x;
+  const y = user.position.y;
   return `#${Math.max(0, (x - window.innerWidth / (2 * scale)) | 0)},${Math.max(
     0,
     (y - window.innerHeight / (2 * scale)) | 0,
@@ -693,9 +693,8 @@ function applyConnectedUserActivity(
   ) {
     const nextFocusX = /** @type {{x: number, y: number}} */ (focusPoint).x;
     const nextFocusY = /** @type {{x: number, y: number}} */ (focusPoint).y;
-    if (user.lastFocusX !== nextFocusX || user.lastFocusY !== nextFocusY) {
-      user.lastFocusX = nextFocusX;
-      user.lastFocusY = nextFocusY;
+    if (user.position.x !== nextFocusX || user.position.y !== nextFocusY) {
+      user.position = { x: nextFocusX, y: nextFocusY };
       changed = true;
     }
   }
