@@ -460,6 +460,7 @@ export class WriteModule {
     if (
       MessageCommon.requiresTurnstile(Tools.identity.boardName, toolName) &&
       Tools.config.serverConfig.TURNSTILE_SITE_KEY &&
+      Tools.access.canClear !== true &&
       !Tools.turnstile.isValidated()
     ) {
       Tools.optimistic.trackMutation(trackedData, rollback);
