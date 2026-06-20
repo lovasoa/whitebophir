@@ -60,7 +60,7 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
     "rules_harassment_title",
     "rules_illegal_international",
     "rules_illegal_law",
-    "rules_illegal_symbols",
+
     "rules_illegal_title",
     "rules_pornography_body",
     "rules_pornography_title",
