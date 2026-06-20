@@ -1,13 +1,25 @@
 import * as path from "node:path";
+import { readFile } from "node:fs/promises";
 import type { Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 
 const polyfillPath = path.resolve("client-data/js/path-data-polyfill.js");
+const polyfillSource = readFile(polyfillPath, "utf8");
 
-async function readPageResult(page: Page) {
-  const result = await page.locator("html").getAttribute("data-result");
-  expect(result).not.toBeNull();
-  return JSON.parse(result ?? "null") as unknown;
+async function loadPathDataPolyfill(page: Page) {
+  await page.evaluate(
+    async (source) => {
+      const url = URL.createObjectURL(
+        new Blob([source], { type: "text/javascript" }),
+      );
+      try {
+        await import(url);
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    },
+    await polyfillSource,
+  );
 }
 
 test.describe("path-data polyfill", () => {
@@ -17,8 +29,7 @@ test.describe("path-data polyfill", () => {
         <path id="line"></path>
       </svg>
     `);
-    await page.addScriptTag({
-      content: `
+    await page.evaluate(() => {
       window.__pathDataNativeCalls = { get: 0, set: 0 };
       Object.defineProperty(SVGPathElement.prototype, "getPathData", {
         configurable: true,
@@ -39,22 +50,18 @@ test.describe("path-data polyfill", () => {
           this.setAttribute("data-native-set", "yes");
         },
       });
-      `,
     });
 
-    await page.addScriptTag({ path: polyfillPath, type: "module" });
-    await page.addScriptTag({
-      content: `
+    await loadPathDataPolyfill(page);
+    const result = await page.evaluate(() => {
       const line = document.querySelector("#line");
       line.setPathData([{ type: "M", values: [10, 20] }]);
-      document.documentElement.setAttribute("data-result", JSON.stringify({
+      return {
         calls: window.__pathDataNativeCalls,
         marker: line.getAttribute("data-native-set"),
         pathData: line.getPathData(),
-      }));
-      `,
+      };
     });
-    const result = await readPageResult(page);
 
     expect(result).toEqual({
       calls: { get: 1, set: 2 },
@@ -71,8 +78,7 @@ test.describe("path-data polyfill", () => {
         <path id="line"></path>
       </svg>
     `);
-    await page.addScriptTag({
-      content: `
+    await page.evaluate(() => {
       Object.defineProperty(SVGPathElement.prototype, "getPathData", {
         configurable: true,
         writable: true,
@@ -87,26 +93,22 @@ test.describe("path-data polyfill", () => {
           throw new TypeError("dictionary path data is not supported");
         },
       });
-      `,
     });
 
-    await page.addScriptTag({ path: polyfillPath, type: "module" });
-    await page.addScriptTag({
-      content: `
+    await loadPathDataPolyfill(page);
+    const result = await page.evaluate(() => {
       const line = document.querySelector("#line");
       line.setPathData([
         { type: "M", values: [10, 20] },
         { type: "l", values: [5, 6] },
         { type: "Z", values: [] },
       ]);
-      document.documentElement.setAttribute("data-result", JSON.stringify({
+      return {
         d: line.getAttribute("d"),
         pathData: line.getPathData(),
         normalizedPathData: line.getPathData({ normalize: true }),
-      }));
-      `,
+      };
     });
-    const result = await readPageResult(page);
 
     expect(result).toEqual({
       d: "M 10 20 l 5 6 Z",
