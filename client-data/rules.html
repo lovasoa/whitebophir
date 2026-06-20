@@ -25,14 +25,16 @@
     <header>
       <h1><a href=".">WBO</a></h1>
       <nav class="lang-selector">
-        <span>{{language}}</span>
-        <ul>
-          {{#languageLinks}}
-          <li>
-            <a href="{{href}}" hreflang="{{language}}" rel="alternate">{{language}}</a>
-          </li>
-          {{/languageLinks}}
-        </ul>
+        <details>
+          <summary><span>{{language}}</span></summary>
+          <ul>
+            {{#languageLinks}}
+            <li>
+              <a href="{{href}}" hreflang="{{language}}" rel="alternate">{{language}}</a>
+            </li>
+            {{/languageLinks}}
+          </ul>
+        </details>
       </nav>
     </header>
 

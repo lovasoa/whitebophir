@@ -199,6 +199,20 @@ footer a:hover {
   z-index: 10;
 }
 
+.lang-selector summary {
+  cursor: pointer;
+  display: block;
+  list-style: none;
+}
+
+.lang-selector summary::-webkit-details-marker {
+  display: none;
+}
+
+.lang-selector summary::marker {
+  content: "";
+}
+
 .lang-selector span {
   padding-top: 9px;
   background-image: url(./label.svg);
@@ -233,9 +247,7 @@ footer a:hover {
   transform: translateY(-4px);
 }
 
-.lang-selector:hover ul,
-.lang-selector:active ul,
-.lang-selector:focus ul {
+.lang-selector details[open] ul {
   opacity: 1;
   pointer-events: auto;
   transform: translateY(0);

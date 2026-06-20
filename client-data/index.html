@@ -29,14 +29,16 @@
     <header>
       <h1>WBO</h1>
       <nav class="lang-selector">
-        <span>{{language}}</span>
-        <ul>
-          {{#languageLinks}}
-          <li>
-            <a href="{{href}}" hreflang="{{language}}" rel="alternate">{{language}}</a>
-          </li>
-          {{/languageLinks}}
-        </ul>
+        <details>
+          <summary><span>{{language}}</span></summary>
+          <ul>
+            {{#languageLinks}}
+            <li>
+              <a href="{{href}}" hreflang="{{language}}" rel="alternate">{{language}}</a>
+            </li>
+            {{/languageLinks}}
+          </ul>
+        </details>
       </nav>
     </header>
 
@@ -63,14 +65,14 @@
                 >{{translations.community_rules_link}}</a
               >
           </p>
-          <a href="boards/anonymous" class="button-link wbo-button"
+          <a href="boards/anonymous" class="button-link wbo-button" tabindex="1"
             >{{{translations.open_public_board}}}</a
           >
         </div>
 
         <div>
           <p>{{{translations.private_board_description}}}</p>
-          <a href="random" class="button-link wbo-button"
+          <a href="random" class="button-link wbo-button" tabindex="1"
             >{{{translations.create_private_board}}}</a
           >
         </div>
@@ -90,6 +92,7 @@
               autocapitalize="off"
               autocomplete="off"
               spellcheck="false"
+              tabindex="1"
               placeholder="{{{translations.board_name_placeholder}}}"
             />
             <input type="submit" value="{{translations.open_board}}" />
