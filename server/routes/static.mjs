@@ -34,6 +34,14 @@ function serveManifest(ctx) {
 }
 
 /**
+ * @param {HttpRouteContext} ctx
+ * @returns {void}
+ */
+function serveRulesPage(ctx) {
+  ctx.runtime.rulesTemplate.serve(ctx.request, ctx.response);
+}
+
+/**
  * Keeps legacy /boards/<asset> static URLs working by serving them from the
  * web root without the /boards prefix.
  *
@@ -103,6 +111,7 @@ export {
   redirectToDefaultBoard,
   redirectToRandomBoard,
   serveManifest,
+  serveRulesPage,
   serveBoardStaticAsset,
   serveStaticAsset,
 };

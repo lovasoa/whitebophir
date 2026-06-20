@@ -21,6 +21,7 @@ export type ServerRuntime = {
   errorPage: import("../server/http/templating.mjs").Template;
   boardTemplate: import("../server/http/templating.mjs").BoardTemplate;
   indexTemplate: import("../server/http/templating.mjs").Template;
+  rulesTemplate: import("../server/http/templating.mjs").RulesTemplate;
   manifestTemplate: import("../server/http/templating.mjs").Template;
 };
 

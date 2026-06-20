@@ -518,4 +518,31 @@ class BoardTemplate extends Template {
   }
 }
 
-export { BoardTemplate, StaticTemplate, Template };
+class RulesTemplate extends Template {
+  /**
+   * @param {URL} parsedUrl
+   * @param {TemplateRequest} request
+   * @param {boolean} isModerator
+   * @param {object} [extraParams]
+   * @returns {TemplateParameters}
+   */
+  parameters(parsedUrl, request, isModerator, extraParams) {
+    const params = super.parameters(
+      parsedUrl,
+      request,
+      isModerator,
+      extraParams,
+    );
+    const rootUrl = new URL("../", params.baseUrl).href;
+    const rulesUrl = new URL("rules", rootUrl).href;
+    params.baseUrl = rootUrl;
+    params.baseHref = rootUrl;
+    params.canonicalUrl = localizedUrl(rulesUrl, params.language);
+    params.languageLinks = localizedLinks(params.languages, (linkLanguage) =>
+      localizedUrl(rulesUrl, linkLanguage),
+    );
+    return params;
+  }
+}
+
+export { BoardTemplate, RulesTemplate, StaticTemplate, Template };

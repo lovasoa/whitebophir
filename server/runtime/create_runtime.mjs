@@ -63,6 +63,11 @@ function createServerRuntime(config) {
     config,
     { htmlHeadSnippet },
   );
+  const rulesTemplate = new templating.RulesTemplate(
+    path.join(config.WEBROOT, "rules.html"),
+    config,
+    { htmlHeadSnippet },
+  );
   const manifestTemplate = new templating.Template(
     path.join(config.WEBROOT, "manifest.json"),
     config,
@@ -74,6 +79,7 @@ function createServerRuntime(config) {
     errorPage: errorTemplate,
     boardTemplate,
     indexTemplate,
+    rulesTemplate,
     manifestTemplate,
   };
 }

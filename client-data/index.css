@@ -87,6 +87,11 @@ a {
   color: black;
 }
 
+.rules-link {
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
 .wbo-button:hover {
   box-shadow: 0 0 5px #0074d9;
 }
@@ -148,6 +153,122 @@ footer a {
 
 footer a:hover {
   opacity: 1;
+}
+
+.rules-page {
+  background: #fcfcfd;
+  color: #111827;
+}
+
+.rules-page header h1 a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.rules-main {
+  box-sizing: border-box;
+  display: block;
+  height: auto;
+  min-height: 95vh;
+  max-width: 860px;
+  padding: 36px 18px 64px;
+  text-align: left;
+}
+
+.rules-main > div,
+.rules-card {
+  box-sizing: border-box;
+  max-width: none;
+  min-width: 0;
+}
+
+.rules-card {
+  background: #ffffff;
+  border: 1px solid #d9dde3;
+  border-radius: 4px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+  padding: 34px 42px;
+}
+
+.rules-eyebrow {
+  color: #667085;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+
+.rules-card h2 {
+  font-size: 30px;
+  line-height: 1.2;
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.rules-intro {
+  border-bottom: 1px solid #e5e7eb;
+  color: #374151;
+  font-size: 16px;
+  line-height: 1.65;
+  margin: 0 0 22px;
+  padding-bottom: 22px;
+}
+
+.rules-list {
+  counter-reset: rules;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rules-list li {
+  border-bottom: 1px solid #eef0f3;
+  counter-increment: rules;
+  padding: 20px 0;
+}
+
+.rules-list li:last-child {
+  border-bottom: 0;
+}
+
+.rules-list h3 {
+  align-items: baseline;
+  display: flex;
+  font-size: 18px;
+  gap: 10px;
+  line-height: 1.35;
+  margin: 0 0 10px;
+}
+
+.rules-list h3::before {
+  color: #667085;
+  content: counter(rules) ".";
+  flex: 0 0 auto;
+  font-size: 14px;
+}
+
+.rules-list p {
+  color: #374151;
+  line-height: 1.65;
+  margin: 8px 0 0 26px;
+}
+
+.rules-back {
+  margin: 26px 0 0;
+}
+
+.rules-back a {
+  background: #ccdfdf;
+  border: 1px solid #abc6c6;
+  border-radius: 4px;
+  display: inline-block;
+  padding: 9px 13px;
+  text-decoration: none;
+}
+
+.rules-back a:hover,
+.rules-back a:focus {
+  box-shadow: 0 0 5px #0074d9;
 }
 
 .lang-selector {
