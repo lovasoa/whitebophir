@@ -5,6 +5,7 @@
     <title>WBO — {{translations.community_rules_title}}</title>
     <base href="{{baseHref}}" />
     <link rel="stylesheet" href="index.css" />
+    <link rel="stylesheet" href="rules.css" />
     <meta name="description" content="{{translations.community_rules_intro}}" />
     <link rel="icon" type="image/x-icon" sizes="16x16" href="favicon.ico" />
     <link rel="apple-touch-icon" href="favicon.svg" />
@@ -35,8 +36,8 @@
       </nav>
     </header>
 
-    <main class="rules-main">
-      <article class="rules-card">
+    <main class="page-main rules-main">
+      <article class="surface-card rules-card">
         <h2>{{translations.community_rules_title}}</h2>
         <p class="rules-intro">{{translations.community_rules_intro}}</p>
 
@@ -66,7 +67,11 @@
           </li>
         </ol>
 
-        <p class="rules-back"><a href=".">{{translations.back_to_home}}</a></p>
+        <p class="rules-back">
+          <a href="." class="button-link compact-button"
+            >{{translations.back_to_home}}</a
+          >
+        </p>
       </article>
     </main>
   </body>

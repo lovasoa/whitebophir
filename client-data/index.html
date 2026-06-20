@@ -40,8 +40,8 @@
       </nav>
     </header>
 
-    <main>
-      <div id="description">
+    <main class="page-main home-main">
+      <div id="description" class="home-section">
         <img
           src="frontpage-illustration.svg"
           alt="{{translations.collaborative_whiteboard}}"
@@ -55,22 +55,22 @@
         </div>
       </div>
 
-      <div id="actions">
+      <div id="actions" class="home-section">
         <div>
           <p>
               {{{translations.public_board_description}}}
-              <a href="rules" class="rules-link"
+              <a href="rules" class="inline-link"
                 >{{translations.community_rules_link}}</a
               >
           </p>
-          <a href="boards/anonymous" class="wbo-button"
+          <a href="boards/anonymous" class="button-link wbo-button"
             >{{{translations.open_public_board}}}</a
           >
         </div>
 
         <div>
           <p>{{{translations.private_board_description}}}</p>
-          <a href="random" class="wbo-button"
+          <a href="random" class="button-link wbo-button"
             >{{{translations.create_private_board}}}</a
           >
         </div>
@@ -96,7 +96,7 @@
           </form>
         </div>
 
-        <div id="recent-boards" class="hidden">
+        <div id="recent-boards" class="surface-card hidden">
           <h3>{{{translations.recent_boards}}}</h3>
         </div>
 
