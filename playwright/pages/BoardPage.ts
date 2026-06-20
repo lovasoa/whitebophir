@@ -833,12 +833,13 @@ window.turnstile = {
     await this.page.evaluate(
       ({ targetId }) => {
         const rect = document.getElementById(targetId);
-        if (!rect) throw new Error(`Missing shape ${targetId}`);
+        if (!(rect instanceof SVGGraphicsElement))
+          throw new Error(`Missing shape ${targetId}`);
         const tool = window.WBOApp.toolRegistry.current;
         if (!tool || tool.name !== "hand" || tool.secondary?.active !== true) {
           throw new Error("Hand selector is not active");
         }
-        const bbox = (rect as SVGGraphicsElement).getBBox();
+        const bbox = rect.getBBox();
         const x = bbox.x + bbox.width / 2;
         const y = bbox.y + bbox.height / 2;
         const event = new MouseEvent("mousedown", {
