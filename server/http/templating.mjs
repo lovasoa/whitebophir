@@ -172,8 +172,11 @@ function findBaseUrl(req) {
  * @returns {string}
  */
 function findPathPrefix(pathname) {
-  const prefixPart = pathname.split("/boards/", 1)[0] || "";
-  return prefixPart
+  const boardMarker = "/boards/";
+  const boardMarkerIndex = pathname.indexOf(boardMarker);
+  if (boardMarkerIndex <= 0) return "";
+  return pathname
+    .slice(0, boardMarkerIndex)
     .split("/")
     .filter((part) => part.length > 0)
     .join("/");
@@ -518,4 +521,31 @@ class BoardTemplate extends Template {
   }
 }
 
-export { BoardTemplate, StaticTemplate, Template };
+class RulesTemplate extends Template {
+  /**
+   * @param {URL} parsedUrl
+   * @param {TemplateRequest} request
+   * @param {boolean} isModerator
+   * @param {object} [extraParams]
+   * @returns {TemplateParameters}
+   */
+  parameters(parsedUrl, request, isModerator, extraParams) {
+    const params = super.parameters(
+      parsedUrl,
+      request,
+      isModerator,
+      extraParams,
+    );
+    const rootUrl = params.baseHref;
+    const rulesUrl = new URL("rules", rootUrl).href;
+    params.baseUrl = rootUrl.endsWith("/") ? rootUrl.slice(0, -1) : rootUrl;
+    params.baseHref = rootUrl;
+    params.canonicalUrl = localizedUrl(rulesUrl, params.language);
+    params.languageLinks = localizedLinks(params.languages, (linkLanguage) =>
+      localizedUrl(rulesUrl, linkLanguage),
+    );
+    return params;
+  }
+}
+
+export { BoardTemplate, RulesTemplate, StaticTemplate, Template };

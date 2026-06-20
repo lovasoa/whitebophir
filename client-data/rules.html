@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="{{language}}">
+  <head>
+    <meta charset="utf-8" />
+    <title>WBO — {{translations.community_rules_title}}</title>
+    <base href="{{baseHref}}" />
+    <link rel="stylesheet" href="index.css" />
+    <link rel="stylesheet" href="rules.css" />
+    <meta name="description" content="{{translations.community_rules_intro}}" />
+    <link rel="icon" type="image/x-icon" sizes="16x16" href="favicon.ico" />
+    <link rel="apple-touch-icon" href="favicon.svg" />
+    <link rel="mask-icon" href="favicon.svg" color="black" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta property="og:url" content="{{canonicalUrl}}" />
+    <meta property="og:image" content="{{baseUrl}}/favicon.svg" />
+    <link rel="canonical" href="{{canonicalUrl}}" />
+    {{#languageLinks}}
+    <link rel="alternate" hreflang="{{language}}" href="{{href}}" />
+    {{/languageLinks}}
+    <meta name="theme-color" content="#C4DFFF" />
+    {{{htmlHeadSnippet}}}
+  </head>
+
+  <body class="rules-page">
+    <header>
+      <h1><a href=".">WBO</a></h1>
+      <nav class="lang-selector">
+        <span>{{language}}</span>
+        <ul>
+          {{#languageLinks}}
+          <li>
+            <a href="{{href}}" hreflang="{{language}}" rel="alternate">{{language}}</a>
+          </li>
+          {{/languageLinks}}
+        </ul>
+      </nav>
+    </header>
+
+    <main class="page-main rules-main">
+      <article class="surface-card rules-card">
+        <h2>{{translations.community_rules_title}}</h2>
+        <p class="rules-intro">{{translations.community_rules_intro}}</p>
+
+        <ol class="rules-list">
+          <li>
+            <h3>{{translations.rules_illegal_title}}</h3>
+            <p>{{translations.rules_illegal_law}}</p>
+
+            <p>{{translations.rules_illegal_international}}</p>
+          </li>
+          <li>
+            <h3>{{translations.rules_violence_title}}</h3>
+            <p>{{translations.rules_violence_body}}</p>
+          </li>
+          <li>
+            <h3>{{translations.rules_pornography_title}}</h3>
+            <p>{{translations.rules_pornography_body}}</p>
+          </li>
+          <li>
+            <h3>{{translations.rules_harassment_title}}</h3>
+            <p>{{translations.rules_harassment_body}}</p>
+          </li>
+          <li>
+            <h3>{{translations.rules_drawings_title}}</h3>
+            <p>{{translations.rules_drawings_shared}}</p>
+            <p>{{translations.rules_drawings_body}}</p>
+          </li>
+        </ol>
+
+        <p class="rules-back">
+          <a href="." class="button-link compact-button"
+            >{{translations.back_to_home}}</a
+          >
+        </p>
+      </article>
+    </main>
+  </body>
+</html>

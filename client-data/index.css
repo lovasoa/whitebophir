@@ -1,3 +1,19 @@
+:root {
+  --wbo-background: #fcfcfd;
+  --wbo-surface: #ffffff;
+  --wbo-border: #d9dde3;
+  --wbo-accent: #ccdfdf;
+  --wbo-accent-strong: #abc6c6;
+  --wbo-action-background: linear-gradient(
+    var(--wbo-accent),
+    var(--wbo-accent-strong)
+  );
+  --wbo-focus-shadow: 0 0 5px #0074d9;
+  --wbo-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.08);
+  --wbo-radius-control: 2px;
+  --wbo-radius-panel: 4px;
+}
+
 html {
   min-height: 100%;
   margin: 0;
@@ -32,22 +48,25 @@ h3 {
   font-weight: 400;
 }
 
-main {
+.page-main {
   margin: auto;
   width: 100%;
-  height: 95vh;
   max-width: 1250px;
-  font-size: 1.1em;
   position: relative;
-  text-align: justify;
   transition: 0.1s;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-around;
   animation: appear 0.3s ease 0.15s;
 }
 
-main > div {
+.home-main {
+  display: flex;
+  flex-wrap: wrap;
+  height: 95vh;
+  font-size: 1.1em;
+  justify-content: space-around;
+  text-align: justify;
+}
+
+.home-main > .home-section {
   max-width: 550px;
   min-width: 300px;
   transition: 0.07s;
@@ -69,42 +88,59 @@ main > div {
   flex: auto;
 }
 
+.button-link,
 .wbo-button {
-  white-space: nowrap;
-  text-decoration: none;
-  background: linear-gradient(#ccdfdf, #abc6c6);
-  margin-top: 15px;
-  line-height: 60px;
-  border-radius: 4px;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
-  display: block;
-  text-align: center;
+  background: var(--wbo-action-background);
+  border-radius: var(--wbo-radius-panel);
+  box-shadow: var(--wbo-shadow-sm);
   color: black;
+  text-decoration: none;
   transition: 0.1s;
+}
+
+.wbo-button {
+  display: block;
+  line-height: 60px;
+  margin-top: 15px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.compact-button {
+  display: inline-block;
+  padding: 9px 13px;
 }
 
 a {
   color: black;
 }
 
-.wbo-button:hover {
-  box-shadow: 0 0 5px #0074d9;
+.inline-link {
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
 }
 
+.button-link:hover,
+.wbo-button:hover {
+  box-shadow: var(--wbo-focus-shadow);
+}
+
+.button-link:focus,
+.button-link:active,
 .wbo-button:focus,
 .wbo-button:active {
   box-shadow: inset 0 1px 3px rgba(16, 24, 40, 0.15);
 }
 #named-board-form {
   display: flex;
-  background: linear-gradient(#ccdfdf, #abc6c6);
+  background: var(--wbo-action-background);
   padding: 0 9px;
-  border-radius: 4px;
+  border-radius: var(--wbo-radius-panel);
   margin-bottom: 40px;
 }
 #named-board-form input {
   line-height: 20px;
-  border-radius: 2px;
+  border-radius: var(--wbo-radius-control);
   border: 1px solid #ffffff8f;
   padding: 6px;
   font-size: 1.1em;
@@ -150,6 +186,11 @@ footer a:hover {
   opacity: 1;
 }
 
+.surface-card {
+  border-radius: var(--wbo-radius-panel);
+  box-shadow: var(--wbo-shadow-sm);
+}
+
 .lang-selector {
   top: 0;
   right: 0;
@@ -171,15 +212,15 @@ footer a:hover {
 .lang-selector ul {
   box-sizing: border-box;
   padding: 4px 0;
-  border: 1px solid #d9dde3;
-  border-radius: 2px;
+  border: 1px solid var(--wbo-border);
+  border-radius: var(--wbo-radius-control);
   position: absolute;
   top: 100%;
   right: 0;
   width: 160px;
   max-height: min(320px, calc(100vh - 90px));
   overflow-y: auto;
-  background: #ffffff;
+  background: var(--wbo-surface);
   box-shadow: 0 6px 14px rgba(16, 24, 40, 0.12);
   margin: 0;
   list-style: none;
@@ -217,9 +258,7 @@ footer a:hover {
 }
 
 #recent-boards {
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
-  border-radius: 4px;
-  background: linear-gradient(#ccdfdf, #abc6c6);
+  background: var(--wbo-action-background);
   padding: 5px;
 }
 
@@ -253,14 +292,14 @@ footer a:hover {
   text-align: center;
   margin: 3px;
   display: inline-block;
-  border-radius: 2px;
+  border-radius: var(--wbo-radius-control);
   padding: 2px 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   height: 1.5em;
   line-height: 1.5em;
-  background: linear-gradient(#ccdfdf, #abc6c6);
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+  background: var(--wbo-action-background);
+  box-shadow: var(--wbo-shadow-sm);
   white-space: nowrap;
 }
 
