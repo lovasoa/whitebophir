@@ -493,6 +493,53 @@ test("configured base path prefixes generated redirects and canonical urls", asy
   }
 });
 
+test("rules route uses base path and bundled template with custom webroot", async () => {
+  const dirs = await createServerDirs();
+  const basePath = "/custom/base/path";
+  const app = await createTestServer(
+    createServerConfig(dirs, { BASE_PATH: basePath }),
+  );
+  try {
+    const response = await request(app, "/rules?lang=fr");
+    const { port } = getTcpAddress(app);
+    const origin = `http://127.0.0.1:${port}`;
+
+    assert.equal(response.statusCode, 200);
+    assert.match(response.body, /<h2>Règles de la communauté<\/h2>/);
+    assert.match(
+      response.body,
+      new RegExp(`<base href="${origin}/custom/base/path/" />`),
+    );
+    assert.match(
+      response.body,
+      new RegExp(
+        `<meta property="og:image" content="${origin}/custom/base/path/favicon.svg" />`,
+      ),
+    );
+    assert.match(
+      response.body,
+      new RegExp(
+        `<link rel="canonical" href="${origin}/custom/base/path/rules\\?lang=fr" />`,
+      ),
+    );
+    assert.match(
+      response.body,
+      new RegExp(
+        `<link rel="alternate" hreflang="vi" href="${origin}/custom/base/path/rules\\?lang=vi" />`,
+      ),
+    );
+    assert.match(
+      response.body,
+      new RegExp(
+        `<a href="${origin}/custom/base/path/rules\\?lang=vi" hreflang="vi" rel="alternate">vi</a>`,
+      ),
+    );
+    assert.doesNotMatch(response.body, /\/custom\/base\/rules\?/);
+  } finally {
+    await closeServer(app);
+  }
+});
+
 test("board pages set an httpOnly user secret cookie when missing", async () => {
   const dirs = await createServerDirs();
 

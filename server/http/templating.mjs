@@ -172,8 +172,11 @@ function findBaseUrl(req) {
  * @returns {string}
  */
 function findPathPrefix(pathname) {
-  const prefixPart = pathname.split("/boards/", 1)[0] || "";
-  return prefixPart
+  const boardMarker = "/boards/";
+  const boardMarkerIndex = pathname.indexOf(boardMarker);
+  if (boardMarkerIndex <= 0) return "";
+  return pathname
+    .slice(0, boardMarkerIndex)
     .split("/")
     .filter((part) => part.length > 0)
     .join("/");
@@ -533,9 +536,9 @@ class RulesTemplate extends Template {
       isModerator,
       extraParams,
     );
-    const rootUrl = new URL("../", params.baseUrl).href;
+    const rootUrl = params.baseHref;
     const rulesUrl = new URL("rules", rootUrl).href;
-    params.baseUrl = rootUrl;
+    params.baseUrl = rootUrl.endsWith("/") ? rootUrl.slice(0, -1) : rootUrl;
     params.baseHref = rootUrl;
     params.canonicalUrl = localizedUrl(rulesUrl, params.language);
     params.languageLinks = localizedLinks(params.languages, (linkLanguage) =>

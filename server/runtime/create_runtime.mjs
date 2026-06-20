@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import serveStatic from "serve-static";
 
@@ -8,6 +9,8 @@ import * as templating from "../http/templating.mjs";
 import observability from "../observability/index.mjs";
 
 const { logger } = observability;
+const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
+const BUNDLED_WEBROOT = path.resolve(RUNTIME_DIR, "../../client-data");
 
 /** @import { HttpResponse, ServerConfig, ServerRuntime } from "../../types/server-runtime.d.ts" */
 
@@ -32,6 +35,26 @@ function readHtmlHeadSnippet(config) {
 }
 
 /**
+ * @param {ServerConfig} config
+ * @param {string} fileName
+ * @returns {string}
+ */
+function configuredTemplatePath(config, fileName) {
+  return path.join(config.WEBROOT, fileName);
+}
+
+/**
+ * @param {ServerConfig} config
+ * @param {string} fileName
+ * @returns {string}
+ */
+function configuredTemplatePathWithBundledFallback(config, fileName) {
+  const configuredPath = configuredTemplatePath(config, fileName);
+  if (fs.existsSync(configuredPath)) return configuredPath;
+  return path.join(BUNDLED_WEBROOT, fileName);
+}
+
+/**
  * Builds the cold, request-independent dependencies shared by HTTP routes.
  *
  * @param {ServerConfig} config
@@ -49,27 +72,27 @@ function createServerRuntime(config) {
     },
   });
   const errorTemplate = new templating.Template(
-    path.join(config.WEBROOT, "error.html"),
+    configuredTemplatePath(config, "error.html"),
     config,
     { htmlHeadSnippet },
   );
   const boardTemplate = new templating.BoardTemplate(
-    path.join(config.WEBROOT, "board.html"),
+    configuredTemplatePath(config, "board.html"),
     config,
     { htmlHeadSnippet },
   );
   const indexTemplate = new templating.Template(
-    path.join(config.WEBROOT, "index.html"),
+    configuredTemplatePath(config, "index.html"),
     config,
     { htmlHeadSnippet },
   );
   const rulesTemplate = new templating.RulesTemplate(
-    path.join(config.WEBROOT, "rules.html"),
+    configuredTemplatePathWithBundledFallback(config, "rules.html"),
     config,
     { htmlHeadSnippet },
   );
   const manifestTemplate = new templating.Template(
-    path.join(config.WEBROOT, "manifest.json"),
+    configuredTemplatePath(config, "manifest.json"),
     config,
     { htmlHeadSnippet },
   );
