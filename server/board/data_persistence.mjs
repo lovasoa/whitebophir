@@ -13,14 +13,12 @@ import {
 } from "./canonical_index.mjs";
 import { createMutationLog } from "./mutation_log.mjs";
 import { getMinPinnedReplayBaselineSeq } from "./registry.mjs";
-import { SerialTaskQueue } from "./serial_task_queue.mjs";
 import { createDefaultSvgExtent } from "./svg_extent.mjs";
 
 const { logger, metrics, tracing } = observability;
 
 const STANDALONE_BOARD_LOAD_BYTES_THRESHOLD = 1024 * 1024;
 const STANDALONE_BOARD_SAVE_ITEM_COUNT_THRESHOLD = 2048;
-const boardSaveQueue = new SerialTaskQueue();
 
 /** @import { BoardData } from "./data.mjs" */
 /** @typedef {{actualFileSeq?: number, durationMs?: number, saveTargetSeq?: number}} StaleSaveDetails */
@@ -285,9 +283,9 @@ function trimPersistedMutationLog(board, nowMs = Date.now()) {
  */
 async function saveBoard(board) {
   if (board.disposed) return { status: "skipped" };
-  // Persisted board writes are serialized process-wide so only one board save
-  // mutates on-disk state at a time.
-  return boardSaveQueue.runExclusive(board._unsafe_save.bind(board));
+  // Writes are serialized per board (each board owns its files), so a slow save
+  // on one board never blocks saves of other boards.
+  return board.saveQueue.runExclusive(board._unsafe_save.bind(board));
 }
 
 /**
