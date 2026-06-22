@@ -1242,6 +1242,31 @@ test("Pencil input sends an initial child point without DOM setup", () => {
   });
 });
 
+test("Pencil onMessage discards the active stroke deleted inside a hand batch", () => {
+  const tools = createInputTools();
+  const state = PencilTool.boot(
+    createToolBootContext(
+      createInputToolRuntime(tools),
+      (assetFile) => assetFile,
+    ),
+  );
+  state.curLineId = "l-7";
+
+  PencilTool.onMessage(state, {
+    _children: [
+      { type: MutationType.DELETE, id: "l-other" },
+      { type: MutationType.DELETE, id: "l-7" },
+    ],
+  });
+  assert.equal(state.curLineId, "");
+
+  state.curLineId = "l-8";
+  PencilTool.onMessage(state, {
+    _children: [{ type: MutationType.DELETE, id: "l-other" }],
+  });
+  assert.equal(state.curLineId, "l-8");
+});
+
 test("Pencil move logic sends the first point and throttles follow-ups", () => {
   const tools = createInputTools();
   const state = PencilTool.boot(
@@ -2156,6 +2181,48 @@ test("Hand replay expands viewport extent for transform-only updates", async () 
       maxY: 390,
     },
   ]);
+});
+
+test("Hand batch delete removes the element synchronously without re-entering messageForTool", async () => {
+  const harness = createHarness();
+  const handTool = await harness.loadTool("hand");
+
+  const rect = globalAny.Tools.dom.createSVGElement("rect");
+  rect.id = "doomed-rect";
+  globalAny.Tools.drawingArea.appendChild(rect);
+  assert.ok(globalAny.Tools.dom.svg.getElementById("doomed-rect"));
+
+  // Spy on the generic async message pipeline. A hand child delete must not
+  // re-enter it (no derived child op, no duplicate generic side effects).
+  let messageForToolCalls = 0;
+  const originalMessageForTool = globalAny.Tools.messages.messageForTool;
+  globalAny.Tools.messages.messageForTool = (/** @type {any} */ data) => {
+    messageForToolCalls += 1;
+    return originalMessageForTool(data);
+  };
+
+  try {
+    const result = handTool.draw(
+      {
+        tool: TOOL_CODE_BY_ID.hand,
+        _children: [
+          {
+            type: MessageToolMetadata.MutationType.DELETE,
+            id: "doomed-rect",
+          },
+        ],
+      },
+      false,
+    );
+
+    // draw() returned and the element is already gone: applied synchronously
+    // before any sequence-advancing await could resolve.
+    assert.equal(result instanceof Promise, false);
+    assert.ok(!globalAny.Tools.dom.svg.getElementById("doomed-rect"));
+    assert.equal(messageForToolCalls, 0);
+  } finally {
+    globalAny.Tools.messages.messageForTool = originalMessageForTool;
+  }
 });
 
 test("Hand selector stops at the last valid transform", async () => {
