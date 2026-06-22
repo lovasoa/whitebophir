@@ -610,7 +610,7 @@ test("board pages preserve a valid incoming user secret cookie and do not rotate
   ]);
 });
 
-test("board pages mark the user secret cookie secure on https requests", async () => {
+test("board pages mark the user secret cookie secure on https requests behind a trusted proxy", async () => {
   const dirs = await createServerDirs();
 
   await withEnv({
@@ -620,6 +620,43 @@ test("board pages mark the user secret cookie secure on https requests", async (
     WBO_HISTORY_DIR: dirs.historyDir,
     WBO_WEBROOT: dirs.webroot,
     WBO_SILENT: "true",
+    WBO_IP_SOURCE: "X-Forwarded-For",
+  }, async () => {
+    const app = await createTestServer({ IP_SOURCE: "X-Forwarded-For" });
+    try {
+      const response = await request(app, "/boards/demo", {
+        "x-forwarded-proto": "https",
+        "x-forwarded-for": "203.0.113.1",
+      });
+      const setCookie = getSingleSetCookie(response.headers);
+
+      assert.equal(response.statusCode, 200);
+      assert.match(setCookie, /;\s*Secure(?:;|$)/);
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("board pages ignore spoofed x-forwarded-proto on a direct deployment", async () => {
+  const dirs = await createServerDirs();
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: dirs.webroot,
+    WBO_SILENT: "true",
+    WBO_IP_SOURCE: "remoteAddress",
   }, async () => {
     const app = await createTestServer();
     try {
@@ -629,7 +666,7 @@ test("board pages mark the user secret cookie secure on https requests", async (
       const setCookie = getSingleSetCookie(response.headers);
 
       assert.equal(response.statusCode, 200);
-      assert.match(setCookie, /;\s*Secure(?:;|$)/);
+      assert.doesNotMatch(setCookie, /;\s*Secure(?:;|$)/);
     } finally {
       await closeServer(app);
     }

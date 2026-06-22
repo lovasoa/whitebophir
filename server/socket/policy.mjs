@@ -226,6 +226,23 @@ function getRequestClientIp(config, request) {
 }
 
 /**
+ * Whether the deployment is configured behind a trusted proxy, and forwarded
+ * host/proto/IP headers may therefore be honored. Mirrors the IP trust model:
+ * any configured `IP_SOURCE` other than the default `remoteAddress` means the
+ * operator put WBO behind a proxy whose forwarded headers are trusted, including
+ * custom client-IP headers such as `CF-Connecting-IP`. Direct deployments
+ * (`remoteAddress`, the default) must ignore those headers.
+ *
+ * @param {{IP_SOURCE?: string}} config
+ * @returns {boolean}
+ */
+function trustsForwardedHeaders(config) {
+  return (
+    normalizeHeaderName(config.IP_SOURCE || "remoteAddress") !== "remoteaddress"
+  );
+}
+
+/**
  * @param {SocketPolicyConfig} config
  * @param {AppSocket} socket
  * @returns {string}
@@ -489,4 +506,5 @@ export {
   normalizeBoardName,
   normalizeBroadcastData,
   parseForwardedChain,
+  trustsForwardedHeaders,
 };
