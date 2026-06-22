@@ -55,14 +55,41 @@ function configuredTemplatePathWithBundledFallback(config, fileName) {
 }
 
 /**
- * Builds the cold, request-independent dependencies shared by HTTP routes.
- *
  * @param {ServerConfig} config
- * @returns {ServerRuntime}
+ * @returns {import("../../types/server-runtime.d.ts").StaticFileServer}
  */
-function createServerRuntime(config) {
-  const htmlHeadSnippet = readHtmlHeadSnippet(config);
-  const fileserver = serveStatic(config.WEBROOT, {
+function createStaticFileServer(config) {
+  const configuredFileserver = createSingleRootStaticFileServer(
+    config,
+    config.WEBROOT,
+  );
+  const configuredRoot = path.resolve(config.WEBROOT);
+  if (configuredRoot === BUNDLED_WEBROOT) return configuredFileserver;
+
+  const bundledFileserver = createSingleRootStaticFileServer(
+    config,
+    BUNDLED_WEBROOT,
+  );
+  return (request, response, next) => {
+    const originalUrl = request.url;
+    configuredFileserver(request, response, (error) => {
+      if (error !== undefined) {
+        next(error);
+        return;
+      }
+      request.url = originalUrl;
+      bundledFileserver(request, response, next);
+    });
+  };
+}
+
+/**
+ * @param {ServerConfig} config
+ * @param {string} root
+ * @returns {import("../../types/server-runtime.d.ts").StaticFileServer}
+ */
+function createSingleRootStaticFileServer(config, root) {
+  return serveStatic(root, {
     maxAge: 0,
     /** @param {HttpResponse} res */
     setHeaders: (res, /** @type {string} */ filePath) => {
@@ -71,6 +98,17 @@ function createServerRuntime(config) {
       if (cacheValue !== undefined) res.setHeader("Cache-Control", cacheValue);
     },
   });
+}
+
+/**
+ * Builds the cold, request-independent dependencies shared by HTTP routes.
+ *
+ * @param {ServerConfig} config
+ * @returns {ServerRuntime}
+ */
+function createServerRuntime(config) {
+  const htmlHeadSnippet = readHtmlHeadSnippet(config);
+  const fileserver = createStaticFileServer(config);
   const errorTemplate = new templating.Template(
     configuredTemplatePath(config, "error.html"),
     config,

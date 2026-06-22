@@ -535,6 +535,39 @@ test("rules route uses base path and bundled template with custom webroot", asyn
       ),
     );
     assert.doesNotMatch(response.body, /\/custom\/base\/rules\?/);
+
+    const indexCss = await request(app, "/index.css");
+    assert.equal(indexCss.statusCode, 200);
+    assert.match(indexCss.headers["content-type"] || "", /text\/css/);
+    assert.match(indexCss.body, /--wbo-background/);
+
+    const rulesCss = await request(app, "/rules.css");
+    assert.equal(rulesCss.statusCode, 200);
+    assert.match(rulesCss.headers["content-type"] || "", /text\/css/);
+    assert.match(rulesCss.body, /rules-main/);
+
+    const favicon = await request(app, "/favicon.svg");
+    assert.equal(favicon.statusCode, 200);
+    assert.match(favicon.headers["content-type"] || "", /image\/svg\+xml/);
+    assert.match(favicon.body, /<svg/);
+  } finally {
+    await closeServer(app);
+  }
+});
+
+test("custom webroot static files take precedence over bundled fallback", async () => {
+  const dirs = await createServerDirs();
+  await fs.writeFile(
+    path.join(dirs.webroot, "index.css"),
+    "custom-css",
+    "utf8",
+  );
+  const app = await createTestServer(createServerConfig(dirs));
+  try {
+    const response = await request(app, "/index.css");
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.body, "custom-css");
   } finally {
     await closeServer(app);
   }
