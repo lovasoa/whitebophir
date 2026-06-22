@@ -148,6 +148,24 @@ test.describe("single-page interactions", () => {
       .toMatchObject({ e: 40, f: 25 });
   });
 
+  test("style settings button toggles the drawing settings panel", async ({
+    boardPage,
+    page,
+  }) => {
+    await boardPage.gotoBoard("style-settings-toggle-test");
+
+    const styleTool = page.locator("#styleTool");
+    const stylePanel = page.locator("#stylePanel");
+
+    await styleTool.click();
+    await expect(stylePanel).toHaveCSS("opacity", "1");
+    await expect(styleTool).toHaveAttribute("aria-expanded", "true");
+
+    await styleTool.click();
+    await expect(stylePanel).toHaveCSS("opacity", "0");
+    await expect(styleTool).toHaveAttribute("aria-expanded", "false");
+  });
+
   test("zoom clicks in and out", async ({ boardPage }) => {
     await boardPage.gotoBoard("zoom-test", { lang: "fr" });
     await expect(boardPage.tool("zoom")).toBeVisible();

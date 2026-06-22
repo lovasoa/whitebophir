@@ -775,8 +775,7 @@ input {
   cursor: default;
 }
 
-#styleTool.style-tool-open .style-panel,
-#styleTool:focus-within .style-panel {
+#styleTool.style-tool-open .style-panel {
   opacity: 1;
   pointer-events: auto;
   transform: translateX(0);

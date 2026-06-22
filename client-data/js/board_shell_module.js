@@ -172,21 +172,35 @@ export class BoardShellModule {
 
     /** @type {ReturnType<typeof setTimeout> | null} */
     let stylePanelCloseTimer = null;
+    let stylePanelPinnedOpen = false;
     const cancelStylePanelClose = () => {
       if (stylePanelCloseTimer !== null) {
         clearTimeout(stylePanelCloseTimer);
         stylePanelCloseTimer = null;
       }
     };
+    /** @param {boolean} isOpen */
+    const setStylePanelOpen = (isOpen) => {
+      styleTool.classList.toggle("style-tool-open", isOpen);
+      styleTool.setAttribute("aria-expanded", isOpen ? "true" : "false");
+      if (isOpen) {
+        positionStylePanel();
+      }
+    };
     const openStylePanelFromPointer = () => {
       cancelStylePanelClose();
-      styleTool.classList.add("style-tool-open");
-      positionStylePanel();
+      setStylePanelOpen(true);
+    };
+    const closeStylePanel = () => {
+      stylePanelPinnedOpen = false;
+      cancelStylePanelClose();
+      setStylePanelOpen(false);
     };
     const scheduleStylePanelClose = () => {
       cancelStylePanelClose();
       stylePanelCloseTimer = setTimeout(() => {
-        styleTool.classList.remove("style-tool-open");
+        stylePanelPinnedOpen = false;
+        setStylePanelOpen(false);
         stylePanelCloseTimer = null;
       }, STYLE_PANEL_CLOSE_MS);
     };
@@ -199,13 +213,37 @@ export class BoardShellModule {
       }
     };
 
+    styleTool.setAttribute("role", "button");
+    styleTool.setAttribute("aria-haspopup", "true");
+    styleTool.setAttribute("aria-expanded", "false");
+    styleTool.addEventListener("click", (event) => {
+      if (event.target instanceof Node && stylePanel.contains(event.target)) {
+        return;
+      }
+      if (stylePanelPinnedOpen) {
+        closeStylePanel();
+      } else {
+        stylePanelPinnedOpen = true;
+        openStylePanelFromPointer();
+      }
+    });
+    styleTool.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      if (stylePanelPinnedOpen) {
+        closeStylePanel();
+      } else {
+        stylePanelPinnedOpen = true;
+        openStylePanelFromPointer();
+      }
+    });
     styleTool.addEventListener("mouseenter", openStylePanelFromPointer);
     styleTool.addEventListener("mouseleave", scheduleStylePanelClose);
     stylePanel.addEventListener("mouseenter", openStylePanelFromPointer);
     stylePanel.addEventListener("mouseleave", scheduleStylePanelClose);
 
     styleTool.addEventListener("focusin", () => {
-      positionStylePanel();
+      setStylePanelOpen(true);
     });
     window.addEventListener("resize", repositionStylePanelIfOpen, {
       passive: true,
