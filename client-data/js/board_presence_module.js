@@ -294,6 +294,14 @@ function getConnectedUserToolLabel(Tools, user) {
 
 /**
  * @param {ConnectedUser} user
+ * @returns {string}
+ */
+export function getConnectedUserDisplayName(user) {
+  return user.canClear ? `\u{1F338} ${user.name}` : user.name;
+}
+
+/**
+ * @param {ConnectedUser} user
  * @returns {boolean}
  */
 function hasConnectedUserFocus(user) {
@@ -556,7 +564,7 @@ function updateConnectedUserRow(getTools, row, user) {
     row.querySelector(".connected-user-name")
   );
   if (name) {
-    name.textContent = user.canClear ? `\u{1F338} ${user.name}` : user.name;
+    name.textContent = getConnectedUserDisplayName(user);
   }
 
   row.classList.toggle("connected-user-row-readonly", user.canEdit === false);

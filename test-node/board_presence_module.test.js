@@ -143,6 +143,27 @@ function handUpdateMessage() {
   };
 }
 
+test("connected user display name marks moderators consistently", async () => {
+  const { getConnectedUserDisplayName } = await import(
+    "../client-data/js/board_presence_module.js"
+  );
+
+  assert.equal(
+    getConnectedUserDisplayName({
+      ...createConnectedUser(),
+      canClear: true,
+    }),
+    "\u{1F338} User 1",
+  );
+  assert.equal(
+    getConnectedUserDisplayName({
+      ...createConnectedUser(),
+      canClear: false,
+    }),
+    "User 1",
+  );
+});
+
 test("presence activity treats rendered focus measurement as best-effort", async () => {
   const env = createPresenceEnvironment();
   try {
