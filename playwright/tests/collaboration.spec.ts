@@ -79,6 +79,28 @@ test.describe("collaboration and rate limiting", () => {
     await expect(
       peerPage.locator("rect[x='1100'][y='800'][stroke='#ff0000']"),
     ).toBeVisible();
+    await expect
+      .poll(() =>
+        peerPage.evaluate(() => {
+          const remoteCursor = document.querySelector(
+            ".opcursor-html:not(#cursor-me)",
+          );
+          if (!(remoteCursor instanceof HTMLElement)) return null;
+          const icon = remoteCursor.querySelector(
+            ".opcursor-toolIcon",
+          ) as HTMLImageElement | null;
+          return {
+            left: remoteCursor.style.left,
+            top: remoteCursor.style.top,
+            icon: icon?.getAttribute("src") ?? "",
+          };
+        }),
+      )
+      .toMatchObject({
+        left: "130px",
+        top: "100px",
+        icon: expect.stringContaining("rectangle/icon.svg"),
+      });
     await boardPage.emitBroadcast({
       tool: Cursor.id,
       type: MutationType.UPDATE,

@@ -1,6 +1,7 @@
 import { TOOL_ID_BY_CODE } from "../tools/tool-order.js";
 import { getRequiredElement } from "./board_page_state.js";
 import { VIEWPORT_HASH_SCALE_DECIMALS } from "./board_viewport.js";
+import { getMessageActivityPoint } from "./message_activity_point.js";
 import MessageCommon from "./message_common.js";
 import { MutationType } from "./message_tool_metadata.js";
 import { SocketEvents } from "./socket_events.js";
@@ -421,9 +422,8 @@ function getMessageFocusPoint(dom, message) {
     return getBatchFocusPoint(dom, message._children);
   }
 
-  if ("x" in message) {
-    return { x: message.x, y: message.y };
-  }
+  const activityPoint = getMessageActivityPoint(message);
+  if (activityPoint) return activityPoint;
 
   if (message.type === MutationType.UPDATE && "id" in message) {
     const element = getBoardFocusElementById(dom, message.id);

@@ -222,6 +222,37 @@ test("presence focus ignores elements outside the attached drawing area", async 
   }
 });
 
+test("presence activity point prefers shape drag endpoints", async () => {
+  const env = createPresenceEnvironment();
+  try {
+    const { PresenceModule } = await import(
+      "../client-data/js/board_presence_module.js"
+    );
+    const tools = createPresenceTools(env.svg, env.drawingArea);
+    const presence = new PresenceModule(() => tools);
+    stubPresenceRendering(presence);
+    presence.users = new Map([["sock-1", createConnectedUser()]]);
+
+    presence.updateConnectedUsersFromActivity("user-1", {
+      tool: TOOL_CODE_BY_ID.rectangle,
+      type: MutationType.UPDATE,
+      id: "rect-1",
+      socket: "sock-1",
+      x: 10,
+      y: 20,
+      x2: 120,
+      y2: 140,
+    });
+
+    const user = presence.users.get("sock-1");
+    assert.ok(user);
+    assert.equal(user.lastTool, "rectangle");
+    assert.deepEqual(user.position, { x: 120, y: 140 });
+  } finally {
+    env.restore();
+  }
+});
+
 test("presence activity does not render rows while the panel is closed", async () => {
   const env = createPresenceEnvironment();
   try {

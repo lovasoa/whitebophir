@@ -1498,6 +1498,54 @@ test("Cursor renders presence as a viewport-scaled HTML overlay", async () => {
   assert.equal(harness.elementsById.has("cursor-socket-peer"), false);
 });
 
+test("Cursor follows peer drawing activity messages", async () => {
+  const harness = createHarness();
+  const cursorTool = await harness.loadTool("cursor");
+  const peerUser = globalAny.Tools.presence.users.get("socket-peer");
+  peerUser.color = "#445566";
+  peerUser.size = 9;
+
+  cursorTool.onMessage({
+    tool: TOOL_CODE_BY_ID.pencil,
+    type: MutationType.APPEND,
+    socket: "socket-peer",
+    x: 12,
+    y: 34,
+  });
+
+  const peerCursor = harness.elementsById.get("cursor-socket-peer");
+  assert.ok(peerCursor);
+  assert.equal(peerCursor.style.left, "12px");
+  assert.equal(peerCursor.style.top, "34px");
+  assert.equal(peerCursor.style["--opcursor-color"], "#445566");
+  assert.equal(peerCursor.style["--opcursor-sample-size"], "9px");
+  assert.equal(
+    findElementByClass(peerCursor, "opcursor-name")?.textContent,
+    "\u{1F338} Peer User",
+  );
+  assert.equal(
+    findElementByClass(peerCursor, "opcursor-toolIcon")?.src,
+    "../tools/pencil/icon.svg",
+  );
+
+  cursorTool.onMessage({
+    tool: TOOL_CODE_BY_ID.rectangle,
+    type: MutationType.UPDATE,
+    socket: "socket-peer",
+    x: 10,
+    y: 20,
+    x2: 200,
+    y2: 220,
+  });
+
+  assert.equal(peerCursor.style.left, "200px");
+  assert.equal(peerCursor.style.top, "220px");
+  assert.equal(
+    findElementByClass(peerCursor, "opcursor-toolIcon")?.src,
+    "../tools/rectangle/icon.svg",
+  );
+});
+
 test("Pencil input logic stops at the configured child limit", () => {
   const tools = createInputTools({
     config: {

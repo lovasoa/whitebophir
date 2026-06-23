@@ -27,8 +27,9 @@
 import { MutationType } from "../../js/mutation_type.js";
 import { createBoardHtmlOverlay } from "../../js/board_html_overlay.js";
 import { getConnectedUserDisplayName } from "../../js/board_presence_module.js";
+import { getMessageActivityPoint } from "../../js/message_activity_point.js";
 import { getToolRuntimeAssetPath } from "../tool-defaults.js";
-import { TOOL_CODE_BY_ID } from "../tool-order.js";
+import { TOOL_CODE_BY_ID, TOOL_ID_BY_CODE } from "../tool-order.js";
 
 /** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
 /** @typedef {ReturnType<typeof boot>} CursorState */
@@ -359,6 +360,59 @@ function getCursorToolLabel(state, message) {
 }
 
 /**
+ * @param {CursorState} state
+ * @param {string} socketId
+ */
+function getPresenceColorFallback(state, socketId) {
+  const user = getPresenceUser(state, socketId);
+  return user?.color;
+}
+
+/**
+ * @param {CursorState} state
+ * @param {string} socketId
+ */
+function getPresenceSizeFallback(state, socketId) {
+  const user = getPresenceUser(state, socketId);
+  return user?.size;
+}
+
+/**
+ * @param {CursorState} state
+ * @param {object & {tool?: unknown, socket?: unknown, color?: unknown, size?: unknown, opacity?: unknown}} message
+ * @returns {CursorMessage | null}
+ */
+function makeCursorMessageFromActivity(state, message) {
+  if (message.tool === toolCode) return null;
+  if (typeof message.socket !== "string" || message.socket === "") return null;
+  if (message.socket === state.connection?.socket?.id) return null;
+  const point = getMessageActivityPoint(message);
+  if (!point) return null;
+  return {
+    tool: toolCode,
+    type: MutationType.UPDATE,
+    socket: message.socket,
+    x: point.x,
+    y: point.y,
+    color:
+      typeof message.color === "string"
+        ? message.color
+        : getPresenceColorFallback(state, message.socket) || "#111111",
+    size:
+      typeof message.size === "number" && Number.isFinite(message.size)
+        ? message.size
+        : getPresenceSizeFallback(state, message.socket) || 1,
+    opacity:
+      typeof message.opacity === "number" && Number.isFinite(message.opacity)
+        ? message.opacity
+        : 1,
+    activeTool:
+      (typeof message.tool === "number" ? TOOL_ID_BY_CODE[message.tool] : "") ||
+      "hand",
+  };
+}
+
+/**
  * @param {Element} element
  * @param {string} className
  * @returns {HTMLElement | null}
@@ -440,4 +494,13 @@ export function draw(state, message) {
       height: 0,
     };
   });
+}
+
+/**
+ * @param {CursorState} state
+ * @param {object & {tool?: unknown, socket?: unknown, color?: unknown, size?: unknown, opacity?: unknown}} message
+ */
+export function onMessage(state, message) {
+  const cursorMessage = makeCursorMessageFromActivity(state, message);
+  if (cursorMessage) draw(state, cursorMessage);
 }
