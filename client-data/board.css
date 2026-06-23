@@ -710,14 +710,37 @@ input {
   font-size: 16px;
 }
 
-#menu #styleTool {
-  overflow: visible;
+.style-tool-menu {
+  position: relative;
+  width: var(--board-control-size);
+  height: var(--board-control-size);
 }
 
-#menu #styleTool.style-tool-open,
-#menu #styleTool:focus,
-#menu #styleTool:focus-within {
+#menu #styleTool {
+  overflow: visible;
+  width: var(--board-control-size);
+  height: var(--board-control-size);
+}
+
+#menu #styleTool:hover,
+#menu #styleTool[open],
+#menu .style-tool-menu.style-tool-hover-open #styleTool {
   max-width: var(--board-control-size);
+}
+
+#styleTool > summary {
+  display: block;
+  height: 100%;
+  list-style: none;
+  outline-offset: 2px;
+}
+
+#styleTool > summary::-webkit-details-marker {
+  display: none;
+}
+
+#styleTool > summary::marker {
+  content: "";
 }
 
 #menu #stylePreview.tool-icon {
@@ -755,7 +778,10 @@ input {
   top: 0;
   z-index: 80;
   box-sizing: border-box;
+  min-inline-size: 0;
   width: min(200px, calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
   padding: 10px;
   background: var(--board-control-bg);
   border: 1px solid var(--board-control-border);
@@ -766,6 +792,7 @@ input {
   gap: 10px;
   opacity: 0;
   pointer-events: none;
+  visibility: hidden;
   transform: translateX(-4px);
   transition:
     opacity 160ms ease,
@@ -773,12 +800,26 @@ input {
   white-space: normal;
   line-height: 1.2;
   cursor: default;
+  margin: 0;
 }
 
-#styleTool.style-tool-open .style-panel {
+#styleTool[open] + .style-panel,
+.style-tool-menu.style-tool-hover-open > .style-panel {
   opacity: 1;
   pointer-events: auto;
+  visibility: visible;
   transform: translateX(0);
+}
+
+.style-panel-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  border: 0;
 }
 
 .colorPresets {
