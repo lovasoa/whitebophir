@@ -241,8 +241,13 @@ function updateBoardUserFromMessage(socket, boardName, data, now) {
   if (color) user.color = color;
   const size = extractMessageSize(data);
   if (size) user.size = size;
-  const toolId = getToolId(data.tool);
-  if (data.tool !== Cursor.id && toolId) user.lastTool = toolId;
+  const toolId =
+    data.tool === Cursor.id && "activeTool" in data
+      ? getToolId(data.activeTool)
+      : getToolId(data.tool);
+  if (toolId && (data.tool !== Cursor.id || toolId !== "cursor")) {
+    user.lastTool = toolId;
+  }
   const position = extractMessagePosition(data);
   if (position) user.position = position;
   return user;

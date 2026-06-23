@@ -681,8 +681,16 @@ function applyConnectedUserActivity(
     user.size = message.size || user.size;
     changed = true;
   }
-  if (runtimeToolId && !isCursorMessage && user.lastTool !== runtimeToolId) {
-    user.lastTool = runtimeToolId;
+  const activityToolId =
+    isCursorMessage && "activeTool" in message
+      ? message.activeTool
+      : runtimeToolId;
+  if (
+    activityToolId &&
+    activityToolId !== "cursor" &&
+    user.lastTool !== activityToolId
+  ) {
+    user.lastTool = activityToolId;
     changed = true;
   }
   if (
