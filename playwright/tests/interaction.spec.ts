@@ -148,6 +148,65 @@ test.describe("single-page interactions", () => {
       .toMatchObject({ e: 40, f: 25 });
   });
 
+  test("style settings panel supports hover, click, and keyboard modes", async ({
+    boardPage,
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await boardPage.gotoBoard("style-settings-disclosure-test");
+
+    const styleTool = page.locator("#styleTool");
+    const styleSummary = page.locator("#styleSummary");
+    const stylePanel = page.locator("#stylePanel");
+
+    await expect(styleTool).not.toHaveAttribute("open", "");
+    await expect(stylePanel).toBeHidden();
+
+    await styleTool.hover();
+    const toolBox = await styleSummary.boundingBox();
+    const panelBox = await stylePanel.boundingBox();
+    if (!toolBox || !panelBox) throw new Error("Missing style panel geometry");
+    const panelGap = panelBox.x - (toolBox.x + toolBox.width);
+    expect(panelGap).toBeGreaterThan(4);
+    expect(panelGap).toBeLessThan(12);
+    expect(Math.abs(panelBox.y - toolBox.y)).toBeLessThan(5);
+    await page.mouse.move(panelBox.x + 8, panelBox.y + 8, { steps: 8 });
+    await expect(stylePanel).toBeVisible();
+
+    await page.mouse.move(700, 300);
+    await expect(stylePanel).toBeHidden();
+
+    await styleSummary.click();
+    await expect(styleTool).toHaveAttribute("open", "");
+    await page.mouse.move(700, 300);
+    await expect(stylePanel).toBeVisible();
+
+    await styleSummary.click();
+    await expect(styleTool).not.toHaveAttribute("open", "");
+    await expect(stylePanel).toBeHidden();
+
+    await styleSummary.focus();
+    await page.keyboard.press("Enter");
+    await expect(styleTool).toHaveAttribute("open", "");
+    await expect(stylePanel).toBeVisible();
+
+    await page.setViewportSize({ width: 1280, height: 610 });
+    await expect
+      .poll(async () => {
+        const compactToolBox = await styleSummary.boundingBox();
+        const compactPanelBox = await stylePanel.boundingBox();
+        if (!compactToolBox || !compactPanelBox) {
+          return Number.POSITIVE_INFINITY;
+        }
+        return Math.abs(
+          compactPanelBox.y +
+            compactPanelBox.height -
+            (compactToolBox.y + compactToolBox.height),
+        );
+      })
+      .toBeLessThan(5);
+  });
+
   test("zoom clicks in and out", async ({ boardPage }) => {
     await boardPage.gotoBoard("zoom-test", { lang: "fr" });
     await expect(boardPage.tool("zoom")).toBeVisible();

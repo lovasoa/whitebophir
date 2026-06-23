@@ -26,7 +26,7 @@ const SIZE_KEY_STEP_FINE = 10;
 const OPACITY_KEY_STEP_COARSE = 0.1;
 const OPACITY_KEY_STEP_FINE = 0.05;
 
-/** Delay before closing the style panel so the pointer can cross the gap between the rail button and the fixed panel. */
+const STYLE_PANEL_GAP_PX = 8;
 const STYLE_PANEL_CLOSE_MS = 320;
 
 /**
@@ -129,97 +129,92 @@ export class BoardShellModule {
     const colorChooser = getRequiredInput("chooseColor");
     const sizeChooser = getRequiredInput("chooseSize");
     const opacityChooser = getRequiredInput("chooseOpacity");
-    const styleTool = getRequiredElement("styleTool");
+    const styleToolMenu = getRequiredElement("styleToolMenu");
+    const styleToolElement = getRequiredElement("styleTool");
+    const styleSummary = getRequiredElement("styleSummary");
     const stylePanel = getRequiredElement("stylePanel");
     const stylePreviewDot = getRequiredElement("stylePreviewDot");
     const stylePreviewDotOutline = getRequiredElement("stylePreviewDotOutline");
+    if (!(styleToolElement instanceof HTMLDetailsElement)) {
+      throw new Error("Missing style details disclosure");
+    }
+    const styleTool = styleToolElement;
 
     const positionStylePanel = () => {
-      const rect = styleTool.getBoundingClientRect();
-      const gap = 8;
+      const rect = styleSummary.getBoundingClientRect();
       const margin = 8;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
-      const panelRect = stylePanel.getBoundingClientRect();
-      const panelWidth = panelRect.width || stylePanel.offsetWidth || 200;
-      let panelHeight = panelRect.height || stylePanel.offsetHeight || 0;
+      const panelWidth = stylePanel.offsetWidth || 200;
+      const panelHeight = stylePanel.offsetHeight || 0;
 
-      let left = rect.right + gap;
+      let left = rect.right + STYLE_PANEL_GAP_PX;
       if (left + panelWidth > vw - margin) {
-        left = rect.left - gap - panelWidth;
+        left = rect.left - STYLE_PANEL_GAP_PX - panelWidth;
       }
       left = Math.max(margin, Math.min(left, vw - margin - panelWidth));
 
-      const availH = vh - 2 * margin;
-      let top = rect.top;
-      if (panelHeight > availH) {
-        top = margin;
-        stylePanel.style.maxHeight = `${availH}px`;
-        stylePanel.style.overflowY = "auto";
-        panelHeight = availH;
-      } else {
-        stylePanel.style.maxHeight = "";
-        stylePanel.style.overflowY = "";
-        if (top + panelHeight > vh - margin) {
-          top = vh - margin - panelHeight;
-        }
-        top = Math.max(margin, top);
-      }
+      const availableHeight = vh - 2 * margin;
+      stylePanel.style.maxHeight = `${availableHeight}px`;
+      stylePanel.style.overflowY = panelHeight > availableHeight ? "auto" : "";
+
+      let top =
+        rect.top + panelHeight <= vh - margin
+          ? rect.top
+          : rect.bottom - panelHeight;
+      top = Math.max(margin, Math.min(top, vh - margin - panelHeight));
 
       stylePanel.style.left = `${left}px`;
       stylePanel.style.top = `${top}px`;
     };
 
-    /** @type {ReturnType<typeof setTimeout> | null} */
-    let stylePanelCloseTimer = null;
-    const cancelStylePanelClose = () => {
-      if (stylePanelCloseTimer !== null) {
-        clearTimeout(stylePanelCloseTimer);
-        stylePanelCloseTimer = null;
-      }
-    };
-    const openStylePanelFromPointer = () => {
-      cancelStylePanelClose();
-      styleTool.classList.add("style-tool-open");
-      positionStylePanel();
-    };
-    const scheduleStylePanelClose = () => {
-      cancelStylePanelClose();
-      stylePanelCloseTimer = setTimeout(() => {
-        styleTool.classList.remove("style-tool-open");
-        stylePanelCloseTimer = null;
-      }, STYLE_PANEL_CLOSE_MS);
-    };
-    const repositionStylePanelIfOpen = () => {
+    const syncStylePanelPosition = () => {
       if (
-        styleTool.classList.contains("style-tool-open") ||
-        styleTool.contains(document.activeElement)
+        styleTool.open ||
+        styleToolMenu.classList.contains("style-tool-hover-open")
       ) {
         positionStylePanel();
       }
     };
 
-    styleTool.addEventListener("mouseenter", openStylePanelFromPointer);
-    styleTool.addEventListener("mouseleave", scheduleStylePanelClose);
-    stylePanel.addEventListener("mouseenter", openStylePanelFromPointer);
-    stylePanel.addEventListener("mouseleave", scheduleStylePanelClose);
+    /** @type {ReturnType<typeof setTimeout> | null} */
+    let stylePanelCloseTimer = null;
+    const cancelStylePanelClose = () => {
+      if (stylePanelCloseTimer === null) return;
+      clearTimeout(stylePanelCloseTimer);
+      stylePanelCloseTimer = null;
+    };
 
-    styleTool.addEventListener("focusin", () => {
+    const openStylePanelOnHover = () => {
+      if (styleTool.open) return;
+      cancelStylePanelClose();
+      styleToolMenu.classList.add("style-tool-hover-open");
       positionStylePanel();
+    };
+
+    const closeStylePanelOnHoverOut = () => {
+      cancelStylePanelClose();
+      stylePanelCloseTimer = setTimeout(() => {
+        styleToolMenu.classList.remove("style-tool-hover-open");
+        stylePanelCloseTimer = null;
+      }, STYLE_PANEL_CLOSE_MS);
+    };
+
+    styleTool.addEventListener("toggle", () => {
+      cancelStylePanelClose();
+      styleToolMenu.classList.remove("style-tool-hover-open");
+      if (styleTool.open) positionStylePanel();
     });
-    window.addEventListener("resize", repositionStylePanelIfOpen, {
+    styleToolMenu.addEventListener("mouseenter", openStylePanelOnHover);
+    styleToolMenu.addEventListener("mouseleave", closeStylePanelOnHoverOut);
+    stylePanel.addEventListener("mouseenter", openStylePanelOnHover);
+    stylePanel.addEventListener("mouseleave", closeStylePanelOnHoverOut);
+    window.addEventListener("resize", syncStylePanelPosition, {
       passive: true,
     });
-    window.addEventListener("scroll", repositionStylePanelIfOpen, {
+    window.visualViewport?.addEventListener("resize", syncStylePanelPosition, {
       passive: true,
-      capture: true,
     });
-    const menuItems = document.getElementById("menuItems");
-    if (menuItems) {
-      menuItems.addEventListener("scroll", repositionStylePanelIfOpen, {
-        passive: true,
-      });
-    }
 
     Tools.preferences.colorChooser = colorChooser;
     colorChooser.value = Tools.preferences.currentColor;
@@ -238,7 +233,7 @@ export class BoardShellModule {
     };
 
     const syncStyleAriaLabel = () => {
-      styleTool.setAttribute(
+      styleSummary.setAttribute(
         "aria-label",
         `${Tools.i18n.t("color")} ${Tools.preferences.currentColor}, ` +
           `${Tools.i18n.t("size")} ${Tools.preferences.currentSize}, ` +
