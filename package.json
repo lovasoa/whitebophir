@@ -59,5 +59,9 @@
     "@playwright/test": "^1.61.0",
     "@types/node": "^25.9.3",
     "typescript": "^6.0.3"
+  },
+  "allowScripts": {
+    "fsevents@2.3.2": true,
+    "protobufjs@7.6.4": true
   }
 }
