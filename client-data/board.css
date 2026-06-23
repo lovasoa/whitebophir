@@ -939,6 +939,14 @@ text {
   --opcursor-sample-size: 10px;
   z-index: 20;
   pointer-events: none;
+  transition:
+    left 0.1s ease-out,
+    top 0.1s ease-out;
+}
+
+#cursor-me.opcursor-html,
+.wbo-viewport-scaling .opcursor-html {
+  transition: none;
 }
 
 .opcursor-tip {

@@ -5,6 +5,7 @@ export const MIN_BOARD_SCALE = 0.01;
 export const MAX_BOARD_SCALE = 1;
 export const VIEWPORT_HASH_SCALE_DECIMALS = 3;
 export const VIEWPORT_LAYOUT_EVENT = "wbo:viewport-layout";
+export const VIEWPORT_SCALING_CLASS = "wbo-viewport-scaling";
 
 const DEFAULT_MAX_BOARD_SIZE = 655360;
 const DOM_DELTA_LINE = 1;
@@ -630,6 +631,15 @@ export function createViewportController(Tools) {
   }
 
   /**
+   * @param {{board: HTMLElement}} dom
+   * @param {boolean} scaling
+   */
+  function setViewportScalingClass(dom, scaling) {
+    if (!dom.board.classList) return;
+    dom.board.classList.toggle(VIEWPORT_SCALING_CLASS, scaling);
+  }
+
+  /**
    * @returns {void}
    */
   function syncLayoutSize() {
@@ -713,6 +723,7 @@ export function createViewportController(Tools) {
       return appliedScale;
     }
     dom.svg.style.willChange = "transform";
+    setViewportScalingClass(dom, true);
     dom.svg.style.transform = `scale(${appliedScale})`;
     Tools.viewportState.scale = appliedScale;
     const resized =
@@ -722,7 +733,10 @@ export function createViewportController(Tools) {
     if (scaleTimeout !== null) clearTimeout(scaleTimeout);
     scaleTimeout = window.setTimeout(() => {
       const timeoutDom = getAttachedDom();
-      if (timeoutDom) timeoutDom.svg.style.willChange = "auto";
+      if (timeoutDom) {
+        timeoutDom.svg.style.willChange = "auto";
+        setViewportScalingClass(timeoutDom, false);
+      }
     }, SCALE_WILL_CHANGE_TIMEOUT_MS);
     Tools.toolRegistry.syncDrawToolAvailability(false);
     return appliedScale;
