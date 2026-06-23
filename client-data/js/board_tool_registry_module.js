@@ -821,7 +821,7 @@ function createMountedTool(toolModule, toolState, toolName) {
     onMutationRejected: onMutationRejected
       ? (message, reason) => onMutationRejected(toolState, message, reason)
       : undefined,
-    stylesheet: undefined,
+    stylesheet: toolModule.stylesheet,
     oneTouch: toolModule.oneTouch ?? toolDefinition?.oneTouch,
     alwaysOn: toolModule.alwaysOn ?? toolDefinition?.alwaysOn,
     mouseCursor:
