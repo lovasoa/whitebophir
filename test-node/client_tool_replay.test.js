@@ -7,6 +7,9 @@ const {
   getToolModuleImportPath,
   getToolRuntimeAssetPath,
 } = require("../client-data/tools/tool-defaults.js");
+const {
+  VIEWPORT_LAYOUT_EVENT,
+} = require("../client-data/js/board_viewport.js");
 const { TOOL_CODE_BY_ID } = require("../client-data/tools/tool-order.js");
 const {
   installBrowserHarnessForTest,
@@ -181,6 +184,7 @@ function createElementClassList(element) {
  * @returns {any}
  */
 function createBaseElement(store, tagName) {
+  const listeners = new Map();
   const element = /** @type {any} */ ({
     _id: "",
     tagName: tagName,
@@ -227,8 +231,32 @@ function createBaseElement(store, tagName) {
     removeAttribute: function (/** @type {string} */ name) {
       delete this.attributes[name];
     },
-    addEventListener: () => {},
-    removeEventListener: () => {},
+    addEventListener: (
+      /** @type {string} */ eventName,
+      /** @type {Function} */ listener,
+    ) => {
+      const eventListeners = listeners.get(eventName) || [];
+      eventListeners.push(listener);
+      listeners.set(eventName, eventListeners);
+    },
+    removeEventListener: (
+      /** @type {string} */ eventName,
+      /** @type {Function} */ listener,
+    ) => {
+      const eventListeners = listeners.get(eventName);
+      if (!eventListeners) return;
+      listeners.set(
+        eventName,
+        eventListeners.filter(
+          (/** @type {Function} */ candidate) => candidate !== listener,
+        ),
+      );
+    },
+    dispatchEvent: (/** @type {{type: string}} */ event) => {
+      const eventListeners = listeners.get(event.type) || [];
+      for (const listener of eventListeners) listener(event);
+      return true;
+    },
     focus: () => {},
     blur: () => {},
     contains: function (/** @type {any} */ target) {
@@ -654,6 +682,31 @@ function createHarness() {
       boardName: "test-board",
       token: null,
     },
+    connection: {
+      socket: {
+        id: "socket-self",
+      },
+    },
+    presence: {
+      users: new Map([
+        [
+          "socket-self",
+          {
+            socketId: "socket-self",
+            name: "Local User",
+            lastTool: "pencil",
+          },
+        ],
+        [
+          "socket-peer",
+          {
+            socketId: "socket-peer",
+            name: "Peer User",
+            lastTool: "hand",
+          },
+        ],
+      ]),
+    },
   };
   browser.setTools(app);
 
@@ -782,6 +835,21 @@ function createTestInteraction() {
 }
 
 /**
+ * @param {any} element
+ * @param {string} className
+ * @returns {any}
+ */
+function findElementByClass(element, className) {
+  if (!element) return null;
+  if (element.classList?.contains(className)) return element;
+  for (const child of element.children || []) {
+    const match = findElementByClass(child, className);
+    if (match) return match;
+  }
+  return null;
+}
+
+/**
  * @param {Partial<any>} [overrides]
  * @returns {any}
  */
@@ -843,6 +911,14 @@ function createInputTools(overrides = {}) {
     toolRegistry: {
       current: null,
       change: () => true,
+    },
+    connection: {
+      socket: {
+        id: "input-socket",
+      },
+    },
+    presence: {
+      users: new Map(),
     },
     ...overrides,
   };
@@ -968,6 +1044,8 @@ function createInputToolRuntime(tools) {
     rateLimits: tools.rateLimits,
     toolRegistry: tools.toolRegistry,
     interaction: tools.interaction,
+    connection: tools.connection,
+    presence: tools.presence,
     config: tools.config,
     i18n: tools.i18n || {
       t: (s) => s,
@@ -998,6 +1076,8 @@ function createHarnessToolRuntime(app) {
     rateLimits: app.rateLimits,
     toolRegistry: app.toolRegistry,
     interaction: app.interaction,
+    connection: app.connection,
+    presence: app.presence,
     config: app.config,
     i18n: app.i18n,
     ids: app.ids,
@@ -1314,7 +1394,7 @@ test("Pencil keeps active local drawing out of the board SVG until release", asy
   assert.deepEqual(getPencilLiveOverlayPath()?.pathData, []);
 });
 
-test("Cursor skips own marker updates while interaction suppresses it", async () => {
+test("Cursor renders presence as a viewport-scaled HTML overlay", async () => {
   const harness = createHarness();
   const cursorTool = await harness.loadTool("cursor");
   const lease = globalAny.Tools.interaction.suppressOwnCursor();
@@ -1331,16 +1411,74 @@ test("Cursor skips own marker updates while interaction suppresses it", async ()
   assert.equal(harness.elementsById.has("cursor-me"), false);
 
   lease.release();
+  globalAny.Tools.viewportState.controller.setScale(2);
+  globalAny.Tools.toolRegistry.current = { name: "rectangle" };
   cursorTool.draw({
     tool: TOOL_CODE_BY_ID.cursor,
     type: MutationType.UPDATE,
     x: 10,
     y: 20,
     color: "#123456",
-    size: 4,
+    size: 12,
+    opacity: 0.5,
+    activeTool: "rectangle",
   });
 
-  assert.equal(harness.elementsById.has("cursor-me"), true);
+  const ownCursor = harness.elementsById.get("cursor-me");
+  assert.ok(ownCursor);
+  assert.equal(ownCursor.getAttribute("class"), "opcursor-html");
+  assert.equal(ownCursor.getAttribute("aria-hidden"), "true");
+  assert.equal(ownCursor.parentNode, globalAny.Tools.board);
+  assert.equal(ownCursor.style.left, "20px");
+  assert.equal(ownCursor.style.top, "40px");
+  assert.equal(ownCursor.style.width, "0px");
+  assert.equal(ownCursor.style.height, "0px");
+  assert.equal(ownCursor.style["--opcursor-color"], "#123456");
+  assert.equal(ownCursor.style["--opcursor-opacity"], "0.5");
+  assert.equal(ownCursor.style["--opcursor-sample-size"], "24px");
+  assert.equal(findElementByClass(ownCursor, "opcursor-pill"), null);
+  assert.equal(findElementByClass(ownCursor, "opcursor-name"), null);
+  assert.equal(findElementByClass(ownCursor, "opcursor-toolIcon"), null);
+
+  cursorTool.draw({
+    tool: TOOL_CODE_BY_ID.cursor,
+    type: MutationType.UPDATE,
+    socket: "socket-peer",
+    x: 30,
+    y: 40,
+    color: "#00ff66",
+    size: 2,
+    activeTool: "hand",
+  });
+
+  const peerCursor = harness.elementsById.get("cursor-socket-peer");
+  assert.ok(peerCursor);
+  assert.equal(peerCursor.style.left, "60px");
+  assert.equal(peerCursor.style.top, "80px");
+  assert.equal(peerCursor.style["--opcursor-color"], "#00ff66");
+  assert.equal(peerCursor.style["--opcursor-opacity"], "1");
+  assert.equal(peerCursor.style["--opcursor-sample-size"], "4px");
+  assert.ok(findElementByClass(peerCursor, "opcursor-pill"));
+  assert.equal(
+    findElementByClass(peerCursor, "opcursor-name")?.textContent,
+    "Peer User",
+  );
+  assert.equal(
+    findElementByClass(peerCursor, "opcursor-toolIcon")?.src,
+    "../tools/hand/icon.svg",
+  );
+  assert.equal(findElementByClass(peerCursor, "opcursor-styleSwatch"), null);
+  assert.equal(harness.elementsById.has("cursors"), false);
+
+  globalAny.Tools.viewportState.controller.setScale(3);
+  globalAny.Tools.board.dispatchEvent({ type: VIEWPORT_LAYOUT_EVENT });
+  assert.equal(peerCursor.style.left, "90px");
+  assert.equal(peerCursor.style.top, "120px");
+  assert.equal(peerCursor.style["--opcursor-sample-size"], "6px");
+
+  cursorTool.onSocketDisconnect();
+  assert.equal(harness.elementsById.has("cursor-me"), false);
+  assert.equal(harness.elementsById.has("cursor-socket-peer"), false);
 });
 
 test("Pencil input logic stops at the configured child limit", () => {

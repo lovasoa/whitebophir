@@ -821,20 +821,27 @@ test.describe("collaboration and rate limiting", () => {
       .poll(() =>
         page.evaluate(() => {
           const remoteCursor = document.querySelector(
-            "#cursors .opcursor:not(#cursor-me)",
+            ".opcursor-html:not(#cursor-me)",
           );
-          if (!(remoteCursor instanceof SVGElement)) return null;
-          const style =
-            remoteCursor.style.transform ||
-            window.getComputedStyle(remoteCursor).transform;
+          if (!(remoteCursor instanceof HTMLElement)) return null;
+          const style = window.getComputedStyle(remoteCursor);
           return {
-            fill: remoteCursor.getAttribute("fill"),
-            transform: style || remoteCursor.getAttribute("transform"),
+            color: style.getPropertyValue("--opcursor-color").trim(),
+            name:
+              remoteCursor.querySelector(".opcursor-name")?.textContent ?? "",
+            icon: (
+              remoteCursor.querySelector(
+                ".opcursor-toolIcon",
+              ) as HTMLImageElement | null
+            )?.getAttribute("src"),
+            oldSvgCursorCount:
+              document.querySelectorAll("#cursors .opcursor").length,
           };
         }),
       )
       .toMatchObject({
-        fill: "#00ff66",
+        color: "#00ff66",
+        oldSvgCursorCount: 0,
       });
 
     const finalState = await page.evaluate(() => {
@@ -851,7 +858,7 @@ test.describe("collaboration and rate limiting", () => {
       const pencilPath = document.querySelector("#slow-pencil");
       const statusIndicator = document.getElementById("boardStatusIndicator");
       const remoteCursor = document.querySelector(
-        "#cursors .opcursor:not(#cursor-me)",
+        ".opcursor-html:not(#cursor-me)",
       );
 
       return {
@@ -874,7 +881,7 @@ test.describe("collaboration and rate limiting", () => {
           .length,
         textContent: document.getElementById("slow-text")?.textContent ?? "",
         drawingIdsUnique: drawingIds.length === new Set(drawingIds).size,
-        remoteCursorPresent: remoteCursor instanceof SVGElement,
+        remoteCursorPresent: remoteCursor instanceof HTMLElement,
       };
     });
 

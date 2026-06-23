@@ -717,6 +717,8 @@ export function createToolRuntimeModules(mountedTools, ownerToolName = "") {
     config: mountedTools.config,
     i18n: mountedTools.i18n,
     ids: mountedTools.ids,
+    connection: mountedTools.connection,
+    presence: mountedTools.presence,
     messages: {
       /** @param {RuntimeBoardMessage} message */
       messageForTool(message) {
