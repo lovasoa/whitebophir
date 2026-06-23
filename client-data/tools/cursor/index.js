@@ -332,14 +332,8 @@ function getPresenceUser(state, socketId) {
  */
 function getCursorName(state, message) {
   const user = getPresenceUser(state, message.socket);
-  const translate = state.i18n?.t
-    ? state.i18n.t.bind(state.i18n)
-    : (/** @type {string} */ key) => key;
-  return user
-    ? getConnectedUserDisplayName(user)
-    : message.socket
-      ? translate("users")
-      : "You";
+  if (user) return getConnectedUserDisplayName(user);
+  return "";
 }
 
 /**
