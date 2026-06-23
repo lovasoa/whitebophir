@@ -423,6 +423,10 @@ function createHarness() {
     return child;
   };
   const svg = createBaseElement(store, "svg");
+  svg.width = createAnimatedLength();
+  svg.width.baseVal.value = 1000;
+  svg.height = createAnimatedLength();
+  svg.height.baseVal.value = 1000;
   svg.appendChild = drawingArea.appendChild.bind(svg);
   svg.getElementById = (/** @type {string} */ id) => store.get(id);
   svg.namespaceURI = "http://www.w3.org/2000/svg";
@@ -1470,6 +1474,18 @@ test("Cursor renders presence as a viewport-scaled HTML overlay", async () => {
   );
   assert.equal(findElementByClass(peerCursor, "opcursor-styleSwatch"), null);
   assert.equal(harness.elementsById.has("cursors"), false);
+
+  cursorTool.draw({
+    tool: TOOL_CODE_BY_ID.cursor,
+    type: MutationType.UPDATE,
+    socket: "socket-overflow",
+    x: 1001,
+    y: 40,
+    color: "#ff0066",
+    size: 2,
+    activeTool: "hand",
+  });
+  assert.equal(harness.elementsById.has("cursor-socket-overflow"), false);
 
   globalAny.Tools.viewportState.controller.setScale(3);
   globalAny.Tools.board.dispatchEvent({ type: VIEWPORT_LAYOUT_EVENT });

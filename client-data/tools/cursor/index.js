@@ -406,9 +406,28 @@ function updateCursorContent(state, cursor, message) {
 /**
  * @param {CursorState} state
  * @param {CursorMessage} message
+ * @returns {boolean}
+ */
+function isCursorInsideBoard(state, message) {
+  if (state.board.status !== "attached") return false;
+  const x = Number(message.x);
+  const y = Number(message.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
+  return (
+    x >= 0 &&
+    y >= 0 &&
+    x <= state.board.svg.width.baseVal.value &&
+    y <= state.board.svg.height.baseVal.value
+  );
+}
+
+/**
+ * @param {CursorState} state
+ * @param {CursorMessage} message
  */
 export function draw(state, message) {
   if (!message.socket && isOwnCursorSuppressed(state)) return;
+  if (!isCursorInsideBoard(state, message)) return;
   const cursorId = `cursor-${message.socket || "me"}`;
   const { element, overlay } = getCursor(state, cursorId);
   updateCursorContent(state, element, message);
