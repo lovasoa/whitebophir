@@ -555,6 +555,7 @@ export type ToolModule<T = unknown> = {
   mouseCursor?: string;
   helpText?: string;
   secondary?: ToolSecondaryMode | null;
+  stylesheet?: string;
   showMarker?: boolean;
   requiredCapability?: ToolRequiredCapability | null;
   touchListenerOptions?: ToolListenerOptions;

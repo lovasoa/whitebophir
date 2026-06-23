@@ -36,6 +36,7 @@ import { TOOL_CODE_BY_ID } from "../tool-order.js";
 
 export const toolId = "cursor";
 const toolCode = TOOL_CODE_BY_ID[toolId];
+export const stylesheet = getToolRuntimeAssetPath(toolId, "cursor.css");
 export const mouseCursor = "crosshair";
 export const showMarker = true;
 export const alwaysOn = true;
