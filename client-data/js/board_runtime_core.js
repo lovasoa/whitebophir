@@ -1,3 +1,4 @@
+import { saveStoredColorPreference } from "./board_preferences.js";
 import { DEFAULT_BOARD_SCALE } from "./board_viewport.js";
 import { clampCoord, clampOpacity, clampSize } from "./message_limits.js";
 
@@ -199,6 +200,7 @@ export class PreferenceModule {
   /** @param {string} color */
   setColor(color) {
     this.currentColor = color;
+    saveStoredColorPreference(color);
     if (this.colorChooser) {
       this.colorChooser.value = color;
     }
