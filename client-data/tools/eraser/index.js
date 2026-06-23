@@ -40,7 +40,6 @@ import { TOOL_CODE_BY_ID } from "../tool-order.js";
 export const toolId = "eraser";
 const toolCode = TOOL_CODE_BY_ID[toolId];
 export const shortcut = "e";
-export const mouseCursor = "crosshair";
 export const showMarker = true;
 export const liveMessageFields = /** @type {const} */ ({
   [MutationType.DELETE]: { id: "id" },
@@ -170,5 +169,6 @@ export function boot(ctx) {
     board: ctx.runtime.board,
     writes: ctx.runtime.writes,
     erasing: false,
+    mouseCursor: `url('${ctx.assetUrl("icon.svg")}') 8 24, crosshair`,
   };
 }
