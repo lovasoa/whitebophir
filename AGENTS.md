@@ -449,6 +449,8 @@ When touching hot paths:
 - SVG layout measurement such as `getBBox()` is allowed only in narrow tool
   interaction paths over a small selected/updated element set. Do not traverse or
   measure the whole board SVG from generic gesture or message handling.
+- Treat SVG-affecting CSS as board-load sensitive; style recalculation can make
+  existing boot-time SVG reads such as `getPathData()` very expensive.
 - Scale-disabled draw tools remain selectable; interaction is blocked, the board
   cursor is `not-allowed`, and status explains that the user must zoom in.
 - Tool modules own tool-specific DOM behavior, stored-item summary/serialization,
