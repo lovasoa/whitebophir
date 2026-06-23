@@ -703,6 +703,7 @@ function createHarness() {
             socketId: "socket-peer",
             name: "Peer User",
             lastTool: "hand",
+            canClear: true,
           },
         ],
       ]),
@@ -1461,7 +1462,7 @@ test("Cursor renders presence as a viewport-scaled HTML overlay", async () => {
   assert.ok(findElementByClass(peerCursor, "opcursor-pill"));
   assert.equal(
     findElementByClass(peerCursor, "opcursor-name")?.textContent,
-    "Peer User",
+    "\u{1F338} Peer User",
   );
   assert.equal(
     findElementByClass(peerCursor, "opcursor-toolIcon")?.src,

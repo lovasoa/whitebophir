@@ -26,6 +26,7 @@
 
 import { MutationType } from "../../js/mutation_type.js";
 import { createBoardHtmlOverlay } from "../../js/board_html_overlay.js";
+import { getConnectedUserDisplayName } from "../../js/board_presence_module.js";
 import { getToolRuntimeAssetPath } from "../tool-defaults.js";
 import { TOOL_CODE_BY_ID } from "../tool-order.js";
 
@@ -334,7 +335,11 @@ function getCursorName(state, message) {
   const translate = state.i18n?.t
     ? state.i18n.t.bind(state.i18n)
     : (/** @type {string} */ key) => key;
-  return user?.name || (message.socket ? translate("users") : "You");
+  return user
+    ? getConnectedUserDisplayName(user)
+    : message.socket
+      ? translate("users")
+      : "You";
 }
 
 /**
