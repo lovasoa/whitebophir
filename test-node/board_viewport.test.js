@@ -77,6 +77,11 @@ function createViewportHashTestEnvironment(initialHash = "#0,0,1.000") {
       browser.flushTimersByDelay(200);
       browser.flushUntilIdle();
     },
+    /** @param {number} delay */
+    flushTimersByDelay(delay) {
+      browser.flushTimersByDelay(delay);
+      browser.flushUntilIdle();
+    },
     restore() {
       browser.restore();
     },
@@ -112,9 +117,34 @@ function createViewportHashTestTools(scale = 1) {
 function createBoardTouchTarget() {
   /** @type {Map<string, Array<{listener: (event: any) => void, options: AddEventListenerOptions | boolean | undefined}>>} */
   const listeners = new Map();
+  const classNames = new Set();
   return {
     style: {},
     dataset: {},
+    classList: {
+      /** @param {string} name */
+      add(name) {
+        classNames.add(name);
+      },
+      /** @param {string} name */
+      remove(name) {
+        classNames.delete(name);
+      },
+      /** @param {string} name */
+      contains(name) {
+        return classNames.has(name);
+      },
+      /**
+       * @param {string} name
+       * @param {boolean} [force]
+       */
+      toggle(name, force) {
+        const enabled = force === undefined ? !classNames.has(name) : force;
+        if (enabled) classNames.add(name);
+        else classNames.delete(name);
+        return enabled;
+      },
+    },
     listeners,
     /**
      * @param {string} type
@@ -413,6 +443,26 @@ test("viewport layout size follows scaled svg while filling the viewport", async
     width: 1200,
     height: 800,
   });
+});
+
+test("viewport marks board scaling while scale projection settles", async () => {
+  const env = createViewportHashTestEnvironment();
+  try {
+    const { createViewportController, VIEWPORT_SCALING_CLASS } =
+      await loadViewportModule();
+    const tools = createViewportHashTestTools(0.25);
+    const { board } = attachViewportDom(tools);
+    const viewport = createViewportController(tools);
+
+    assert.equal(board.classList.contains(VIEWPORT_SCALING_CLASS), false);
+    viewport.setScale(0.5);
+    assert.equal(board.classList.contains(VIEWPORT_SCALING_CLASS), true);
+
+    env.flushTimersByDelay(1000);
+    assert.equal(board.classList.contains(VIEWPORT_SCALING_CLASS), false);
+  } finally {
+    env.restore();
+  }
 });
 
 test("viewport converts board coordinates to layout coordinates", async () => {
