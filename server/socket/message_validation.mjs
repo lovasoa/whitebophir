@@ -1,5 +1,6 @@
 import MessageCommon from "../../client-data/js/message_common.js";
 import {
+  getToolId,
   getMutationType,
   MutationType,
 } from "../../client-data/js/message_tool_metadata.js";
@@ -35,7 +36,7 @@ import { Cursor, TOOLS } from "../../client-data/tools/index.js";
 /** @typedef {{[key: string]: FieldSpec}} FieldSchema */
 /** @typedef {{[tool: number]: {[type: number]: FieldSchema}}} LiveToolSchemas */
 /** @typedef {import("../../client-data/tools/shape_contract.js").ToolContract} ToolContract */
-/** @typedef {"id" | "coord" | "color" | "size" | "opacity" | "text" | "transform" | "time"} SchemaFieldType */
+/** @typedef {"id" | "coord" | "color" | "size" | "opacity" | "text" | "transform" | "time" | "toolId"} SchemaFieldType */
 
 const MAX_TOOL_CODE = TOOLS.length;
 const SHAPE_CONTRACTS = TOOLS.filter((tool) => tool.shapeTool === true);
@@ -214,6 +215,15 @@ function normalizeTime(value) {
 
 /**
  * @param {unknown} value
+ * @returns {ValidationResult<string>}
+ */
+function normalizeToolId(value) {
+  const toolId = getToolId(value);
+  return toolId === undefined ? rejected("invalid tool id") : accepted(toolId);
+}
+
+/**
+ * @param {unknown} value
  * @returns {ValidationResult<Transform>}
  */
 function normalizeTransform(value) {
@@ -293,6 +303,8 @@ function buildSchemaField(type, optionalField) {
       return make(normalizeTransform);
     case "time":
       return make(normalizeTime);
+    case "toolId":
+      return make(normalizeToolId);
   }
 }
 
@@ -381,6 +393,7 @@ const LIVE_MESSAGE_SCHEMAS = Object.fromEntries(
         color: "color",
         size: "size",
         opacity: "opacity?",
+        activeTool: "toolId?",
         x: "coord",
         y: "coord",
       }),

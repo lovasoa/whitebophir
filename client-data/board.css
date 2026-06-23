@@ -933,11 +933,36 @@ text {
   -moz-user-select: none;
 }
 
-circle.opcursor {
+.opcursor {
   pointer-events: none;
   transition: 0.1s;
 }
 
 #cursor-me {
   transition: 0s;
+}
+
+.opcursor-marker {
+  stroke: #111111;
+  stroke-width: 1;
+}
+
+.opcursor-label {
+  filter: drop-shadow(0 1px 2px rgba(16, 24, 40, 0.22));
+}
+
+.opcursor-label-bg {
+  fill: rgba(255, 255, 255, 0.96);
+  stroke: #111827;
+  stroke-width: 0.75;
+}
+
+.opcursor-label-text {
+  fill: #111111;
+  font-size: 11px;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-linejoin: round;
+  stroke-width: 2px;
 }

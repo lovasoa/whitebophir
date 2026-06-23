@@ -30,6 +30,16 @@ import { TOOL_CODE_BY_ID } from "../tool-order.js";
 /** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
 /** @typedef {ReturnType<typeof boot>} CursorState */
 
+const SVG_NS = "http://www.w3.org/2000/svg";
+const CURSOR_TEMPLATE_SVG = `
+<g class="opcursor">
+  <circle class="opcursor-marker" cx="0" cy="0" r="10"></circle>
+  <g class="opcursor-label" transform="translate(12 -12)">
+    <rect class="opcursor-label-bg" x="0" y="-15" rx="3" ry="3" height="19"></rect>
+    <text class="opcursor-label-text" x="6" y="0"></text>
+  </g>
+</g>`;
+
 export const toolId = "cursor";
 const toolCode = TOOL_CODE_BY_ID[toolId];
 export const mouseCursor = "crosshair";
@@ -58,23 +68,43 @@ function computeMinCursorUpdateIntervalMs(rateLimits) {
 
 /**
  * @param {Element | null} element
- * @returns {element is SVGCircleElement}
+ * @returns {element is SVGGElement}
  */
 function isCursorElement(element) {
-  return String(element?.tagName).toLowerCase() === "circle";
+  return (
+    element instanceof SVGGElement && element.classList.contains("opcursor")
+  );
 }
 
 /** @param {ToolRuntimeModules["board"]} board */
 function getCursorsLayer(board) {
   const existingLayer = board.svg.getElementById("cursors");
   if (existingLayer instanceof SVGGElement) return existingLayer;
-  const createdLayer = document.createElementNS(
-    "http://www.w3.org/2000/svg",
-    "g",
-  );
+  const createdLayer = document.createElementNS(SVG_NS, "g");
   createdLayer.setAttributeNS(null, "id", "cursors");
   board.svg.appendChild(createdLayer);
   return createdLayer;
+}
+
+/**
+ * Keep the cursor marker as a literal SVG template so the visual structure is
+ * readable and maintainable in one place. Tests use a minimal DOM shim without
+ * SVG innerHTML parsing, so callers still tolerate a missing child template.
+ * @param {string} id
+ * @returns {SVGGElement}
+ */
+function createCursorElement(id) {
+  const templateSvg = document.createElementNS(SVG_NS, "svg");
+  templateSvg.innerHTML = CURSOR_TEMPLATE_SVG.trim();
+  const cursor = templateSvg.firstElementChild;
+  if (!(cursor instanceof SVGGElement)) {
+    const fallbackCursor = document.createElementNS(SVG_NS, "g");
+    fallbackCursor.setAttributeNS(null, "class", "opcursor");
+    fallbackCursor.setAttributeNS(null, "id", id);
+    return fallbackCursor;
+  }
+  cursor.setAttributeNS(null, "id", id);
+  return cursor;
 }
 
 /**
@@ -83,15 +113,7 @@ function getCursorsLayer(board) {
  */
 function createCursor(board, id) {
   const cursorsElem = getCursorsLayer(board);
-  const cursor = document.createElementNS(
-    "http://www.w3.org/2000/svg",
-    "circle",
-  );
-  cursor.setAttributeNS(null, "class", "opcursor");
-  cursor.setAttributeNS(null, "id", id);
-  cursor.setAttributeNS(null, "cx", "0");
-  cursor.setAttributeNS(null, "cy", "0");
-  cursor.setAttributeNS(null, "r", "10");
+  const cursor = createCursorElement(id);
   cursorsElem.appendChild(cursor);
   setTimeout(() => {
     if (cursor.parentNode === cursorsElem) {
@@ -122,6 +144,7 @@ function makeCursorMessage(state) {
     color: state.color,
     size: state.size,
     opacity: state.opacity,
+    activeTool: getActiveToolId(state),
   };
 }
 /** @typedef {ReturnType<typeof makeCursorMessage> & {socket?: string}} CursorMessage */
@@ -166,6 +189,7 @@ function updateMarker(state) {
 /** @param {ToolBootContext} ctx */
 export function boot(ctx) {
   const runtime = ctx.runtime;
+  const runtimeAny = /** @type {any} */ (runtime);
   return {
     board: runtime.board,
     writes: runtime.writes,
@@ -173,6 +197,15 @@ export function boot(ctx) {
     rateLimits: runtime.rateLimits,
     interaction: runtime.interaction,
     toolRegistry: runtime.toolRegistry,
+    connection:
+      /** @type {import("../../../types/app-runtime").AppConnectionModule} */ (
+        /** @type {unknown} */ (runtimeAny.connection)
+      ),
+    presence:
+      /** @type {import("../../../types/app-runtime").AppPresenceModule} */ (
+        /** @type {unknown} */ (runtimeAny.presence)
+      ),
+    i18n: runtime.i18n,
     lastCursorUpdate: 0,
     sending: true,
     x: 0,
@@ -237,6 +270,83 @@ export function onOpacityChange(state, opacity) {
   updateMarker(state);
 }
 
+/** @param {CursorState} state */
+function getActiveToolId(state) {
+  return state.toolRegistry.current?.name || "hand";
+}
+
+/**
+ * @param {CursorState} state
+ * @param {string | undefined} socketId
+ */
+function getPresenceUser(state, socketId) {
+  if (!state.presence?.users) return null;
+  if (socketId) return state.presence.users.get(socketId) || null;
+  const ownSocketId = state.connection?.socket?.id || null;
+  return ownSocketId ? state.presence.users.get(ownSocketId) || null : null;
+}
+
+/**
+ * @param {CursorState} state
+ * @param {CursorMessage} message
+ */
+function getCursorLabel(state, message) {
+  const user = getPresenceUser(state, message.socket);
+  const translate = state.i18n?.t
+    ? state.i18n.t.bind(state.i18n)
+    : (/** @type {string} */ key) => key;
+  const name = user?.name || (message.socket ? translate("users") : "You");
+  const toolId = message.activeTool || user?.lastTool || getActiveToolId(state);
+  const toolLabel = translate(toolId);
+  return `${name} · ${toolLabel || toolId}`;
+}
+
+/**
+ * @param {Element | {children?: unknown[]} | null} element
+ * @param {string} className
+ * @returns {Element | null}
+ */
+function getCursorPart(element, className) {
+  if (!element) return null;
+  if (
+    "querySelector" in element &&
+    typeof element.querySelector === "function"
+  ) {
+    return element.querySelector(`.${className}`);
+  }
+  const children = Array.isArray(element.children) ? element.children : [];
+  return /** @type {Element | null} */ (
+    children.find((child) =>
+      String(/** @type {any} */ (child)?.getAttribute?.("class") || "")
+        .split(/\s+/)
+        .includes(className),
+    ) || null
+  );
+}
+
+/**
+ * @param {SVGGElement} cursor
+ * @param {string} label
+ */
+function setCursorLabel(cursor, label) {
+  const text = getCursorPart(
+    getCursorPart(cursor, "opcursor-label"),
+    "opcursor-label-text",
+  );
+  const background = getCursorPart(
+    getCursorPart(cursor, "opcursor-label"),
+    "opcursor-label-bg",
+  );
+  if (!text || !background) return;
+  const normalizedLabel = label.length > 48 ? `${label.slice(0, 45)}…` : label;
+  text.textContent = normalizedLabel;
+  background.setAttributeNS(
+    null,
+    "width",
+    String(12 + normalizedLabel.length * 6.4),
+  );
+}
+
 /**
  * @param {CursorState} state
  * @param {CursorMessage} message
@@ -245,11 +355,17 @@ export function draw(state, message) {
   if (!message.socket && isOwnCursorSuppressed(state)) return;
   const cursor = getCursor(state.board, `cursor-${message.socket || "me"}`);
   cursor.style.transform = `translate(${message.x}px, ${message.y}px)`;
+  const marker = getCursorPart(cursor, "opcursor-marker");
+  if (!marker) return;
   cursor.setAttributeNS(null, "fill", message.color);
   cursor.setAttributeNS(null, "r", String(message.size / 2));
+  marker.setAttributeNS(null, "fill", message.color);
+  marker.setAttributeNS(null, "r", String(message.size / 2));
   const opacity =
     typeof message.opacity === "number" && Number.isFinite(message.opacity)
       ? message.opacity
       : 1;
   cursor.setAttributeNS(null, "fill-opacity", String(opacity));
+  marker.setAttributeNS(null, "fill-opacity", String(opacity));
+  setCursorLabel(cursor, getCursorLabel(state, message));
 }
