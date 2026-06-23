@@ -3,7 +3,7 @@ import { clampCoord, clampOpacity, clampSize } from "./message_limits.js";
 
 /** @import { AppInitialPreferences, ColorPreset, ServerConfig } from "../../types/app-runtime" */
 
-/** @typedef {{status: "attached", svg: SVGSVGElement, drawingArea: SVGGElement}} AttachedBoardDomRuntimeThis */
+/** @typedef {{status: "attached", board: HTMLElement, svg: SVGSVGElement, drawingArea: SVGGElement}} AttachedBoardDomRuntimeThis */
 /** @typedef {{status: "detached"} | AttachedBoardDomRuntimeThis} BoardDomRuntimeThis */
 
 /** @param {BoardDomRuntimeActions} actions */
@@ -48,6 +48,9 @@ export class BoardDomRuntimeActions {
     if (dom.status !== "attached") return;
     const cursors = dom.svg.getElementById("cursors");
     if (cursors) cursors.innerHTML = "";
+    dom.board
+      .querySelectorAll(".opcursor-html")
+      .forEach((cursor) => cursor.remove());
   }
 
   resetBoardViewport() {

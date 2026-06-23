@@ -77,8 +77,13 @@ type ProtectedWriteState = {
   validated: boolean;
 };
 type CursorState = {
-  transform: string | null;
-  fill: string | null;
+  left: string;
+  top: string;
+  color: string;
+  opacity: string;
+  sampleSize: string;
+  name: string;
+  iconSrc: string;
 };
 type BoardUrlOptions = {
   lang?: string;
@@ -1109,12 +1114,20 @@ window.turnstile = {
   async readCursorAttributes(): Promise<CursorState | null> {
     return this.page.evaluate<CursorState | null>(() => {
       const cursor = document.getElementById("cursor-me");
-      if (!(cursor instanceof SVGElement)) return null;
-      const style =
-        cursor.style.transform || window.getComputedStyle(cursor).transform;
+      if (!(cursor instanceof HTMLElement)) return null;
+      const style = window.getComputedStyle(cursor);
+      const icon = cursor.querySelector(".opcursor-toolIcon");
       return {
-        transform: style || cursor.getAttribute("transform"),
-        fill: cursor.getAttribute("fill"),
+        left: cursor.style.left,
+        top: cursor.style.top,
+        color: style.getPropertyValue("--opcursor-color").trim(),
+        opacity: style.getPropertyValue("--opcursor-opacity").trim(),
+        sampleSize: style.getPropertyValue("--opcursor-sample-size").trim(),
+        name: cursor.querySelector(".opcursor-name")?.textContent ?? "",
+        iconSrc:
+          icon instanceof HTMLImageElement
+            ? (icon.getAttribute("src") ?? "")
+            : "",
       };
     });
   }

@@ -680,9 +680,10 @@ test.describe("drawing and persistence", () => {
     await expect.poll(() => boardPage.readCursorAttributes()).not.toBeNull();
     const state = await boardPage.readCursorAttributes();
     if (!state) throw new Error("Cursor state missing after move");
-    expect(state.fill).toBe("#456123");
-    expect(state.transform ?? "").toMatch(
-      /(translate\(1500px,\s*2000px\)|matrix\(1,\s*0,\s*0,\s*1,\s*1500,\s*2000\))/,
-    );
+    expect(state.color).toBe("#456123");
+    expect(state.left).toBe("150px");
+    expect(state.top).toBe("200px");
+    expect(state.name).toBe("");
+    expect(state.iconSrc).toBe("");
   });
 });
