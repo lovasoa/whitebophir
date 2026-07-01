@@ -15,7 +15,7 @@ import {
 } from "./request.mjs";
 
 /** @import { AppSocket, ConnectedUserPayload, NormalizedMessageData, ServerConfig } from "../../types/server-runtime.d.ts" */
-/** @typedef {{socketId: string, userId: string, userSecret: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number, position: {x: number, y: number}, canEdit: boolean, canClear: boolean}} BoardUser */
+/** @typedef {{socketId: string, userId: string, userSecret: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number, joinedAt: number, position: {x: number, y: number}, canEdit: boolean, canClear: boolean}} BoardUser */
 /** @typedef {(socket: AppSocket, boardName: string, config: ServerConfig) => string} ResolveClientIp */
 /** @typedef {{canEdit: boolean, canClear: boolean}} UserCapabilities */
 
@@ -78,6 +78,7 @@ function buildBoardUserRecord(
     size,
     lastTool: getSocketQueryValue(socket, "tool") || "hand",
     lastSeen: now || Date.now(),
+    joinedAt: now || Date.now(),
     position: { x: 0, y: 0 },
     canEdit: capabilities.canEdit,
     canClear: capabilities.canClear,
@@ -128,6 +129,7 @@ function serializeBoardUser(user) {
     color: user.color,
     size: user.size,
     lastTool: user.lastTool,
+    joinedAt: user.joinedAt,
     position: user.position,
     canEdit: user.canEdit,
     canClear: user.canClear,
