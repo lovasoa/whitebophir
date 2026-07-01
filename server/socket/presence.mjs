@@ -76,7 +76,7 @@ function buildBoardUserRecord(
     language: getSocketHeaderValue(socket, "accept-language"),
     color: color || "#001f3f",
     size,
-    lastTool: getSocketQueryValue(socket, "tool") || "hand",
+    lastTool: getToolId(getSocketQueryValue(socket, "tool")) || "hand",
     lastSeen: now || Date.now(),
     joinedAt: now || Date.now(),
     position: { x: 0, y: 0 },
