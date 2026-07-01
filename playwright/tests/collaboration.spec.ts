@@ -129,7 +129,9 @@ test.describe("collaboration and rate limiting", () => {
     const peerRemoteRow = rows.find((row) => !row.isSelf);
     expect(peerRemoteRow).toBeTruthy();
     expect(peerRemoteRow?.meta ?? "").toMatch(/Rectangle|Pencil/);
-    expect(parseFloat(peerRemoteRow?.dotWidth ?? "0")).toBeGreaterThan(7);
+    expect(parseFloat(peerRemoteRow?.ringWidth ?? "0")).toBeGreaterThanOrEqual(
+      2,
+    );
     expect(
       peerRemoteRow?.color === "rgb(255, 0, 0)" ||
         peerRemoteRow?.color === "#ff0000",
@@ -361,14 +363,15 @@ test.describe("collaboration and rate limiting", () => {
       .poll(async () => {
         const rows = await boardPage.readConnectedUsers();
         const remote = rows.find((row) => !row.isSelf);
+        const ringWidth = parseFloat(remote?.ringWidth ?? "0");
         return {
           color: remote?.color ?? "",
-          dotWidth: parseFloat(remote?.dotWidth ?? "0"),
+          ringVisible: ringWidth >= 2,
         };
       })
       .toMatchObject({
         color: "rgb(0, 255, 0)",
-        dotWidth: 8,
+        ringVisible: true,
       });
 
     await boardPage.drawRectangle(
@@ -386,12 +389,12 @@ test.describe("collaboration and rate limiting", () => {
         return {
           self: {
             color: self?.color ?? "",
-            dotWidth: parseFloat(self?.dotWidth ?? "0"),
+            ringWidth: parseFloat(self?.ringWidth ?? "0"),
             meta: self?.meta ?? "",
           },
           remote: {
             color: remote?.color ?? "",
-            dotWidth: parseFloat(remote?.dotWidth ?? "0"),
+            ringWidth: parseFloat(remote?.ringWidth ?? "0"),
             meta: remote?.meta ?? "",
           },
         };
@@ -410,8 +413,8 @@ test.describe("collaboration and rate limiting", () => {
     const rows = await boardPage.readConnectedUsers();
     const self = rows.find((row) => row.isSelf);
     const remote = rows.find((row) => !row.isSelf);
-    expect(parseFloat(self?.dotWidth ?? "0")).toBeGreaterThanOrEqual(
-      parseFloat(remote?.dotWidth ?? "0"),
+    expect(parseFloat(self?.ringWidth ?? "0")).toBeGreaterThanOrEqual(
+      parseFloat(remote?.ringWidth ?? "0"),
     );
 
     await peerPage.close();

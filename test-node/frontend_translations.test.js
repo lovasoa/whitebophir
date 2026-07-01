@@ -21,6 +21,7 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
   const requiredKeys = [
     "board_name_placeholder",
     "ban",
+    "ban_user_confirmation",
     "back_to_home",
     "clear",
     "click_to_zoom",
@@ -28,6 +29,11 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
     "community_rules_link",
     "community_rules_title",
     "community_rules_intro",
+    "connected_user_idle",
+    "connected_user_joined_now_title",
+    "connected_user_joined_title",
+    "connected_user_left",
+    "connected_user_now",
     "color",
     "create_private_board",
     "cursor",
@@ -52,6 +58,9 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
     "rate_limit_disconnect_message",
     "recent_boards",
     "rectangle",
+    "relative_days_short",
+    "relative_hours_short",
+    "relative_minutes_short",
     "report",
     "rules_drawings_body",
     "rules_drawings_shared",
@@ -85,5 +94,26 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
   for (const [language, catalog] of Object.entries(translations)) {
     const missing = requiredKeys.filter((key) => !(key in catalog));
     assert.deepEqual(missing, [], `${language} is missing UI translations`);
+    for (const key of [
+      "relative_days_short",
+      "relative_hours_short",
+      "relative_minutes_short",
+    ]) {
+      assert.match(
+        catalog[key],
+        /\{count\}/,
+        `${language}.${key} must include {count}`,
+      );
+    }
+    assert.match(
+      catalog.ban_user_confirmation,
+      /\{name\}/,
+      `${language}.ban_user_confirmation must include {name}`,
+    );
+    assert.match(
+      catalog.connected_user_joined_title,
+      /\{relative_time\}/,
+      `${language}.connected_user_joined_title must include {relative_time}`,
+    );
   }
 });

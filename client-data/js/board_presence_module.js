@@ -3,12 +3,14 @@ import { getRequiredElement } from "./board_page_state.js";
 import { VIEWPORT_HASH_SCALE_DECIMALS } from "./board_viewport.js";
 import { getMessageActivityPoint } from "./message_activity_point.js";
 import MessageCommon from "./message_common.js";
+import { LIMITS } from "./message_limits.js";
 import { MutationType } from "./message_tool_metadata.js";
 import { SocketEvents } from "./socket_events.js";
 import { createToolIconBadge, updateToolIconBadge } from "./tool_icon_badge.js";
 
 /** @import { AppToolsState, AttachedBoardDomModule, BoardMessage, ConnectedUser, ConnectedUserMap, HandChildMessage } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
+/** @typedef {{kind: "now"} | {kind: "duration", count: number, unit: "minute" | "hour" | "day", shortKey: string}} ConnectedUserRelativeTime */
 
 export class PresenceModule {
   /** @param {() => AppToolsState} getTools */
@@ -293,14 +295,27 @@ function syncConnectedUsersSummary(presence, Tools = presence.getTools()) {
   syncConnectedUsersToggleLabel(Tools, users);
 }
 
+const CONNECTED_USER_RING_MIN_WIDTH = 2;
+const CONNECTED_USER_RING_MAX_WIDTH = 6;
+
 /**
  * @param {number | undefined} size
  * @returns {number}
  */
-function getConnectedUserDotSize(size) {
+function getConnectedUserRingWidth(size) {
   const userSize = Number(size);
-  if (!Number.isFinite(userSize) || userSize <= 0) return 7;
-  return Math.max(6, Math.min(13, 5 + userSize / 40));
+  if (!Number.isFinite(userSize) || userSize <= 0) {
+    return CONNECTED_USER_RING_MIN_WIDTH;
+  }
+  const range = LIMITS.MAX_SIZE - LIMITS.MIN_SIZE || 1;
+  const fraction = Math.max(
+    0,
+    Math.min(1, (userSize - LIMITS.MIN_SIZE) / range),
+  );
+  return (
+    CONNECTED_USER_RING_MIN_WIDTH +
+    fraction * (CONNECTED_USER_RING_MAX_WIDTH - CONNECTED_USER_RING_MIN_WIDTH)
+  );
 }
 
 /**
@@ -323,15 +338,93 @@ function clearConnectedUserTimers(user) {
   user.removeTimeoutId = null;
 }
 
-/** @param {number | undefined} timestamp */
-function formatShortRelativeTime(timestamp) {
+/**
+ * @param {string} template
+ * @param {{[key: string]: string}} values
+ * @returns {string}
+ */
+function formatPresenceMessage(template, values) {
+  return template.replace(/\{([a-zA-Z0-9_]+)\}/g, (match, key) => {
+    if (!Object.prototype.hasOwnProperty.call(values, key)) return match;
+    return values[key] || "";
+  });
+}
+
+/**
+ * @param {number | undefined} timestamp
+ * @returns {ConnectedUserRelativeTime}
+ */
+function getRelativeTimeState(timestamp) {
   const elapsedMs = Math.max(0, Date.now() - (timestamp || Date.now()));
   const minutes = Math.floor(elapsedMs / 60000);
-  if (minutes < 1) return "now";
-  if (minutes < 60) return `${minutes}m`;
+  if (minutes < 1) return { kind: "now" };
+  if (minutes < 60) {
+    return {
+      kind: "duration",
+      count: minutes,
+      unit: "minute",
+      shortKey: "relative_minutes_short",
+    };
+  }
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-  return `${Math.floor(hours / 24)}d`;
+  if (hours < 24) {
+    return {
+      kind: "duration",
+      count: hours,
+      unit: "hour",
+      shortKey: "relative_hours_short",
+    };
+  }
+  return {
+    kind: "duration",
+    count: Math.floor(hours / 24),
+    unit: "day",
+    shortKey: "relative_days_short",
+  };
+}
+
+/**
+ * @param {AppToolsState} Tools
+ * @param {ConnectedUserRelativeTime} relativeTime
+ * @returns {string}
+ */
+function formatShortRelativeTime(Tools, relativeTime) {
+  if (relativeTime.kind === "now") return Tools.i18n.t("connected_user_now");
+  return formatPresenceMessage(Tools.i18n.t(relativeTime.shortKey), {
+    count: `${relativeTime.count}`,
+  });
+}
+
+/**
+ * @param {AppToolsState} Tools
+ * @param {Extract<ConnectedUserRelativeTime, {kind: "duration"}>} relativeTime
+ * @returns {string}
+ */
+function formatLongRelativeTime(Tools, relativeTime) {
+  try {
+    return new Intl.RelativeTimeFormat(
+      document.documentElement.lang || undefined,
+      {
+        numeric: "always",
+        style: "long",
+      },
+    ).format(-relativeTime.count, relativeTime.unit);
+  } catch {
+    return formatShortRelativeTime(Tools, relativeTime);
+  }
+}
+
+/**
+ * @param {AppToolsState} Tools
+ * @param {ConnectedUserRelativeTime} relativeTime
+ * @returns {string}
+ */
+function formatJoinedTimeTitle(Tools, relativeTime) {
+  if (relativeTime.kind === "now")
+    return Tools.i18n.t("connected_user_joined_now_title");
+  return formatPresenceMessage(Tools.i18n.t("connected_user_joined_title"), {
+    relative_time: formatLongRelativeTime(Tools, relativeTime),
+  });
 }
 
 /** @param {PresenceModule} presence */
@@ -529,6 +622,19 @@ function markConnectedUserActivity(user, scheduleActivityRender) {
 }
 
 /**
+ * @param {ConnectedUser} user
+ * @returns {boolean}
+ */
+function markConnectedUserIdleActivity(user) {
+  const now = Date.now();
+  const wasInactive =
+    now - (user.lastActivityAt || user.joinedAt || now) >
+    CONNECTED_USER_STALE_MS;
+  user.lastActivityAt = now;
+  return wasInactive;
+}
+
+/**
  * @param {AppToolsState} Tools
  * @param {ConnectedUser} user
  * @returns {string}
@@ -617,20 +723,20 @@ function updateConnectedUserRow(getTools, row, user) {
     );
   }
 
-  const color = /** @type {HTMLSpanElement | null} */ (
-    row.querySelector(".connected-user-color")
+  const toolBadge = /** @type {HTMLSpanElement | null} */ (
+    row.querySelector(".connected-user-toolBadge")
   );
-  if (color) {
-    color.style.backgroundColor = user.color || "#001f3f";
-    const dotSize = getConnectedUserDotSize(user.size);
-    color.style.width = `${dotSize}px`;
-    color.style.height = `${dotSize}px`;
+  if (toolBadge) {
+    const userColor = user.color || "#001f3f";
+    toolBadge.style.borderColor = userColor;
+    toolBadge.style.setProperty("--connected-user-pulse-color", userColor);
+    toolBadge.style.borderWidth = `${getConnectedUserRingWidth(user.size)}px`;
     if (user.pulseUntil && user.pulseUntil > Date.now()) {
-      color.classList.add("active");
-      color.style.setProperty("--pulse-ms", `${user.pulseMs || 700}ms`);
+      toolBadge.classList.add("active");
+      toolBadge.style.setProperty("--pulse-ms", `${user.pulseMs || 700}ms`);
     } else {
-      color.classList.remove("active");
-      color.style.removeProperty("--pulse-ms");
+      toolBadge.classList.remove("active");
+      toolBadge.style.removeProperty("--pulse-ms");
     }
   }
 
@@ -647,12 +753,20 @@ function updateConnectedUserRow(getTools, row, user) {
     row.querySelector(".connected-user-meta")
   );
   if (meta) {
-    const joinedText = formatShortRelativeTime(user.joinedAt);
-    meta.textContent = user.disconnectedAt
-      ? "left"
-      : inactive
-        ? `idle · ${joinedText}`
-        : joinedText;
+    if (user.disconnectedAt) {
+      meta.textContent = Tools.i18n.t("connected_user_left");
+    } else {
+      const relativeTime = getRelativeTimeState(user.joinedAt);
+      const joinedTime = document.createElement("span");
+      joinedTime.className = "connected-user-time";
+      joinedTime.textContent = formatShortRelativeTime(Tools, relativeTime);
+      joinedTime.title = formatJoinedTimeTitle(Tools, relativeTime);
+
+      meta.textContent = inactive
+        ? `${Tools.i18n.t("connected_user_idle")} · `
+        : "";
+      meta.appendChild(joinedTime);
+    }
   }
 
   const report = /** @type {HTMLButtonElement | null} */ (
@@ -688,9 +802,6 @@ function createConnectedUserRow(getTools, user, users) {
     "connected-user-toolIcon",
   );
   visual.appendChild(toolBadge);
-  const color = document.createElement("span");
-  color.className = "connected-user-color";
-  visual.appendChild(color);
   row.appendChild(visual);
 
   const main = document.createElement("a");
@@ -724,7 +835,15 @@ function createConnectedUserRow(getTools, user, users) {
     }
     if (Tools.access.canClear === true) {
       const name = getConnectedUserDisplayName(connectedUser);
-      if (!window.confirm(`Ban ${name}?`)) return;
+      if (
+        !window.confirm(
+          formatPresenceMessage(Tools.i18n.t("ban_user_confirmation"), {
+            name,
+          }),
+        )
+      ) {
+        return;
+      }
     }
     connectedUser.reported = true;
     updateConnectedUserRow(getTools, row, connectedUser);
@@ -773,6 +892,8 @@ function applyConnectedUserActivity(
   if (!isCursorMessage) {
     changed =
       markConnectedUserActivity(user, scheduleActivityRender) || changed;
+  } else if (focusPoint) {
+    changed = markConnectedUserIdleActivity(user) || changed;
   }
   if ("color" in message && user.color !== message.color) {
     user.color = message.color;

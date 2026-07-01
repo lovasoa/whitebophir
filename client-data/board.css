@@ -428,22 +428,26 @@ select {
 .connected-user-visual {
   display: inline-flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 4px;
+  justify-content: center;
   width: 36px;
   justify-self: center;
 }
 
 .connected-user-toolBadge {
+  --connected-user-pulse-color: #001f3f;
+  --pulse-ms: 0.75s;
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
-  border: 1px solid #d9dde3;
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  border: 2px solid #001f3f;
   border-radius: 999px;
-  background: #f3f4f6;
+  outline: 1px solid rgba(17, 24, 39, 0.18);
+  outline-offset: 0;
+  background: #ffffff;
 }
 
 .connected-user-toolIcon {
@@ -453,17 +457,7 @@ select {
   object-fit: contain;
 }
 
-.connected-user-color {
-  --pulse-ms: 0.75s;
-  flex: 0 0 auto;
-  width: 7px;
-  height: 7px;
-  border: 1px solid rgba(17, 24, 39, 0.5);
-  border-radius: 999px;
-  box-sizing: border-box;
-}
-
-.connected-user-color.active {
+.connected-user-toolBadge.active {
   animation: connected-user-pulse var(--pulse-ms) ease-out infinite;
 }
 
@@ -529,11 +523,13 @@ select {
 
 @keyframes connected-user-pulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(17, 24, 39, 0.28);
+    box-shadow: 0 0 0 0
+      color-mix(in srgb, var(--connected-user-pulse-color) 44%, transparent);
   }
 
   100% {
-    box-shadow: 0 0 0 5px rgba(17, 24, 39, 0);
+    box-shadow: 0 0 0 7px
+      color-mix(in srgb, var(--connected-user-pulse-color) 0%, transparent);
   }
 }
 
