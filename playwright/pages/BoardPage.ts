@@ -26,6 +26,7 @@ type ActiveToolState = {
 type ConnectedUserState = {
   name: string;
   meta: string;
+  tool: string;
   isSelf: boolean;
   reportDisabled: boolean;
   color: string;
@@ -345,9 +346,13 @@ window.turnstile = {
         const toolBadge = row.querySelector(
           ".connected-user-toolBadge",
         ) as HTMLElement | null;
+        const toolIcon = row.querySelector(
+          ".connected-user-toolIcon",
+        ) as HTMLImageElement | null;
         return {
           name: name?.textContent ?? "",
           meta: meta?.textContent ?? "",
+          tool: toolIcon?.title ?? "",
           isSelf: row.classList.contains("connected-user-row-self"),
           reportDisabled: !!(report && (report as HTMLButtonElement).disabled),
           color: toolBadge?.style.borderColor ?? "",

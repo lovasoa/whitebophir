@@ -115,7 +115,7 @@ test.describe("collaboration and rate limiting", () => {
       .poll(async () => {
         const rows = await peerBoard.readConnectedUsers();
         const remote = rows.find((row) => !row.isSelf);
-        return remote?.meta ?? "";
+        return remote?.tool ?? "";
       })
       .toMatch(/Cursor|Rectangle|Pencil/);
 
@@ -128,7 +128,7 @@ test.describe("collaboration and rate limiting", () => {
     const rows = await peerBoard.readConnectedUsers();
     const peerRemoteRow = rows.find((row) => !row.isSelf);
     expect(peerRemoteRow).toBeTruthy();
-    expect(peerRemoteRow?.meta ?? "").toMatch(/Rectangle|Pencil/);
+    expect(peerRemoteRow?.tool ?? "").toMatch(/Rectangle|Pencil/);
     expect(parseFloat(peerRemoteRow?.ringWidth ?? "0")).toBeGreaterThanOrEqual(
       2,
     );
@@ -390,23 +390,23 @@ test.describe("collaboration and rate limiting", () => {
           self: {
             color: self?.color ?? "",
             ringWidth: parseFloat(self?.ringWidth ?? "0"),
-            meta: self?.meta ?? "",
+            tool: self?.tool ?? "",
           },
           remote: {
             color: remote?.color ?? "",
             ringWidth: parseFloat(remote?.ringWidth ?? "0"),
-            meta: remote?.meta ?? "",
+            tool: remote?.tool ?? "",
           },
         };
       })
       .toMatchObject({
         self: {
           color: "rgb(255, 0, 0)",
-          meta: "Rectangle",
+          tool: "Rectangle",
         },
         remote: {
           color: "rgb(0, 255, 0)",
-          meta: "Hand",
+          tool: "Hand",
         },
       });
 
