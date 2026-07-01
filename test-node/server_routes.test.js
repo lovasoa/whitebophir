@@ -931,9 +931,14 @@ test("index, manifest, and fallback error pages localize UI strings", async () =
     assert.equal(missing.statusCode, 404);
     assert.match(
       missing.body,
-      /<h2>Une erreur inconnue s’est produite, veuillez recharger la page<\/h2>/,
+      /<p class="message">Une erreur inconnue s’est produite, veuillez recharger la page<\/p>/,
+    );
+    assert.match(
+      missing.body,
+      /<a class="home-link" href="[^"]+">Retour à WBO<\/a>/,
     );
     assert.doesNotMatch(missing.body, /Sorry, an error occured/);
+    assert.doesNotMatch(missing.body, />Back to WBO</);
   } finally {
     await closeServer(app);
   }
