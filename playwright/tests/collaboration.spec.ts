@@ -71,6 +71,12 @@ test.describe("collaboration and rate limiting", () => {
     expect(firstRows.filter((row) => row.isSelf)).toHaveLength(1);
     expect(firstRows.filter((row) => row.reportDisabled)).toHaveLength(1);
 
+    expect(firstRows[0]?.isSelf).toBe(true);
+    expect(firstRows[1]?.isSelf).toBe(false);
+    expect(firstRows[0]?.fontWeight).toBe("700");
+    expect(parseInt(firstRows[1]?.fontWeight, 10)).toBeLessThan(600);
+    expect(firstRows[0]?.borderBottomColor).not.toBe("rgba(0, 0, 0, 0)");
+
     await boardPage.drawRectangle(
       "#ff0000",
       { x: 1100, y: 800 },
@@ -349,6 +355,25 @@ test.describe("collaboration and rate limiting", () => {
     await boardPage.connectedUsersToggle.click();
     await expect(boardPage.connectedUsersPanel).toBeVisible();
     await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+
+    await expect
+      .poll(async () => {
+        const rows = await boardPage.readConnectedUsers();
+        const self = rows.find((row) => row.isSelf);
+        const remote = rows.find((row) => !row.isSelf);
+        return {
+          firstIsSelf: rows[0]?.isSelf ?? false,
+          selfFontWeight: self?.fontWeight ?? "",
+          remoteFontWeight: parseInt(remote?.fontWeight ?? "0", 10),
+          selfBorder: !!(self?.borderBottomColor ?? ""),
+        };
+      })
+      .toMatchObject({
+        firstIsSelf: true,
+        selfFontWeight: "700",
+        remoteFontWeight: expect.any(Number),
+        selfBorder: true,
+      });
 
     await peerBoard.emitBroadcast({
       tool: Cursor.id,
