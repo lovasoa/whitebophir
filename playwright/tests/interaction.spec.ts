@@ -163,11 +163,20 @@ test.describe("single-page interactions", () => {
     await expect(stylePanel).toBeHidden();
 
     await styleTool.hover();
+    await expect(stylePanel).toBeVisible();
     const toolBox = await styleSummary.boundingBox();
+    if (!toolBox) throw new Error("Missing style panel geometry");
+    // The panel slides in via a CSS translateX transition, so poll until
+    // the rendered gap reflects the final positioned offset.
+    await expect
+      .poll(async () => {
+        const box = await stylePanel.boundingBox();
+        return box ? box.x - (toolBox.x + toolBox.width) : -1;
+      })
+      .toBeGreaterThan(4);
     const panelBox = await stylePanel.boundingBox();
-    if (!toolBox || !panelBox) throw new Error("Missing style panel geometry");
+    if (!panelBox) throw new Error("Missing style panel geometry");
     const panelGap = panelBox.x - (toolBox.x + toolBox.width);
-    expect(panelGap).toBeGreaterThan(4);
     expect(panelGap).toBeLessThan(12);
     expect(Math.abs(panelBox.y - toolBox.y)).toBeLessThan(5);
     await page.mouse.move(panelBox.x + 8, panelBox.y + 8, { steps: 8 });
