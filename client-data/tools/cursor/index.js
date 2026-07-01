@@ -29,6 +29,10 @@ import { createBoardHtmlOverlay } from "../../js/board_html_overlay.js";
 import { getConnectedUserDisplayName } from "../../js/board_presence_module.js";
 import { getMessageActivityPoint } from "../../js/message_activity_point.js";
 import { getToolRuntimeAssetPath } from "../tool-defaults.js";
+import {
+  createToolIconBadge,
+  updateToolIconBadge,
+} from "../../js/tool_icon_badge.js";
 import { TOOL_CODE_BY_ID, TOOL_ID_BY_CODE } from "../tool-order.js";
 
 /** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
@@ -112,14 +116,10 @@ function createCursorElement(id) {
   const pill = document.createElement("span");
   pill.setAttribute("class", "opcursor-pill");
 
-  const toolBadge = document.createElement("span");
-  toolBadge.setAttribute("class", "opcursor-toolBadge");
-  const toolIcon = document.createElement("img");
-  toolIcon.setAttribute("class", "opcursor-toolIcon");
-  toolIcon.alt = "";
-  toolIcon.width = 16;
-  toolIcon.height = 16;
-  toolBadge.appendChild(toolIcon);
+  const { badge: toolBadge } = createToolIconBadge(
+    "opcursor-toolBadge",
+    "opcursor-toolIcon",
+  );
 
   const name = document.createElement("span");
   name.setAttribute("class", "opcursor-name");
@@ -452,8 +452,7 @@ function updateCursorContent(state, cursor, message) {
   );
   if (toolIcon) {
     const toolId = getCursorToolId(state, message);
-    toolIcon.src = `../${getToolRuntimeAssetPath(toolId, "icon.svg")}`;
-    toolIcon.title = getCursorToolLabel(state, message);
+    updateToolIconBadge(toolIcon, toolId, getCursorToolLabel(state, message));
   }
 }
 

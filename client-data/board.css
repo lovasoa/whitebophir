@@ -170,7 +170,7 @@ select {
   gap: 8px;
   min-height: var(--board-control-size);
   width: fit-content;
-  max-width: min(220px, var(--board-hud-max-width));
+  max-width: min(250px, var(--board-hud-max-width));
   padding: 0 9px;
   pointer-events: none;
 }
@@ -343,12 +343,12 @@ select {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  width: min(220px, var(--board-hud-max-width));
+  width: min(224px, var(--board-hud-max-width));
   max-height: min(320px, calc(100vh - 72px));
   background: #ffffff;
   border: 1px solid var(--board-control-border);
   border-radius: var(--board-control-radius);
-  box-shadow: 0 6px 14px rgba(16, 24, 40, 0.12);
+  box-shadow: 0 4px 12px rgba(16, 24, 40, 0.1);
   z-index: 50;
   overflow: auto;
 }
@@ -364,17 +364,22 @@ select {
 .connected-users-list {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 2px 0;
 }
 
 .connected-user-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 6px;
-  padding: 7px 8px;
-  border-top: 1px solid #e5e7eb;
+  gap: 7px;
+  min-height: 34px;
+  padding: 5px 7px;
+  border-top: 1px solid #edf0f3;
   cursor: default;
+  transition:
+    background-color 120ms ease,
+    opacity 160ms ease;
+  animation: connected-user-enter 120ms ease-out;
 }
 
 .connected-user-row:first-child {
@@ -383,9 +388,10 @@ select {
 
 .connected-user-name {
   min-width: 0;
+  color: #111827;
   font-size: 12px;
+  font-weight: 600;
   line-height: 1.2;
-  color: #111111;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -410,26 +416,55 @@ select {
 }
 
 .connected-user-meta {
+  margin-top: 1px;
+  color: #6b7280;
   font-size: 10px;
   line-height: 1.2;
-  color: #444444;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.connected-user-color {
-  --pulse-ms: 0.75s;
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  border: 1px solid #111111;
-  box-sizing: border-box;
+.connected-user-visual {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  width: 36px;
   justify-self: center;
 }
 
+.connected-user-toolBadge {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid #d9dde3;
+  border-radius: 999px;
+  background: #f3f4f6;
+}
+
+.connected-user-toolIcon {
+  display: block;
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+}
+
+.connected-user-color {
+  --pulse-ms: 0.75s;
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border: 1px solid rgba(17, 24, 39, 0.5);
+  border-radius: 999px;
+  box-sizing: border-box;
+}
+
 .connected-user-color.active {
-  animation: connected-user-pulse var(--pulse-ms) ease-out infinite;
+  animation: connected-user-pulse var(--pulse-ms) ease-out 1;
 }
 
 .connected-user-row-jumpable {
@@ -443,18 +478,31 @@ select {
 }
 
 .connected-user-report {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   padding: 0;
   border: 1px solid var(--board-control-border);
   border-radius: 2px;
   background: #ffffff;
-  color: #111111;
+  color: #374151;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 700;
-  line-height: 20px;
+  line-height: 18px;
   text-align: center;
+}
+
+.connected-user-row-inactive .connected-user-name,
+.connected-user-row-inactive .connected-user-visual {
+  opacity: 0.58;
+}
+
+.connected-user-row-disconnected {
+  opacity: 0.45;
+}
+
+.connected-user-row-disconnected .connected-user-visual {
+  filter: grayscale(1);
 }
 
 .connected-user-report[disabled] {
@@ -469,20 +517,23 @@ select {
   color: #111111;
 }
 
-@keyframes connected-user-pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(17, 17, 17, 0.45);
-    transform: scale(1);
+@keyframes connected-user-enter {
+  from {
+    opacity: 0;
   }
 
-  65% {
-    box-shadow: 0 0 0 7px rgba(17, 17, 17, 0);
-    transform: scale(1.35);
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes connected-user-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(17, 24, 39, 0.28);
   }
 
   100% {
-    box-shadow: 0 0 0 0 rgba(17, 17, 17, 0);
-    transform: scale(1);
+    box-shadow: 0 0 0 5px rgba(17, 24, 39, 0);
   }
 }
 

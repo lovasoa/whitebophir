@@ -340,6 +340,8 @@ export type ConnectedUser = {
   color: string;
   size: number;
   lastTool: string;
+  joinedAt?: number;
+  disconnectedAt?: number;
   canEdit?: boolean;
   canClear?: boolean;
   position: {
@@ -351,6 +353,7 @@ export type ConnectedUser = {
   pulseUntil?: number;
   reported?: boolean;
   pulseTimeoutId?: number | null;
+  removeTimeoutId?: number | null;
 };
 
 export type ConnectedUserMap = Map<string, ConnectedUser>;

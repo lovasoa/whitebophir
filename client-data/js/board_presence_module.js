@@ -5,6 +5,7 @@ import { getMessageActivityPoint } from "./message_activity_point.js";
 import MessageCommon from "./message_common.js";
 import { MutationType } from "./message_tool_metadata.js";
 import { SocketEvents } from "./socket_events.js";
+import { createToolIconBadge, updateToolIconBadge } from "./tool_icon_badge.js";
 
 /** @import { AppToolsState, AttachedBoardDomModule, BoardMessage, ConnectedUser, ConnectedUserMap, HandChildMessage } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
@@ -16,12 +17,18 @@ export class PresenceModule {
     this.users = /** @type {ConnectedUserMap} */ (new Map());
     this.panelOpen = false;
     this.renderScheduled = false;
+    /** @type {number | null} */
+    this.staleTickId = null;
   }
 
   clearConnectedUsers() {
     Array.from(this.users.values()).forEach((user) => {
-      if (user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
+      clearConnectedUserTimers(user);
     });
+    if (this.staleTickId) {
+      clearTimeout(this.staleTickId);
+      this.staleTickId = null;
+    }
     this.users = /** @type {ConnectedUserMap} */ (new Map());
     if (this.panelOpen) this.renderConnectedUsers();
     else syncConnectedUsersSummary(this);
@@ -80,6 +87,7 @@ export class PresenceModule {
       row.remove();
     });
     syncConnectedUsersSummary(this, Tools);
+    schedulePresenceStaleTick(this);
   }
 
   /** @param {boolean} open */
@@ -96,9 +104,11 @@ export class PresenceModule {
 
   /** @param {ConnectedUser} user */
   upsertConnectedUser(user) {
+    const previous = this.users.get(user.socketId);
+    const joinedAt = previous?.joinedAt || user.joinedAt || Date.now();
     this.users.set(
       user.socketId,
-      Object.assign({}, this.users.get(user.socketId) || {}, user),
+      Object.assign({}, previous || {}, user, { joinedAt, disconnectedAt: 0 }),
     );
     this.schedulePresenceRender();
   }
@@ -106,8 +116,16 @@ export class PresenceModule {
   /** @param {string} socketId */
   removeConnectedUser(socketId) {
     const user = this.users.get(socketId);
-    if (user && user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
-    this.users.delete(socketId);
+    if (!user) return;
+    clearConnectedUserTimers(user);
+    user.disconnectedAt = Date.now();
+    user.removeTimeoutId = window.setTimeout(() => {
+      const current = this.users.get(socketId);
+      if (current && current.disconnectedAt) {
+        this.users.delete(socketId);
+        this.schedulePresenceRender();
+      }
+    }, 3500);
     this.schedulePresenceRender();
   }
 
@@ -225,7 +243,8 @@ function getAttachedBoardDom(Tools) {
  * @returns {number}
  */
 function getConnectedUsersCount(users) {
-  return users.size;
+  return Array.from(users.values()).filter((user) => !user.disconnectedAt)
+    .length;
 }
 
 /**
@@ -280,8 +299,8 @@ function syncConnectedUsersSummary(presence, Tools = presence.getTools()) {
  */
 function getConnectedUserDotSize(size) {
   const userSize = Number(size);
-  if (!Number.isFinite(userSize) || userSize <= 0) return 8;
-  return Math.max(8, Math.min(18, 6 + userSize / 30));
+  if (!Number.isFinite(userSize) || userSize <= 0) return 7;
+  return Math.max(6, Math.min(13, 5 + userSize / 40));
 }
 
 /**
@@ -291,6 +310,38 @@ function getConnectedUserDotSize(size) {
  */
 function getConnectedUserToolLabel(Tools, user) {
   return Tools.i18n.t(user.lastTool || "hand");
+}
+
+const CONNECTED_USER_STALE_MS = 5 * 60 * 1000;
+const CONNECTED_USER_TIME_TICK_MS = 30 * 1000;
+
+/** @param {ConnectedUser} user */
+function clearConnectedUserTimers(user) {
+  if (user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
+  if (user.removeTimeoutId) clearTimeout(user.removeTimeoutId);
+  user.pulseTimeoutId = null;
+  user.removeTimeoutId = null;
+}
+
+/** @param {number | undefined} timestamp */
+function formatShortRelativeTime(timestamp) {
+  const elapsedMs = Math.max(0, Date.now() - (timestamp || Date.now()));
+  const minutes = Math.floor(elapsedMs / 60000);
+  if (minutes < 1) return "now";
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
+
+/** @param {PresenceModule} presence */
+function schedulePresenceStaleTick(presence) {
+  if (presence.staleTickId || !presence.panelOpen || presence.users.size === 0)
+    return;
+  presence.staleTickId = window.setTimeout(() => {
+    presence.staleTickId = null;
+    presence.schedulePresenceRender(false);
+  }, CONNECTED_USER_TIME_TICK_MS);
 }
 
 /**
@@ -524,6 +575,18 @@ function updateConnectedUserRow(getTools, row, user) {
     "connected-user-row-self",
     isCurrentSocketUser(Tools, user),
   );
+  const now = Date.now();
+  const inactive =
+    now - (user.lastActivityAt || user.joinedAt || now) >
+    CONNECTED_USER_STALE_MS;
+  row.classList.toggle(
+    "connected-user-row-inactive",
+    inactive && !user.disconnectedAt,
+  );
+  row.classList.toggle(
+    "connected-user-row-disconnected",
+    !!user.disconnectedAt,
+  );
 
   const focusHash = getConnectedUserFocusHash(Tools, user);
   row.classList.toggle("connected-user-row-jumpable", focusHash !== "");
@@ -541,6 +604,17 @@ function updateConnectedUserRow(getTools, row, user) {
       link.setAttribute("aria-disabled", "true");
       link.tabIndex = -1;
     }
+  }
+
+  const toolIcon = /** @type {HTMLImageElement | null} */ (
+    row.querySelector(".connected-user-toolIcon")
+  );
+  if (toolIcon) {
+    updateToolIconBadge(
+      toolIcon,
+      user.lastTool || "hand",
+      getConnectedUserToolLabel(Tools, user),
+    );
   }
 
   const color = /** @type {HTMLSpanElement | null} */ (
@@ -572,7 +646,14 @@ function updateConnectedUserRow(getTools, row, user) {
   const meta = /** @type {HTMLElement | null} */ (
     row.querySelector(".connected-user-meta")
   );
-  if (meta) meta.textContent = getConnectedUserToolLabel(Tools, user);
+  if (meta) {
+    const joinedText = formatShortRelativeTime(user.joinedAt);
+    meta.textContent = user.disconnectedAt
+      ? "left"
+      : inactive
+        ? `idle · ${joinedText}`
+        : joinedText;
+  }
 
   const report = /** @type {HTMLButtonElement | null} */ (
     row.querySelector(".connected-user-report")
@@ -600,9 +681,17 @@ function createConnectedUserRow(getTools, user, users) {
   const row = /** @type {ConnectedUserRow} */ (document.createElement("li"));
   row.className = "connected-user-row";
 
+  const visual = document.createElement("span");
+  visual.className = "connected-user-visual";
+  const { badge: toolBadge } = createToolIconBadge(
+    "connected-user-toolBadge",
+    "connected-user-toolIcon",
+  );
+  visual.appendChild(toolBadge);
   const color = document.createElement("span");
   color.className = "connected-user-color";
-  row.appendChild(color);
+  visual.appendChild(color);
+  row.appendChild(visual);
 
   const main = document.createElement("a");
   main.className = "connected-user-main connected-user-main-link";
@@ -632,6 +721,10 @@ function createConnectedUserRow(getTools, user, users) {
       isCurrentSocketUser(Tools, connectedUser)
     ) {
       return;
+    }
+    if (Tools.access.canClear === true) {
+      const name = getConnectedUserDisplayName(connectedUser);
+      if (!window.confirm(`Ban ${name}?`)) return;
     }
     connectedUser.reported = true;
     updateConnectedUserRow(getTools, row, connectedUser);
