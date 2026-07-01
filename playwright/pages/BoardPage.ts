@@ -29,7 +29,7 @@ type ConnectedUserState = {
   isSelf: boolean;
   reportDisabled: boolean;
   color: string;
-  dotWidth: string;
+  ringWidth: string;
 };
 type ShapeDrawState = {
   secondaryActive: boolean;
@@ -342,16 +342,16 @@ window.turnstile = {
         const name = row.querySelector(".connected-user-name");
         const meta = row.querySelector(".connected-user-meta");
         const report = row.querySelector(".connected-user-report");
-        const dot = row.querySelector(
-          ".connected-user-color",
+        const toolBadge = row.querySelector(
+          ".connected-user-toolBadge",
         ) as HTMLElement | null;
         return {
           name: name?.textContent ?? "",
           meta: meta?.textContent ?? "",
           isSelf: row.classList.contains("connected-user-row-self"),
           reportDisabled: !!(report && (report as HTMLButtonElement).disabled),
-          color: dot?.style.backgroundColor ?? "",
-          dotWidth: dot?.style.width ?? "",
+          color: toolBadge?.style.borderColor ?? "",
+          ringWidth: toolBadge?.style.borderWidth ?? "",
         };
       });
     });

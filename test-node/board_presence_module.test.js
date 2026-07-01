@@ -253,6 +253,46 @@ test("presence activity point prefers shape drag endpoints", async () => {
   }
 });
 
+test("cursor movement clears idle activity without pulsing the row", async () => {
+  const env = createPresenceEnvironment();
+  try {
+    const { PresenceModule } = await import(
+      "../client-data/js/board_presence_module.js"
+    );
+    const tools = createPresenceTools(env.svg, env.drawingArea);
+    const presence = new PresenceModule(() => tools);
+    stubPresenceRendering(presence);
+    const user = {
+      ...createConnectedUser(),
+      joinedAt: Date.now() - 5 * 60 * 1000 - 1000,
+    };
+    presence.users = new Map([["sock-1", user]]);
+
+    const beforeCursor = Date.now();
+    presence.updateConnectedUsersFromActivity("user-1", {
+      tool: TOOL_CODE_BY_ID.cursor,
+      type: MutationType.UPDATE,
+      socket: "sock-1",
+      activeTool: "hand",
+      x: 15,
+      y: 25,
+      color: "#123456",
+      size: 4,
+      opacity: 1,
+    });
+    const afterCursor = Date.now();
+
+    const updatedUser = presence.users.get("sock-1");
+    assert.ok(updatedUser);
+    assert.ok((updatedUser.lastActivityAt || 0) >= beforeCursor);
+    assert.ok((updatedUser.lastActivityAt || 0) <= afterCursor);
+    assert.equal(updatedUser.pulseUntil, undefined);
+    assert.deepEqual(updatedUser.position, { x: 15, y: 25 });
+  } finally {
+    env.restore();
+  }
+});
+
 test("presence activity does not render rows while the panel is closed", async () => {
   const env = createPresenceEnvironment();
   try {
