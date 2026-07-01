@@ -464,7 +464,7 @@ select {
 }
 
 .connected-user-color.active {
-  animation: connected-user-pulse var(--pulse-ms) ease-out 1;
+  animation: connected-user-pulse var(--pulse-ms) ease-out infinite;
 }
 
 .connected-user-row-jumpable {
