@@ -164,6 +164,26 @@ test("connected user display name marks moderators consistently", async () => {
   );
 });
 
+test("connected user display sort pins self before other users", async () => {
+  const { compareConnectedUsersForDisplay } = await import(
+    "../client-data/js/board_presence_module.js"
+  );
+  const users = [
+    { ...createConnectedUser(), socketId: "sock-2", name: "Alice" },
+    { ...createConnectedUser(), socketId: "sock-1", name: "Zed" },
+    { ...createConnectedUser(), socketId: "sock-3", name: "Bob" },
+  ];
+
+  users.sort((left, right) =>
+    compareConnectedUsersForDisplay("sock-1", left, right),
+  );
+
+  assert.deepEqual(
+    users.map((user) => user.socketId),
+    ["sock-1", "sock-2", "sock-3"],
+  );
+});
+
 test("presence activity treats rendered focus measurement as best-effort", async () => {
   const env = createPresenceEnvironment();
   try {

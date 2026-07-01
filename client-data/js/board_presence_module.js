@@ -69,8 +69,9 @@ export class PresenceModule {
       }
     });
 
+    const currentSocketId = Tools.connection.socket?.id;
     const users = Array.from(this.users.values()).sort((left, right) =>
-      left.name.localeCompare(right.name),
+      compareConnectedUsersForDisplay(currentSocketId, left, right),
     );
 
     users.forEach((user, index) => {
@@ -218,6 +219,19 @@ function isCurrentSocketUser(Tools, user) {
   return !!(
     Tools.connection.socket?.id && user.socketId === Tools.connection.socket.id
   );
+}
+
+/**
+ * @param {string | undefined} currentSocketId
+ * @param {ConnectedUser} left
+ * @param {ConnectedUser} right
+ * @returns {number}
+ */
+export function compareConnectedUsersForDisplay(currentSocketId, left, right) {
+  const leftIsSelf = !!currentSocketId && left.socketId === currentSocketId;
+  const rightIsSelf = !!currentSocketId && right.socketId === currentSocketId;
+  if (leftIsSelf !== rightIsSelf) return leftIsSelf ? -1 : 1;
+  return left.name.localeCompare(right.name);
 }
 
 function getConnectedUsersToggle() {

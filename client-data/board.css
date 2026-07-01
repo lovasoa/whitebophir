@@ -390,11 +390,19 @@ select {
   min-width: 0;
   color: #111827;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 400;
   line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.connected-user-row-self {
+  border-bottom: 1px solid #d9dde3;
+}
+
+.connected-user-row-self + .connected-user-row {
+  border-top: 0;
 }
 
 .connected-user-row-self .connected-user-name {

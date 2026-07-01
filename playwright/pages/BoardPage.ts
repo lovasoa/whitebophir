@@ -31,6 +31,8 @@ type ConnectedUserState = {
   reportDisabled: boolean;
   color: string;
   ringWidth: string;
+  fontWeight: string;
+  borderBottomColor: string;
 };
 type ShapeDrawState = {
   secondaryActive: boolean;
@@ -349,6 +351,9 @@ window.turnstile = {
         const toolIcon = row.querySelector(
           ".connected-user-toolIcon",
         ) as HTMLImageElement | null;
+        const nameComputed = name ? window.getComputedStyle(name) : null;
+        const rowComputed =
+          row instanceof HTMLElement ? window.getComputedStyle(row) : null;
         return {
           name: name?.textContent ?? "",
           meta: meta?.textContent ?? "",
@@ -357,6 +362,8 @@ window.turnstile = {
           reportDisabled: !!(report && (report as HTMLButtonElement).disabled),
           color: toolBadge?.style.borderColor ?? "",
           ringWidth: toolBadge?.style.borderWidth ?? "",
+          fontWeight: nameComputed?.fontWeight ?? "",
+          borderBottomColor: rowComputed?.borderBottomColor ?? "",
         };
       });
     });
