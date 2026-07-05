@@ -114,11 +114,20 @@ class FakeDomElement {
   constructor(tagName) {
     this.tagName = tagName;
     this.id = "";
+    this.className = "";
     this.hidden = false;
+    this.open = false;
+    this.textContent = "";
     /** @type {FakeDomElement | null} */
     this.parentNode = null;
     /** @type {FakeDomElement[]} */
     this.children = [];
+    this.attributes = /** @type {Map<string, string>} */ (new Map());
+    this.listeners =
+      /** @type {Map<string, {listener: EventListener, options?: AddEventListenerOptions}[]>} */ (
+        new Map()
+      );
+    const element = this;
     const classes = new Set();
     /** @type {{add: (...names: string[]) => void, remove: (...names: string[]) => void, contains: (name: string) => boolean}} */
     this.classList = {
@@ -132,7 +141,10 @@ class FakeDomElement {
       },
       /** @param {string} name */
       contains(name) {
-        return classes.has(name);
+        return (
+          classes.has(name) ||
+          element.className.split(/\s+/).filter(Boolean).includes(name)
+        );
       },
     };
   }
@@ -143,6 +155,66 @@ class FakeDomElement {
     child.parentNode = this;
     this.children.push(child);
     return child;
+  }
+
+  /**
+   * @param {string} name
+   * @param {string} value
+   */
+  setAttribute(name, value) {
+    this.attributes.set(name, value);
+  }
+
+  /**
+   * @param {string} type
+   * @param {EventListener} listener
+   * @param {AddEventListenerOptions} [options]
+   */
+  addEventListener(type, listener, options) {
+    const listeners = this.listeners.get(type) || [];
+    listeners.push({ listener, options });
+    this.listeners.set(type, listeners);
+  }
+
+  /**
+   * @param {string} type
+   * @param {EventListener} listener
+   */
+  removeEventListener(type, listener) {
+    const listeners = this.listeners.get(type) || [];
+    this.listeners.set(
+      type,
+      listeners.filter((entry) => entry.listener !== listener),
+    );
+  }
+
+  /**
+   * @param {string} type
+   * @param {Record<string, unknown>} [event]
+   */
+  dispatch(type, event = {}) {
+    const listeners = this.listeners.get(type) || [];
+    listeners.forEach((entry) =>
+      entry.listener(
+        /** @type {Event} */ (
+          /** @type {unknown} */ ({ type, target: this, ...event })
+        ),
+      ),
+    );
+  }
+
+  focus() {
+    this.open = true;
+    setActiveElement(this);
+  }
+
+  showModal() {
+    this.open = true;
+  }
+
+  close() {
+    this.open = false;
+    this.dispatch("close");
   }
 
   remove() {
@@ -317,4 +389,43 @@ test("modal shell creates, reuses, hides, and removes shared containers", async 
 
   shell.destroy();
   assert.equal(findFakeDomElementById(body, "modal-overlay"), null);
+});
+
+test("native modal dialogs only settle on shell clicks", async () => {
+  const browser = getBrowserHarness();
+  const body = new FakeDomElement("body");
+  const document = browser.installClientDom({
+    globalOverrides: { HTMLElement: FakeDomElement },
+    createElement: (tagName) => new FakeDomElement(tagName),
+  });
+  /** @type {any} */ (document).body = body;
+  const { showChoiceDialog } = await import(
+    "../client-data/js/board_ui_module.js"
+  );
+
+  const resultPromise = showChoiceDialog({
+    message: "Ban user?",
+    choices: [{ label: "1 hour", value: 60 * 60 * 1000 }],
+  });
+  let resolved = false;
+  void resultPromise.then(() => {
+    resolved = true;
+  });
+
+  const dialog = body.children[0];
+  assert.ok(dialog);
+  const panel = dialog.children[0];
+  assert.ok(panel);
+  assert.equal(dialog.classList.contains("wbo-native-dialog"), true);
+  assert.equal(panel.classList.contains("wbo-dialog"), true);
+
+  dialog.dispatch("click", { target: panel });
+  await Promise.resolve();
+  assert.equal(resolved, false);
+  assert.equal(dialog.parentNode, body);
+
+  dialog.dispatch("click", { target: dialog });
+  assert.equal(await resultPromise, null);
+  assert.equal(resolved, true);
+  assert.equal(dialog.parentNode, null);
 });

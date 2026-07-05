@@ -70,7 +70,13 @@ body {
   background: rgba(17, 24, 39, 0.32);
 }
 
-dialog.wbo-dialog::backdrop {
+dialog.wbo-native-dialog {
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+dialog.wbo-native-dialog::backdrop {
   background: rgba(17, 24, 39, 0.32);
   border: none;
 }
