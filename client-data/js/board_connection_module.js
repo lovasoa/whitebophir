@@ -4,7 +4,8 @@ import { connection as BoardConnection } from "./board_transport.js";
 import * as BoardTurnstile from "./board_turnstile.js";
 import { SocketEvents } from "./socket_events.js";
 
-/** @import { AppToolsState, BoardConnectionState, SocketHeaders } from "../../types/app-runtime" */
+/** @import { AppToolsState, BoardConnectionState, ModerationDisconnectPayload, SocketHeaders } from "../../types/app-runtime" */
+/** @typedef {{banDurationMs: number, acknowledged: boolean, disconnected: boolean}} PendingModerationDisconnect */
 
 /** @type {Promise<typeof io> | null} */
 let socketIoReady = null;
@@ -50,6 +51,21 @@ function getAttachedBoardDom(Tools) {
 }
 
 /**
+ * @param {unknown} payload
+ * @returns {ModerationDisconnectPayload}
+ */
+function normalizeModerationDisconnectPayload(payload) {
+  const raw =
+    payload && typeof payload === "object" && "banDurationMs" in payload
+      ? Number(payload.banDurationMs)
+      : 0;
+  return {
+    banDurationMs:
+      Number.isFinite(raw) && raw > 0 ? Math.max(0, Math.floor(raw)) : 0,
+  };
+}
+
+/**
  * @param {(level: "error" | "log" | "warn", event: string, fields?: {[key: string]: unknown}) => void} logBoardEvent
  * @returns {SocketHeaders | null}
  */
@@ -89,12 +105,22 @@ export class ConnectionModule {
     this.state = /** @type {BoardConnectionState} */ ("idle");
     this.hasConnectedOnce = false;
     this.socketIOExtraHeaders = /** @type {SocketHeaders | null} */ (null);
+    this.pendingModerationDisconnect =
+      /** @type {PendingModerationDisconnect | null} */ (null);
   }
 
   /** @param {number} [delayMs] */
   scheduleSocketReconnect(delayMs = 250) {
     const Tools = this.getTools();
     window.setTimeout(() => Tools.connection.start(), Math.max(0, delayMs));
+  }
+
+  /** @param {PendingModerationDisconnect} notice */
+  resumeAfterModerationDisconnect(notice) {
+    if (this.pendingModerationDisconnect !== notice) return;
+    if (!notice.acknowledged || !notice.disconnected) return;
+    this.pendingModerationDisconnect = null;
+    this.scheduleSocketReconnect(0);
   }
 
   start() {
@@ -246,6 +272,44 @@ export class ConnectionModule {
       socket.on(SocketEvents.USER_REPORTED, function onUserReported(payload) {
         Tools.status.showUserReportNotice(payload);
       });
+      socket.on(
+        SocketEvents.MODERATION_DISCONNECT,
+        /**
+         * @param {unknown} payload
+         * @param {(() => void) | undefined} [ack]
+         */
+        function onModerationDisconnect(payload, ack) {
+          const normalized = normalizeModerationDisconnectPayload(payload);
+          /** @type {PendingModerationDisconnect} */
+          const notice = {
+            banDurationMs: normalized.banDurationMs,
+            acknowledged: false,
+            disconnected: false,
+          };
+          Tools.connection.pendingModerationDisconnect = notice;
+          if (typeof ack === "function") ack();
+          void Tools.ui
+            .showModerationDisconnectNotice({
+              banDurationMs: normalized.banDurationMs,
+              title: Tools.i18n.t(
+                normalized.banDurationMs > 0
+                  ? "moderation_ban_title"
+                  : "moderation_warning_title",
+              ),
+              message: Tools.i18n.t(
+                normalized.banDurationMs > 0
+                  ? "moderation_ban_body"
+                  : "moderation_warning_body",
+              ),
+              acknowledgeLabel: Tools.i18n.t("moderation_acknowledge"),
+              rulesLabel: Tools.i18n.t("community_rules_link"),
+            })
+            .then(() => {
+              notice.acknowledged = true;
+              Tools.connection.resumeAfterModerationDisconnect(notice);
+            });
+        },
+      );
       socket.on(SocketEvents.RATE_LIMITED, function onRateLimited(payload) {
         const retryAfterMs = Math.max(0, Number(payload.retryAfterMs) || 0);
         Tools.writes.serverRateLimitedUntil = Date.now() + retryAfterMs;
@@ -266,6 +330,18 @@ export class ConnectionModule {
         if (socket !== Tools.connection.socket) return;
         if (reason === "io client disconnect") return;
         Tools.connection.state = "disconnected";
+        const moderationNotice = Tools.connection.pendingModerationDisconnect;
+        if (moderationNotice) {
+          moderationNotice.disconnected = true;
+          this.logBoardEvent("warn", "socket.disconnected", {
+            reason: SocketEvents.MODERATION_DISCONNECT,
+            socketReason: reason,
+            banDurationMs: moderationNotice.banDurationMs,
+          });
+          Tools.replay.beginAuthoritativeResync();
+          Tools.connection.resumeAfterModerationDisconnect(moderationNotice);
+          return;
+        }
         this.logBoardEvent("warn", "socket.disconnected", { reason });
         Tools.replay.beginAuthoritativeResync({
           preserveBufferedWrites: Tools.writes.isWritePaused(),

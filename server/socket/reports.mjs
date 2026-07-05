@@ -5,8 +5,9 @@ import { getBoardUser, getBoardUserMap } from "./presence.mjs";
 import { canBanOnBoard } from "./policy.mjs";
 
 const { logger, tracing } = observability;
+const MODERATION_DISCONNECT_CLOSE_TIMEOUT_MS = 150;
 
-/** @import { AppSocket, ReportUserPayload, ServerConfig } from "../../types/server-runtime.d.ts" */
+/** @import { AppSocket, ModerationDisconnectPayload, ReportUserPayload, ServerConfig } from "../../types/server-runtime.d.ts" */
 /** @typedef {{socketId: string, name: string, ip: string, userSecret?: string, userAgent: string, language: string, canClear?: boolean}} BoardUser */
 /** @typedef {{board: string, reporter_socket: string, reported_socket: string, reporter_ip: string, reported_ip: string, reporter_user_agent: string, reported_user_agent: string, reporter_language: string, reported_language: string, reporter_name: string, reported_name: string, banned: boolean}} UserReportLog */
 /** @typedef {(socketId: string) => AppSocket | undefined} GetActiveSocket */
@@ -29,7 +30,13 @@ function getReportedSocketId(message) {
  * @param {ReportUserPayload | undefined} message
  * @returns {number}
  */
-function getReportBanTtlMs(message) {
+function getModeratorBanDurationMs(message) {
+  if (
+    typeof message?.banDurationMs === "number" &&
+    message.banDurationMs === 0
+  ) {
+    return 0;
+  }
   return normalizeBanTtlMs(message?.banDurationMs);
 }
 
@@ -111,6 +118,39 @@ function disconnectReportSocket(boardName, targetSocket, closeSocket) {
 }
 
 /**
+ * @param {string} boardName
+ * @param {AppSocket} targetSocket
+ * @param {CloseSocket} closeSocket
+ * @param {number} banDurationMs
+ * @returns {void}
+ */
+function notifyModerationDisconnectThenClose(
+  boardName,
+  targetSocket,
+  closeSocket,
+  banDurationMs,
+) {
+  /** @type {ReturnType<typeof setTimeout> | null} */
+  let timeout = null;
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    if (timeout !== null) {
+      clearTimeout(timeout);
+      timeout = null;
+    }
+    disconnectReportSocket(boardName, targetSocket, closeSocket);
+  };
+  /** @type {ModerationDisconnectPayload} */
+  const payload = { banDurationMs: Math.max(0, Math.floor(banDurationMs)) };
+  targetSocket.emit(SocketEvents.MODERATION_DISCONNECT, payload, close);
+  if (closed) return;
+  timeout = setTimeout(close, MODERATION_DISCONNECT_CLOSE_TIMEOUT_MS);
+  timeout.unref?.();
+}
+
+/**
  * @param {BoardUser} reporter
  * @param {BoardUser} reported
  * @returns {boolean}
@@ -127,9 +167,14 @@ function isSelfReportTarget(reporter, reported) {
 /**
  * @param {ReportUserContext} context
  * @param {{reporter: BoardUser, reported: BoardUser}} users
+ * @param {number} banDurationMs
  * @returns {void}
  */
-function handleReportByModerator(context, { reporter, reported }) {
+function handleReportByModerator(
+  context,
+  { reporter, reported },
+  banDurationMs,
+) {
   const board = context.boardName;
   if (isSelfReportTarget(reporter, reported)) {
     tracing.setActiveSpanAttributes({
@@ -145,19 +190,26 @@ function handleReportByModerator(context, { reporter, reported }) {
     return;
   }
 
-  banBoardUser(
-    context.boardName,
-    reported.userSecret,
-    reported.ip,
-    context.now,
-    getReportBanTtlMs(context.message),
-  );
   const reportedSocket = context.getActiveSocket(reported.socketId);
   if (!reportedSocket) {
     logger.error("user.ban.fail", { reported, reporter, board });
     return;
   }
-  disconnectReportSocket(board, reportedSocket, context.closeSocket);
+  if (banDurationMs > 0) {
+    banBoardUser(
+      context.boardName,
+      reported.userSecret,
+      reported.ip,
+      context.now,
+      banDurationMs,
+    );
+  }
+  notifyModerationDisconnectThenClose(
+    board,
+    reportedSocket,
+    context.closeSocket,
+    banDurationMs,
+  );
 }
 
 /**
@@ -180,10 +232,11 @@ function disconnectReporter(context) {
 function disconnectReported(context, reported) {
   const reportedSocket = context.getActiveSocket(reported.socketId);
   if (reportedSocket && reportedSocket !== context.socket) {
-    disconnectReportSocket(
+    notifyModerationDisconnectThenClose(
       context.boardName,
       reportedSocket,
       context.closeSocket,
+      0,
     );
   }
 }
@@ -210,13 +263,18 @@ function handleReportUserMessage(context) {
     return;
   }
 
-  const banned = canBanOnBoard(config, boardName, socket);
+  const canModerate = canBanOnBoard(config, boardName, socket);
 
-  if (banned) {
-    const reportLog = buildUserReportLog(boardName, resolvedUsers, true);
+  if (canModerate) {
+    const banDurationMs = getModeratorBanDurationMs(message);
+    const reportLog = buildUserReportLog(
+      boardName,
+      resolvedUsers,
+      banDurationMs > 0,
+    );
     lastUserReportLog = reportLog;
     logger.warn("user.reported", reportLog);
-    handleReportByModerator(context, resolvedUsers);
+    handleReportByModerator(context, resolvedUsers, banDurationMs);
     return;
   }
 

@@ -5,6 +5,7 @@ export const SocketEvents = Object.freeze({
   CONNECT_ERROR: "connect_error",
   DISCONNECT: "disconnect",
   ERROR: "error",
+  MODERATION_DISCONNECT: "moderation_disconnect",
   MUTATION_REJECTED: "mutation_rejected",
   RATE_LIMITED: "rate-limited",
   REPORT_USER: "report_user",

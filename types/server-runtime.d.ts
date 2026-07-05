@@ -1,6 +1,7 @@
 import type {
   BoardMessage,
   ConnectedUser,
+  ModerationDisconnectPayload,
   SequencedMutationBroadcast,
 } from "./app-runtime";
 
@@ -146,6 +147,8 @@ export type ReportUserPayload = {
   socketId?: string;
   banDurationMs?: number;
 };
+
+export type { ModerationDisconnectPayload };
 
 export type ValidationStatus = { ok: true } | { ok: false; reason: string };
 

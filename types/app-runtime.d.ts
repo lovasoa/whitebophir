@@ -333,6 +333,10 @@ export type MutationRejectedPayload = {
   reason: string;
 };
 
+export type ModerationDisconnectPayload = {
+  banDurationMs: number;
+};
+
 export type ConnectedUser = {
   socketId: string;
   userId: string;
@@ -381,6 +385,7 @@ export type ClientSocketIncomingEventMap = {
   };
   [SocketEvents.DISCONNECT]: string;
   [SocketEvents.ERROR]: unknown;
+  [SocketEvents.MODERATION_DISCONNECT]: ModerationDisconnectPayload;
   [SocketEvents.MUTATION_REJECTED]: MutationRejectedPayload;
   [SocketEvents.RATE_LIMITED]: {
     event: string;
