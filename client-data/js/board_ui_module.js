@@ -251,7 +251,7 @@ export function createFloatingPanelController(options) {
  * @param {HTMLElement[]} elements
  * @param {KeyboardEvent} event
  */
-function trapDialogFocus(elements, event) {
+export function trapDialogFocus(elements, event) {
   if (event.key !== "Tab") return;
   const currentIndex = elements.indexOf(
     /** @type {HTMLElement} */ (document.activeElement),

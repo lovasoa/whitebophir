@@ -1,6 +1,6 @@
 import observability from "../observability/index.mjs";
 import { SocketEvents } from "../../client-data/js/socket_events.js";
-import { banBoardUser } from "./bans.mjs";
+import { banBoardUser, normalizeBanTtlMs } from "./bans.mjs";
 import { getBoardUser, getBoardUserMap } from "./presence.mjs";
 import { canBanOnBoard } from "./policy.mjs";
 
@@ -23,6 +23,14 @@ let lastUserReportLog = null;
  */
 function getReportedSocketId(message) {
   return typeof message?.socketId === "string" ? message.socketId : "";
+}
+
+/**
+ * @param {ReportUserPayload | undefined} message
+ * @returns {number}
+ */
+function getReportBanTtlMs(message) {
+  return normalizeBanTtlMs(message?.banDurationMs);
 }
 
 /**
@@ -142,6 +150,7 @@ function handleReportByModerator(context, { reporter, reported }) {
     reported.userSecret,
     reported.ip,
     context.now,
+    getReportBanTtlMs(context.message),
   );
   const reportedSocket = context.getActiveSocket(reported.socketId);
   if (!reportedSocket) {

@@ -11,7 +11,8 @@ import {
   touchExisting,
 } from "./bounded_state_map.mjs";
 
-const BAN_TTL_MS = 30 * 60 * 1000;
+export const DEFAULT_BAN_TTL_MS = 15 * 60 * 1000;
+export const MAX_BAN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const BAN_MAP_MAX_SIZE = 4096;
 const BAN_STALE_SCAN_LIMIT = 16;
 
@@ -88,6 +89,16 @@ function isKeyBanned(map, key, now) {
 }
 
 /**
+ * @param {unknown} ttlMs
+ * @returns {number}
+ */
+export function normalizeBanTtlMs(ttlMs) {
+  const value = Number(ttlMs);
+  if (!Number.isFinite(value) || value <= 0) return DEFAULT_BAN_TTL_MS;
+  return Math.min(Math.floor(value), MAX_BAN_TTL_MS);
+}
+
+/**
  * @param {string} boardName
  * @param {string | undefined | null} userSecret
  * @param {string | undefined | null} ip
@@ -100,11 +111,12 @@ export function banBoardUser(
   userSecret,
   ip,
   now,
-  ttlMs = BAN_TTL_MS,
+  ttlMs = DEFAULT_BAN_TTL_MS,
 ) {
   const bans = getBoardBans(boardName);
-  banKey(bans.secrets, userSecret, now, ttlMs);
-  banKey(bans.ips, ip, now, ttlMs);
+  const normalizedTtlMs = normalizeBanTtlMs(ttlMs);
+  banKey(bans.secrets, userSecret, now, normalizedTtlMs);
+  banKey(bans.ips, ip, now, normalizedTtlMs);
 }
 
 /**
