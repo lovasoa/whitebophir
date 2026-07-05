@@ -767,6 +767,10 @@ export type AppInteractionModule =
 export type AppAssetModule =
   import("../client-data/js/board_full_runtime_modules.js").AssetModule;
 
+/** Shared frontend UI primitives for chrome panels and dialogs. */
+export type AppUiModule =
+  import("../client-data/js/board_ui_module.js").UiModule;
+
 /** Runtime id generation. */
 export type AppIdModule =
   import("../client-data/js/board_full_runtime_modules.js").IdModule;
@@ -790,6 +794,7 @@ export type AppToolsState = {
   config: AppConfigModule;
   identity: AppIdentityModule;
   assets: AppAssetModule;
+  ui: AppUiModule;
   toolRegistry: AppToolRegistryModule;
   turnstile: AppTurnstileModule;
   writes: AppWriteModule;

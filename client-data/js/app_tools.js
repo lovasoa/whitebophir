@@ -21,6 +21,7 @@ import { BoardShellModule } from "./board_shell_module.js";
 import { StatusModule } from "./board_status_module.js";
 import { ToolRegistryModule } from "./board_tool_registry_module.js";
 import { TurnstileModule } from "./board_turnstile.js";
+import { UiModule } from "./board_ui_module.js";
 import { WriteModule } from "./board_write_module.js";
 
 /** @import { AppInitialPreferences, ColorPreset, ServerConfig, SocketHeaders } from "../../types/app-runtime" */
@@ -46,6 +47,7 @@ export class AppTools {
  */
 export function attachFullRuntimeModules(tools, options) {
   tools.assets = new AssetModule(normalizeBoardAssetPath);
+  tools.ui = new UiModule();
   tools.interaction = new InteractionModule();
   tools.ids = new IdModule();
   tools.rateLimits = new RateLimitModule(tools.config, tools.identity);
