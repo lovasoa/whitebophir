@@ -873,6 +873,7 @@ function createConnectedUserRow(getTools, user, users) {
           message: Tools.i18n.format("ban_user_confirmation", {
             name: getConnectedUserDisplayName(connectedUser),
           }),
+          cancelLabel: Tools.i18n.t("Cancel"),
           choices: BAN_DURATION_OPTIONS.map(
             ({ durationMs, count, unit, variant }) => ({
               label: formatShortRelativeTime(
