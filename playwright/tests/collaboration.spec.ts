@@ -206,7 +206,7 @@ test.describe("collaboration and rate limiting", () => {
 
         await boardPage.reportFirstRemoteUser();
         await expect(page.locator(".wbo-dialog")).toBeVisible();
-        await expect(page.locator(".wbo-ban-duration-button")).toHaveText([
+        await expect(page.locator(".wbo-dialog-choice-button")).toHaveText([
           "15m",
           "24h",
           "7d",
