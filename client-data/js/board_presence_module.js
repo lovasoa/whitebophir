@@ -185,26 +185,16 @@ export class PresenceModule {
     syncConnectedUsersToggleLabel(Tools, this.users);
     if (toggle.dataset.connectedUsersUiBound !== "true") {
       toggle.dataset.connectedUsersUiBound = "true";
+      const panelController = Tools.ui.createFloatingPanelController({
+        panel,
+        isOpen: () => this.panelOpen,
+        open: () => this.setConnectedUsersPanelOpen(true),
+        close: () => this.setConnectedUsersPanelOpen(false),
+        closeOnBlurFrom: toggle,
+        restoreFocusElement: toggle,
+      });
       toggle.addEventListener("click", () => {
-        this.setConnectedUsersPanelOpen(!this.panelOpen);
-      });
-      toggle.addEventListener("blur", () => {
-        window.setTimeout(() => {
-          if (
-            !panel.matches(":hover") &&
-            !panel.contains(document.activeElement) &&
-            document.activeElement !== toggle
-          ) {
-            this.setConnectedUsersPanelOpen(false);
-          }
-        }, 0);
-      });
-      panel.addEventListener("keydown", (evt) => {
-        if (evt.key === "Escape") {
-          evt.preventDefault();
-          this.setConnectedUsersPanelOpen(false);
-          toggle.focus();
-        }
+        panelController.toggle();
       });
     }
     this.renderConnectedUsers();
