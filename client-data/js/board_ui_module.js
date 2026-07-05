@@ -275,6 +275,49 @@ function addOptionalClasses(element, className) {
     .forEach((name) => element.classList.add(name));
 }
 
+const MODAL_BACKDROP_CLASS = "wbo-modal-backdrop";
+const DIALOG_PANEL_CLASS = "wbo-dialog";
+const NATIVE_DIALOG_CLASS = "wbo-native-dialog";
+
+/**
+ * @param {HTMLElement} element
+ * @param {string | undefined} className
+ */
+function applyModalBackdropClasses(element, className) {
+  element.classList.add(MODAL_BACKDROP_CLASS);
+  addOptionalClasses(element, className);
+}
+
+/**
+ * @param {HTMLElement} element
+ * @param {string | undefined} className
+ */
+function applyDialogPanelClasses(element, className) {
+  element.classList.add(DIALOG_PANEL_CLASS);
+  addOptionalClasses(element, className);
+}
+
+/**
+ * @param {string | undefined} className
+ * @returns {HTMLElement}
+ */
+function createDialogPanel(className) {
+  const panel = document.createElement("div");
+  applyDialogPanelClasses(panel, className);
+  return panel;
+}
+
+/**
+ * @returns {{dialog: HTMLDialogElement, panel: HTMLElement}}
+ */
+function createNativeDialogShell() {
+  const dialog = document.createElement("dialog");
+  dialog.classList.add(NATIVE_DIALOG_CLASS);
+  const panel = createDialogPanel(undefined);
+  dialog.appendChild(panel);
+  return { dialog, panel };
+}
+
 /**
  * @param {ModalShellOptions} [options]
  * @returns {ModalShell}
@@ -296,26 +339,26 @@ export function createModalShell(options = {}) {
     if (overlayId) overlay.id = overlayId;
     document.body.appendChild(overlay);
   }
-  overlay.classList.add("wbo-modal-backdrop");
-  addOptionalClasses(overlay, overlayClassName);
+  applyModalBackdropClasses(overlay, overlayClassName);
   if (createdOverlay && initiallyHidden && hiddenClass) {
     overlay.classList.add(hiddenClass);
   }
 
-  let dialog = dialogId ? document.getElementById(dialogId) : null;
-  if (!(dialog instanceof HTMLElement)) {
-    dialog = document.createElement("div");
-    if (dialogId) dialog.id = dialogId;
-    overlay.appendChild(dialog);
-  } else if (dialog.parentNode !== overlay) {
-    overlay.appendChild(dialog);
+  let panel = dialogId ? document.getElementById(dialogId) : null;
+  if (!(panel instanceof HTMLElement)) {
+    panel = createDialogPanel(dialogClassName);
+    if (dialogId) panel.id = dialogId;
+    overlay.appendChild(panel);
+  } else if (panel.parentNode !== overlay) {
+    overlay.appendChild(panel);
+    applyDialogPanelClasses(panel, dialogClassName);
+  } else {
+    applyDialogPanelClasses(panel, dialogClassName);
   }
-  dialog.classList.add("wbo-dialog");
-  addOptionalClasses(dialog, dialogClassName);
 
   return {
     overlay,
-    dialog,
+    dialog: panel,
     show() {
       if (hiddenClass) overlay.classList.remove(hiddenClass);
       else overlay.hidden = false;
@@ -342,11 +385,7 @@ function showModalDialog(closeValue, render) {
       document.activeElement instanceof HTMLElement
         ? document.activeElement
         : null;
-    const dialog = document.createElement("dialog");
-    dialog.className = "wbo-native-dialog";
-    const panel = document.createElement("div");
-    panel.className = "wbo-dialog";
-    dialog.appendChild(panel);
+    const { dialog, panel } = createNativeDialogShell();
 
     let settled = false;
     /** @param {T | null} result */

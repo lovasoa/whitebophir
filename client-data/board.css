@@ -39,6 +39,7 @@ body {
   --board-accent: #abc6c6;
   --board-accent-strong: #8fb4a8;
   --board-error: #7c2d12;
+  --board-modal-backdrop-bg: rgba(17, 24, 39, 0.32);
 }
 
 #turnstile-overlay {
@@ -67,7 +68,7 @@ body {
   justify-content: center;
   box-sizing: border-box;
   padding: 16px;
-  background: rgba(17, 24, 39, 0.32);
+  background: var(--board-modal-backdrop-bg);
 }
 
 dialog.wbo-native-dialog {
@@ -77,7 +78,7 @@ dialog.wbo-native-dialog {
 }
 
 dialog.wbo-native-dialog::backdrop {
-  background: rgba(17, 24, 39, 0.32);
+  background: var(--board-modal-backdrop-bg);
   border: none;
 }
 
