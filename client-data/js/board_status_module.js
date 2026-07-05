@@ -8,18 +8,6 @@ function getBoardStatusElements() {
   };
 }
 
-/**
- * @param {string} template
- * @param {{[key: string]: string}} values
- * @returns {string}
- */
-function formatStatusMessage(template, values) {
-  return template.replace(/\{([a-zA-Z0-9_]+)\}/g, (match, key) => {
-    if (!Object.prototype.hasOwnProperty.call(values, key)) return match;
-    return values[key] || "";
-  });
-}
-
 export class StatusModule {
   /**
    * @param {() => AppToolsState} getTools
@@ -107,7 +95,7 @@ export class StatusModule {
       {
         hidden: false,
         state: "paused",
-        title: formatStatusMessage(Tools.i18n.t("user_report_notice"), {
+        title: Tools.i18n.format("user_report_notice", {
           reporter: reporterName,
           reported: reportedName,
         }),

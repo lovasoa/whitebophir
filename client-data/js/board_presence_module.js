@@ -353,18 +353,6 @@ function clearConnectedUserTimers(user) {
 }
 
 /**
- * @param {string} template
- * @param {{[key: string]: string}} values
- * @returns {string}
- */
-function formatPresenceMessage(template, values) {
-  return template.replace(/\{([a-zA-Z0-9_]+)\}/g, (match, key) => {
-    if (!Object.prototype.hasOwnProperty.call(values, key)) return match;
-    return values[key] || "";
-  });
-}
-
-/**
  * @param {number | undefined} timestamp
  * @returns {ConnectedUserRelativeTime}
  */
@@ -404,7 +392,7 @@ function getRelativeTimeState(timestamp) {
  */
 function formatShortRelativeTime(Tools, relativeTime) {
   if (relativeTime.kind === "now") return Tools.i18n.t("connected_user_now");
-  return formatPresenceMessage(Tools.i18n.t(relativeTime.shortKey), {
+  return Tools.i18n.format(relativeTime.shortKey, {
     count: `${relativeTime.count}`,
   });
 }
@@ -436,7 +424,7 @@ function formatLongRelativeTime(Tools, relativeTime) {
 function formatJoinedTimeTitle(Tools, relativeTime) {
   if (relativeTime.kind === "now")
     return Tools.i18n.t("connected_user_joined_now_title");
-  return formatPresenceMessage(Tools.i18n.t("connected_user_joined_title"), {
+  return Tools.i18n.format("connected_user_joined_title", {
     relative_time: formatLongRelativeTime(Tools, relativeTime),
   });
 }
@@ -851,7 +839,7 @@ function createConnectedUserRow(getTools, user, users) {
       const name = getConnectedUserDisplayName(connectedUser);
       if (
         !window.confirm(
-          formatPresenceMessage(Tools.i18n.t("ban_user_confirmation"), {
+          Tools.i18n.format("ban_user_confirmation", {
             name,
           }),
         )

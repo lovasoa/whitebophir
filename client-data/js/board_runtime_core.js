@@ -85,6 +85,7 @@ export class AttachedBoardDomRuntimeModule extends BoardDomRuntimeActions {
 }
 
 const i18nModuleTranslations = new WeakMap();
+const I18N_PLACEHOLDER_PATTERN = /\{([a-zA-Z0-9_]+)\}/g;
 
 export class I18nModule {
   /** @param {{[key: string]: string}} translations */
@@ -100,6 +101,17 @@ export class I18nModule {
         key
       ] || s
     );
+  }
+
+  /**
+   * @param {string} s
+   * @param {{[key: string]: string | number | undefined}} values
+   */
+  format(s, values) {
+    return this.t(s).replace(I18N_PLACEHOLDER_PATTERN, (match, key) => {
+      if (!Object.prototype.hasOwnProperty.call(values, key)) return match;
+      return values[key] ? String(values[key]) : "";
+    });
   }
 }
 
