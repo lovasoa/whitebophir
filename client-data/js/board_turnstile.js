@@ -232,35 +232,31 @@ export class TurnstileModule {
   }
 
   ensureElements() {
-    let overlay = document.getElementById("turnstile-overlay");
+    const { Tools } = getTurnstileModuleState(this);
+    const shell = Tools.ui.createModalShell({
+      overlayId: "turnstile-overlay",
+      dialogId: "turnstile-modal",
+      hiddenClass: "turnstile-overlay-hidden",
+      initiallyHidden: true,
+    });
     let widget = document.getElementById("turnstile-widget");
-    if (overlay && widget) return { overlay: overlay };
-
-    overlay = document.createElement("div");
-    overlay.id = "turnstile-overlay";
-    overlay.classList.add("turnstile-overlay-hidden");
-
-    const modal = document.createElement("div");
-    modal.id = "turnstile-modal";
-
-    widget = document.createElement("div");
-    widget.id = "turnstile-widget";
-    modal.appendChild(widget);
-
-    overlay.appendChild(modal);
-    document.body.appendChild(overlay);
-    return { overlay: overlay };
+    if (!(widget instanceof HTMLElement)) {
+      widget = document.createElement("div");
+      widget.id = "turnstile-widget";
+      shell.dialog.appendChild(widget);
+    }
+    return shell;
   }
 
   /** @param {number} delay */
   showOverlay(delay) {
-    const elements = this.ensureElements();
+    const shell = this.ensureElements();
     if (delay > 0) {
       this.overlayTimeout = window.setTimeout(() => {
-        elements.overlay.classList.remove("turnstile-overlay-hidden");
+        shell.show();
       }, delay);
     } else {
-      elements.overlay.classList.remove("turnstile-overlay-hidden");
+      shell.show();
     }
   }
 

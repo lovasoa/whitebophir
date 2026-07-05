@@ -1031,6 +1031,7 @@ function createUnavailableUiRuntime() {
       unavailableCapability("ui.positionAnchoredPanel"),
     createFloatingPanelController: () =>
       unavailableCapability("ui.createFloatingPanelController"),
+    createModalShell: () => unavailableCapability("ui.createModalShell"),
     confirm: () => unavailableCapability("ui.confirm"),
   };
 }

@@ -54,6 +54,27 @@
  * }} ConfirmDialogOptions
  */
 
+/**
+ * @typedef {{
+ *   overlayId?: string,
+ *   dialogId?: string,
+ *   overlayClassName?: string,
+ *   dialogClassName?: string,
+ *   hiddenClass?: string,
+ *   initiallyHidden?: boolean,
+ * }} ModalShellOptions
+ */
+
+/**
+ * @typedef {{
+ *   overlay: HTMLElement,
+ *   dialog: HTMLElement,
+ *   show: () => void,
+ *   hide: () => void,
+ *   destroy: () => void,
+ * }} ModalShell
+ */
+
 let dialogIdSequence = 0;
 
 /**
@@ -248,6 +269,73 @@ function trapDialogFocus(elements, event) {
 }
 
 /**
+ * @param {HTMLElement} element
+ * @param {string | undefined} className
+ */
+function addOptionalClasses(element, className) {
+  if (!className) return;
+  className
+    .split(/\s+/)
+    .filter(Boolean)
+    .forEach((name) => element.classList.add(name));
+}
+
+/**
+ * @param {ModalShellOptions} [options]
+ * @returns {ModalShell}
+ */
+export function createModalShell(options = {}) {
+  const {
+    overlayId,
+    dialogId,
+    overlayClassName,
+    dialogClassName,
+    hiddenClass,
+    initiallyHidden = false,
+  } = options;
+  let overlay = overlayId ? document.getElementById(overlayId) : null;
+  let createdOverlay = false;
+  if (!(overlay instanceof HTMLElement)) {
+    overlay = document.createElement("div");
+    createdOverlay = true;
+    if (overlayId) overlay.id = overlayId;
+    document.body.appendChild(overlay);
+  }
+  overlay.classList.add("wbo-modal-backdrop");
+  addOptionalClasses(overlay, overlayClassName);
+  if (createdOverlay && initiallyHidden && hiddenClass) {
+    overlay.classList.add(hiddenClass);
+  }
+
+  let dialog = dialogId ? document.getElementById(dialogId) : null;
+  if (!(dialog instanceof HTMLElement)) {
+    dialog = document.createElement("div");
+    if (dialogId) dialog.id = dialogId;
+    overlay.appendChild(dialog);
+  } else if (dialog.parentNode !== overlay) {
+    overlay.appendChild(dialog);
+  }
+  dialog.classList.add("wbo-dialog");
+  addOptionalClasses(dialog, dialogClassName);
+
+  return {
+    overlay,
+    dialog,
+    show() {
+      if (hiddenClass) overlay.classList.remove(hiddenClass);
+      else overlay.hidden = false;
+    },
+    hide() {
+      if (hiddenClass) overlay.classList.add(hiddenClass);
+      else overlay.hidden = true;
+    },
+    destroy() {
+      overlay.remove();
+    },
+  };
+}
+
+/**
  * @param {ConfirmDialogOptions} options
  * @returns {Promise<boolean>}
  */
@@ -264,11 +352,8 @@ export function showConfirmDialog({
         ? document.activeElement
         : null;
     const dialogId = ++dialogIdSequence;
-    const overlay = document.createElement("div");
-    overlay.className = "wbo-modal-backdrop";
-
-    const dialog = document.createElement("div");
-    dialog.className = "wbo-dialog";
+    const shell = createModalShell();
+    const { overlay, dialog } = shell;
     dialog.setAttribute("role", "dialog");
     dialog.setAttribute("aria-modal", "true");
 
@@ -316,7 +401,7 @@ export function showConfirmDialog({
     function settle(result) {
       if (settled) return;
       settled = true;
-      overlay.remove();
+      shell.destroy();
       previousFocus?.focus();
       resolve(result);
     }
@@ -332,7 +417,6 @@ export function showConfirmDialog({
       trapDialogFocus([cancelButton, confirmButton], evt);
     });
 
-    document.body.appendChild(overlay);
     cancelButton.focus();
   });
 }
@@ -346,6 +430,11 @@ export class UiModule {
   /** @param {FloatingPanelControllerOptions} options */
   createFloatingPanelController(options) {
     return createFloatingPanelController(options);
+  }
+
+  /** @param {ModalShellOptions} [options] */
+  createModalShell(options) {
+    return createModalShell(options);
   }
 
   /** @param {ConfirmDialogOptions} options */
