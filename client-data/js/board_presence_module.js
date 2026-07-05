@@ -339,8 +339,13 @@ const DURATION_UNIT_MS = {
   hour: 60 * 60 * 1000,
   day: 24 * 60 * 60 * 1000,
 };
-/** @type {{durationMs: number, count: number, unit: ConnectedUserDurationUnit, variant: "secondary" | "warning" | "danger"}[]} */
+/** @type {({durationMs: 0, labelKey: "warn", variant: "secondary"} | {durationMs: number, count: number, unit: ConnectedUserDurationUnit, variant: "secondary" | "warning" | "danger"})[]} */
 const BAN_DURATION_OPTIONS = [
+  {
+    durationMs: 0,
+    labelKey: "warn",
+    variant: "secondary",
+  },
   {
     durationMs: 15 * DURATION_UNIT_MS.minute,
     count: 15,
@@ -874,16 +879,17 @@ function createConnectedUserRow(getTools, user, users) {
             name: getConnectedUserDisplayName(connectedUser),
           }),
           cancelLabel: Tools.i18n.t("Cancel"),
-          choices: BAN_DURATION_OPTIONS.map(
-            ({ durationMs, count, unit, variant }) => ({
-              label: formatShortRelativeTime(
-                Tools,
-                getDurationPartState(count, unit),
-              ),
-              value: durationMs,
-              variant,
-            }),
-          ),
+          choices: BAN_DURATION_OPTIONS.map((option) => ({
+            label:
+              "labelKey" in option
+                ? Tools.i18n.t(option.labelKey)
+                : formatShortRelativeTime(
+                    Tools,
+                    getDurationPartState(option.count, option.unit),
+                  ),
+            value: option.durationMs,
+            variant: option.variant,
+          })),
         })
         .then((banDurationMs) => {
           if (banDurationMs !== null) {

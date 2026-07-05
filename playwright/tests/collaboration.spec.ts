@@ -207,6 +207,7 @@ test.describe("collaboration and rate limiting", () => {
         await boardPage.reportFirstRemoteUser();
         await expect(page.locator(".wbo-dialog")).toBeVisible();
         await expect(page.locator(".wbo-dialog-choice-button")).toHaveText([
+          "Warn",
           "15m",
           "24h",
           "7d",
@@ -218,6 +219,132 @@ test.describe("collaboration and rate limiting", () => {
             page.evaluate(() => window.__reportedUsers?.[0]?.banDurationMs),
           )
           .toBe(7 * 24 * 60 * 60 * 1000);
+      } finally {
+        await targetContext.close();
+      }
+    },
+  );
+
+  moderatorPresenceTest(
+    "moderator warning shows an overlay and reconnects after acknowledgement",
+    async ({ boardPage, browser, server }) => {
+      const boardName = "moderator-warning-overlay";
+      const targetContext = await browser.newContext();
+      const targetPage = await targetContext.newPage();
+      const targetBoard = createBoardPage(targetPage, server);
+
+      try {
+        await boardPage.setSocketHeaders({
+          "X-Forwarded-For": "198.51.100.122",
+        });
+        await targetBoard.setSocketHeaders({
+          "X-Forwarded-For": "198.51.100.123",
+        });
+
+        await Promise.all([
+          boardPage.gotoBoard(boardName, { token: TOKENS.globalModerator }),
+          targetBoard.gotoBoard(boardName, { token: TOKENS.globalEditor }),
+        ]);
+        await Promise.all([
+          boardPage.waitForSocketConnected(),
+          targetBoard.waitForSocketConnected(),
+        ]);
+
+        await boardPage.connectedUsersToggle.click();
+        await expect(boardPage.connectedUsersPanel).toBeVisible();
+        await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+
+        const targetReconnect = targetBoard.waitForDisconnectThenReconnect();
+        await boardPage.reportFirstRemoteUser();
+        await expect(boardPage.page.locator(".wbo-dialog")).toBeVisible();
+        await boardPage.page.getByRole("button", { name: "Warn" }).click();
+
+        await expect
+          .poll(() => targetBoard.readModerationOverlay())
+          .toMatchObject({
+            visible: true,
+            kind: "warning",
+            title: "Moderator warning",
+            acknowledgeLabel: "I understand",
+          });
+        await expect
+          .poll(() => targetBoard.readConnectionAccessState())
+          .toMatchObject({
+            connected: false,
+            connectionState: "disconnected",
+          });
+
+        await targetBoard.acknowledgeModerationDisconnect();
+        await expect(targetReconnect).resolves.toMatchObject({
+          initialId: expect.any(String),
+          nextId: expect.any(String),
+        });
+        await expect
+          .poll(() => targetBoard.readConnectionAccessState())
+          .toMatchObject({ connected: true, canEdit: true });
+      } finally {
+        await targetContext.close();
+      }
+    },
+  );
+
+  moderatorPresenceTest(
+    "moderator ban shows a ban overlay and reconnects read-only after acknowledgement",
+    async ({ boardPage, browser, server }) => {
+      const boardName = "moderator-ban-overlay";
+      const targetContext = await browser.newContext();
+      const targetPage = await targetContext.newPage();
+      const targetBoard = createBoardPage(targetPage, server);
+
+      try {
+        await boardPage.setSocketHeaders({
+          "X-Forwarded-For": "198.51.100.124",
+        });
+        await targetBoard.setSocketHeaders({
+          "X-Forwarded-For": "198.51.100.125",
+        });
+
+        await Promise.all([
+          boardPage.gotoBoard(boardName, { token: TOKENS.globalModerator }),
+          targetBoard.gotoBoard(boardName, { token: TOKENS.globalEditor }),
+        ]);
+        await Promise.all([
+          boardPage.waitForSocketConnected(),
+          targetBoard.waitForSocketConnected(),
+        ]);
+
+        await boardPage.connectedUsersToggle.click();
+        await expect(boardPage.connectedUsersPanel).toBeVisible();
+        await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+
+        const targetReconnect = targetBoard.waitForDisconnectThenReconnect();
+        await boardPage.reportFirstRemoteUser();
+        await expect(boardPage.page.locator(".wbo-dialog")).toBeVisible();
+        await boardPage.page.getByRole("button", { name: "15m" }).click();
+
+        await expect
+          .poll(() => targetBoard.readModerationOverlay())
+          .toMatchObject({
+            visible: true,
+            kind: "ban",
+            title: "Editing is temporarily blocked",
+            acknowledgeLabel: "I understand",
+          });
+        await expect
+          .poll(() => targetBoard.readConnectionAccessState())
+          .toMatchObject({
+            connected: false,
+            connectionState: "disconnected",
+          });
+
+        await targetBoard.acknowledgeModerationDisconnect();
+        await expect(targetReconnect).resolves.toMatchObject({
+          initialId: expect.any(String),
+          nextId: expect.any(String),
+        });
+        await expect
+          .poll(() => targetBoard.readConnectionAccessState())
+          .toMatchObject({ connected: true, canEdit: false });
       } finally {
         await targetContext.close();
       }
@@ -343,7 +470,7 @@ test.describe("collaboration and rate limiting", () => {
     await peerPage.close();
   });
 
-  test("reporting a user disconnects both sockets and they automatically reconnect", async ({
+  test("reporting a user shows the reported target a warning before reconnect", async ({
     boardPage,
     server,
     context,
@@ -374,6 +501,23 @@ test.describe("collaboration and rate limiting", () => {
       initialId: expect.any(String),
       nextId: expect.any(String),
     });
+
+    await expect
+      .poll(() => peerBoard.readModerationOverlay())
+      .toMatchObject({
+        visible: true,
+        kind: "warning",
+        title: "Moderator warning",
+        acknowledgeLabel: "I understand",
+      });
+    await expect
+      .poll(() => peerBoard.readConnectionAccessState())
+      .toMatchObject({
+        connected: false,
+        connectionState: "disconnected",
+      });
+
+    await peerBoard.acknowledgeModerationDisconnect();
     await expect(reportedReconnect).resolves.toMatchObject({
       initialId: expect.any(String),
       nextId: expect.any(String),

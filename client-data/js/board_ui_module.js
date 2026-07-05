@@ -94,6 +94,16 @@
  */
 
 /**
+ * @typedef {{
+ *   banDurationMs: number,
+ *   title: string,
+ *   message: string,
+ *   acknowledgeLabel: string,
+ *   rulesLabel: string,
+ * }} ModerationDisconnectNoticeOptions
+ */
+
+/**
  * @param {number} value
  * @param {number} min
  * @param {number} max
@@ -507,6 +517,67 @@ export function showChoiceDialog({ message, choices, cancelLabel = "Cancel" }) {
   });
 }
 
+/**
+ * @param {ModerationDisconnectNoticeOptions} options
+ * @returns {Promise<void>}
+ */
+export function showModerationDisconnectNotice(options) {
+  return new Promise((resolve) => {
+    const shell = createModalShell({
+      overlayId: "moderation-disconnect-overlay",
+      dialogId: "moderation-disconnect-dialog",
+      hiddenClass: "moderation-disconnect-overlay-hidden",
+      initiallyHidden: true,
+    });
+    shell.dialog.replaceChildren();
+    shell.dialog.classList.add("moderation-disconnect-dialog");
+    shell.dialog.setAttribute("role", "alertdialog");
+    shell.dialog.setAttribute("aria-modal", "true");
+    shell.dialog.dataset.moderationKind =
+      options.banDurationMs > 0 ? "ban" : "warning";
+
+    const icon = document.createElement("div");
+    icon.className = "moderation-disconnect-icon";
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = "!";
+
+    const title = document.createElement("div");
+    title.className = "moderation-disconnect-title";
+    title.id = "moderation-disconnect-title";
+    title.textContent = options.title;
+    shell.dialog.setAttribute("aria-labelledby", title.id);
+
+    const message = document.createElement("p");
+    message.className = "moderation-disconnect-message";
+    message.textContent = options.message;
+
+    const rulesLink = document.createElement("a");
+    rulesLink.className = "moderation-disconnect-rules";
+    rulesLink.href = "../rules";
+    rulesLink.target = "_blank";
+    rulesLink.rel = "noopener";
+    rulesLink.textContent = options.rulesLabel;
+
+    const acknowledge = document.createElement("button");
+    acknowledge.type = "button";
+    acknowledge.className =
+      "wbo-dialog-button wbo-dialog-button-primary moderation-disconnect-ack";
+    acknowledge.textContent = options.acknowledgeLabel;
+    acknowledge.addEventListener(
+      "click",
+      () => {
+        shell.hide();
+        resolve();
+      },
+      { once: true },
+    );
+
+    shell.dialog.append(icon, title, message, rulesLink, acknowledge);
+    shell.show();
+    acknowledge.focus();
+  });
+}
+
 export class UiModule {
   /** @param {AnchoredPanelPositionOptions} options */
   positionAnchoredPanel(options) {
@@ -531,5 +602,10 @@ export class UiModule {
   /** @template T @param {ChoiceDialogOptions<T>} options */
   showChoiceDialog(options) {
     return showChoiceDialog(options);
+  }
+
+  /** @param {ModerationDisconnectNoticeOptions} options */
+  showModerationDisconnectNotice(options) {
+    return showModerationDisconnectNotice(options);
   }
 }

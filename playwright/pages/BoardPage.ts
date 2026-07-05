@@ -79,6 +79,18 @@ type ProtectedWriteState = {
   pendingWrites: number;
   validated: boolean;
 };
+type ModerationOverlayState = {
+  visible: boolean;
+  title: string;
+  message: string;
+  kind: string;
+  acknowledgeLabel: string;
+};
+type ConnectionAccessState = {
+  connected: boolean;
+  connectionState: string;
+  canEdit: boolean;
+};
 type CursorState = {
   left: string;
   top: string;
@@ -377,6 +389,47 @@ window.turnstile = {
       if (!report) throw new Error("Missing remote user report button");
       report.click();
     });
+  }
+
+  async readModerationOverlay(): Promise<ModerationOverlayState> {
+    return this.page.evaluate(() => {
+      const overlay = document.getElementById("moderation-disconnect-overlay");
+      const dialog = document.getElementById("moderation-disconnect-dialog");
+      const acknowledge = dialog?.querySelector<HTMLButtonElement>(
+        ".moderation-disconnect-ack",
+      );
+      return {
+        visible: !!(
+          overlay &&
+          !overlay.classList.contains("moderation-disconnect-overlay-hidden")
+        ),
+        title:
+          dialog?.querySelector(".moderation-disconnect-title")?.textContent ??
+          "",
+        message:
+          dialog?.querySelector(".moderation-disconnect-message")
+            ?.textContent ?? "",
+        kind:
+          dialog instanceof HTMLElement
+            ? (dialog.dataset.moderationKind ?? "")
+            : "",
+        acknowledgeLabel: acknowledge?.textContent ?? "",
+      };
+    });
+  }
+
+  async acknowledgeModerationDisconnect() {
+    await this.page
+      .locator("#moderation-disconnect-dialog .moderation-disconnect-ack")
+      .click();
+  }
+
+  async readConnectionAccessState(): Promise<ConnectionAccessState> {
+    return this.page.evaluate(() => ({
+      connected: window.WBOApp.connection.socket?.connected === true,
+      connectionState: window.WBOApp.connection.state,
+      canEdit: window.WBOApp.access.canEdit === true,
+    }));
   }
 
   async waitForDisconnectThenReconnect() {

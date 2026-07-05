@@ -26,7 +26,7 @@ const BOARD_CAPABILITIES_PATH = path.join(
 /** @typedef {{headers?: {[key: string]: string | string[] | undefined}, remoteAddress?: string, token?: string, query?: {[key: string]: any}, id?: string}} SocketOptions */
 /** @typedef {{event: string, payload: any, room?: string}} EmittedEvent */
 /** @typedef {{[event: string]: (...args: any[]) => any}} HandlerMap */
-/** @typedef {{id: string, boardName?: string, replayBootstrap?: unknown, turnstileValidatedUntil?: number, disconnected?: boolean, handshake: {query: {board?: string, token?: string, tool?: string, color?: string, size?: string, baselineSeq?: string}}, rooms: Set<string>, client: {request: {headers: {[key: string]: string | string[] | undefined}, socket: {remoteAddress: string}}, conn: {closeCalls: number[], close: () => void}}, broadcast: {to: (room: string) => {emit: (event: string, payload: any) => void}}, disconnectCalls: boolean[], on: (event: string, handler: (...args: any[]) => any) => void, join: (room: string) => void, emit: (event: string, payload: any) => void, disconnect: (close: boolean) => void}} TestSocket */
+/** @typedef {{id: string, boardName?: string, replayBootstrap?: unknown, turnstileValidatedUntil?: number, disconnected?: boolean, handshake: {query: {board?: string, token?: string, tool?: string, color?: string, size?: string, baselineSeq?: string}}, rooms: Set<string>, client: {request: {headers: {[key: string]: string | string[] | undefined}, socket: {remoteAddress: string}}, conn: {closeCalls: number[], close: () => void}}, broadcast: {to: (room: string) => {emit: (event: string, payload: any) => void}}, disconnectCalls: boolean[], on: (event: string, handler: (...args: any[]) => any) => void, join: (room: string) => void, emit: (event: string, payload: any, ack?: (...args: any[]) => void) => void, disconnect: (close: boolean) => void}} TestSocket */
 /** @typedef {{socket: TestSocket, handlers: HandlerMap, emitted: EmittedEvent[], broadcasted: EmittedEvent[]}} CreatedSocket */
 
 const DEFAULT_CLEARED_MODULES = [CONFIG_PATH];
@@ -181,8 +181,9 @@ function createSocket(options) {
     join: function (room) {
       this.rooms.add(room);
     },
-    emit: (event, payload) => {
+    emit: (event, payload, ack) => {
       emitted.push({ event, payload });
+      if (typeof ack === "function") ack();
     },
     disconnect: function (close) {
       this.disconnectCalls.push(close);

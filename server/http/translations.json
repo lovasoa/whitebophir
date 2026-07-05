@@ -78,7 +78,13 @@
     "rules_drawings_title": "احترم رسومات الآخرين",
     "rules_drawings_shared": "هذه لوحة مشتركة. لا تتعمد إتلاف عمل الآخرين.",
     "rules_drawings_body": "لا تمسح أو تخرب أو تغطِّ الرسومات التي بذل أصحابها جهدًا واضحًا. لا ترسم قريبًا جدًا من عمل شخص آخر بحيث تمنعه من مواصلته. التعاون مرحب به عندما يوافق جميع المشاركين.",
-    "back_to_home": "العودة إلى WBO"
+    "back_to_home": "العودة إلى WBO",
+    "warn": "تحذير",
+    "moderation_warning_title": "تنبيه من المشرف",
+    "moderation_warning_body": "وجّه إليك أحد المشرفين تنبيهًا بسبب نشاطك على هذه اللوحة. يُرجى قراءة قواعد المجتمع بهدوء قبل إعادة الاتصال.",
+    "moderation_ban_title": "تم إيقاف قدرتك على التحرير مؤقتًا",
+    "moderation_ban_body": "أوقف أحد المشرفين تعديلاتك على هذه اللوحة مؤقتًا. يمكنك إعادة الاتصال الآن، لكن قد تبقى اللوحة للقراءة فقط بالنسبة إليك حتى تنتهي مدة الحظر.",
+    "moderation_acknowledge": "فهمت"
   },
   "be": {
     "white-out": "Замазка",
@@ -159,7 +165,13 @@
     "rules_drawings_title": "Паважайце чужыя малюнкі",
     "rules_drawings_shared": "Гэта агульная дошка. Не пашкоджвайце наўмысна чужую працу.",
     "rules_drawings_body": "Не сцірайце, не псуйце і не закрывайце малюнкі, у якія ўкладзена шмат працы. Не малюйце настолькі блізка да чужой працы, каб аўтар не мог яе працягнуць. Супрацоўніцтва вітаецца, калі ўсе ўдзельнікі згодныя.",
-    "back_to_home": "Вярнуцца да WBO"
+    "back_to_home": "Вярнуцца да WBO",
+    "warn": "Папярэдзіць",
+    "moderation_warning_title": "Папярэджанне ад мадэратара",
+    "moderation_warning_body": "Мадэратар вынес вам папярэджанне праз дзеянні на гэтай дошцы. Калі ласка, спакойна перачытайце правілы супольнасці перад паўторным падключэннем.",
+    "moderation_ban_title": "Рэдагаванне часова заблакіравана",
+    "moderation_ban_body": "Мадэратар часова заблакіраваў для вас рэдагаванне гэтай дошкі. Вы можаце падключыцца зноў, але дошка можа заставацца для вас толькі для прагляду, пакуль блакіроўка не скончыцца.",
+    "moderation_acknowledge": "Зразумела"
   },
   "ca": {
     "white-out": "Corrector blanc",
@@ -240,7 +252,13 @@
     "rules_drawings_title": "Respecteu els dibuixos dels altres",
     "rules_drawings_shared": "Aquesta és una pissarra compartida. No malmeteu expressament la feina dels altres.",
     "rules_drawings_body": "No esborreu, malmeteu ni tapeu dibuixos fets amb molt d'esforç. No dibuixeu tan a prop de la feina d'una altra persona que no la pugui continuar. La col·laboració és benvinguda quan totes les persones implicades hi estan d'acord.",
-    "back_to_home": "Torna a WBO"
+    "back_to_home": "Torna a WBO",
+    "warn": "Avís",
+    "moderation_warning_title": "Avís de moderació",
+    "moderation_warning_body": "Un moderador t’ha avisat pel teu comportament en aquesta pissarra. Pren-te un moment per llegir les normes de la comunitat abans de tornar-te a connectar.",
+    "moderation_ban_title": "L’edició està bloquejada temporalment",
+    "moderation_ban_body": "Un moderador t’ha bloquejat temporalment l’edició en aquesta pissarra. Pots tornar a connectar-te ara, però pot ser que la pissarra et quedi en mode només lectura fins que s’acabi el bloqueig.",
+    "moderation_acknowledge": "Ho entenc"
   },
   "de": {
     "board_name_placeholder": "Name des Whiteboards…",
@@ -321,7 +339,13 @@
     "rules_drawings_title": "Respektieren Sie die Zeichnungen anderer",
     "rules_drawings_shared": "Dies ist ein gemeinsames Whiteboard. Beschädigen Sie nicht absichtlich die Arbeit anderer.",
     "rules_drawings_body": "Löschen, beschädigen oder überdecken Sie keine Zeichnungen, in die viel Mühe geflossen ist. Zeichnen Sie nicht so nah an der Arbeit anderer, dass diese nicht weiterarbeiten können. Zusammenarbeit ist willkommen, wenn alle Beteiligten einverstanden sind.",
-    "back_to_home": "Zurück zu WBO"
+    "back_to_home": "Zurück zu WBO",
+    "warn": "Verwarnen",
+    "moderation_warning_title": "Hinweis der Moderation",
+    "moderation_warning_body": "Die Moderation hat dich wegen deiner Aktivität auf diesem Board verwarnt. Bitte lies die Gemeinschaftsregeln in Ruhe, bevor du dich erneut verbindest.",
+    "moderation_ban_title": "Bearbeiten ist vorübergehend gesperrt",
+    "moderation_ban_body": "Die Moderation hat deine Bearbeitungsrechte für dieses Board vorübergehend gesperrt. Du kannst dich jetzt wieder verbinden, aber das Board kann für dich bis zum Ablauf der Sperre schreibgeschützt bleiben.",
+    "moderation_acknowledge": "Verstanden"
   },
   "en": {
     "white-out": "White-out",
@@ -402,7 +426,13 @@
     "rules_drawings_title": "Respect other people's drawings",
     "rules_drawings_shared": "This is a shared board. Do not deliberately damage other people's work.",
     "rules_drawings_body": "Do not erase, vandalize, or cover high-effort drawings. Do not draw so close to someone else's work that they cannot continue it. Collaboration is welcome when everyone involved agrees.",
-    "back_to_home": "Back to WBO"
+    "back_to_home": "Back to WBO",
+    "warn": "Warn",
+    "moderation_warning_title": "Moderator warning",
+    "moderation_warning_body": "A moderator has warned you about activity on this board. Please take a moment to read the community rules before reconnecting.",
+    "moderation_ban_title": "Editing is temporarily blocked",
+    "moderation_ban_body": "A moderator has temporarily blocked your edits on this board. You may reconnect now, but the board can remain read-only for you until the ban expires.",
+    "moderation_acknowledge": "I understand"
   },
   "es": {
     "board_name_placeholder": "Nombre de la pizarra …",
@@ -483,7 +513,13 @@
     "rules_drawings_title": "Respeta los dibujos de los demás",
     "rules_drawings_shared": "Esta es una pizarra compartida. No dañes a propósito el trabajo de otras personas.",
     "rules_drawings_body": "No borres, dañes ni cubras dibujos que hayan requerido mucho esfuerzo. No dibujes tan cerca del trabajo de otra persona que le impidas continuarlo. La colaboración es bienvenida cuando todas las personas implicadas están de acuerdo.",
-    "back_to_home": "Volver a WBO"
+    "back_to_home": "Volver a WBO",
+    "warn": "Advertir",
+    "moderation_warning_title": "Advertencia de moderación",
+    "moderation_warning_body": "Un moderador te ha advertido por tu actividad en esta pizarra. Tómate un momento para leer las normas de la comunidad antes de volver a conectarte.",
+    "moderation_ban_title": "La edición está bloqueada temporalmente",
+    "moderation_ban_body": "Un moderador ha bloqueado temporalmente tus ediciones en esta pizarra. Puedes volver a conectarte ahora, pero la pizarra puede seguir en modo solo lectura para ti hasta que termine el bloqueo.",
+    "moderation_acknowledge": "Entendido"
   },
   "fr": {
     "board_name_placeholder": "Nom du tableau…",
@@ -563,7 +599,13 @@
     "rules_drawings_title": "Respectez les dessins des autres",
     "rules_drawings_shared": "Ceci est un tableau partagé. N’abîmez pas volontairement le travail des autres.",
     "rules_drawings_body": "N’effacez pas, ne dégradez pas et ne recouvrez pas des dessins qui ont demandé beaucoup d’efforts. Ne dessinez pas si près du travail de quelqu’un d’autre que cette personne ne puisse plus le continuer. La collaboration est bienvenue lorsque toutes les personnes concernées sont d’accord.",
-    "back_to_home": "Retour à WBO"
+    "back_to_home": "Retour à WBO",
+    "warn": "Avertir",
+    "moderation_warning_title": "Avertissement de modération",
+    "moderation_warning_body": "Un modérateur vous a adressé un avertissement à propos de votre activité sur ce tableau. Prenez un moment pour relire les règles de la communauté avant de vous reconnecter.",
+    "moderation_ban_title": "L’édition est temporairement bloquée",
+    "moderation_ban_body": "Un modérateur a temporairement bloqué vos modifications sur ce tableau. Vous pouvez vous reconnecter maintenant, mais le tableau peut rester en lecture seule pour vous jusqu’à la fin du bannissement.",
+    "moderation_acknowledge": "J’ai compris"
   },
   "hu": {
     "white-out": "Lefedő",
@@ -644,7 +686,13 @@
     "rules_drawings_title": "Tiszteld mások rajzait",
     "rules_drawings_shared": "Ez egy közös tábla. Ne rongáld szándékosan mások munkáját.",
     "rules_drawings_body": "Ne töröld le, ne rongáld meg és ne takard el azokat a rajzokat, amelyekbe sok munkát fektettek. Ne rajzolj olyan közel más munkájához, hogy az illető ne tudja folytatni. Az együttműködés örvendetes, ha minden érintett beleegyezik.",
-    "back_to_home": "Vissza a WBO-hoz"
+    "back_to_home": "Vissza a WBO-hoz",
+    "warn": "Figyelmeztetés",
+    "moderation_warning_title": "Moderátori figyelmeztetés",
+    "moderation_warning_body": "Egy moderátor figyelmeztetett a táblán végzett tevékenységed miatt. Kérjük, mielőtt újracsatlakozol, olvasd át nyugodtan a közösségi szabályokat.",
+    "moderation_ban_title": "A szerkesztés átmenetileg le van tiltva",
+    "moderation_ban_body": "Egy moderátor átmenetileg letiltotta a szerkesztést számodra ezen a táblán. Most újracsatlakozhatsz, de a tábla a tiltás lejártáig számodra csak olvasható maradhat.",
+    "moderation_acknowledge": "Értem"
   },
   "id": {
     "white-out": "Cairan koreksi",
@@ -725,7 +773,13 @@
     "rules_drawings_title": "Hargai gambar orang lain",
     "rules_drawings_shared": "Ini adalah papan bersama. Jangan sengaja merusak karya orang lain.",
     "rules_drawings_body": "Jangan menghapus, merusak, atau menutupi gambar yang dibuat dengan banyak usaha. Jangan menggambar terlalu dekat dengan karya orang lain sampai mereka tidak dapat melanjutkannya. Kolaborasi dipersilakan jika semua pihak yang terlibat setuju.",
-    "back_to_home": "Kembali ke WBO"
+    "back_to_home": "Kembali ke WBO",
+    "warn": "Peringatkan",
+    "moderation_warning_title": "Peringatan dari moderator",
+    "moderation_warning_body": "Moderator memberi Anda peringatan terkait aktivitas Anda di papan ini. Luangkan waktu sejenak untuk membaca aturan komunitas sebelum tersambung kembali.",
+    "moderation_ban_title": "Penyuntingan diblokir sementara",
+    "moderation_ban_body": "Moderator untuk sementara memblokir kemampuan Anda menyunting papan ini. Anda dapat tersambung kembali sekarang, tetapi papan mungkin tetap hanya-baca bagi Anda sampai masa blokir berakhir.",
+    "moderation_acknowledge": "Saya mengerti"
   },
   "it": {
     "board_name_placeholder": "Nome della lavagna…",
@@ -806,7 +860,13 @@
     "rules_drawings_title": "Rispetta i disegni degli altri",
     "rules_drawings_shared": "Questa è una lavagna condivisa. Non danneggiare di proposito il lavoro degli altri.",
     "rules_drawings_body": "Non cancellare, danneggiare o coprire disegni su cui è stato dedicato molto impegno. Non disegnare così vicino al lavoro di qualcun altro da impedirgli di continuarlo. La collaborazione è benvenuta quando tutte le persone coinvolte sono d’accordo.",
-    "back_to_home": "Torna a WBO"
+    "back_to_home": "Torna a WBO",
+    "warn": "Avvisa",
+    "moderation_warning_title": "Avviso di moderazione",
+    "moderation_warning_body": "Un moderatore ti ha inviato un avviso per la tua attività su questa lavagna. Prenditi un momento per rileggere le regole della comunità prima di riconnetterti.",
+    "moderation_ban_title": "La modifica è temporaneamente bloccata",
+    "moderation_ban_body": "Un moderatore ha bloccato temporaneamente le tue modifiche su questa lavagna. Puoi riconnetterti ora, ma la lavagna potrebbe restare in sola lettura per te finché il blocco non scade.",
+    "moderation_acknowledge": "Ho capito"
   },
   "ja": {
     "board_name_placeholder": "ボードの名前",
@@ -887,7 +947,13 @@
     "rules_drawings_title": "他の人の絵を尊重してください",
     "rules_drawings_shared": "ここは共有ボードです。他の人の作品を故意に損なわないでください。",
     "rules_drawings_body": "手間をかけて描かれた絵を消したり、荒らしたり、覆い隠したりしないでください。他の人が続きを描けなくなるほど近くに描かないでください。関係者全員が同意している場合、共同制作は歓迎されます。",
-    "back_to_home": "WBO に戻る"
+    "back_to_home": "WBO に戻る",
+    "warn": "警告",
+    "moderation_warning_title": "モデレーターからの警告",
+    "moderation_warning_body": "このボードでの操作について、モデレーターから警告がありました。再接続する前に、コミュニティルールを落ち着いて確認してください。",
+    "moderation_ban_title": "編集は一時的に制限されています",
+    "moderation_ban_body": "モデレーターにより、このボードでの編集が一時的にブロックされました。今すぐ再接続できますが、停止期間が終わるまではあなたには読み取り専用のままになることがあります。",
+    "moderation_acknowledge": "理解しました"
   },
   "my": {
     "board_name_placeholder": "ဝှိုက်ဘုတ်အမည် ... ",
@@ -968,7 +1034,13 @@
     "rules_drawings_title": "အခြားသူများ၏ ပုံများကို လေးစားပါ",
     "rules_drawings_shared": "ဤနေရာသည် မျှဝေသုံးစွဲသော whiteboard ဖြစ်သည်။ အခြားသူများ၏ အလုပ်ကို တမင်ထိခိုက်စေခြင်း မပြုပါနှင့်။",
     "rules_drawings_body": "ကြိုးစားအားထုတ်ထားသော ပုံများကို မဖျက်ပါနှင့်၊ မဖျက်ဆီးပါနှင့်၊ မဖုံးအုပ်ပါနှင့်။ အခြားသူ၏အလုပ်ကို ဆက်မလုပ်နိုင်တော့အောင် အနီးကပ် မဆွဲပါနှင့်။ ပါဝင်သူအားလုံး သဘောတူပါက ပူးပေါင်းဆောင်ရွက်ခြင်းကို ကြိုဆိုပါသည်။",
-    "back_to_home": "WBO သို့ ပြန်သွားရန်"
+    "back_to_home": "WBO သို့ ပြန်သွားရန်",
+    "warn": "သတိပေးရန်",
+    "moderation_warning_title": "ကြီးကြပ်သူမှ သတိပေးချက်",
+    "moderation_warning_body": "ဤဘုတ်ပေါ်ရှိ သင့်လုပ်ဆောင်ချက်ကြောင့် ကြီးကြပ်သူက သတိပေးထားပါသည်။ ပြန်လည်ချိတ်ဆက်မီ အသိုင်းအဝိုင်း စည်းမျဉ်းများကို အေးအေးဆေးဆေး ပြန်လည်ဖတ်ရှုပါ။",
+    "moderation_ban_title": "တည်းဖြတ်ခွင့်ကို ယာယီပိတ်ထားသည်",
+    "moderation_ban_body": "ကြီးကြပ်သူက ဤဘုတ်ပေါ်တွင် သင့်တည်းဖြတ်ခွင့်ကို ယာယီပိတ်ထားပါသည်။ ယခု ပြန်လည်ချိတ်ဆက်နိုင်သော်လည်း ပိတ်ပင်မှုကာလ မကုန်ဆုံးမချင်း သင့်အတွက် ဖတ်ရှုရန်သာ ဖြစ်နေနိုင်ပါသည်။",
+    "moderation_acknowledge": "နားလည်ပါပြီ"
   },
   "pt": {
     "white-out": "Branquejar",
@@ -1049,7 +1121,13 @@
     "rules_drawings_title": "Respeite os desenhos dos outros",
     "rules_drawings_shared": "Este é um quadro compartilhado. Não danifique de propósito o trabalho dos outros.",
     "rules_drawings_body": "Não apague, danifique nem cubra desenhos que deram muito trabalho. Não desenhe tão perto do trabalho de outra pessoa a ponto de impedi-la de continuar. A colaboração é bem-vinda quando todos os envolvidos concordam.",
-    "back_to_home": "Voltar ao WBO"
+    "back_to_home": "Voltar ao WBO",
+    "warn": "Avisar",
+    "moderation_warning_title": "Aviso da moderação",
+    "moderation_warning_body": "Um moderador enviou um aviso sobre sua atividade neste quadro. Reserve um momento para ler as regras da comunidade antes de se reconectar.",
+    "moderation_ban_title": "A edição foi bloqueada temporariamente",
+    "moderation_ban_body": "Um moderador bloqueou temporariamente suas edições neste quadro. Você pode se reconectar agora, mas o quadro pode continuar somente leitura para você até o bloqueio expirar.",
+    "moderation_acknowledge": "Entendi"
   },
   "ru": {
     "board_name_placeholder": "Название доски",
@@ -1130,7 +1208,13 @@
     "rules_drawings_title": "Уважайте рисунки других людей",
     "rules_drawings_shared": "Это общая доска. Не повреждайте намеренно чужую работу.",
     "rules_drawings_body": "Не стирайте, не повреждайте и не закрывайте рисунки, в которые вложено много труда. Не рисуйте так близко к чужой работе, чтобы автор не мог её продолжить. Сотрудничество приветствуется, когда все участники согласны.",
-    "back_to_home": "Вернуться к WBO"
+    "back_to_home": "Вернуться к WBO",
+    "warn": "Предупредить",
+    "moderation_warning_title": "Предупреждение от модератора",
+    "moderation_warning_body": "Модератор вынес вам предупреждение из-за действий на этой доске. Пожалуйста, спокойно перечитайте правила сообщества перед повторным подключением.",
+    "moderation_ban_title": "Редактирование временно заблокировано",
+    "moderation_ban_body": "Модератор временно заблокировал для вас редактирование этой доски. Вы можете подключиться снова, но доска может оставаться для вас только для чтения до окончания блокировки.",
+    "moderation_acknowledge": "Понятно"
   },
   "sw": {
     "board_name_placeholder": "Jina la ubao mweupe ...",
@@ -1211,7 +1295,13 @@
     "rules_drawings_title": "Heshimu michoro ya watu wengine",
     "rules_drawings_shared": "Huu ni ubao wa pamoja. Usiharibu kazi za wengine kwa makusudi.",
     "rules_drawings_body": "Usifute, usiharibu wala kufunika michoro iliyofanywa kwa juhudi kubwa. Usichore karibu sana na kazi ya mtu mwingine kiasi cha kumzuia kuendelea nayo. Ushirikiano unakaribishwa pale ambapo wote wanaohusika wamekubaliana.",
-    "back_to_home": "Rudi kwenye WBO"
+    "back_to_home": "Rudi kwenye WBO",
+    "warn": "Onya",
+    "moderation_warning_title": "Onyo kutoka kwa msimamizi",
+    "moderation_warning_body": "Msimamizi amekupa onyo kuhusu shughuli zako kwenye ubao huu. Tafadhali chukua muda kusoma kanuni za jumuiya kabla ya kuunganisha tena.",
+    "moderation_ban_title": "Uhariri umezuiwa kwa muda",
+    "moderation_ban_body": "Msimamizi amekuzuia kuhariri ubao huu kwa muda. Unaweza kuunganisha tena sasa, lakini ubao unaweza kubaki wa kusoma tu kwako hadi muda wa zuio uishe.",
+    "moderation_acknowledge": "Nimeelewa"
   },
   "th": {
     "board_name_placeholder": "ชื่อไวท์บอร์ด ...",
@@ -1292,7 +1382,13 @@
     "rules_drawings_title": "เคารพภาพวาดของผู้อื่น",
     "rules_drawings_shared": "นี่คือไวท์บอร์ดที่ใช้ร่วมกัน อย่าจงใจทำให้ผลงานของผู้อื่นเสียหาย",
     "rules_drawings_body": "อย่าลบ ทำลาย หรือปกปิดภาพวาดที่ผู้อื่นตั้งใจทำ อย่าวาดใกล้งานของคนอื่นจนเขาไม่สามารถวาดต่อได้ ยินดีให้ร่วมมือกันเมื่อทุกคนที่เกี่ยวข้องเห็นพ้องกัน",
-    "back_to_home": "กลับไปที่ WBO"
+    "back_to_home": "กลับไปที่ WBO",
+    "warn": "เตือน",
+    "moderation_warning_title": "คำเตือนจากผู้ดูแล",
+    "moderation_warning_body": "ผู้ดูแลได้เตือนคุณเกี่ยวกับกิจกรรมของคุณบนกระดานนี้ โปรดใช้เวลาสักครู่ทบทวนกฎของชุมชนก่อนเชื่อมต่ออีกครั้ง",
+    "moderation_ban_title": "การแก้ไขถูกระงับชั่วคราว",
+    "moderation_ban_body": "ผู้ดูแลได้ระงับการแก้ไขของคุณบนกระดานนี้ชั่วคราว คุณสามารถเชื่อมต่ออีกครั้งได้ตอนนี้ แต่กระดานอาจยังเป็นแบบอ่านอย่างเดียวสำหรับคุณจนกว่าการระงับจะสิ้นสุด",
+    "moderation_acknowledge": "เข้าใจแล้ว"
   },
   "uk": {
     "white-out": "Коректор",
@@ -1373,7 +1469,13 @@
     "rules_drawings_title": "Поважайте малюнки інших людей",
     "rules_drawings_shared": "Це спільна дошка. Не пошкоджуйте навмисно чужу роботу.",
     "rules_drawings_body": "Не стирайте, не пошкоджуйте й не закривайте малюнки, у які вкладено багато праці. Не малюйте так близько до чужої роботи, щоб автор не міг її продовжити. Співпраця вітається, коли всі учасники згодні.",
-    "back_to_home": "Назад до WBO"
+    "back_to_home": "Назад до WBO",
+    "warn": "Попередити",
+    "moderation_warning_title": "Попередження від модератора",
+    "moderation_warning_body": "Модератор виніс вам попередження через дії на цій дошці. Будь ласка, спокійно перечитайте правила спільноти перед повторним підключенням.",
+    "moderation_ban_title": "Редагування тимчасово заблоковано",
+    "moderation_ban_body": "Модератор тимчасово заблокував для вас редагування цієї дошки. Ви можете підключитися знову, але дошка може залишатися для вас лише для перегляду, доки блокування не завершиться.",
+    "moderation_acknowledge": "Зрозуміло"
   },
   "vi": {
     "white-out": "Bút xóa",
@@ -1454,7 +1556,13 @@
     "rules_drawings_title": "Tôn trọng tranh vẽ của người khác",
     "rules_drawings_shared": "Đây là bảng chung. Đừng cố ý làm hư hại tác phẩm của người khác.",
     "rules_drawings_body": "Không xóa, phá hoại hoặc che phủ những bức vẽ được đầu tư nhiều công sức. Đừng vẽ quá sát tác phẩm của người khác đến mức họ không thể tiếp tục. Việc hợp tác được hoan nghênh khi tất cả những người liên quan đều đồng ý.",
-    "back_to_home": "Quay lại WBO"
+    "back_to_home": "Quay lại WBO",
+    "warn": "Cảnh báo",
+    "moderation_warning_title": "Cảnh báo từ người kiểm duyệt",
+    "moderation_warning_body": "Người kiểm duyệt đã cảnh báo bạn về hoạt động trên bảng này. Vui lòng dành chút thời gian đọc lại quy định cộng đồng trước khi kết nối lại.",
+    "moderation_ban_title": "Tạm thời không thể chỉnh sửa",
+    "moderation_ban_body": "Người kiểm duyệt đã tạm thời chặn quyền chỉnh sửa của bạn trên bảng này. Bạn có thể kết nối lại ngay, nhưng bảng có thể vẫn ở chế độ chỉ đọc đối với bạn cho đến khi lệnh cấm hết hiệu lực.",
+    "moderation_acknowledge": "Tôi đã hiểu"
   },
   "zh-CN": {
     "board_name_placeholder": "白板名称",
@@ -1535,7 +1643,13 @@
     "rules_drawings_title": "尊重他人的作品",
     "rules_drawings_shared": "这是共享白板。请勿故意破坏他人的作品。",
     "rules_drawings_body": "请勿擦除、破坏或遮盖他人投入大量精力完成的作品。不要画得离他人的作品太近，以致对方无法继续创作。所有相关人员都同意时，欢迎合作。",
-    "back_to_home": "返回 WBO"
+    "back_to_home": "返回 WBO",
+    "warn": "警告",
+    "moderation_warning_title": "来自版主的警告",
+    "moderation_warning_body": "版主已就你在此白板上的行为发出警告。重新连接前，请花一点时间阅读社区规则。",
+    "moderation_ban_title": "编辑已被临时限制",
+    "moderation_ban_body": "版主已临时限制你在此白板上的编辑权限。你现在可以重新连接，但在封禁到期前，此白板对你可能仍为只读。",
+    "moderation_acknowledge": "我已了解"
   },
   "zh-TW": {
     "board_name_placeholder": "白板名稱",
@@ -1616,7 +1730,13 @@
     "rules_drawings_title": "尊重他人的作品",
     "rules_drawings_shared": "這是共享白板。請勿故意破壞他人的作品。",
     "rules_drawings_body": "請勿擦除、破壞或遮蓋他人投入大量心力完成的作品。不要畫得離他人的作品太近，以致對方無法繼續創作。所有相關人員都同意時，歡迎合作。",
-    "back_to_home": "返回 WBO"
+    "back_to_home": "返回 WBO",
+    "warn": "警告",
+    "moderation_warning_title": "來自版主的警告",
+    "moderation_warning_body": "版主已就你在此白板上的行為發出警告。重新連線前，請花一點時間閱讀社群規則。",
+    "moderation_ban_title": "編輯已被暫時限制",
+    "moderation_ban_body": "版主已暫時限制你在此白板上的編輯權限。你現在可以重新連線，但在封鎖到期前，此白板對你可能仍為唯讀。",
+    "moderation_acknowledge": "我了解了"
   },
   "pl": {
     "board_name_placeholder": "Nazwa tablicy",
@@ -1697,6 +1817,12 @@
     "rules_drawings_title": "Szanuj rysunki innych",
     "rules_drawings_shared": "To wspólna tablica. Nie uszkadzaj celowo cudzej pracy.",
     "rules_drawings_body": "Nie wymazuj, nie niszcz ani nie zakrywaj rysunków, w które ktoś włożył dużo pracy. Nie rysuj tak blisko cudzej pracy, żeby jej autor nie mógł jej kontynuować. Współpraca jest mile widziana, jeśli wszyscy zaangażowani się na nią zgadzają.",
-    "back_to_home": "Wróć do WBO"
+    "back_to_home": "Wróć do WBO",
+    "warn": "Ostrzeż",
+    "moderation_warning_title": "Ostrzeżenie od moderatora",
+    "moderation_warning_body": "Moderator wysłał Ci ostrzeżenie dotyczące Twojej aktywności na tej tablicy. Przed ponownym połączeniem poświęć chwilę na przeczytanie zasad społeczności.",
+    "moderation_ban_title": "Edycja jest tymczasowo zablokowana",
+    "moderation_ban_body": "Moderator tymczasowo zablokował Ci możliwość edycji tej tablicy. Możesz połączyć się ponownie, ale tablica może pozostać dla Ciebie tylko do odczytu do czasu wygaśnięcia blokady.",
+    "moderation_acknowledge": "Rozumiem"
   }
 }

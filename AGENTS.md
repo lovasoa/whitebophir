@@ -232,14 +232,21 @@ The server validates client messages, rejects malformed writes with
 `broadcast` frames.
 
 User reports are sent by clients on the `report_user` event with a payload of
-`{ "socketId": "<reported socket id>" }`. Moderator report-to-ban payloads may
-also include `banDurationMs`, which the server clamps to at most one week.
-Non-moderator reports disconnect the reporter and reported user after logging
-the report. For accepted non-moderator reports, the server emits
+`{ "socketId": "<reported socket id>" }`. Moderator warning/ban payloads use
+`banDurationMs`: `0` warns without banning, a positive number bans for that
+duration, and an omitted or invalid value preserves the legacy default
+15-minute ban. Ban durations are clamped to at most one week. Before the
+reported socket is closed, the server emits
+`moderation_disconnect { "banDurationMs": <duration> }`; `0` means warning and a
+positive value means ban. Non-moderator reports disconnect the reporter and
+reported user after logging the report, emit
+`moderation_disconnect { "banDurationMs": 0 }` only to the reported target, and
+do not ban. For accepted non-moderator reports, the server emits
 `user_reported` only to connected moderators on that board. The `user_reported`
 payload is `{ "reporterName": "<display name>", "reportedName": "<display name>" }`.
-Moderator report-to-ban actions do not emit `user_reported`; they ban and
-disconnect the reported user directly.
+Moderator warning/ban actions do not emit `user_reported`; warning actions only
+disconnect the reported user, while ban actions also ban the reported secret and
+IP.
 
 Client write messages normally have top-level `tool` and `type` fields.
 Tool-owned batches have top-level `tool` plus `_children`; each child carries its
@@ -412,6 +419,7 @@ Important files:
   error. Do not turn structural failures into silent repairs.
 - Board pages stream stored SVG baselines through the HTML shell. The board chrome
   and boot payloads must remain before the streamed board markup.
+- All user-visible strings MUST be localized via `Tools.i18n`. All [translation keys](server/http/translations.json) MUST have a carefully designed, natural sounding, context-aware version in ALL supported languages.
 
 ## hot paths
 
