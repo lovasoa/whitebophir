@@ -333,7 +333,7 @@ export function createModalShell(options = {}) {
 /**
  * @template T
  * @param {T | null} closeValue
- * @param {(dialog: HTMLDialogElement, settle: (result: T | null) => void) => void} render
+ * @param {(panel: HTMLElement, settle: (result: T | null) => void) => void} render
  * @returns {Promise<T | null>}
  */
 function showModalDialog(closeValue, render) {
@@ -343,7 +343,10 @@ function showModalDialog(closeValue, render) {
         ? document.activeElement
         : null;
     const dialog = document.createElement("dialog");
-    dialog.className = "wbo-dialog";
+    dialog.className = "wbo-native-dialog";
+    const panel = document.createElement("div");
+    panel.className = "wbo-dialog";
+    dialog.appendChild(panel);
 
     let settled = false;
     /** @param {T | null} result */
@@ -361,7 +364,7 @@ function showModalDialog(closeValue, render) {
       if (evt.target === dialog) settle(closeValue);
     });
 
-    render(dialog, settle);
+    render(panel, settle);
 
     document.body.appendChild(dialog);
     dialog.showModal();
