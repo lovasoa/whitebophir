@@ -6,7 +6,6 @@ import MessageCommon from "./message_common.js";
 import { LIMITS } from "./message_limits.js";
 import { MutationType } from "./message_tool_metadata.js";
 import { SocketEvents } from "./socket_events.js";
-import { trapDialogFocus } from "./board_ui_module.js";
 import { createToolIconBadge, updateToolIconBadge } from "./tool_icon_badge.js";
 
 /** @import { AppToolsState, AttachedBoardDomModule, BoardMessage, ConnectedUser, ConnectedUserMap, HandChildMessage } from "../../types/app-runtime" */
@@ -345,13 +344,27 @@ const DURATION_UNIT_SHORT_KEYS = {
   hour: "relative_hours_short",
   day: "relative_days_short",
 };
-/** @type {{durationMs: number, count: number, unit: ConnectedUserDurationUnit}[]} */
+/** @type {{durationMs: number, count: number, unit: ConnectedUserDurationUnit, variant: "secondary" | "warning" | "danger"}[]} */
 const BAN_DURATION_OPTIONS = [
-  { durationMs: 15 * DURATION_UNIT_MS.minute, count: 15, unit: "minute" },
-  { durationMs: 24 * DURATION_UNIT_MS.hour, count: 24, unit: "hour" },
-  { durationMs: 7 * DURATION_UNIT_MS.day, count: 7, unit: "day" },
+  {
+    durationMs: 15 * DURATION_UNIT_MS.minute,
+    count: 15,
+    unit: "minute",
+    variant: "secondary",
+  },
+  {
+    durationMs: 24 * DURATION_UNIT_MS.hour,
+    count: 24,
+    unit: "hour",
+    variant: "warning",
+  },
+  {
+    durationMs: 7 * DURATION_UNIT_MS.day,
+    count: 7,
+    unit: "day",
+    variant: "danger",
+  },
 ];
-let banDurationDialogIdSequence = 0;
 
 /** @param {ConnectedUser} user */
 function clearConnectedUserTimers(user) {
@@ -693,96 +706,6 @@ function getReportActionGlyph(Tools) {
 }
 
 /**
- * @param {AppToolsState} Tools
- * @param {ConnectedUser} connectedUser
- * @returns {Promise<number | null>}
- */
-function showBanDurationDialog(Tools, connectedUser) {
-  return new Promise((resolve) => {
-    const previousFocus =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
-    const dialogId = ++banDurationDialogIdSequence;
-    const shell = Tools.ui.createModalShell();
-    const { overlay, dialog } = shell;
-    dialog.textContent = "";
-    dialog.setAttribute("role", "dialog");
-    dialog.setAttribute("aria-modal", "true");
-
-    const titleElement = document.createElement("div");
-    titleElement.className = "wbo-dialog-title";
-    titleElement.id = `wbo-ban-duration-title-${dialogId}`;
-    titleElement.textContent = Tools.i18n.format("ban_user_confirmation", {
-      name: getConnectedUserDisplayName(connectedUser),
-    });
-    dialog.setAttribute("aria-labelledby", titleElement.id);
-    dialog.appendChild(titleElement);
-
-    const DURATION_VARIANT_CLASSES = /** @type {const} */ ([
-      "wbo-dialog-button-secondary",
-      "wbo-dialog-button-warning",
-      "wbo-dialog-button-danger",
-    ]);
-
-    const durationOptions = document.createElement("div");
-    durationOptions.className = "wbo-ban-duration-options";
-    /** @type {HTMLButtonElement[]} */
-    const durationButtons = [];
-
-    BAN_DURATION_OPTIONS.forEach(({ durationMs, count, unit }, index) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = `wbo-dialog-button wbo-ban-duration-button ${DURATION_VARIANT_CLASSES[index]}`;
-      button.textContent = formatShortDurationPart(Tools, count, unit);
-      button.addEventListener("click", () => settle(durationMs));
-      durationButtons.push(button);
-      durationOptions.appendChild(button);
-    });
-    dialog.appendChild(durationOptions);
-
-    const cancelButton = document.createElement("button");
-    cancelButton.type = "button";
-    cancelButton.className =
-      "wbo-dialog-button wbo-dialog-button-secondary wbo-ban-duration-cancel";
-    cancelButton.textContent = Tools.i18n.t("Cancel");
-    dialog.appendChild(cancelButton);
-
-    overlay.appendChild(dialog);
-
-    overlay.addEventListener("click", (evt) => {
-      if (evt.target === overlay) settle(null);
-    });
-
-    let settled = false;
-    /** @param {number | null} result */
-    function settle(result) {
-      if (settled) return;
-      settled = true;
-      shell.destroy();
-      previousFocus?.focus();
-      resolve(result);
-    }
-
-    function getFocusableElements() {
-      return [...durationButtons, cancelButton];
-    }
-
-    cancelButton.addEventListener("click", () => settle(null));
-    dialog.addEventListener("keydown", (evt) => {
-      if (evt.key === "Escape") {
-        evt.preventDefault();
-        settle(null);
-        return;
-      }
-      trapDialogFocus(getFocusableElements(), evt);
-    });
-
-    durationButtons[0]?.focus();
-  });
-}
-
-/**
  * @param {() => AppToolsState} getTools
  * @param {ConnectedUserRow} row
  * @param {ConnectedUser} user
@@ -960,11 +883,24 @@ function createConnectedUserRow(getTools, user, users) {
       socket.emit(SocketEvents.REPORT_USER, payload);
     };
     if (Tools.access.canClear === true) {
-      void showBanDurationDialog(Tools, connectedUser).then((banDurationMs) => {
-        if (banDurationMs !== null) {
-          reportConnectedUser(banDurationMs);
-        }
-      });
+      void Tools.ui
+        .showChoiceDialog({
+          message: Tools.i18n.format("ban_user_confirmation", {
+            name: getConnectedUserDisplayName(connectedUser),
+          }),
+          choices: BAN_DURATION_OPTIONS.map(
+            ({ durationMs, count, unit, variant }) => ({
+              label: formatShortDurationPart(Tools, count, unit),
+              value: durationMs,
+              variant,
+            }),
+          ),
+        })
+        .then((banDurationMs) => {
+          if (banDurationMs !== null) {
+            reportConnectedUser(banDurationMs);
+          }
+        });
       return;
     }
     reportConnectedUser(undefined);
