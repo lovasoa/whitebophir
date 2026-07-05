@@ -190,11 +190,6 @@ function handleReportByModerator(
     return;
   }
 
-  const reportedSocket = context.getActiveSocket(reported.socketId);
-  if (!reportedSocket) {
-    logger.error("user.ban.fail", { reported, reporter, board });
-    return;
-  }
   if (banDurationMs > 0) {
     banBoardUser(
       context.boardName,
@@ -203,6 +198,12 @@ function handleReportByModerator(
       context.now,
       banDurationMs,
     );
+  }
+
+  const reportedSocket = context.getActiveSocket(reported.socketId);
+  if (!reportedSocket) {
+    logger.error("user.ban.fail", { reported, reporter, board });
+    return;
   }
   notifyModerationDisconnectThenClose(
     board,
