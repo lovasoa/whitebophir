@@ -70,6 +70,11 @@ body {
   background: rgba(17, 24, 39, 0.32);
 }
 
+dialog.wbo-dialog::backdrop {
+  background: rgba(17, 24, 39, 0.32);
+  border: none;
+}
+
 .wbo-dialog {
   box-sizing: border-box;
   width: min(360px, calc(100vw - 32px));

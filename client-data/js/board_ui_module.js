@@ -93,8 +93,6 @@
  * }} ModalShell
  */
 
-let dialogIdSequence = 0;
-
 /**
  * @param {number} value
  * @param {number} min
@@ -369,18 +367,13 @@ export function showConfirmDialog({
       document.activeElement instanceof HTMLElement
         ? document.activeElement
         : null;
-    const dialogId = ++dialogIdSequence;
-    const shell = createModalShell();
-    const { overlay, dialog } = shell;
-    dialog.setAttribute("role", "dialog");
-    dialog.setAttribute("aria-modal", "true");
+    const dialog = document.createElement("dialog");
+    dialog.className = "wbo-dialog";
 
     if (title) {
       const titleElement = document.createElement("div");
       titleElement.className = "wbo-dialog-title";
-      titleElement.id = `wbo-dialog-title-${dialogId}`;
       titleElement.textContent = title;
-      dialog.setAttribute("aria-labelledby", titleElement.id);
       dialog.appendChild(titleElement);
     } else {
       dialog.setAttribute("aria-label", confirmLabel);
@@ -388,9 +381,7 @@ export function showConfirmDialog({
 
     const messageElement = document.createElement("div");
     messageElement.className = "wbo-dialog-message";
-    messageElement.id = `wbo-dialog-message-${dialogId}`;
     messageElement.textContent = message;
-    dialog.setAttribute("aria-describedby", messageElement.id);
     dialog.appendChild(messageElement);
 
     const actions = document.createElement("div");
@@ -412,29 +403,27 @@ export function showConfirmDialog({
     actions.appendChild(cancelButton);
     actions.appendChild(confirmButton);
     dialog.appendChild(actions);
-    overlay.appendChild(dialog);
 
     let settled = false;
     /** @param {boolean} result */
     function settle(result) {
       if (settled) return;
       settled = true;
-      shell.destroy();
+      dialog.close();
+      dialog.remove();
       previousFocus?.focus();
       resolve(result);
     }
 
     cancelButton.addEventListener("click", () => settle(false));
     confirmButton.addEventListener("click", () => settle(true));
-    dialog.addEventListener("keydown", (evt) => {
-      if (evt.key === "Escape") {
-        evt.preventDefault();
-        settle(false);
-        return;
-      }
-      trapDialogFocus([cancelButton, confirmButton], evt);
+    dialog.addEventListener("close", () => settle(false));
+    dialog.addEventListener("click", (evt) => {
+      if (evt.target === dialog) settle(false);
     });
 
+    document.body.appendChild(dialog);
+    dialog.showModal();
     cancelButton.focus();
   });
 }
@@ -450,17 +439,12 @@ export function showChoiceDialog({ message, choices, cancelLabel = "Cancel" }) {
       document.activeElement instanceof HTMLElement
         ? document.activeElement
         : null;
-    const dialogId = ++dialogIdSequence;
-    const shell = createModalShell();
-    const { overlay, dialog } = shell;
-    dialog.setAttribute("role", "dialog");
-    dialog.setAttribute("aria-modal", "true");
+    const dialog = document.createElement("dialog");
+    dialog.className = "wbo-dialog";
 
     const titleElement = document.createElement("div");
     titleElement.className = "wbo-dialog-title";
-    titleElement.id = `wbo-dialog-title-${dialogId}`;
     titleElement.textContent = message;
-    dialog.setAttribute("aria-labelledby", titleElement.id);
     dialog.appendChild(titleElement);
 
     const choicesContainer = document.createElement("div");
@@ -494,27 +478,20 @@ export function showChoiceDialog({ message, choices, cancelLabel = "Cancel" }) {
     function settle(result) {
       if (settled) return;
       settled = true;
-      shell.destroy();
+      dialog.close();
+      dialog.remove();
       previousFocus?.focus();
       resolve(result);
     }
 
-    const focusables = [...choiceButtons, cancelButton];
-
     cancelButton.addEventListener("click", () => settle(null));
-    dialog.addEventListener("keydown", (evt) => {
-      if (evt.key === "Escape") {
-        evt.preventDefault();
-        settle(null);
-        return;
-      }
-      trapDialogFocus(focusables, evt);
+    dialog.addEventListener("close", () => settle(null));
+    dialog.addEventListener("click", (evt) => {
+      if (evt.target === dialog) settle(null);
     });
 
-    overlay.addEventListener("click", (evt) => {
-      if (evt.target === overlay) settle(null);
-    });
-
+    document.body.appendChild(dialog);
+    dialog.showModal();
     choiceButtons[0]?.focus();
   });
 }
