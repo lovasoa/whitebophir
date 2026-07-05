@@ -339,11 +339,6 @@ const DURATION_UNIT_MS = {
   hour: 60 * 60 * 1000,
   day: 24 * 60 * 60 * 1000,
 };
-const DURATION_UNIT_SHORT_KEYS = {
-  minute: "relative_minutes_short",
-  hour: "relative_hours_short",
-  day: "relative_days_short",
-};
 /** @type {{durationMs: number, count: number, unit: ConnectedUserDurationUnit, variant: "secondary" | "warning" | "danger"}[]} */
 const BAN_DURATION_OPTIONS = [
   {
@@ -384,7 +379,7 @@ function getDurationPartState(count, unit) {
     kind: "duration",
     count,
     unit,
-    shortKey: DURATION_UNIT_SHORT_KEYS[unit],
+    shortKey: `relative_${unit}s_short`,
   };
 }
 
@@ -420,16 +415,6 @@ function formatShortRelativeTime(Tools, relativeTime) {
   return Tools.i18n.format(relativeTime.shortKey, {
     count: `${relativeTime.count}`,
   });
-}
-
-/**
- * @param {AppToolsState} Tools
- * @param {number} count
- * @param {ConnectedUserDurationUnit} unit
- * @returns {string}
- */
-function formatShortDurationPart(Tools, count, unit) {
-  return formatShortRelativeTime(Tools, getDurationPartState(count, unit));
 }
 
 /**
@@ -890,7 +875,10 @@ function createConnectedUserRow(getTools, user, users) {
           }),
           choices: BAN_DURATION_OPTIONS.map(
             ({ durationMs, count, unit, variant }) => ({
-              label: formatShortDurationPart(Tools, count, unit),
+              label: formatShortRelativeTime(
+                Tools,
+                getDurationPartState(count, unit),
+              ),
               value: durationMs,
               variant,
             }),
