@@ -14,10 +14,7 @@ import {
 
 const APP_ROOT = process.cwd();
 const LOG_LEVELS = ["debug", "info", "warn", "error"];
-const DEFAULT_HISTORY_DIR = path.join(APP_ROOT, "server-data");
 const DEFAULT_WEBROOT = path.join(APP_ROOT, "client-data");
-const DEFAULT_TURNSTILE_VERIFY_URL =
-  "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 const IP_CONFIGURATION = parseIpConfigurationEnv(
   "WBO_IP_SOURCE",
   "WBO_TRUST_PROXY_HOPS",
@@ -37,7 +34,7 @@ export const HOST = parseStringEnv("HOST", undefined);
 /** Directory where board history and persisted SVG files are stored. */
 export const HISTORY_DIR = parseStringEnv(
   "WBO_HISTORY_DIR",
-  DEFAULT_HISTORY_DIR,
+  path.join(APP_ROOT, "server-data"),
 );
 
 /** Minimum emitted server log level. Accepted values: `debug`, `info`, `warn`, `error`. */
@@ -133,13 +130,26 @@ export const BOARD_MODERATORS = parseBoardModeratorsEnv("WBO_BOARD_MODERATORS");
 /** Shared JWT secret used by board auth helpers. Empty disables JWT auth. */
 export const AUTH_SECRET_KEY = parseStringEnv("AUTH_SECRET_KEY", "");
 
-/** Cloudflare Turnstile secret key. */
+/** Cloudflare Turnstile secret key (used on the server)
+ *
+ * For tests, use:
+ * - always pass: TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
+ * - always fail: TURNSTILE_SECRET_KEY=2x0000000000000000000000000000000AA
+ *
+ */
 export const TURNSTILE_SECRET_KEY = parseStringEnv(
   "TURNSTILE_SECRET_KEY",
   undefined,
 );
 
-/** Cloudflare Turnstile site key. */
+/** Cloudflare Turnstile site key (used on the client)
+ *
+ * For tests, use:
+ * - always pass,   visible: TURNSTILE_SITE_KEY=1x00000000000000000000AA
+ * - always pass, invisible: TURNSTILE_SITE_KEY=1x00000000000000000000BB
+ * - always fail, invisible: TURNSTILE_SITE_KEY=2x00000000000000000000BB
+ * - interactive challenge : TURNSTILE_SITE_KEY=3x00000000000000000000FF
+ */
 export const TURNSTILE_SITE_KEY = parseStringEnv(
   "TURNSTILE_SITE_KEY",
   undefined,
@@ -148,7 +158,7 @@ export const TURNSTILE_SITE_KEY = parseStringEnv(
 /** Turnstile verification endpoint override. */
 export const TURNSTILE_VERIFY_URL = parseStringEnv(
   "TURNSTILE_VERIFY_URL",
-  DEFAULT_TURNSTILE_VERIFY_URL,
+  "https://challenges.cloudflare.com/turnstile/v0/siteverify",
 );
 
 /** How long a successful Turnstile validation remains valid for a socket. */
