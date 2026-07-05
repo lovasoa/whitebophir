@@ -396,6 +396,7 @@ export type ClientSocketIncomingEventMap = {
 
 export type ReportUserPayload = {
   socketId?: string;
+  banDurationMs?: number;
 };
 
 export type TurnstileSuccessAck = {

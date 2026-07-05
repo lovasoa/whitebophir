@@ -26,6 +26,51 @@ test("board edit bans independently match secret or ip until ttl expires", () =>
   assert.equal(isEditBanned("board-a", secretA, ipA, now), false);
 });
 
+test("ban ttl defaults to 15 minutes and clamps to one week", () => {
+  const {
+    DEFAULT_BAN_TTL_MS,
+    MAX_BAN_TTL_MS,
+    banBoardUser,
+    isEditBanned,
+    normalizeBanTtlMs,
+    resetBans,
+  } = require(BANS_PATH);
+  resetBans();
+  const now = 3000;
+  const secret = "dddddddddddddddddddddddddddddddd";
+  const ip = "203.0.113.30";
+
+  assert.equal(DEFAULT_BAN_TTL_MS, 15 * 60 * 1000);
+  assert.equal(MAX_BAN_TTL_MS, 7 * 24 * 60 * 60 * 1000);
+  assert.equal(normalizeBanTtlMs(undefined), DEFAULT_BAN_TTL_MS);
+  assert.equal(normalizeBanTtlMs(Number.POSITIVE_INFINITY), DEFAULT_BAN_TTL_MS);
+  assert.equal(normalizeBanTtlMs(MAX_BAN_TTL_MS * 2), MAX_BAN_TTL_MS);
+
+  banBoardUser("board-default-ttl", secret, ip, now);
+
+  assert.equal(
+    isEditBanned("board-default-ttl", secret, ip, now + DEFAULT_BAN_TTL_MS - 1),
+    true,
+  );
+  assert.equal(
+    isEditBanned("board-default-ttl", secret, ip, now + DEFAULT_BAN_TTL_MS),
+    false,
+  );
+
+  banBoardUser("board-max-ttl", secret, ip, now, MAX_BAN_TTL_MS * 2);
+
+  assert.equal(
+    isEditBanned("board-max-ttl", secret, ip, now + MAX_BAN_TTL_MS - 1),
+    true,
+  );
+  assert.equal(
+    isEditBanned("board-max-ttl", secret, ip, now + MAX_BAN_TTL_MS),
+    false,
+  );
+
+  resetBans();
+});
+
 test("empty secrets are never banned but their ip is banned", () => {
   const { banBoardUser, isEditBanned, resetBans } = require(BANS_PATH);
   resetBans();

@@ -232,11 +232,12 @@ The server validates client messages, rejects malformed writes with
 `broadcast` frames.
 
 User reports are sent by clients on the `report_user` event with a payload of
-`{ "socketId": "<reported socket id>" }`. Non-moderator reports disconnect the
-reporter and reported user after logging the report. For accepted non-moderator
-reports, the server emits `user_reported` only to connected moderators on that
-board. The `user_reported` payload is
-`{ "reporterName": "<display name>", "reportedName": "<display name>" }`.
+`{ "socketId": "<reported socket id>" }`. Moderator report-to-ban payloads may
+also include `banDurationMs`, which the server clamps to at most one week.
+Non-moderator reports disconnect the reporter and reported user after logging
+the report. For accepted non-moderator reports, the server emits
+`user_reported` only to connected moderators on that board. The `user_reported`
+payload is `{ "reporterName": "<display name>", "reportedName": "<display name>" }`.
 Moderator report-to-ban actions do not emit `user_reported`; they ban and
 disconnect the reported user directly.
 

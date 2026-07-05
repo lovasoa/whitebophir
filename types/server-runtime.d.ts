@@ -144,6 +144,7 @@ export type TurnstileSiteverifyResult = {
 
 export type ReportUserPayload = {
   socketId?: string;
+  banDurationMs?: number;
 };
 
 export type ValidationStatus = { ok: true } | { ok: false; reason: string };

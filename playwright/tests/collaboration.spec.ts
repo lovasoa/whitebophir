@@ -9,7 +9,7 @@ import {
   Rectangle,
 } from "../../client-data/tools/index.js";
 import { createBoardPage, expect, test } from "../fixtures/test";
-import { DEFAULT_FORWARDED_IP } from "../helpers/tokens";
+import { DEFAULT_FORWARDED_IP, TOKENS } from "../helpers/tokens";
 
 const rateLimitTest = test.extend({
   serverOptions: {
@@ -27,6 +27,10 @@ const bufferedRateLimitTest = test.extend({
       WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:10/60s anonymous:1/1s",
     },
   },
+});
+
+const moderatorPresenceTest = test.extend({
+  serverOptions: { useJWT: true },
 });
 
 test.describe("collaboration and rate limiting", () => {
@@ -158,6 +162,67 @@ test.describe("collaboration and rate limiting", () => {
     await peerPage.close();
     await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(1);
   });
+
+  moderatorPresenceTest(
+    "moderator ban dialog exposes fixed durations",
+    async ({ boardPage, browser, page, server }) => {
+      const boardName = "moderator-ban-duration-ui";
+      const targetContext = await browser.newContext();
+      const targetPage = await targetContext.newPage();
+      const targetBoard = createBoardPage(targetPage, server);
+
+      try {
+        await boardPage.setSocketHeaders({
+          "X-Forwarded-For": "198.51.100.120",
+        });
+        await targetBoard.setSocketHeaders({
+          "X-Forwarded-For": "198.51.100.121",
+        });
+
+        await Promise.all([
+          boardPage.gotoBoard(boardName, { token: TOKENS.globalModerator }),
+          targetBoard.gotoBoard(boardName, { token: TOKENS.globalEditor }),
+        ]);
+        await Promise.all([
+          boardPage.waitForSocketConnected(),
+          targetBoard.waitForSocketConnected(),
+        ]);
+        await page.evaluate(() => {
+          const socket = window.WBOApp.connection.socket as any;
+          if (!socket) throw new Error("Missing socket");
+          const emit = socket.emit.bind(socket);
+          window.__reportedUsers = [];
+          socket.emit = (event: string, ...args: unknown[]) => {
+            if (event === "report_user") {
+              window.__reportedUsers?.push(args[0] as any);
+            }
+            return emit(event, ...args);
+          };
+        });
+
+        await boardPage.connectedUsersToggle.click();
+        await expect(boardPage.connectedUsersPanel).toBeVisible();
+        await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+
+        await boardPage.reportFirstRemoteUser();
+        await expect(page.locator(".wbo-dialog")).toBeVisible();
+        await expect(page.locator(".wbo-ban-duration-button")).toHaveText([
+          "15m",
+          "24h",
+          "7d",
+        ]);
+
+        await page.getByRole("button", { name: "7d" }).click();
+        await expect
+          .poll(() =>
+            page.evaluate(() => window.__reportedUsers?.[0]?.banDurationMs),
+          )
+          .toBe(7 * 24 * 60 * 60 * 1000);
+      } finally {
+        await targetContext.close();
+      }
+    },
+  );
 
   test("people editing the same text field see each other's edits", async ({
     boardPage,

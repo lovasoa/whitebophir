@@ -2408,6 +2408,84 @@ test("moderator report bans reported secret and ip without disconnecting moderat
   );
 });
 
+test("moderator report uses requested ban duration", async () => {
+  const moderatorSecret = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad";
+  const targetSecret = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbd";
+  const boardName = "board-report-duration";
+  const now = 1000;
+  const banDurationMs = 2 * 60 * 60 * 1000;
+  const reports = require(
+    path.join(__dirname, "..", "server", "socket", "reports.mjs"),
+  );
+  const bans = require(
+    path.join(__dirname, "..", "server", "socket", "bans.mjs"),
+  );
+
+  await createSocketScenario(
+    {
+      historyDirPrefix: "wbo-users-report-ban-duration-",
+      config: {
+        BOARD_MODERATORS: new Map([[boardName, new Set([moderatorSecret])]]),
+      },
+    },
+    async ({ connect, sockets }) => {
+      const moderator = await connect({
+        id: "socket-mod-report-duration",
+        remoteAddress: "203.0.113.180",
+        headers: withUserSecretCookie(moderatorSecret),
+        query: { board: boardName, tool: "hand" },
+      });
+      const target = await connect({
+        id: "socket-target-report-duration",
+        remoteAddress: "203.0.113.181",
+        headers: withUserSecretCookie(targetSecret),
+        query: { board: boardName, tool: "hand" },
+      });
+
+      reports.handleReportUserMessage({
+        socket: moderator.socket,
+        boardName,
+        message: {
+          socketId: "socket-target-report-duration",
+          banDurationMs,
+        },
+        config: sockets.__config,
+        now,
+        /** @param {string} socketId */
+        getActiveSocket(socketId) {
+          if (socketId === moderator.socket.id) return moderator.socket;
+          if (socketId === target.socket.id) return target.socket;
+          return undefined;
+        },
+        /** @param {any} socket */
+        closeSocket(socket) {
+          socket.client.conn.close.call(socket.client.conn);
+        },
+      });
+
+      assert.equal(target.socket.client.conn.closeCalls.length, 1);
+      assert.equal(
+        bans.isEditBanned(
+          boardName,
+          targetSecret,
+          "203.0.113.181",
+          now + banDurationMs - 1,
+        ),
+        true,
+      );
+      assert.equal(
+        bans.isEditBanned(
+          boardName,
+          targetSecret,
+          "203.0.113.181",
+          now + banDurationMs,
+        ),
+        false,
+      );
+    },
+  );
+});
+
 test("moderator report ignores self targets without banning", async () => {
   const moderatorSecret = "abababababababababababababababab";
   await createSocketScenario(

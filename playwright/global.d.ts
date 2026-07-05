@@ -3,6 +3,7 @@ import type {
   AppToolsState,
   BoardMessage,
   DownloadCapture,
+  ReportUserPayload,
   SocketHeaders,
   TurnstileGlobal,
   TurnstileRenderOptions,
@@ -16,6 +17,7 @@ declare global {
     __downloadAnchorClicks?: number;
     __downloadBlob?: Blob;
     __receivedBroadcasts?: BoardMessage[];
+    __reportedUsers?: ReportUserPayload[];
     __turnstileMock?: {
       callbacks: TurnstileRenderOptions | null;
       complete(token: string): void;

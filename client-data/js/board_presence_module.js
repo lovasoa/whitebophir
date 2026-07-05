@@ -6,11 +6,13 @@ import MessageCommon from "./message_common.js";
 import { LIMITS } from "./message_limits.js";
 import { MutationType } from "./message_tool_metadata.js";
 import { SocketEvents } from "./socket_events.js";
+import { trapDialogFocus } from "./board_ui_module.js";
 import { createToolIconBadge, updateToolIconBadge } from "./tool_icon_badge.js";
 
 /** @import { AppToolsState, AttachedBoardDomModule, BoardMessage, ConnectedUser, ConnectedUserMap, HandChildMessage } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
-/** @typedef {{kind: "now"} | {kind: "duration", count: number, unit: "minute" | "hour" | "day", shortKey: string}} ConnectedUserRelativeTime */
+/** @typedef {"minute" | "hour" | "day"} ConnectedUserDurationUnit */
+/** @typedef {{kind: "now"} | {kind: "duration", count: number, unit: ConnectedUserDurationUnit, shortKey: string}} ConnectedUserRelativeTime */
 
 export class PresenceModule {
   /** @param {() => AppToolsState} getTools */
@@ -333,6 +335,23 @@ function getConnectedUserToolLabel(Tools, user) {
 
 const CONNECTED_USER_STALE_MS = 5 * 60 * 1000;
 const CONNECTED_USER_TIME_TICK_MS = 30 * 1000;
+const DURATION_UNIT_MS = {
+  minute: 60 * 1000,
+  hour: 60 * 60 * 1000,
+  day: 24 * 60 * 60 * 1000,
+};
+const DURATION_UNIT_SHORT_KEYS = {
+  minute: "relative_minutes_short",
+  hour: "relative_hours_short",
+  day: "relative_days_short",
+};
+/** @type {{durationMs: number, count: number, unit: ConnectedUserDurationUnit}[]} */
+const BAN_DURATION_OPTIONS = [
+  { durationMs: 15 * DURATION_UNIT_MS.minute, count: 15, unit: "minute" },
+  { durationMs: 24 * DURATION_UNIT_MS.hour, count: 24, unit: "hour" },
+  { durationMs: 7 * DURATION_UNIT_MS.day, count: 7, unit: "day" },
+];
+let banDurationDialogIdSequence = 0;
 
 /** @param {ConnectedUser} user */
 function clearConnectedUserTimers(user) {
@@ -343,36 +362,39 @@ function clearConnectedUserTimers(user) {
 }
 
 /**
+ * @param {number} count
+ * @param {ConnectedUserDurationUnit} unit
+ * @returns {Extract<ConnectedUserRelativeTime, {kind: "duration"}>}
+ */
+function getDurationPartState(count, unit) {
+  return {
+    kind: "duration",
+    count,
+    unit,
+    shortKey: DURATION_UNIT_SHORT_KEYS[unit],
+  };
+}
+
+/**
+ * @param {number} durationMs
+ * @returns {ConnectedUserRelativeTime}
+ */
+function getDurationTimeState(durationMs) {
+  const minutes = Math.floor(Math.max(0, durationMs) / DURATION_UNIT_MS.minute);
+  if (minutes < 1) return { kind: "now" };
+  if (minutes < 60) return getDurationPartState(minutes, "minute");
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return getDurationPartState(hours, "hour");
+  return getDurationPartState(Math.floor(hours / 24), "day");
+}
+
+/**
  * @param {number | undefined} timestamp
  * @returns {ConnectedUserRelativeTime}
  */
 function getRelativeTimeState(timestamp) {
   const elapsedMs = Math.max(0, Date.now() - (timestamp || Date.now()));
-  const minutes = Math.floor(elapsedMs / 60000);
-  if (minutes < 1) return { kind: "now" };
-  if (minutes < 60) {
-    return {
-      kind: "duration",
-      count: minutes,
-      unit: "minute",
-      shortKey: "relative_minutes_short",
-    };
-  }
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) {
-    return {
-      kind: "duration",
-      count: hours,
-      unit: "hour",
-      shortKey: "relative_hours_short",
-    };
-  }
-  return {
-    kind: "duration",
-    count: Math.floor(hours / 24),
-    unit: "day",
-    shortKey: "relative_days_short",
-  };
+  return getDurationTimeState(elapsedMs);
 }
 
 /**
@@ -385,6 +407,16 @@ function formatShortRelativeTime(Tools, relativeTime) {
   return Tools.i18n.format(relativeTime.shortKey, {
     count: `${relativeTime.count}`,
   });
+}
+
+/**
+ * @param {AppToolsState} Tools
+ * @param {number} count
+ * @param {ConnectedUserDurationUnit} unit
+ * @returns {string}
+ */
+function formatShortDurationPart(Tools, count, unit) {
+  return formatShortRelativeTime(Tools, getDurationPartState(count, unit));
 }
 
 /**
@@ -661,6 +693,96 @@ function getReportActionGlyph(Tools) {
 }
 
 /**
+ * @param {AppToolsState} Tools
+ * @param {ConnectedUser} connectedUser
+ * @returns {Promise<number | null>}
+ */
+function showBanDurationDialog(Tools, connectedUser) {
+  return new Promise((resolve) => {
+    const previousFocus =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const dialogId = ++banDurationDialogIdSequence;
+    const shell = Tools.ui.createModalShell();
+    const { overlay, dialog } = shell;
+    dialog.textContent = "";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+
+    const titleElement = document.createElement("div");
+    titleElement.className = "wbo-dialog-title";
+    titleElement.id = `wbo-ban-duration-title-${dialogId}`;
+    titleElement.textContent = Tools.i18n.format("ban_user_confirmation", {
+      name: getConnectedUserDisplayName(connectedUser),
+    });
+    dialog.setAttribute("aria-labelledby", titleElement.id);
+    dialog.appendChild(titleElement);
+
+    const DURATION_VARIANT_CLASSES = /** @type {const} */ ([
+      "wbo-dialog-button-secondary",
+      "wbo-dialog-button-warning",
+      "wbo-dialog-button-danger",
+    ]);
+
+    const durationOptions = document.createElement("div");
+    durationOptions.className = "wbo-ban-duration-options";
+    /** @type {HTMLButtonElement[]} */
+    const durationButtons = [];
+
+    BAN_DURATION_OPTIONS.forEach(({ durationMs, count, unit }, index) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `wbo-dialog-button wbo-ban-duration-button ${DURATION_VARIANT_CLASSES[index]}`;
+      button.textContent = formatShortDurationPart(Tools, count, unit);
+      button.addEventListener("click", () => settle(durationMs));
+      durationButtons.push(button);
+      durationOptions.appendChild(button);
+    });
+    dialog.appendChild(durationOptions);
+
+    const cancelButton = document.createElement("button");
+    cancelButton.type = "button";
+    cancelButton.className =
+      "wbo-dialog-button wbo-dialog-button-secondary wbo-ban-duration-cancel";
+    cancelButton.textContent = Tools.i18n.t("Cancel");
+    dialog.appendChild(cancelButton);
+
+    overlay.appendChild(dialog);
+
+    overlay.addEventListener("click", (evt) => {
+      if (evt.target === overlay) settle(null);
+    });
+
+    let settled = false;
+    /** @param {number | null} result */
+    function settle(result) {
+      if (settled) return;
+      settled = true;
+      shell.destroy();
+      previousFocus?.focus();
+      resolve(result);
+    }
+
+    function getFocusableElements() {
+      return [...durationButtons, cancelButton];
+    }
+
+    cancelButton.addEventListener("click", () => settle(null));
+    dialog.addEventListener("keydown", (evt) => {
+      if (evt.key === "Escape") {
+        evt.preventDefault();
+        settle(null);
+        return;
+      }
+      trapDialogFocus(getFocusableElements(), evt);
+    });
+
+    durationButtons[0]?.focus();
+  });
+}
+
+/**
  * @param {() => AppToolsState} getTools
  * @param {ConnectedUserRow} row
  * @param {ConnectedUser} user
@@ -826,30 +948,26 @@ function createConnectedUserRow(getTools, user, users) {
     ) {
       return;
     }
-    const reportConnectedUser = () => {
+    /** @param {number | undefined} banDurationMs */
+    const reportConnectedUser = (banDurationMs) => {
       connectedUser.reported = true;
       updateConnectedUserRow(getTools, row, connectedUser);
-      socket.emit(SocketEvents.REPORT_USER, {
+      /** @type {import("../../types/app-runtime").ReportUserPayload} */
+      const payload = {
         socketId: connectedUser.socketId,
-      });
+      };
+      if (banDurationMs !== undefined) payload.banDurationMs = banDurationMs;
+      socket.emit(SocketEvents.REPORT_USER, payload);
     };
     if (Tools.access.canClear === true) {
-      const name = getConnectedUserDisplayName(connectedUser);
-      void Tools.ui
-        .confirm({
-          message: Tools.i18n.format("ban_user_confirmation", {
-            name,
-          }),
-          confirmLabel: Tools.i18n.t("Ban"),
-          cancelLabel: Tools.i18n.t("Cancel"),
-          variant: "danger",
-        })
-        .then((confirmed) => {
-          if (confirmed) reportConnectedUser();
-        });
+      void showBanDurationDialog(Tools, connectedUser).then((banDurationMs) => {
+        if (banDurationMs !== null) {
+          reportConnectedUser(banDurationMs);
+        }
+      });
       return;
     }
-    reportConnectedUser();
+    reportConnectedUser(undefined);
   });
   row.appendChild(report);
 

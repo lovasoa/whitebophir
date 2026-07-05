@@ -96,6 +96,22 @@ body {
   white-space: pre-line;
 }
 
+.wbo-ban-duration-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.wbo-ban-duration-button {
+  width: 100%;
+}
+
+.wbo-ban-duration-cancel {
+  width: 100%;
+  margin-top: 8px;
+}
+
 .wbo-dialog-actions {
   display: flex;
   justify-content: flex-end;
@@ -128,6 +144,12 @@ body {
   border-color: var(--board-accent-strong);
   background: var(--board-accent);
   color: #111827;
+}
+
+.wbo-dialog-button-warning {
+  border-color: #b45309;
+  background: #d97706;
+  color: #ffffff;
 }
 
 .wbo-dialog-button-danger {
