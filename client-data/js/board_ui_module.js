@@ -55,6 +55,24 @@
  */
 
 /**
+ * @template T
+ * @typedef {{
+ *   label: string,
+ *   value: T,
+ *   variant?: "secondary" | "warning" | "danger",
+ * }} ChoiceDialogOption
+ */
+
+/**
+ * @template T
+ * @typedef {{
+ *   message: string,
+ *   choices: ChoiceDialogOption<T>[],
+ *   cancelLabel?: string,
+ * }} ChoiceDialogOptions
+ */
+
+/**
  * @typedef {{
  *   overlayId?: string,
  *   dialogId?: string,
@@ -421,6 +439,86 @@ export function showConfirmDialog({
   });
 }
 
+/**
+ * @template T
+ * @param {ChoiceDialogOptions<T>} options
+ * @returns {Promise<T | null>}
+ */
+export function showChoiceDialog({ message, choices, cancelLabel = "Cancel" }) {
+  return new Promise((resolve) => {
+    const previousFocus =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const dialogId = ++dialogIdSequence;
+    const shell = createModalShell();
+    const { overlay, dialog } = shell;
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+
+    const titleElement = document.createElement("div");
+    titleElement.className = "wbo-dialog-title";
+    titleElement.id = `wbo-dialog-title-${dialogId}`;
+    titleElement.textContent = message;
+    dialog.setAttribute("aria-labelledby", titleElement.id);
+    dialog.appendChild(titleElement);
+
+    const choicesContainer = document.createElement("div");
+    choicesContainer.className = "wbo-dialog-choices";
+    /** @type {HTMLButtonElement[]} */
+    const choiceButtons = [];
+
+    for (const choice of choices) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "wbo-dialog-button wbo-dialog-choice-button";
+      if (choice.variant) {
+        button.classList.add(`wbo-dialog-button-${choice.variant}`);
+      }
+      button.textContent = choice.label;
+      button.addEventListener("click", () => settle(choice.value));
+      choiceButtons.push(button);
+      choicesContainer.appendChild(button);
+    }
+    dialog.appendChild(choicesContainer);
+
+    const cancelButton = document.createElement("button");
+    cancelButton.type = "button";
+    cancelButton.className =
+      "wbo-dialog-button wbo-dialog-button-secondary wbo-dialog-choice-cancel";
+    cancelButton.textContent = cancelLabel;
+    dialog.appendChild(cancelButton);
+
+    let settled = false;
+    /** @param {T | null} result */
+    function settle(result) {
+      if (settled) return;
+      settled = true;
+      shell.destroy();
+      previousFocus?.focus();
+      resolve(result);
+    }
+
+    const focusables = [...choiceButtons, cancelButton];
+
+    cancelButton.addEventListener("click", () => settle(null));
+    dialog.addEventListener("keydown", (evt) => {
+      if (evt.key === "Escape") {
+        evt.preventDefault();
+        settle(null);
+        return;
+      }
+      trapDialogFocus(focusables, evt);
+    });
+
+    overlay.addEventListener("click", (evt) => {
+      if (evt.target === overlay) settle(null);
+    });
+
+    choiceButtons[0]?.focus();
+  });
+}
+
 export class UiModule {
   /** @param {AnchoredPanelPositionOptions} options */
   positionAnchoredPanel(options) {
@@ -440,5 +538,10 @@ export class UiModule {
   /** @param {ConfirmDialogOptions} options */
   confirm(options) {
     return showConfirmDialog(options);
+  }
+
+  /** @template T @param {ChoiceDialogOptions<T>} options */
+  showChoiceDialog(options) {
+    return showChoiceDialog(options);
   }
 }
