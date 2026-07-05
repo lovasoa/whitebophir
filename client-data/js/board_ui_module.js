@@ -264,27 +264,6 @@ export function createFloatingPanelController(options) {
 }
 
 /**
- * @param {HTMLElement[]} elements
- * @param {KeyboardEvent} event
- */
-export function trapDialogFocus(elements, event) {
-  if (event.key !== "Tab") return;
-  const currentIndex = elements.indexOf(
-    /** @type {HTMLElement} */ (document.activeElement),
-  );
-  if (currentIndex === -1) return;
-  const nextIndex = event.shiftKey
-    ? currentIndex <= 0
-      ? elements.length - 1
-      : currentIndex - 1
-    : currentIndex >= elements.length - 1
-      ? 0
-      : currentIndex + 1;
-  event.preventDefault();
-  elements[nextIndex]?.focus();
-}
-
-/**
  * @param {HTMLElement} element
  * @param {string | undefined} className
  */
