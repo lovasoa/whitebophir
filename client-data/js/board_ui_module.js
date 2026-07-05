@@ -352,6 +352,44 @@ export function createModalShell(options = {}) {
 }
 
 /**
+ * @template T
+ * @param {T | null} closeValue
+ * @param {(dialog: HTMLDialogElement, settle: (result: T | null) => void) => void} render
+ * @returns {Promise<T | null>}
+ */
+function showModalDialog(closeValue, render) {
+  return new Promise((resolve) => {
+    const previousFocus =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const dialog = document.createElement("dialog");
+    dialog.className = "wbo-dialog";
+
+    let settled = false;
+    /** @param {T | null} result */
+    function settle(result) {
+      if (settled) return;
+      settled = true;
+      dialog.close();
+      dialog.remove();
+      previousFocus?.focus();
+      resolve(result);
+    }
+
+    dialog.addEventListener("close", () => settle(closeValue));
+    dialog.addEventListener("click", (evt) => {
+      if (evt.target === dialog) settle(closeValue);
+    });
+
+    render(dialog, settle);
+
+    document.body.appendChild(dialog);
+    dialog.showModal();
+  });
+}
+
+/**
  * @param {ConfirmDialogOptions} options
  * @returns {Promise<boolean>}
  */
@@ -362,70 +400,47 @@ export function showConfirmDialog({
   cancelLabel = "Cancel",
   variant = "default",
 }) {
-  return new Promise((resolve) => {
-    const previousFocus =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
-    const dialog = document.createElement("dialog");
-    dialog.className = "wbo-dialog";
+  return /** @type {Promise<boolean>} */ (
+    showModalDialog(false, (dialog, settle) => {
+      if (title) {
+        const titleElement = document.createElement("div");
+        titleElement.className = "wbo-dialog-title";
+        titleElement.textContent = title;
+        dialog.appendChild(titleElement);
+      } else {
+        dialog.setAttribute("aria-label", confirmLabel);
+      }
 
-    if (title) {
-      const titleElement = document.createElement("div");
-      titleElement.className = "wbo-dialog-title";
-      titleElement.textContent = title;
-      dialog.appendChild(titleElement);
-    } else {
-      dialog.setAttribute("aria-label", confirmLabel);
-    }
+      const messageElement = document.createElement("div");
+      messageElement.className = "wbo-dialog-message";
+      messageElement.textContent = message;
+      dialog.appendChild(messageElement);
 
-    const messageElement = document.createElement("div");
-    messageElement.className = "wbo-dialog-message";
-    messageElement.textContent = message;
-    dialog.appendChild(messageElement);
+      const actions = document.createElement("div");
+      actions.className = "wbo-dialog-actions";
 
-    const actions = document.createElement("div");
-    actions.className = "wbo-dialog-actions";
+      const cancelButton = document.createElement("button");
+      cancelButton.type = "button";
+      cancelButton.className = "wbo-dialog-button wbo-dialog-button-secondary";
+      cancelButton.textContent = cancelLabel;
+      cancelButton.addEventListener("click", () => settle(false));
 
-    const cancelButton = document.createElement("button");
-    cancelButton.type = "button";
-    cancelButton.className = "wbo-dialog-button wbo-dialog-button-secondary";
-    cancelButton.textContent = cancelLabel;
+      const confirmButton = document.createElement("button");
+      confirmButton.type = "button";
+      confirmButton.className =
+        variant === "danger"
+          ? "wbo-dialog-button wbo-dialog-button-danger"
+          : "wbo-dialog-button wbo-dialog-button-primary";
+      confirmButton.textContent = confirmLabel;
+      confirmButton.addEventListener("click", () => settle(true));
 
-    const confirmButton = document.createElement("button");
-    confirmButton.type = "button";
-    confirmButton.className =
-      variant === "danger"
-        ? "wbo-dialog-button wbo-dialog-button-danger"
-        : "wbo-dialog-button wbo-dialog-button-primary";
-    confirmButton.textContent = confirmLabel;
+      actions.appendChild(cancelButton);
+      actions.appendChild(confirmButton);
+      dialog.appendChild(actions);
 
-    actions.appendChild(cancelButton);
-    actions.appendChild(confirmButton);
-    dialog.appendChild(actions);
-
-    let settled = false;
-    /** @param {boolean} result */
-    function settle(result) {
-      if (settled) return;
-      settled = true;
-      dialog.close();
-      dialog.remove();
-      previousFocus?.focus();
-      resolve(result);
-    }
-
-    cancelButton.addEventListener("click", () => settle(false));
-    confirmButton.addEventListener("click", () => settle(true));
-    dialog.addEventListener("close", () => settle(false));
-    dialog.addEventListener("click", (evt) => {
-      if (evt.target === dialog) settle(false);
-    });
-
-    document.body.appendChild(dialog);
-    dialog.showModal();
-    cancelButton.focus();
-  });
+      cancelButton.focus();
+    })
+  );
 }
 
 /**
@@ -434,14 +449,7 @@ export function showConfirmDialog({
  * @returns {Promise<T | null>}
  */
 export function showChoiceDialog({ message, choices, cancelLabel = "Cancel" }) {
-  return new Promise((resolve) => {
-    const previousFocus =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
-    const dialog = document.createElement("dialog");
-    dialog.className = "wbo-dialog";
-
+  return showModalDialog(/** @type {T | null} */ (null), (dialog, settle) => {
     const titleElement = document.createElement("div");
     titleElement.className = "wbo-dialog-title";
     titleElement.textContent = message;
@@ -471,27 +479,9 @@ export function showChoiceDialog({ message, choices, cancelLabel = "Cancel" }) {
     cancelButton.className =
       "wbo-dialog-button wbo-dialog-button-secondary wbo-dialog-choice-cancel";
     cancelButton.textContent = cancelLabel;
+    cancelButton.addEventListener("click", () => settle(null));
     dialog.appendChild(cancelButton);
 
-    let settled = false;
-    /** @param {T | null} result */
-    function settle(result) {
-      if (settled) return;
-      settled = true;
-      dialog.close();
-      dialog.remove();
-      previousFocus?.focus();
-      resolve(result);
-    }
-
-    cancelButton.addEventListener("click", () => settle(null));
-    dialog.addEventListener("close", () => settle(null));
-    dialog.addEventListener("click", (evt) => {
-      if (evt.target === dialog) settle(null);
-    });
-
-    document.body.appendChild(dialog);
-    dialog.showModal();
     choiceButtons[0]?.focus();
   });
 }
