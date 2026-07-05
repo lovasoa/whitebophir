@@ -505,10 +505,9 @@ test.describe("drawing and persistence", () => {
       await expect(visibleStroke).toHaveCount(1);
       await expect(boardPage.statusIndicator).toBeVisible();
 
-      peerPage.once("dialog", async (dialog) => {
-        await dialog.accept();
-      });
       await peerBoard.tool("clear").click();
+      await expect(peerPage.locator(".wbo-dialog")).toBeVisible();
+      await peerPage.locator(".wbo-dialog-button-danger").click();
       await page.mouse.up();
 
       await expect(boardPage.statusIndicator).toBeHidden();

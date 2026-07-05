@@ -90,18 +90,17 @@ test.describe("JWT auth and readonly flows", () => {
     await expect(boardPage.tool("clear")).toBeVisible();
     await expect(page.locator(clearSelector)).toBeVisible();
 
-    page.once("dialog", async (dialog) => {
-      expect(dialog.message()).toContain("WARNING");
-      await dialog.dismiss();
-    });
     await boardPage.tool("clear").click();
+    await expect(page.locator(".wbo-dialog-message")).toContainText("WARNING");
+    await page.locator(".wbo-dialog-button-secondary").click();
+    await expect(page.locator(".wbo-dialog")).toHaveCount(0);
     await expect(page.locator(clearSelector)).toBeVisible();
 
-    page.once("dialog", async (dialog) => {
-      expect(dialog.message()).toContain("permanently clear the entire board");
-      await dialog.accept();
-    });
     await boardPage.tool("clear").click();
+    await expect(page.locator(".wbo-dialog-message")).toContainText(
+      "permanently clear the entire board",
+    );
+    await page.locator(".wbo-dialog-button-danger").click();
     await server.waitForStoredBoard(
       server.dataPath,
       "readonly-clear",

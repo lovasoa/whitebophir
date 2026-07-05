@@ -45,6 +45,18 @@
  */
 
 /**
+ * @typedef {{
+ *   message: string,
+ *   title?: string,
+ *   confirmLabel?: string,
+ *   cancelLabel?: string,
+ *   variant?: "default" | "danger",
+ * }} ConfirmDialogOptions
+ */
+
+let dialogIdSequence = 0;
+
+/**
  * @param {number} value
  * @param {number} min
  * @param {number} max
@@ -214,6 +226,117 @@ export function createFloatingPanelController(options) {
   };
 }
 
+/**
+ * @param {HTMLElement[]} elements
+ * @param {KeyboardEvent} event
+ */
+function trapDialogFocus(elements, event) {
+  if (event.key !== "Tab") return;
+  const currentIndex = elements.indexOf(
+    /** @type {HTMLElement} */ (document.activeElement),
+  );
+  if (currentIndex === -1) return;
+  const nextIndex = event.shiftKey
+    ? currentIndex <= 0
+      ? elements.length - 1
+      : currentIndex - 1
+    : currentIndex >= elements.length - 1
+      ? 0
+      : currentIndex + 1;
+  event.preventDefault();
+  elements[nextIndex]?.focus();
+}
+
+/**
+ * @param {ConfirmDialogOptions} options
+ * @returns {Promise<boolean>}
+ */
+export function showConfirmDialog({
+  message,
+  title,
+  confirmLabel = "OK",
+  cancelLabel = "Cancel",
+  variant = "default",
+}) {
+  return new Promise((resolve) => {
+    const previousFocus =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const dialogId = ++dialogIdSequence;
+    const overlay = document.createElement("div");
+    overlay.className = "wbo-modal-backdrop";
+
+    const dialog = document.createElement("div");
+    dialog.className = "wbo-dialog";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+
+    if (title) {
+      const titleElement = document.createElement("div");
+      titleElement.className = "wbo-dialog-title";
+      titleElement.id = `wbo-dialog-title-${dialogId}`;
+      titleElement.textContent = title;
+      dialog.setAttribute("aria-labelledby", titleElement.id);
+      dialog.appendChild(titleElement);
+    } else {
+      dialog.setAttribute("aria-label", confirmLabel);
+    }
+
+    const messageElement = document.createElement("div");
+    messageElement.className = "wbo-dialog-message";
+    messageElement.id = `wbo-dialog-message-${dialogId}`;
+    messageElement.textContent = message;
+    dialog.setAttribute("aria-describedby", messageElement.id);
+    dialog.appendChild(messageElement);
+
+    const actions = document.createElement("div");
+    actions.className = "wbo-dialog-actions";
+
+    const cancelButton = document.createElement("button");
+    cancelButton.type = "button";
+    cancelButton.className = "wbo-dialog-button wbo-dialog-button-secondary";
+    cancelButton.textContent = cancelLabel;
+
+    const confirmButton = document.createElement("button");
+    confirmButton.type = "button";
+    confirmButton.className =
+      variant === "danger"
+        ? "wbo-dialog-button wbo-dialog-button-danger"
+        : "wbo-dialog-button wbo-dialog-button-primary";
+    confirmButton.textContent = confirmLabel;
+
+    actions.appendChild(cancelButton);
+    actions.appendChild(confirmButton);
+    dialog.appendChild(actions);
+    overlay.appendChild(dialog);
+
+    let settled = false;
+    /** @param {boolean} result */
+    function settle(result) {
+      if (settled) return;
+      settled = true;
+      overlay.remove();
+      previousFocus?.focus();
+      resolve(result);
+    }
+
+    cancelButton.addEventListener("click", () => settle(false));
+    confirmButton.addEventListener("click", () => settle(true));
+    dialog.addEventListener("keydown", (evt) => {
+      if (evt.key === "Escape") {
+        evt.preventDefault();
+        settle(false);
+        return;
+      }
+      trapDialogFocus([cancelButton, confirmButton], evt);
+    });
+
+    document.body.appendChild(overlay);
+    cancelButton.focus();
+  });
+}
+
 export class UiModule {
   /** @param {AnchoredPanelPositionOptions} options */
   positionAnchoredPanel(options) {
@@ -223,5 +346,10 @@ export class UiModule {
   /** @param {FloatingPanelControllerOptions} options */
   createFloatingPanelController(options) {
     return createFloatingPanelController(options);
+  }
+
+  /** @param {ConfirmDialogOptions} options */
+  confirm(options) {
+    return showConfirmDialog(options);
   }
 }

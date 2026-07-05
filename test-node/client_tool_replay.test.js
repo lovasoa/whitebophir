@@ -1025,6 +1025,16 @@ function createUnavailableViewportRuntime() {
   };
 }
 
+function createUnavailableUiRuntime() {
+  return {
+    positionAnchoredPanel: () =>
+      unavailableCapability("ui.positionAnchoredPanel"),
+    createFloatingPanelController: () =>
+      unavailableCapability("ui.createFloatingPanelController"),
+    confirm: () => unavailableCapability("ui.confirm"),
+  };
+}
+
 /**
  * @param {any} tools
  * @returns {ToolRuntimeModules}
@@ -1055,6 +1065,7 @@ function createInputToolRuntime(tools) {
     i18n: tools.i18n || {
       t: (s) => s,
     },
+    ui: tools.ui || createUnavailableUiRuntime(),
     ids: tools.ids,
     messages: {
       messageForTool: () => unavailableCapability("messages.messageForTool"),
@@ -1085,6 +1096,7 @@ function createHarnessToolRuntime(app) {
     presence: app.presence,
     config: app.config,
     i18n: app.i18n,
+    ui: app.ui,
     ids: app.ids,
     messages: app.messages,
     permissions: app.access,

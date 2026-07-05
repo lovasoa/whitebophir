@@ -816,7 +816,8 @@ function createConnectedUserRow(getTools, user, users) {
     evt.preventDefault();
     evt.stopPropagation();
     const Tools = getTools();
-    if (!Tools.connection.socket || !row.dataset.socketId) return;
+    const socket = Tools.connection.socket;
+    if (!socket || !row.dataset.socketId) return;
     const connectedUser = users.get(row.dataset.socketId);
     if (
       !connectedUser ||
@@ -825,23 +826,30 @@ function createConnectedUserRow(getTools, user, users) {
     ) {
       return;
     }
+    const reportConnectedUser = () => {
+      connectedUser.reported = true;
+      updateConnectedUserRow(getTools, row, connectedUser);
+      socket.emit(SocketEvents.REPORT_USER, {
+        socketId: connectedUser.socketId,
+      });
+    };
     if (Tools.access.canClear === true) {
       const name = getConnectedUserDisplayName(connectedUser);
-      if (
-        !window.confirm(
-          Tools.i18n.format("ban_user_confirmation", {
+      void Tools.ui
+        .confirm({
+          message: Tools.i18n.format("ban_user_confirmation", {
             name,
           }),
-        )
-      ) {
-        return;
-      }
+          confirmLabel: Tools.i18n.t("Ban"),
+          cancelLabel: Tools.i18n.t("Cancel"),
+          variant: "danger",
+        })
+        .then((confirmed) => {
+          if (confirmed) reportConnectedUser();
+        });
+      return;
     }
-    connectedUser.reported = true;
-    updateConnectedUserRow(getTools, row, connectedUser);
-    Tools.connection.socket.emit(SocketEvents.REPORT_USER, {
-      socketId: connectedUser.socketId,
-    });
+    reportConnectedUser();
   });
   row.appendChild(report);
 

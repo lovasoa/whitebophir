@@ -716,6 +716,7 @@ export function createToolRuntimeModules(mountedTools, ownerToolName = "") {
     },
     config: mountedTools.config,
     i18n: mountedTools.i18n,
+    ui: mountedTools.ui,
     ids: mountedTools.ids,
     connection: mountedTools.connection,
     presence: mountedTools.presence,
