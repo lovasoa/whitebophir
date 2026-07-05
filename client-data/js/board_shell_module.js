@@ -141,79 +141,38 @@ export class BoardShellModule {
     const styleTool = styleToolElement;
 
     const positionStylePanel = () => {
-      const rect = styleSummary.getBoundingClientRect();
-      const margin = 8;
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const panelWidth = stylePanel.offsetWidth || 200;
-      const panelHeight = stylePanel.offsetHeight || 0;
-
-      let left = rect.right + STYLE_PANEL_GAP_PX;
-      if (left + panelWidth > vw - margin) {
-        left = rect.left - STYLE_PANEL_GAP_PX - panelWidth;
-      }
-      left = Math.max(margin, Math.min(left, vw - margin - panelWidth));
-
-      const availableHeight = vh - 2 * margin;
-      stylePanel.style.maxHeight = `${availableHeight}px`;
-      stylePanel.style.overflowY = panelHeight > availableHeight ? "auto" : "";
-
-      let top =
-        rect.top + panelHeight <= vh - margin
-          ? rect.top
-          : rect.bottom - panelHeight;
-      top = Math.max(margin, Math.min(top, vh - margin - panelHeight));
-
-      stylePanel.style.left = `${left}px`;
-      stylePanel.style.top = `${top}px`;
+      Tools.ui.positionAnchoredPanel({
+        anchor: styleSummary,
+        panel: stylePanel,
+        gap: STYLE_PANEL_GAP_PX,
+        margin: 8,
+        fallbackWidth: 200,
+      });
     };
 
-    const syncStylePanelPosition = () => {
-      if (
+    const stylePanelController = Tools.ui.createFloatingPanelController({
+      panel: stylePanel,
+      isOpen: () =>
         styleTool.open ||
-        styleToolMenu.classList.contains("style-tool-hover-open")
-      ) {
-        positionStylePanel();
-      }
-    };
-
-    /** @type {ReturnType<typeof setTimeout> | null} */
-    let stylePanelCloseTimer = null;
-    const cancelStylePanelClose = () => {
-      if (stylePanelCloseTimer === null) return;
-      clearTimeout(stylePanelCloseTimer);
-      stylePanelCloseTimer = null;
-    };
-
-    const openStylePanelOnHover = () => {
-      if (styleTool.open) return;
-      cancelStylePanelClose();
-      styleToolMenu.classList.add("style-tool-hover-open");
-      positionStylePanel();
-    };
-
-    const closeStylePanelOnHoverOut = () => {
-      cancelStylePanelClose();
-      stylePanelCloseTimer = setTimeout(() => {
+        styleToolMenu.classList.contains("style-tool-hover-open"),
+      open: () => {
+        if (!styleTool.open) {
+          styleToolMenu.classList.add("style-tool-hover-open");
+        }
+      },
+      close: () => {
         styleToolMenu.classList.remove("style-tool-hover-open");
-        stylePanelCloseTimer = null;
-      }, STYLE_PANEL_CLOSE_MS);
-    };
+      },
+      position: positionStylePanel,
+      hoverElements: [styleToolMenu, stylePanel],
+      closeDelayMs: STYLE_PANEL_CLOSE_MS,
+      closeOnEscape: false,
+    });
 
     styleTool.addEventListener("toggle", () => {
-      cancelStylePanelClose();
+      stylePanelController.cancelClose();
       styleToolMenu.classList.remove("style-tool-hover-open");
-      if (styleTool.open) positionStylePanel();
-    });
-    styleToolMenu.addEventListener("mouseenter", openStylePanelOnHover);
-    styleToolMenu.addEventListener("mouseleave", closeStylePanelOnHoverOut);
-    stylePanel.addEventListener("mouseenter", openStylePanelOnHover);
-    stylePanel.addEventListener("mouseleave", closeStylePanelOnHoverOut);
-    window.addEventListener("resize", syncStylePanelPosition, {
-      passive: true,
-    });
-    window.visualViewport?.addEventListener("resize", syncStylePanelPosition, {
-      passive: true,
+      if (styleTool.open) stylePanelController.syncPosition();
     });
 
     Tools.preferences.colorChooser = colorChooser;
