@@ -1,11 +1,9 @@
 import {
-  TOOL_BY_ID,
-  TOOL_BY_STORED_TAG_NAME,
-} from "../../client-data/tools/index.js";
-import {
   renderPencilPath,
   scanPathSummary,
-} from "../../client-data/tools/pencil/index.js";
+  TOOL_CONTRACT_BY_ID as TOOL_BY_ID,
+  TOOL_CONTRACT_BY_STORED_TAG_NAME as TOOL_BY_STORED_TAG_NAME,
+} from "../../client-data/tools/contracts.js";
 import { readRawAttribute } from "./svg_envelope.mjs";
 import { decodedTextLength, escapeHtml, unescapeHtml } from "./xml_escape.mjs";
 

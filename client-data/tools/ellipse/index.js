@@ -1,3 +1,4 @@
+import { EllipseContract } from "../contracts.js";
 import {
   constrainEqualSpanToBoard,
   createShapeToolBoot,
@@ -5,7 +6,6 @@ import {
   makeSeedShapeCreateMessage,
   moveShapeTool,
 } from "../shape_tool.js";
-import { TOOL_CODE_BY_ID } from "../tool-order.js";
 
 export {
   cancelShapeToolTouchGesture as cancelTouchGesture,
@@ -15,91 +15,11 @@ export {
   releaseShapeTool as release,
 } from "../shape_tool.js";
 
-import {
-  defineShapeContract,
-  serializeStoredShapeTag,
-  summarizeStoredShape,
-} from "../shape_contract.js";
-
 export const toolId = "ellipse";
-const toolCode = TOOL_CODE_BY_ID[toolId];
 export const drawsOnBoard = true;
 export const mouseCursor = "crosshair";
 
-const contract = defineShapeContract({
-  toolId,
-  toolCode,
-  storedTagName: "ellipse",
-  updatableFields: /** @type {const} */ (["x", "y", "x2", "y2"]),
-  summarizeStoredSvgItem(entry, paintOrder, helpers) {
-    const cx = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "cx"));
-    const cy = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "cy"));
-    const rx = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "rx"));
-    const ry = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "ry"));
-    const size = helpers.parseNumber(
-      helpers.readStoredSvgAttribute(entry, "stroke-width"),
-    );
-    if (
-      cx === undefined ||
-      cy === undefined ||
-      rx === undefined ||
-      ry === undefined ||
-      size === undefined
-    ) {
-      return null;
-    }
-    return summarizeStoredShape(
-      {
-        id: helpers.id,
-        tool: toolId,
-        paintOrder,
-        data: {
-          x: cx - rx,
-          y: cy - ry,
-          x2: cx + rx,
-          y2: cy + ry,
-          color: helpers.readStoredSvgAttribute(entry, "stroke") || "#000000",
-          size,
-        },
-        localBounds: {
-          minX: cx - rx,
-          minY: cy - ry,
-          maxX: cx + rx,
-          maxY: cy + ry,
-        },
-      },
-      helpers.opacity,
-      helpers.transform,
-      helpers.decorateStoredItemData,
-    );
-  },
-  serializeStoredSvgItem(item, helpers) {
-    const x = helpers.numberOrZero(item.x);
-    const y = helpers.numberOrZero(item.y);
-    const x2 = helpers.numberOrZero(item.x2);
-    const y2 = helpers.numberOrZero(item.y2);
-    return serializeStoredShapeTag(
-      "ellipse",
-      ` cx="${Math.round((x + x2) / 2)}" cy="${Math.round((y + y2) / 2)}" rx="${Math.abs(x2 - x) / 2}" ry="${Math.abs(y2 - y) / 2}"`,
-      item,
-      helpers,
-    );
-  },
-  renderBoardSvg(shape, helpers) {
-    const x = helpers.numberOrZero(shape.x);
-    const y = helpers.numberOrZero(shape.y);
-    const x2 = helpers.numberOrZero(shape.x2);
-    const y2 = helpers.numberOrZero(shape.y2);
-    const cx = Math.round((x2 + x) / 2);
-    const cy = Math.round((y2 + y) / 2);
-    const rx = Math.abs(x2 - x) / 2;
-    const ry = Math.abs(y2 - y) / 2;
-    return helpers.renderPath(
-      shape,
-      `M${cx - rx} ${cy}a${rx},${ry} 0 1,0 ${rx * 2},0a${rx},${ry} 0 1,0 ${rx * -2},0`,
-    );
-  },
-});
+const contract = EllipseContract;
 
 /** @typedef {import("../shape_tool.js").ShapeCreateMessage<typeof contract.toolCode>} EllipseCreateMessage */
 /** @typedef {import("../shape_tool.js").ShapeBoxUpdateMessage<typeof contract.toolCode>} EllipseUpdateMessage */
