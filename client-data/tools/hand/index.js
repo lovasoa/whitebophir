@@ -59,7 +59,7 @@ import { TOOL_CODE_BY_ID } from "../tool-order.js";
 /** @typedef {HandPointSelection | HandScaleSelection | HandPanSelection | null} HandSelection */
 /** @typedef {{x: number, y: number} | {a: number, d: number, e: number, f: number} | undefined} SelectionRectTransform */
 /** @typedef {(x: number, y: number, force: boolean) => void} HandTransformHandler */
-/** @typedef {(e: { key: string, target: EventTarget | null }) => void} HandShortcutHandler */
+/** @typedef {(e: { key: string, target: EventTarget | null, ctrlKey?: boolean, metaKey?: boolean, altKey?: boolean, preventDefault?: () => void }) => void} HandShortcutHandler */
 /** @typedef {{ name: string, icon: string, active: boolean, switch?: () => void }} HandSecondary */
 /** @typedef {import("../../js/intersect.js").Point2D} Point2D */
 /** @typedef {import("../../js/intersect.js").TransformedBBox} TransformedBBox */
@@ -278,6 +278,7 @@ function createInitialState(Tools, assetUrl) {
     selectionButtons: /** @type {SelectionButton[]} */ ([]),
     boundDeleteShortcut: /** @type {HandShortcutHandler} */ (() => {}),
     boundDuplicateShortcut: /** @type {HandShortcutHandler} */ (() => {}),
+    boundSelectAllShortcut: /** @type {HandShortcutHandler} */ (() => {}),
     secondary: /** @type {HandSecondary | null} */ (null),
   };
 }
@@ -389,6 +390,7 @@ function createState(Tools, assetUrl) {
   });
   state.boundDeleteShortcut = (e) => deleteShortcut(state, e);
   state.boundDuplicateShortcut = (e) => duplicateShortcut(state, e);
+  state.boundSelectAllShortcut = (e) => selectAllShortcut(state, e);
   state.secondary = Tools.permissions.canEdit
     ? {
         name: "Selector",
@@ -931,6 +933,64 @@ function finishSelection(state, selected, runId) {
 
 /**
  * @param {HandState} state
+ * @param {(SVGGraphicsElement & { id: string })[]} elements
+ * @returns {void}
+ */
+function updateSelectionRectFromElements(state, elements) {
+  let bounds = null;
+  for (let i = 0; i < elements.length; i++) {
+    const element = elements[i];
+    if (!element) continue;
+    const rect = transformedBBoxToBoardRect(element.transformedBBox());
+    bounds = bounds
+      ? {
+          x: Math.min(bounds.x, rect.x),
+          y: Math.min(bounds.y, rect.y),
+          width:
+            Math.max(bounds.x + bounds.width, rect.x + rect.width) -
+            Math.min(bounds.x, rect.x),
+          height:
+            Math.max(bounds.y + bounds.height, rect.y + rect.height) -
+            Math.min(bounds.y, rect.y),
+        }
+      : rect;
+  }
+  if (!bounds) {
+    hideSelectionUI(state);
+    return;
+  }
+  state.selectionRect.x.baseVal.value = bounds.x;
+  state.selectionRect.y.baseVal.value = bounds.y;
+  state.selectionRect.width.baseVal.value = bounds.width;
+  state.selectionRect.height.baseVal.value = bounds.height;
+  state.selectionRect.style.display = "";
+  const tmatrix = getTransformMatrix(state, state.selectionRect);
+  tmatrix.a = 1;
+  tmatrix.b = 0;
+  tmatrix.c = 0;
+  tmatrix.d = 1;
+  tmatrix.e = 0;
+  tmatrix.f = 0;
+  syncSelectionChrome(state);
+}
+
+/** @param {HandState} state */
+function selectAllElements(state) {
+  state.selected = null;
+  state.selectorState = state.selectorStates.pointing;
+  state.currentTransform = null;
+  state.transformElements = [];
+  state.selectedEls = getSelectableElements(state);
+  if (state.selectedEls.length === 0) {
+    hideSelectionUI(state);
+    return;
+  }
+  updateSelectionRectFromElements(state, state.selectedEls);
+  showSelectionButtons(state);
+}
+
+/**
+ * @param {HandState} state
  * @param {number} runId
  * @returns {Promise<void> | void}
  */
@@ -1338,6 +1398,7 @@ function resetHandUiState(state) {
   hideSelectionUI(state);
   window.removeEventListener("keydown", state.boundDeleteShortcut);
   window.removeEventListener("keydown", state.boundDuplicateShortcut);
+  window.removeEventListener("keydown", state.boundSelectAllShortcut);
 }
 
 /**
@@ -1405,12 +1466,28 @@ function duplicateShortcut(state, e) {
   }
 }
 
+/** @param {HandState} state @param {{ key: string, target: EventTarget | null, ctrlKey?: boolean, metaKey?: boolean, altKey?: boolean, preventDefault?: () => void }} e */
+function selectAllShortcut(state, e) {
+  if (
+    e.key.toLowerCase() !== "a" ||
+    !(e.ctrlKey || e.metaKey) ||
+    e.altKey ||
+    (isMatchableTarget(e.target) &&
+      e.target.matches("input[type=text], textarea"))
+  ) {
+    return;
+  }
+  e.preventDefault?.();
+  selectAllElements(state);
+}
+
 /** @param {HandState} state */
 function switchTool(state) {
   resetHandUiState(state);
   if (isSelectorActive(state)) {
     window.addEventListener("keydown", state.boundDeleteShortcut);
     window.addEventListener("keydown", state.boundDuplicateShortcut);
+    window.addEventListener("keydown", state.boundSelectAllShortcut);
   }
 }
 

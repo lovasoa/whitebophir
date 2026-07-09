@@ -2479,6 +2479,62 @@ test("Hand selector keeps the original element selected after duplicate", async 
   });
 });
 
+test("Hand selector supports Ctrl+A to select all before deleting", async () => {
+  const harness = createHarness();
+  const handTool = await harness.loadTool("hand");
+  await harness.loadTool("eraser");
+
+  const firstRect = globalAny.Tools.dom.createSVGElement("rect");
+  firstRect.id = "r-1";
+  firstRect.x.baseVal.value = 100;
+  firstRect.y.baseVal.value = 100;
+  firstRect.width.baseVal.value = 60;
+  firstRect.height.baseVal.value = 40;
+  globalAny.Tools.drawingArea.appendChild(firstRect);
+
+  const secondRect = globalAny.Tools.dom.createSVGElement("rect");
+  secondRect.id = "r-2";
+  secondRect.x.baseVal.value = 240;
+  secondRect.y.baseVal.value = 160;
+  secondRect.width.baseVal.value = 80;
+  secondRect.height.baseVal.value = 50;
+  globalAny.Tools.drawingArea.appendChild(secondRect);
+
+  handTool.secondary.active = true;
+  handTool.secondary.switch();
+
+  let preventDefaultCount = 0;
+  harness.time.dispatchWindowEvent("keydown", {
+    key: "a",
+    ctrlKey: true,
+    target: null,
+    preventDefault() {
+      preventDefaultCount += 1;
+    },
+  });
+
+  harness.time.dispatchWindowEvent("keydown", {
+    key: "Delete",
+    target: null,
+  });
+
+  assert.equal(preventDefaultCount, 1);
+  assert.equal(globalAny.Tools.sentMessages.length, 1);
+  assert.deepEqual(globalAny.Tools.sentMessages[0].data, {
+    tool: TOOL_CODE_BY_ID.hand,
+    _children: [
+      {
+        type: MessageToolMetadata.MutationType.DELETE,
+        id: "r-1",
+      },
+      {
+        type: MessageToolMetadata.MutationType.DELETE,
+        id: "r-2",
+      },
+    ],
+  });
+});
+
 test("Hand selector ignores stale async selection after transform starts", async () => {
   const harness = createHarness();
   const handTool = await harness.loadTool("hand");
