@@ -107,6 +107,44 @@ body {
   line-height: 1.45;
 }
 
+.moderation-disconnect-rule {
+  width: 100%;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px solid #d9dde3;
+  border-radius: 4px;
+  background: #fcfcfd;
+  text-align: left;
+}
+
+.moderation-disconnect-rule-heading {
+  margin-bottom: 4px;
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.moderation-disconnect-rule-title {
+  color: #111827;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.moderation-disconnect-rule-body {
+  margin: 5px 0 0;
+  color: #4b5563;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.moderation-disconnect-countdown {
+  margin: 12px 0 0;
+  color: #9a3412;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .moderation-disconnect-rules {
   margin-top: 12px;
   color: #25636a;
@@ -114,7 +152,19 @@ body {
 }
 
 .moderation-disconnect-ack {
+  margin-top: 0;
+}
+
+.moderation-disconnect-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
   margin-top: 18px;
+}
+
+.moderation-disconnect-private {
+  text-decoration: none;
 }
 
 .wbo-modal-backdrop {

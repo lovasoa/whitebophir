@@ -84,7 +84,11 @@
     "moderation_warning_body": "وجّه إليك أحد المشرفين تنبيهًا بسبب نشاطك على هذه اللوحة. يُرجى قراءة قواعد المجتمع بهدوء قبل إعادة الاتصال.",
     "moderation_ban_title": "تم إيقاف قدرتك على التحرير مؤقتًا",
     "moderation_ban_body": "أوقف أحد المشرفين تعديلاتك على هذه اللوحة مؤقتًا. يمكنك إعادة الاتصال الآن، لكن قد تبقى اللوحة للقراءة فقط بالنسبة إليك حتى تنتهي مدة الحظر.",
-    "moderation_acknowledge": "فهمت"
+    "moderation_acknowledge": "فهمت",
+    "moderation_rule_prompt": "Which rule did {name} break?",
+    "moderation_rule_focus": "Rule to review",
+    "moderation_countdown": "You can edit this board again in {time}.",
+    "moderation_countdown_done": "You can try editing this board again now."
   },
   "be": {
     "white-out": "Замазка",
@@ -171,7 +175,11 @@
     "moderation_warning_body": "Мадэратар вынес вам папярэджанне праз дзеянні на гэтай дошцы. Калі ласка, спакойна перачытайце правілы супольнасці перад паўторным падключэннем.",
     "moderation_ban_title": "Рэдагаванне часова заблакіравана",
     "moderation_ban_body": "Мадэратар часова заблакіраваў для вас рэдагаванне гэтай дошкі. Вы можаце падключыцца зноў, але дошка можа заставацца для вас толькі для прагляду, пакуль блакіроўка не скончыцца.",
-    "moderation_acknowledge": "Зразумела"
+    "moderation_acknowledge": "Зразумела",
+    "moderation_rule_prompt": "Which rule did {name} break?",
+    "moderation_rule_focus": "Rule to review",
+    "moderation_countdown": "You can edit this board again in {time}.",
+    "moderation_countdown_done": "You can try editing this board again now."
   },
   "ca": {
     "white-out": "Corrector blanc",
@@ -258,7 +266,11 @@
     "moderation_warning_body": "Un moderador t’ha avisat pel teu comportament en aquesta pissarra. Pren-te un moment per llegir les normes de la comunitat abans de tornar-te a connectar.",
     "moderation_ban_title": "L’edició està bloquejada temporalment",
     "moderation_ban_body": "Un moderador t’ha bloquejat temporalment l’edició en aquesta pissarra. Pots tornar a connectar-te ara, però pot ser que la pissarra et quedi en mode només lectura fins que s’acabi el bloqueig.",
-    "moderation_acknowledge": "Ho entenc"
+    "moderation_acknowledge": "Ho entenc",
+    "moderation_rule_prompt": "Which rule did {name} break?",
+    "moderation_rule_focus": "Rule to review",
+    "moderation_countdown": "You can edit this board again in {time}.",
+    "moderation_countdown_done": "You can try editing this board again now."
   },
   "de": {
     "board_name_placeholder": "Name des Whiteboards…",
@@ -345,7 +357,11 @@
     "moderation_warning_body": "Die Moderation hat dich wegen deiner Aktivität auf diesem Board verwarnt. Bitte lies die Gemeinschaftsregeln in Ruhe, bevor du dich erneut verbindest.",
     "moderation_ban_title": "Bearbeiten ist vorübergehend gesperrt",
     "moderation_ban_body": "Die Moderation hat deine Bearbeitungsrechte für dieses Board vorübergehend gesperrt. Du kannst dich jetzt wieder verbinden, aber das Board kann für dich bis zum Ablauf der Sperre schreibgeschützt bleiben.",
-    "moderation_acknowledge": "Verstanden"
+    "moderation_acknowledge": "Verstanden",
+    "moderation_rule_prompt": "Gegen welche Regel hat {name} verstoßen?",
+    "moderation_rule_focus": "Regel zum Nachlesen",
+    "moderation_countdown": "Du kannst dieses Board in {time} wieder bearbeiten.",
+    "moderation_countdown_done": "Du kannst jetzt versuchen, dieses Board wieder zu bearbeiten."
   },
   "en": {
     "white-out": "White-out",
@@ -432,7 +448,11 @@
     "moderation_warning_body": "A moderator has warned you about activity on this board. Please take a moment to read the community rules before reconnecting.",
     "moderation_ban_title": "Editing is temporarily blocked",
     "moderation_ban_body": "A moderator has temporarily blocked your edits on this board. You may reconnect now, but the board can remain read-only for you until the ban expires.",
-    "moderation_acknowledge": "I understand"
+    "moderation_acknowledge": "I understand",
+    "moderation_rule_prompt": "Which rule did {name} break?",
+    "moderation_rule_focus": "Rule to review",
+    "moderation_countdown": "You can edit this board again in {time}.",
+    "moderation_countdown_done": "You can try editing this board again now."
   },
   "es": {
     "board_name_placeholder": "Nombre de la pizarra …",
@@ -519,7 +539,11 @@
     "moderation_warning_body": "Un moderador te ha advertido por tu actividad en esta pizarra. Tómate un momento para leer las normas de la comunidad antes de volver a conectarte.",
     "moderation_ban_title": "La edición está bloqueada temporalmente",
     "moderation_ban_body": "Un moderador ha bloqueado temporalmente tus ediciones en esta pizarra. Puedes volver a conectarte ahora, pero la pizarra puede seguir en modo solo lectura para ti hasta que termine el bloqueo.",
-    "moderation_acknowledge": "Entendido"
+    "moderation_acknowledge": "Entendido",
+    "moderation_rule_prompt": "¿Qué regla incumplió {name}?",
+    "moderation_rule_focus": "Regla para revisar",
+    "moderation_countdown": "Podrás editar este tablero de nuevo en {time}.",
+    "moderation_countdown_done": "Ya puedes intentar editar este tablero de nuevo."
   },
   "fr": {
     "board_name_placeholder": "Nom du tableau…",
@@ -605,7 +629,11 @@
     "moderation_warning_body": "Un modérateur vous a adressé un avertissement à propos de votre activité sur ce tableau. Prenez un moment pour relire les règles de la communauté avant de vous reconnecter.",
     "moderation_ban_title": "L’édition est temporairement bloquée",
     "moderation_ban_body": "Un modérateur a temporairement bloqué vos modifications sur ce tableau. Vous pouvez vous reconnecter maintenant, mais le tableau peut rester en lecture seule pour vous jusqu’à la fin du bannissement.",
-    "moderation_acknowledge": "J’ai compris"
+    "moderation_acknowledge": "J’ai compris",
+    "moderation_rule_prompt": "Quelle règle {name} a-t-il enfreinte ?",
+    "moderation_rule_focus": "Règle à relire",
+    "moderation_countdown": "Vous pourrez modifier ce tableau à nouveau dans {time}.",
+    "moderation_countdown_done": "Vous pouvez maintenant essayer de modifier ce tableau à nouveau."
   },
   "hu": {
     "white-out": "Lefedő",
@@ -692,7 +720,11 @@
     "moderation_warning_body": "Egy moderátor figyelmeztetett a táblán végzett tevékenységed miatt. Kérjük, mielőtt újracsatlakozol, olvasd át nyugodtan a közösségi szabályokat.",
     "moderation_ban_title": "A szerkesztés átmenetileg le van tiltva",
     "moderation_ban_body": "Egy moderátor átmenetileg letiltotta a szerkesztést számodra ezen a táblán. Most újracsatlakozhatsz, de a tábla a tiltás lejártáig számodra csak olvasható maradhat.",
-    "moderation_acknowledge": "Értem"
+    "moderation_acknowledge": "Értem",
+    "moderation_rule_prompt": "Which rule did {name} break?",
+    "moderation_rule_focus": "Rule to review",
+    "moderation_countdown": "You can edit this board again in {time}.",
+    "moderation_countdown_done": "You can try editing this board again now."
   },
   "id": {
     "white-out": "Cairan koreksi",
@@ -779,7 +811,11 @@
     "moderation_warning_body": "Moderator memberi Anda peringatan terkait aktivitas Anda di papan ini. Luangkan waktu sejenak untuk membaca aturan komunitas sebelum tersambung kembali.",
     "moderation_ban_title": "Penyuntingan diblokir sementara",
     "moderation_ban_body": "Moderator untuk sementara memblokir kemampuan Anda menyunting papan ini. Anda dapat tersambung kembali sekarang, tetapi papan mungkin tetap hanya-baca bagi Anda sampai masa blokir berakhir.",
-    "moderation_acknowledge": "Saya mengerti"
+    "moderation_acknowledge": "Saya mengerti",
+    "moderation_rule_prompt": "Which rule did {name} break?",
+    "moderation_rule_focus": "Rule to review",
+    "moderation_countdown": "You can edit this board again in {time}.",
+    "moderation_countdown_done": "You can try editing this board again now."
   },
   "it": {
     "board_name_placeholder": "Nome della lavagna…",
@@ -866,7 +902,11 @@
     "moderation_warning_body": "Un moderatore ti ha inviato un avviso per la tua attività su questa lavagna. Prenditi un momento per rileggere le regole della comunità prima di riconnetterti.",
     "moderation_ban_title": "La modifica è temporaneamente bloccata",
     "moderation_ban_body": "Un moderatore ha bloccato temporaneamente le tue modifiche su questa lavagna. Puoi riconnetterti ora, ma la lavagna potrebbe restare in sola lettura per te finché il blocco non scade.",
-    "moderation_acknowledge": "Ho capito"
+    "moderation_acknowledge": "Ho capito",
+    "moderation_rule_prompt": "Which rule did {name} break?",
+    "moderation_rule_focus": "Rule to review",
+    "moderation_countdown": "You can edit this board again in {time}.",
+    "moderation_countdown_done": "You can try editing this board again now."
   },
   "ja": {
     "board_name_placeholder": "ボードの名前",
@@ -953,7 +993,11 @@
     "moderation_warning_body": "このボードでの操作について、モデレーターから警告がありました。再接続する前に、コミュニティルールを落ち着いて確認してください。",
     "moderation_ban_title": "編集は一時的に制限されています",
     "moderation_ban_body": "モデレーターにより、このボードでの編集が一時的にブロックされました。今すぐ再接続できますが、停止期間が終わるまではあなたには読み取り専用のままになることがあります。",
-    "moderation_acknowledge": "理解しました"
+    "moderation_acknowledge": "理解しました",
+    "moderation_rule_prompt": "Which rule did {name} break?",
+    "moderation_rule_focus": "Rule to review",
+    "moderation_countdown": "You can edit this board again in {time}.",
+    "moderation_countdown_done": "You can try editing this board again now."
   },
   "my": {
     "board_name_placeholder": "ဝှိုက်ဘုတ်အမည် ... ",
@@ -1040,7 +1084,11 @@
     "moderation_warning_body": "ဤဘုတ်ပေါ်ရှိ သင့်လုပ်ဆောင်ချက်ကြောင့် ကြီးကြပ်သူက သတိပေးထားပါသည်။ ပြန်လည်ချိတ်ဆက်မီ အသိုင်းအဝိုင်း စည်းမျဉ်းများကို အေးအေးဆေးဆေး ပြန်လည်ဖတ်ရှုပါ။",
     "moderation_ban_title": "တည်းဖြတ်ခွင့်ကို ယာယီပိတ်ထားသည်",
     "moderation_ban_body": "ကြီးကြပ်သူက ဤဘုတ်ပေါ်တွင် သင့်တည်းဖြတ်ခွင့်ကို ယာယီပိတ်ထားပါသည်။ ယခု ပြန်လည်ချိတ်ဆက်နိုင်သော်လည်း ပိတ်ပင်မှုကာလ မကုန်ဆုံးမချင်း သင့်အတွက် ဖတ်ရှုရန်သာ ဖြစ်နေနိုင်ပါသည်။",
-    "moderation_acknowledge": "နားလည်ပါပြီ"
+    "moderation_acknowledge": "နားလည်ပါပြီ",
+    "moderation_rule_prompt": "Which rule did {name} break?",
+    "moderation_rule_focus": "Rule to review",
+    "moderation_countdown": "You can edit this board again in {time}.",
+    "moderation_countdown_done": "You can try editing this board again now."
   },
   "pt": {
     "white-out": "Branquejar",
@@ -1127,7 +1175,11 @@
     "moderation_warning_body": "Um moderador enviou um aviso sobre sua atividade neste quadro. Reserve um momento para ler as regras da comunidade antes de se reconectar.",
     "moderation_ban_title": "A edição foi bloqueada temporariamente",
     "moderation_ban_body": "Um moderador bloqueou temporariamente suas edições neste quadro. Você pode se reconectar agora, mas o quadro pode continuar somente leitura para você até o bloqueio expirar.",
-    "moderation_acknowledge": "Entendi"
+    "moderation_acknowledge": "Entendi",
+    "moderation_rule_prompt": "Which rule did {name} break?",
+    "moderation_rule_focus": "Rule to review",
+    "moderation_countdown": "You can edit this board again in {time}.",
+    "moderation_countdown_done": "You can try editing this board again now."
   },
   "ru": {
     "board_name_placeholder": "Название доски",
@@ -1214,7 +1266,11 @@
     "moderation_warning_body": "Модератор вынес вам предупреждение из-за действий на этой доске. Пожалуйста, спокойно перечитайте правила сообщества перед повторным подключением.",
     "moderation_ban_title": "Редактирование временно заблокировано",
     "moderation_ban_body": "Модератор временно заблокировал для вас редактирование этой доски. Вы можете подключиться снова, но доска может оставаться для вас только для чтения до окончания блокировки.",
-    "moderation_acknowledge": "Понятно"
+    "moderation_acknowledge": "Понятно",
+    "moderation_rule_prompt": "Which rule did {name} break?",
+    "moderation_rule_focus": "Rule to review",
+    "moderation_countdown": "You can edit this board again in {time}.",
+    "moderation_countdown_done": "You can try editing this board again now."
   },
   "sw": {
     "board_name_placeholder": "Jina la ubao mweupe ...",
@@ -1301,7 +1357,11 @@
     "moderation_warning_body": "Msimamizi amekupa onyo kuhusu shughuli zako kwenye ubao huu. Tafadhali chukua muda kusoma kanuni za jumuiya kabla ya kuunganisha tena.",
     "moderation_ban_title": "Uhariri umezuiwa kwa muda",
     "moderation_ban_body": "Msimamizi amekuzuia kuhariri ubao huu kwa muda. Unaweza kuunganisha tena sasa, lakini ubao unaweza kubaki wa kusoma tu kwako hadi muda wa zuio uishe.",
-    "moderation_acknowledge": "Nimeelewa"
+    "moderation_acknowledge": "Nimeelewa",
+    "moderation_rule_prompt": "Which rule did {name} break?",
+    "moderation_rule_focus": "Rule to review",
+    "moderation_countdown": "You can edit this board again in {time}.",
+    "moderation_countdown_done": "You can try editing this board again now."
   },
   "th": {
     "board_name_placeholder": "ชื่อไวท์บอร์ด ...",
@@ -1388,7 +1448,11 @@
     "moderation_warning_body": "ผู้ดูแลได้เตือนคุณเกี่ยวกับกิจกรรมของคุณบนกระดานนี้ โปรดใช้เวลาสักครู่ทบทวนกฎของชุมชนก่อนเชื่อมต่ออีกครั้ง",
     "moderation_ban_title": "การแก้ไขถูกระงับชั่วคราว",
     "moderation_ban_body": "ผู้ดูแลได้ระงับการแก้ไขของคุณบนกระดานนี้ชั่วคราว คุณสามารถเชื่อมต่ออีกครั้งได้ตอนนี้ แต่กระดานอาจยังเป็นแบบอ่านอย่างเดียวสำหรับคุณจนกว่าการระงับจะสิ้นสุด",
-    "moderation_acknowledge": "เข้าใจแล้ว"
+    "moderation_acknowledge": "เข้าใจแล้ว",
+    "moderation_rule_prompt": "Which rule did {name} break?",
+    "moderation_rule_focus": "Rule to review",
+    "moderation_countdown": "You can edit this board again in {time}.",
+    "moderation_countdown_done": "You can try editing this board again now."
   },
   "uk": {
     "white-out": "Коректор",
@@ -1475,7 +1539,11 @@
     "moderation_warning_body": "Модератор виніс вам попередження через дії на цій дошці. Будь ласка, спокійно перечитайте правила спільноти перед повторним підключенням.",
     "moderation_ban_title": "Редагування тимчасово заблоковано",
     "moderation_ban_body": "Модератор тимчасово заблокував для вас редагування цієї дошки. Ви можете підключитися знову, але дошка може залишатися для вас лише для перегляду, доки блокування не завершиться.",
-    "moderation_acknowledge": "Зрозуміло"
+    "moderation_acknowledge": "Зрозуміло",
+    "moderation_rule_prompt": "Which rule did {name} break?",
+    "moderation_rule_focus": "Rule to review",
+    "moderation_countdown": "You can edit this board again in {time}.",
+    "moderation_countdown_done": "You can try editing this board again now."
   },
   "vi": {
     "white-out": "Bút xóa",
@@ -1562,7 +1630,11 @@
     "moderation_warning_body": "Người kiểm duyệt đã cảnh báo bạn về hoạt động trên bảng này. Vui lòng dành chút thời gian đọc lại quy định cộng đồng trước khi kết nối lại.",
     "moderation_ban_title": "Tạm thời không thể chỉnh sửa",
     "moderation_ban_body": "Người kiểm duyệt đã tạm thời chặn quyền chỉnh sửa của bạn trên bảng này. Bạn có thể kết nối lại ngay, nhưng bảng có thể vẫn ở chế độ chỉ đọc đối với bạn cho đến khi lệnh cấm hết hiệu lực.",
-    "moderation_acknowledge": "Tôi đã hiểu"
+    "moderation_acknowledge": "Tôi đã hiểu",
+    "moderation_rule_prompt": "Which rule did {name} break?",
+    "moderation_rule_focus": "Rule to review",
+    "moderation_countdown": "You can edit this board again in {time}.",
+    "moderation_countdown_done": "You can try editing this board again now."
   },
   "zh-CN": {
     "board_name_placeholder": "白板名称",
@@ -1649,7 +1721,11 @@
     "moderation_warning_body": "版主已就你在此白板上的行为发出警告。重新连接前，请花一点时间阅读社区规则。",
     "moderation_ban_title": "编辑已被临时限制",
     "moderation_ban_body": "版主已临时限制你在此白板上的编辑权限。你现在可以重新连接，但在封禁到期前，此白板对你可能仍为只读。",
-    "moderation_acknowledge": "我已了解"
+    "moderation_acknowledge": "我已了解",
+    "moderation_rule_prompt": "Which rule did {name} break?",
+    "moderation_rule_focus": "Rule to review",
+    "moderation_countdown": "You can edit this board again in {time}.",
+    "moderation_countdown_done": "You can try editing this board again now."
   },
   "zh-TW": {
     "board_name_placeholder": "白板名稱",
@@ -1736,7 +1812,11 @@
     "moderation_warning_body": "版主已就你在此白板上的行為發出警告。重新連線前，請花一點時間閱讀社群規則。",
     "moderation_ban_title": "編輯已被暫時限制",
     "moderation_ban_body": "版主已暫時限制你在此白板上的編輯權限。你現在可以重新連線，但在封鎖到期前，此白板對你可能仍為唯讀。",
-    "moderation_acknowledge": "我了解了"
+    "moderation_acknowledge": "我了解了",
+    "moderation_rule_prompt": "Which rule did {name} break?",
+    "moderation_rule_focus": "Rule to review",
+    "moderation_countdown": "You can edit this board again in {time}.",
+    "moderation_countdown_done": "You can try editing this board again now."
   },
   "pl": {
     "board_name_placeholder": "Nazwa tablicy",
@@ -1823,6 +1903,10 @@
     "moderation_warning_body": "Moderator wysłał Ci ostrzeżenie dotyczące Twojej aktywności na tej tablicy. Przed ponownym połączeniem poświęć chwilę na przeczytanie zasad społeczności.",
     "moderation_ban_title": "Edycja jest tymczasowo zablokowana",
     "moderation_ban_body": "Moderator tymczasowo zablokował Ci możliwość edycji tej tablicy. Możesz połączyć się ponownie, ale tablica może pozostać dla Ciebie tylko do odczytu do czasu wygaśnięcia blokady.",
-    "moderation_acknowledge": "Rozumiem"
+    "moderation_acknowledge": "Rozumiem",
+    "moderation_rule_prompt": "Which rule did {name} break?",
+    "moderation_rule_focus": "Rule to review",
+    "moderation_countdown": "You can edit this board again in {time}.",
+    "moderation_countdown_done": "You can try editing this board again now."
   }
 }

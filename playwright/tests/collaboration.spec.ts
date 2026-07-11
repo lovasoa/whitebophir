@@ -207,6 +207,17 @@ test.describe("collaboration and rate limiting", () => {
         await boardPage.reportFirstRemoteUser();
         await expect(page.locator(".wbo-dialog")).toBeVisible();
         await expect(page.locator(".wbo-dialog-choice-button")).toHaveText([
+          "No illegal content",
+          "No calls for violence",
+          "No pornography or naked children",
+          "No harassment or personal attacks",
+          "Respect other people's drawings",
+        ]);
+
+        await page
+          .getByRole("button", { name: "No harassment or personal attacks" })
+          .click();
+        await expect(page.locator(".wbo-dialog-choice-button")).toHaveText([
           "Warn",
           "15m",
           "24h",
@@ -215,10 +226,11 @@ test.describe("collaboration and rate limiting", () => {
 
         await page.getByRole("button", { name: "7d" }).click();
         await expect
-          .poll(() =>
-            page.evaluate(() => window.__reportedUsers?.[0]?.banDurationMs),
-          )
-          .toBe(7 * 24 * 60 * 60 * 1000);
+          .poll(() => page.evaluate(() => window.__reportedUsers?.[0]))
+          .toMatchObject({
+            banDurationMs: 7 * 24 * 60 * 60 * 1000,
+            moderationRule: "harassment",
+          });
       } finally {
         await targetContext.close();
       }

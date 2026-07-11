@@ -2533,6 +2533,7 @@ test("moderator report uses requested ban duration", async () => {
         message: {
           socketId: "socket-target-report-duration",
           banDurationMs,
+          moderationRule: "harassment",
         },
         config: sockets.__config,
         now,
@@ -2550,7 +2551,10 @@ test("moderator report uses requested ban duration", async () => {
 
       assert.equal(target.socket.client.conn.closeCalls.length, 1);
       assert.deepEqual(moderationDisconnectEvents(target), [
-        { event: "moderation_disconnect", payload: { banDurationMs } },
+        {
+          event: "moderation_disconnect",
+          payload: { banDurationMs, moderationRule: "harassment" },
+        },
       ]);
       assert.equal(
         bans.isEditBanned(

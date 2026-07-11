@@ -6,6 +6,13 @@ import { canBanOnBoard } from "./policy.mjs";
 
 const { logger, tracing } = observability;
 const MODERATION_DISCONNECT_CLOSE_TIMEOUT_MS = 150;
+const MODERATION_RULES = new Set([
+  "illegal",
+  "violence",
+  "pornography",
+  "harassment",
+  "drawings",
+]);
 
 /** @import { AppSocket, ModerationDisconnectPayload, ReportUserPayload, ServerConfig } from "../../types/server-runtime.d.ts" */
 /** @typedef {{socketId: string, name: string, ip: string, userSecret?: string, userAgent: string, language: string, canClear?: boolean}} BoardUser */
@@ -24,6 +31,17 @@ let lastUserReportLog = null;
  */
 function getReportedSocketId(message) {
   return typeof message?.socketId === "string" ? message.socketId : "";
+}
+
+/**
+ * @param {ReportUserPayload | undefined} message
+ * @returns {string | undefined}
+ */
+function getModeratorRule(message) {
+  return typeof message?.moderationRule === "string" &&
+    MODERATION_RULES.has(message.moderationRule)
+    ? message.moderationRule
+    : undefined;
 }
 
 /**
@@ -122,6 +140,7 @@ function disconnectReportSocket(boardName, targetSocket, closeSocket) {
  * @param {AppSocket} targetSocket
  * @param {CloseSocket} closeSocket
  * @param {number} banDurationMs
+ * @param {string | undefined} moderationRule
  * @returns {void}
  */
 function notifyModerationDisconnectThenClose(
@@ -129,6 +148,7 @@ function notifyModerationDisconnectThenClose(
   targetSocket,
   closeSocket,
   banDurationMs,
+  moderationRule,
 ) {
   /** @type {ReturnType<typeof setTimeout> | null} */
   let timeout = null;
@@ -144,6 +164,7 @@ function notifyModerationDisconnectThenClose(
   };
   /** @type {ModerationDisconnectPayload} */
   const payload = { banDurationMs: Math.max(0, Math.floor(banDurationMs)) };
+  if (moderationRule !== undefined) payload.moderationRule = moderationRule;
   targetSocket.emit(SocketEvents.MODERATION_DISCONNECT, payload, close);
   if (closed) return;
   timeout = setTimeout(close, MODERATION_DISCONNECT_CLOSE_TIMEOUT_MS);
@@ -168,12 +189,14 @@ function isSelfReportTarget(reporter, reported) {
  * @param {ReportUserContext} context
  * @param {{reporter: BoardUser, reported: BoardUser}} users
  * @param {number} banDurationMs
+ * @param {string | undefined} moderationRule
  * @returns {void}
  */
 function handleReportByModerator(
   context,
   { reporter, reported },
   banDurationMs,
+  moderationRule,
 ) {
   const board = context.boardName;
   if (isSelfReportTarget(reporter, reported)) {
@@ -210,6 +233,7 @@ function handleReportByModerator(
     reportedSocket,
     context.closeSocket,
     banDurationMs,
+    moderationRule,
   );
 }
 
@@ -238,6 +262,7 @@ function disconnectReported(context, reported) {
       reportedSocket,
       context.closeSocket,
       0,
+      undefined,
     );
   }
 }
@@ -268,6 +293,7 @@ function handleReportUserMessage(context) {
 
   if (canModerate) {
     const banDurationMs = getModeratorBanDurationMs(message);
+    const moderationRule = getModeratorRule(message);
     const reportLog = buildUserReportLog(
       boardName,
       resolvedUsers,
@@ -275,7 +301,12 @@ function handleReportUserMessage(context) {
     );
     lastUserReportLog = reportLog;
     logger.warn("user.reported", reportLog);
-    handleReportByModerator(context, resolvedUsers, banDurationMs);
+    handleReportByModerator(
+      context,
+      resolvedUsers,
+      banDurationMs,
+      moderationRule,
+    );
     return;
   }
 

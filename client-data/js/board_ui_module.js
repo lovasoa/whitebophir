@@ -100,6 +100,12 @@
  *   message: string,
  *   acknowledgeLabel: string,
  *   rulesLabel: string,
+ *   privateBoardLabel: string,
+ *   countdownLabel: string,
+ *   countdownDoneLabel: string,
+ *   ruleHeading?: string,
+ *   ruleTitle?: string,
+ *   ruleBody?: string,
  * }} ModerationDisconnectNoticeOptions
  */
 
@@ -110,6 +116,14 @@
  */
 function clamp(value, min, max) {
   return Math.max(min, Math.min(value, max));
+}
+
+/** @param {number} remainingMs */
+function formatCountdownDuration(remainingMs) {
+  const totalSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
 /**
@@ -551,12 +565,63 @@ export function showModerationDisconnectNotice(options) {
     message.className = "moderation-disconnect-message";
     message.textContent = options.message;
 
+    const ruleCallout = document.createElement("div");
+    ruleCallout.className = "moderation-disconnect-rule";
+    if (options.ruleTitle) {
+      const ruleHeading = document.createElement("div");
+      ruleHeading.className = "moderation-disconnect-rule-heading";
+      ruleHeading.textContent = options.ruleHeading || "";
+      const ruleTitle = document.createElement("div");
+      ruleTitle.className = "moderation-disconnect-rule-title";
+      ruleTitle.textContent = options.ruleTitle;
+      ruleCallout.append(ruleHeading, ruleTitle);
+      if (options.ruleBody) {
+        const ruleBody = document.createElement("p");
+        ruleBody.className = "moderation-disconnect-rule-body";
+        ruleBody.textContent = options.ruleBody;
+        ruleCallout.appendChild(ruleBody);
+      }
+    }
+
+    const countdown = document.createElement("p");
+    countdown.className = "moderation-disconnect-countdown";
+    const banEndsAt = Date.now() + Math.max(0, options.banDurationMs);
+    /** @type {ReturnType<typeof setInterval> | null} */
+    let countdownInterval = null;
+    const updateCountdown = () => {
+      const remainingMs = banEndsAt - Date.now();
+      countdown.textContent =
+        remainingMs > 0
+          ? options.countdownLabel.replace(
+              "{time}",
+              formatCountdownDuration(remainingMs),
+            )
+          : options.countdownDoneLabel;
+      if (remainingMs <= 0 && countdownInterval !== null) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+      }
+    };
+    if (options.banDurationMs > 0) {
+      updateCountdown();
+      countdownInterval = setInterval(updateCountdown, 1000);
+    }
+
     const rulesLink = document.createElement("a");
     rulesLink.className = "moderation-disconnect-rules";
     rulesLink.href = "../rules";
     rulesLink.target = "_blank";
     rulesLink.rel = "noopener";
     rulesLink.textContent = options.rulesLabel;
+
+    const actions = document.createElement("div");
+    actions.className = "moderation-disconnect-actions";
+
+    const privateBoard = document.createElement("a");
+    privateBoard.className =
+      "wbo-dialog-button wbo-dialog-button-secondary moderation-disconnect-private";
+    privateBoard.href = "../random";
+    privateBoard.textContent = options.privateBoardLabel;
 
     const acknowledge = document.createElement("button");
     acknowledge.type = "button";
@@ -566,13 +631,21 @@ export function showModerationDisconnectNotice(options) {
     acknowledge.addEventListener(
       "click",
       () => {
+        if (countdownInterval !== null) {
+          clearInterval(countdownInterval);
+          countdownInterval = null;
+        }
         shell.hide();
         resolve();
       },
       { once: true },
     );
 
-    shell.dialog.append(icon, title, message, rulesLink, acknowledge);
+    actions.append(privateBoard, acknowledge);
+    shell.dialog.append(icon, title, message);
+    if (options.ruleTitle) shell.dialog.appendChild(ruleCallout);
+    if (options.banDurationMs > 0) shell.dialog.appendChild(countdown);
+    shell.dialog.append(rulesLink, actions);
     shell.show();
     acknowledge.focus();
   });
