@@ -335,6 +335,7 @@ export type MutationRejectedPayload = {
 
 export type ModerationDisconnectPayload = {
   banDurationMs: number;
+  moderationRule?: string;
 };
 
 export type ConnectedUser = {
@@ -402,6 +403,7 @@ export type ClientSocketIncomingEventMap = {
 export type ReportUserPayload = {
   socketId?: string;
   banDurationMs?: number;
+  moderationRule?: string;
 };
 
 export type TurnstileSuccessAck = {

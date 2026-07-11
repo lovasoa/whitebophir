@@ -146,6 +146,7 @@ export type TurnstileSiteverifyResult = {
 export type ReportUserPayload = {
   socketId?: string;
   banDurationMs?: number;
+  moderationRule?: string;
 };
 
 export type { ModerationDisconnectPayload };

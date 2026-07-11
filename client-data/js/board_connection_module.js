@@ -5,7 +5,23 @@ import * as BoardTurnstile from "./board_turnstile.js";
 import { SocketEvents } from "./socket_events.js";
 
 /** @import { AppToolsState, BoardConnectionState, ModerationDisconnectPayload, SocketHeaders } from "../../types/app-runtime" */
-/** @typedef {{banDurationMs: number, acknowledged: boolean, disconnected: boolean}} PendingModerationDisconnect */
+/** @typedef {{banDurationMs: number, moderationRule?: string, acknowledged: boolean, disconnected: boolean}} PendingModerationDisconnect */
+/** @type {Record<string, string>} */
+const MODERATION_RULE_TITLE_KEYS = {
+  illegal: "rules_illegal_title",
+  violence: "rules_violence_title",
+  pornography: "rules_pornography_title",
+  harassment: "rules_harassment_title",
+  drawings: "rules_drawings_title",
+};
+/** @type {Record<string, string>} */
+const MODERATION_RULE_BODY_KEYS = {
+  illegal: "rules_illegal_law",
+  violence: "rules_violence_body",
+  pornography: "rules_pornography_body",
+  harassment: "rules_harassment_body",
+  drawings: "rules_drawings_body",
+};
 
 /** @type {Promise<typeof io> | null} */
 let socketIoReady = null;
@@ -59,9 +75,21 @@ function normalizeModerationDisconnectPayload(payload) {
     payload && typeof payload === "object" && "banDurationMs" in payload
       ? Number(payload.banDurationMs)
       : 0;
+  const moderationRule =
+    payload &&
+    typeof payload === "object" &&
+    "moderationRule" in payload &&
+    typeof payload.moderationRule === "string" &&
+    Object.prototype.hasOwnProperty.call(
+      MODERATION_RULE_TITLE_KEYS,
+      payload.moderationRule,
+    )
+      ? payload.moderationRule
+      : undefined;
   return {
     banDurationMs:
       Number.isFinite(raw) && raw > 0 ? Math.max(0, Math.floor(raw)) : 0,
+    ...(moderationRule === undefined ? {} : { moderationRule }),
   };
 }
 
@@ -283,6 +311,7 @@ export class ConnectionModule {
           /** @type {PendingModerationDisconnect} */
           const notice = {
             banDurationMs: normalized.banDurationMs,
+            moderationRule: normalized.moderationRule,
             acknowledged: false,
             disconnected: false,
           };
@@ -303,6 +332,26 @@ export class ConnectionModule {
               ),
               acknowledgeLabel: Tools.i18n.t("moderation_acknowledge"),
               rulesLabel: Tools.i18n.t("community_rules_link"),
+              privateBoardLabel: Tools.i18n.t("create_private_board"),
+              countdownLabel: Tools.i18n.t("moderation_countdown"),
+              countdownDoneLabel: Tools.i18n.t("moderation_countdown_done"),
+              ruleHeading: Tools.i18n.t("moderation_rule_focus"),
+              ruleTitle:
+                normalized.moderationRule === undefined
+                  ? undefined
+                  : Tools.i18n.t(
+                      MODERATION_RULE_TITLE_KEYS[
+                        normalized.moderationRule || ""
+                      ] || "",
+                    ),
+              ruleBody:
+                normalized.moderationRule === undefined
+                  ? undefined
+                  : Tools.i18n.t(
+                      MODERATION_RULE_BODY_KEYS[
+                        normalized.moderationRule || ""
+                      ] || "",
+                    ),
             })
             .then(() => {
               notice.acknowledged = true;

@@ -339,6 +339,15 @@ const DURATION_UNIT_MS = {
   hour: 60 * 60 * 1000,
   day: 24 * 60 * 60 * 1000,
 };
+/** @type {{value: string, labelKey: string}[]} */
+const MODERATION_RULE_OPTIONS = [
+  { value: "illegal", labelKey: "rules_illegal_title" },
+  { value: "violence", labelKey: "rules_violence_title" },
+  { value: "pornography", labelKey: "rules_pornography_title" },
+  { value: "harassment", labelKey: "rules_harassment_title" },
+  { value: "drawings", labelKey: "rules_drawings_title" },
+];
+
 /** @type {({durationMs: 0, labelKey: "warn", variant: "secondary"} | {durationMs: number, count: number, unit: ConnectedUserDurationUnit, variant: "secondary" | "warning" | "danger"})[]} */
 const BAN_DURATION_OPTIONS = [
   {
@@ -861,8 +870,11 @@ function createConnectedUserRow(getTools, user, users) {
     ) {
       return;
     }
-    /** @param {number | undefined} banDurationMs */
-    const reportConnectedUser = (banDurationMs) => {
+    /**
+     * @param {number | undefined} banDurationMs
+     * @param {string | undefined} moderationRule
+     */
+    const reportConnectedUser = (banDurationMs, moderationRule) => {
       connectedUser.reported = true;
       updateConnectedUserRow(getTools, row, connectedUser);
       /** @type {import("../../types/app-runtime").ReportUserPayload} */
@@ -870,35 +882,55 @@ function createConnectedUserRow(getTools, user, users) {
         socketId: connectedUser.socketId,
       };
       if (banDurationMs !== undefined) payload.banDurationMs = banDurationMs;
+      if (moderationRule !== undefined) payload.moderationRule = moderationRule;
       socket.emit(SocketEvents.REPORT_USER, payload);
     };
     if (Tools.access.canClear === true) {
       void Tools.ui
         .showChoiceDialog({
-          message: Tools.i18n.format("ban_user_confirmation", {
+          message: Tools.i18n.format("moderation_rule_prompt", {
             name: getConnectedUserDisplayName(connectedUser),
           }),
           cancelLabel: Tools.i18n.t("Cancel"),
-          choices: BAN_DURATION_OPTIONS.map((option) => ({
-            label:
-              "labelKey" in option
-                ? Tools.i18n.t(option.labelKey)
-                : formatShortRelativeTime(
-                    Tools,
-                    getDurationPartState(option.count, option.unit),
-                  ),
-            value: option.durationMs,
-            variant: option.variant,
+          choices: MODERATION_RULE_OPTIONS.map((option) => ({
+            label: Tools.i18n.t(option.labelKey),
+            value: option.value,
+            variant: /** @type {"secondary"} */ ("secondary"),
           })),
         })
-        .then((banDurationMs) => {
-          if (banDurationMs !== null) {
-            reportConnectedUser(banDurationMs);
+        .then((moderationRule) => {
+          if (moderationRule === null) return null;
+          return Tools.ui
+            .showChoiceDialog({
+              message: Tools.i18n.format("ban_user_confirmation", {
+                name: getConnectedUserDisplayName(connectedUser),
+              }),
+              cancelLabel: Tools.i18n.t("Cancel"),
+              choices: BAN_DURATION_OPTIONS.map((option) => ({
+                label:
+                  "labelKey" in option
+                    ? Tools.i18n.t(option.labelKey)
+                    : formatShortRelativeTime(
+                        Tools,
+                        getDurationPartState(option.count, option.unit),
+                      ),
+                value: option.durationMs,
+                variant: option.variant,
+              })),
+            })
+            .then((banDurationMs) => ({ banDurationMs, moderationRule }));
+        })
+        .then((selection) => {
+          if (selection !== null && selection?.banDurationMs !== null) {
+            reportConnectedUser(
+              selection.banDurationMs,
+              selection.moderationRule,
+            );
           }
         });
       return;
     }
-    reportConnectedUser(undefined);
+    reportConnectedUser(undefined, undefined);
   });
   row.appendChild(report);
 
