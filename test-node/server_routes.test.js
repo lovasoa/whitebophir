@@ -150,7 +150,7 @@ function assertSnippetBeforeHeadEnd(body, snippet) {
 
 /**
  * @param {string} body
- * @returns {{readonly: boolean, canEdit: boolean, canClear: boolean, canWrite?: boolean}}
+ * @returns {{readonly: boolean, canEdit: boolean, canClear: boolean, canReport?: boolean, canWrite?: boolean, accessRefreshAfterMs?: number}}
  */
 function parseRenderedBoardState(body) {
   const match = body.match(
@@ -428,10 +428,12 @@ test("index route renders absolute canonical and hreflang urls", async () => {
   );
   try {
     const response = await request(app, "/");
+    const arabicResponse = await request(app, "/?lang=ar");
     const { port } = getTcpAddress(app);
     const origin = `http://127.0.0.1:${port}`;
 
     assert.equal(response.statusCode, 200);
+    assert.match(arabicResponse.body, /<html lang="ar" dir="rtl">/);
     assert.match(
       response.body,
       new RegExp(`<link rel="canonical" href="${origin}/\\?lang=en" />`),
@@ -784,9 +786,18 @@ test("board pages are no-store in development and render plain asset URLs", asyn
   try {
     const response = await request(app, "/boards/cache-test");
     const frenchResponse = await request(app, "/boards/cache-test?lang=fr");
+    const arabicResponse = await request(app, "/boards/cache-test?lang=ar");
 
     assert.equal(response.statusCode, 200);
     assert.equal(frenchResponse.statusCode, 200);
+    assert.match(
+      arabicResponse.body,
+      /<html lang="ar" dir="ltr" data-ui-direction="rtl">/,
+    );
+    assert.match(
+      arabicResponse.body,
+      /<div id="boardHud" class="board-hud" dir="rtl">/,
+    );
     assert.equal(response.headers["cache-control"], "no-store");
     const { port } = getTcpAddress(app);
     const origin = `http://127.0.0.1:${port}`;
@@ -1219,6 +1230,7 @@ test("board pages fall back to legacy json metadata and inline baseline renderin
       readonly: true,
       canEdit: false,
       canClear: false,
+      canReport: true,
       canWrite: false,
     });
     assert.match(response.body, /toolID-hand/);
@@ -1245,6 +1257,7 @@ test("board pages render JWT-disabled writable capability state without Clear", 
       readonly: false,
       canEdit: true,
       canClear: false,
+      canReport: true,
       canWrite: true,
     });
     assert.match(response.body, /toolID-pencil/);
@@ -1516,12 +1529,14 @@ test("board-scoped JWTs can access their authorized board pages", async () => {
       readonly: true,
       canEdit: true,
       canClear: false,
+      canReport: true,
       canWrite: true,
     });
     assert.deepEqual(parseRenderedBoardState(moderatorResponse.body), {
       readonly: false,
       canEdit: true,
       canClear: true,
+      canReport: true,
       canWrite: true,
     });
     assert.match(moderatorResponse.body, /toolID-clear/);
@@ -1550,12 +1565,20 @@ test("banned users get a read-only board page while other visitors do not", asyn
     // The banned user can still view the board, but the served HTML is
     // read-only: no edit capability and no drawing tools in the toolbar.
     assert.equal(bannedResponse.statusCode, 200);
-    assert.deepEqual(parseRenderedBoardState(bannedResponse.body), {
+    const bannedBoardState = parseRenderedBoardState(bannedResponse.body);
+    const { accessRefreshAfterMs, ...bannedCapabilities } = bannedBoardState;
+    assert.deepEqual(bannedCapabilities, {
       readonly: false,
       canEdit: false,
       canClear: false,
+      canReport: false,
       canWrite: false,
     });
+    assert.ok(
+      typeof accessRefreshAfterMs === "number" &&
+        accessRefreshAfterMs > 0 &&
+        accessRefreshAfterMs <= 15 * 60 * 1000,
+    );
     assert.match(bannedResponse.body, /toolID-hand/);
     assert.doesNotMatch(bannedResponse.body, /toolID-pencil/);
 
@@ -1564,6 +1587,7 @@ test("banned users get a read-only board page while other visitors do not", asyn
       readonly: false,
       canEdit: true,
       canClear: false,
+      canReport: true,
       canWrite: true,
     });
     assert.match(visitorResponse.body, /toolID-pencil/);

@@ -428,6 +428,7 @@ test("socket boardstate uses the same capability-shaped state as rendered board 
         readonly: false,
         canEdit: true,
         canClear: true,
+        canReport: true,
         canWrite: true,
       });
     },
@@ -596,11 +597,15 @@ test("a banned user reconnects read-only in their own boardstate and in presence
       });
 
       // Own boardstate hides editing tools.
-      assert.equal(
-        getRequiredValue(
-          reconnected.emitted.find((event) => event.event === "boardstate"),
-        ).payload.canEdit,
-        false,
+      const reconnectedBoardState = getRequiredValue(
+        reconnected.emitted.find((event) => event.event === "boardstate"),
+      ).payload;
+      assert.equal(reconnectedBoardState.canEdit, false);
+      assert.equal(reconnectedBoardState.canReport, false);
+      assert.ok(
+        typeof reconnectedBoardState.accessRefreshAfterMs === "number" &&
+          reconnectedBoardState.accessRefreshAfterMs > 0 &&
+          reconnectedBoardState.accessRefreshAfterMs <= 15 * 60 * 1000,
       );
       // Own presence row.
       assert.equal(
@@ -2012,8 +2017,62 @@ test("report_user logs reporter and reported user details for active board membe
       assert.deepEqual(reported.socket.disconnectCalls, []);
       assert.equal(reporter.emitted.length, reporterEmitCountBeforeReport);
       assert.deepEqual(reported.emitted.slice(reportedEmitCountBeforeReport), [
-        { event: "moderation_disconnect", payload: { banDurationMs: 0 } },
+        {
+          event: "moderation_disconnect",
+          payload: { banDurationMs: 0, source: "peer_report" },
+        },
       ]);
+    },
+  );
+});
+
+test("report_user ignores another socket with the same user identity", async () => {
+  const boardName = "board-report-same-identity";
+  const moderatorSecret = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaca";
+  const sharedSecret = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbca";
+  await createSocketScenario(
+    {
+      historyDirPrefix: "wbo-users-report-same-identity-",
+      config: {
+        BOARD_MODERATORS: new Map([[boardName, new Set([moderatorSecret])]]),
+      },
+    },
+    async ({ connect, handler, test }) => {
+      const moderator = await connect({
+        id: "socket-same-identity-mod",
+        headers: withUserSecretCookie(moderatorSecret),
+        query: { board: boardName, tool: "hand" },
+      });
+      const reporter = await connect({
+        id: "socket-same-identity-reporter",
+        remoteAddress: "203.0.113.188",
+        headers: withUserSecretCookie(sharedSecret),
+        query: { board: boardName, tool: "hand" },
+      });
+      const reported = await connect({
+        id: "socket-same-identity-reported",
+        remoteAddress: "203.0.113.189",
+        headers: withUserSecretCookie(sharedSecret),
+        query: { board: boardName, tool: "hand" },
+      });
+      const users = test.getBoardUserMap(boardName);
+      assert.equal(
+        getRequiredValue(users.get(reporter.socket.id)).userId,
+        getRequiredValue(users.get(reported.socket.id)).userId,
+      );
+      const moderatorEmitCount = moderator.emitted.length;
+      const reporterEmitCount = reporter.emitted.length;
+      const reportedEmitCount = reported.emitted.length;
+
+      handler(reporter, "report_user")({ socketId: reported.socket.id });
+
+      assert.equal(test.getLastUserReportLog(), null);
+      assert.equal(moderator.emitted.length, moderatorEmitCount);
+      assert.equal(reporter.emitted.length, reporterEmitCount);
+      assert.equal(reported.emitted.length, reportedEmitCount);
+      assert.equal(reporter.socket.client.conn.closeCalls.length, 0);
+      assert.equal(reported.socket.client.conn.closeCalls.length, 0);
+      assert.deepEqual(moderationDisconnectEvents(reported), []);
     },
   );
 });
@@ -2344,7 +2403,10 @@ test("moderator report bans reported secret and ip without disconnecting moderat
       assert.deepEqual(moderationDisconnectEvents(target), [
         {
           event: "moderation_disconnect",
-          payload: { banDurationMs: 15 * 60 * 1000 },
+          payload: {
+            banDurationMs: 15 * 60 * 1000,
+            source: "moderator",
+          },
         },
       ]);
 
@@ -2426,6 +2488,78 @@ test("moderator report bans reported secret and ip without disconnecting moderat
   );
 });
 
+test("blocked users cannot report or disconnect other users", async () => {
+  const boardName = "board-blocked-reporter";
+  const moderatorSecret = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaba";
+  const blockedSecret = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbba";
+  const blockedIp = "203.0.113.176";
+  const bans = require(
+    path.join(__dirname, "..", "server", "socket", "bans.mjs"),
+  );
+
+  await createSocketScenario(
+    {
+      historyDirPrefix: "wbo-users-blocked-reporter-",
+      config: {
+        BOARD_MODERATORS: new Map([[boardName, new Set([moderatorSecret])]]),
+      },
+    },
+    async ({ connect, handler, test }) => {
+      const moderator = await connect({
+        id: "socket-blocked-report-mod",
+        headers: withUserSecretCookie(moderatorSecret),
+        query: { board: boardName, tool: "hand" },
+      });
+      const secretBlockedReporter = await connect({
+        id: "socket-secret-blocked-reporter",
+        remoteAddress: "203.0.113.175",
+        headers: withUserSecretCookie(blockedSecret),
+        query: { board: boardName, tool: "hand" },
+      });
+      const ipBlockedReporter = await connect({
+        id: "socket-ip-blocked-reporter",
+        remoteAddress: blockedIp,
+        headers: withUserSecretCookie("ccccccccccccccccccccccccccccccca"),
+        query: { board: boardName, tool: "hand" },
+      });
+      const target = await connect({
+        id: "socket-blocked-report-target",
+        remoteAddress: "203.0.113.177",
+        headers: withUserSecretCookie("ddddddddddddddddddddddddddddddda"),
+        query: { board: boardName, tool: "hand" },
+      });
+
+      bans.banBoardUser(boardName, blockedSecret, blockedIp, Date.now());
+
+      handler(
+        secretBlockedReporter,
+        "report_user",
+      )({
+        socketId: target.socket.id,
+      });
+      handler(
+        ipBlockedReporter,
+        "report_user",
+      )({
+        socketId: target.socket.id,
+      });
+
+      assert.equal(
+        secretBlockedReporter.socket.client.conn.closeCalls.length,
+        0,
+      );
+      assert.equal(ipBlockedReporter.socket.client.conn.closeCalls.length, 0);
+      assert.equal(target.socket.client.conn.closeCalls.length, 0);
+      assert.deepEqual(moderationDisconnectEvents(target), []);
+      assert.equal(test.getLastUserReportLog(), null);
+      assert.equal(
+        moderator.emitted.some((event) => event.event === "user_reported"),
+        false,
+      );
+    },
+  );
+});
+
 test("moderator report with zero duration warns reported user without banning", async () => {
   const moderatorSecret = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaae";
   const targetSecret = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbe";
@@ -2462,7 +2596,10 @@ test("moderator report with zero duration warns reported user without banning", 
       assert.equal(target.socket.client.conn.closeCalls.length, 1);
       assert.equal(moderator.socket.client.conn.closeCalls.length, 0);
       assert.deepEqual(moderationDisconnectEvents(target), [
-        { event: "moderation_disconnect", payload: { banDurationMs: 0 } },
+        {
+          event: "moderation_disconnect",
+          payload: { banDurationMs: 0, source: "moderator" },
+        },
       ]);
 
       const fresh = await connect({
@@ -2553,7 +2690,11 @@ test("moderator report uses requested ban duration", async () => {
       assert.deepEqual(moderationDisconnectEvents(target), [
         {
           event: "moderation_disconnect",
-          payload: { banDurationMs, moderationRule: "harassment" },
+          payload: {
+            banDurationMs,
+            source: "moderator",
+            moderationRule: "harassment",
+          },
         },
       ]);
       assert.equal(
@@ -2646,7 +2787,10 @@ test("non-moderator report disconnects both users without banning", async () => 
       assert.equal(target.socket.client.conn.closeCalls.length, 1);
       assert.deepEqual(moderationDisconnectEvents(reporter), []);
       assert.deepEqual(moderationDisconnectEvents(target), [
-        { event: "moderation_disconnect", payload: { banDurationMs: 0 } },
+        {
+          event: "moderation_disconnect",
+          payload: { banDurationMs: 0, source: "peer_report" },
+        },
       ]);
 
       const fresh = await connect({

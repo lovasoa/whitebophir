@@ -14,3 +14,8 @@ export const SocketEvents = Object.freeze({
   USER_JOINED: "user_joined",
   USER_LEFT: "user_left",
 });
+
+export const ModerationDisconnectSources = Object.freeze({
+  MODERATOR: "moderator",
+  PEER_REPORT: "peer_report",
+});

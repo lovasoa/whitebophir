@@ -16,7 +16,7 @@ import { pinReplayBaseline } from "../board/registry.mjs";
 import { badRequest } from "../http/boundary_errors.mjs";
 import { requestScheme } from "../http/observation.mjs";
 import { publicPath } from "../http/request_url.mjs";
-import { isEditBanned } from "../socket/bans.mjs";
+import { getEditBanExpiresAt } from "../socket/bans.mjs";
 import { resolveRequestClientIpSafe } from "../socket/policy.mjs";
 
 /** @import { HttpRequest, HttpResponse, ObservedHttpRequest, ServerConfig } from "../../types/server-runtime.d.ts" */
@@ -200,9 +200,9 @@ function boardPermissionsForRequest(ctx, boardName) {
     userInfo: { token: ctx.url.searchParams.get("token"), userSecret },
     // Render the served board state ban-aware too, so a banned user's HTML
     // (board-state script + toolbar) is read-only from first paint, matching
-    // the socket. Same live predicate the socket path injects.
-    isBanned: () =>
-      isEditBanned(
+    // the socket, and carries the same one-shot access refresh delay.
+    getBanExpiresAt: () =>
+      getEditBanExpiresAt(
         boardName,
         userSecret,
         resolveRequestClientIpSafe(config, ctx.request),

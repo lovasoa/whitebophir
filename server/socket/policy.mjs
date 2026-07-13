@@ -6,7 +6,7 @@ import {
 import RateLimitCommon from "../../client-data/js/rate_limit_common.js";
 import { BoardPermissions } from "../auth/board_capabilities.mjs";
 import observability from "../observability/index.mjs";
-import { isEditBanned } from "./bans.mjs";
+import { getEditBanExpiresAt } from "./bans.mjs";
 import { normalizeIncomingMessage } from "./message_validation.mjs";
 import { getSocketUserSecret } from "./request.mjs";
 
@@ -386,10 +386,11 @@ function boardPermissionsForSocket(config, boardName, socket) {
     userInfo: { token: getSocketToken(socket), userSecret },
     // Lazy + live: only resolved when a capability query depends on the ban
     // (so canOpen never needs the IP), and re-read on every query so a ban and
-    // its expiry take effect without reconnecting. Tolerant of a missing IP
-    // source, keying on the same address presence records.
-    isBanned: () =>
-      isEditBanned(
+    // its expiry take effect without reconnecting. The expiry is also exposed
+    // in board state as a one-shot client access refresh delay. Tolerant of a
+    // missing IP source, keying on the same address presence records.
+    getBanExpiresAt: () =>
+      getEditBanExpiresAt(
         boardName,
         userSecret,
         resolveClientIpSafe(config, socket),
@@ -419,6 +420,17 @@ function canAccessBoard(config, boardName, socket) {
  */
 function canBanOnBoard(config, boardName, socket) {
   return boardPermissionsForSocket(config, boardName, socket).canBan();
+}
+
+/**
+ * Returns whether the socket may report another user on this board.
+ * @param {SocketPolicyConfig} config
+ * @param {string} boardName
+ * @param {AppSocket} socket
+ * @returns {boolean}
+ */
+function canReportOnBoard(config, boardName, socket) {
+  return boardPermissionsForSocket(config, boardName, socket).canReport();
 }
 
 /**
@@ -478,6 +490,7 @@ export {
   canAccessBoard,
   canApplyBoardMessage,
   canBanOnBoard,
+  canReportOnBoard,
   canEditBoard,
   clientIpFallback,
   resolveRequestClientIpSafe,

@@ -316,6 +316,7 @@ test("socket board policy uses capabilities for cursor, edit, and clear decision
       readonly: true,
       canEdit: true,
       canClear: true,
+      canReport: true,
       canWrite: true,
     },
   );
@@ -360,6 +361,7 @@ test("configured moderator secret grants edit clear and ban on readonly board", 
       readonly: true,
       canEdit: true,
       canClear: true,
+      canReport: true,
       canWrite: true,
     },
   );

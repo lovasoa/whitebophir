@@ -111,6 +111,7 @@ test("board capabilities allow clear-capable JWT claims to clear boards", () => 
     readonly: false,
     canEdit: true,
     canClear: true,
+    canReport: true,
     canWrite: true,
   });
 });
@@ -132,6 +133,7 @@ test("a live edit ban degrades a non-moderator to read-only", () => {
     canEdit: false,
     canClear: false,
   });
+  assert.equal(permissions.canReport(), false);
 });
 
 test("a moderator bypasses edit bans", () => {
@@ -151,6 +153,7 @@ test("a moderator bypasses edit bans", () => {
     canEdit: true,
     canClear: true,
   });
+  assert.equal(permissions.canReport(), true);
 });
 
 test("ban state is re-read live on each capability query", () => {
@@ -170,4 +173,35 @@ test("ban state is re-read live on each capability query", () => {
   assert.equal(permissions.resolveCapabilities(board).canEdit, false);
   banned = false; // e.g. the ban TTL expired
   assert.equal(permissions.resolveCapabilities(board).canEdit, true);
+});
+
+test("expiry-aware board state carries one access refresh delay", () => {
+  const { BoardPermissions } = require(BOARD_CAPABILITIES_PATH);
+  const config = createConfig({ AUTH_SECRET_KEY: "" });
+  const board = createBoard("open-board", false);
+  let expiresAt = Date.now() + 60_000;
+  const permissions = BoardPermissions.forBoard({
+    config,
+    boardName: board.name,
+    userInfo: {},
+    getBanExpiresAt: () => expiresAt,
+  });
+
+  const bannedState = permissions.boardState(board);
+  assert.equal(bannedState.canEdit, false);
+  assert.equal(bannedState.canReport, false);
+  assert.ok(
+    typeof bannedState.accessRefreshAfterMs === "number" &&
+      bannedState.accessRefreshAfterMs > 59_000 &&
+      bannedState.accessRefreshAfterMs <= 60_000,
+  );
+
+  expiresAt = 0;
+  assert.deepEqual(permissions.boardState(board), {
+    readonly: false,
+    canEdit: true,
+    canClear: false,
+    canReport: true,
+    canWrite: true,
+  });
 });

@@ -6,7 +6,12 @@ const ROOT = path.resolve(__dirname, "..");
 const BANS_PATH = path.join(ROOT, "server", "socket", "bans.mjs");
 
 test("board edit bans independently match secret or ip until ttl expires", () => {
-  const { banBoardUser, isEditBanned, resetBans } = require(BANS_PATH);
+  const {
+    banBoardUser,
+    getEditBanExpiresAt,
+    isEditBanned,
+    resetBans,
+  } = require(BANS_PATH);
   resetBans();
   const now = 1000;
   const ttl = 30 * 60 * 1000;
@@ -20,10 +25,42 @@ test("board edit bans independently match secret or ip until ttl expires", () =>
   assert.equal(isEditBanned("board-a", secretA, otherIp, now), true);
   assert.equal(isEditBanned("board-a", otherSecret, ipA, now), true);
   assert.equal(isEditBanned("board-a", otherSecret, otherIp, now), false);
+  assert.equal(getEditBanExpiresAt("board-a", secretA, ipA, now), now + ttl);
   assert.equal(isEditBanned("board-a", secretA, otherIp, now + ttl + 1), false);
 
   resetBans();
   assert.equal(isEditBanned("board-a", secretA, ipA, now), false);
+});
+
+test("an identity stays banned until its later matching secret or ip expiry", () => {
+  const { banBoardUser, getEditBanExpiresAt, resetBans } = require(BANS_PATH);
+  resetBans();
+  const now = 10_000;
+  const secret = "11111111111111111111111111111111";
+  const ip = "203.0.113.41";
+
+  banBoardUser("overlap-board", secret, "203.0.113.40", now, 1_000);
+  banBoardUser(
+    "overlap-board",
+    "22222222222222222222222222222222",
+    ip,
+    now,
+    2_000,
+  );
+
+  assert.equal(
+    getEditBanExpiresAt("overlap-board", secret, ip, now),
+    now + 2_000,
+  );
+  assert.equal(
+    getEditBanExpiresAt("overlap-board", secret, ip, now + 1_000),
+    now + 2_000,
+  );
+  assert.equal(
+    getEditBanExpiresAt("overlap-board", secret, ip, now + 2_000),
+    null,
+  );
+  resetBans();
 });
 
 test("ban ttl defaults to 15 minutes and clamps to one week", () => {
