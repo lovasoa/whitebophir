@@ -24,11 +24,15 @@ type ActiveToolState = {
   currentTool: string;
 };
 type ConnectedUserState = {
+  userId: string;
   name: string;
   meta: string;
   tool: string;
   isSelf: boolean;
   reportDisabled: boolean;
+  reportHidden: boolean;
+  friend: boolean;
+  friendHidden: boolean;
   color: string;
   ringWidth: string;
   fontWeight: string;
@@ -354,9 +358,12 @@ window.turnstile = {
       return Array.from(
         document.querySelectorAll("#connectedUsersList .connected-user-row"),
       ).map((row) => {
-        const name = row.querySelector(".connected-user-name");
+        const name = row.querySelector(".connected-user-name-text");
         const meta = row.querySelector(".connected-user-meta");
         const report = row.querySelector(".connected-user-report");
+        const friend = row.querySelector<HTMLButtonElement>(
+          ".connected-user-friend",
+        );
         const toolBadge = row.querySelector(
           ".connected-user-toolBadge",
         ) as HTMLElement | null;
@@ -367,11 +374,15 @@ window.turnstile = {
         const rowComputed =
           row instanceof HTMLElement ? window.getComputedStyle(row) : null;
         return {
+          userId: row instanceof HTMLElement ? (row.dataset.userId ?? "") : "",
           name: name?.textContent ?? "",
           meta: meta?.textContent ?? "",
           tool: toolIcon?.title ?? "",
           isSelf: row.classList.contains("connected-user-row-self"),
           reportDisabled: !!(report && (report as HTMLButtonElement).disabled),
+          reportHidden: !!(report && (report as HTMLButtonElement).hidden),
+          friend: friend?.getAttribute("aria-pressed") === "true",
+          friendHidden: friend?.hidden ?? true,
           color: toolBadge?.style.borderColor ?? "",
           ringWidth: toolBadge?.style.borderWidth ?? "",
           fontWeight: nameComputed?.fontWeight ?? "",

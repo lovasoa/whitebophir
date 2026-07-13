@@ -1,5 +1,6 @@
 // biome-ignore-all lint/suspicious/noExplicitAny: Playwright tests frequently access global state on the window object.
 import { setTimeout as delay } from "node:timers/promises";
+import { FRIEND_LAST_NAMES_STORAGE_KEY } from "../../client-data/js/board_friend_store.js";
 import { MutationType } from "../../client-data/js/mutation_type.js";
 import {
   Cursor,
@@ -73,7 +74,8 @@ test.describe("collaboration and rate limiting", () => {
 
     const firstRows = await boardPage.readConnectedUsers();
     expect(firstRows.filter((row) => row.isSelf)).toHaveLength(1);
-    expect(firstRows.filter((row) => row.reportDisabled)).toHaveLength(1);
+    expect(firstRows.every((row) => row.reportHidden)).toBe(true);
+    expect(firstRows.every((row) => row.friendHidden)).toBe(true);
 
     expect(firstRows[0]?.isSelf).toBe(true);
     expect(firstRows[1]?.isSelf).toBe(false);
@@ -161,6 +163,143 @@ test.describe("collaboration and rate limiting", () => {
       });
     await peerPage.close();
     await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(1);
+  });
+
+  test("friends stay below self, persist by visible surname, and can be removed", async ({
+    boardPage,
+    browser,
+    server,
+  }) => {
+    const boardName = "presence-friends";
+    await boardPage.page.setViewportSize({ width: 320, height: 640 });
+    const firstRemoteContext = await browser.newContext();
+    const secondRemoteContext = await browser.newContext();
+    const firstRemote = createBoardPage(
+      await firstRemoteContext.newPage(),
+      server,
+    );
+    const secondRemote = createBoardPage(
+      await secondRemoteContext.newPage(),
+      server,
+    );
+
+    try {
+      await Promise.all([
+        boardPage.gotoBoard(boardName),
+        firstRemote.gotoBoard(boardName),
+        secondRemote.gotoBoard(boardName),
+      ]);
+      await Promise.all([
+        boardPage.waitForSocketConnected(),
+        firstRemote.waitForSocketConnected(),
+        secondRemote.waitForSocketConnected(),
+      ]);
+
+      await boardPage.connectedUsersToggle.click();
+      await expect(boardPage.connectedUsersPanel).toBeVisible();
+      await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(3);
+      const initialRows = await boardPage.readConnectedUsers();
+      expect(initialRows[0]?.isSelf).toBe(true);
+      expect(initialRows[0]?.friendHidden).toBe(true);
+      const compactLayout = await boardPage.connectedUsersPanel.evaluate(
+        (panel) => {
+          const starts = Array.from(
+            panel.querySelectorAll(".connected-user-name"),
+          ).map((name) => name.getBoundingClientRect().left);
+          return {
+            clientWidth: panel.clientWidth,
+            scrollWidth: panel.scrollWidth,
+            startSpread: Math.max(...starts) - Math.min(...starts),
+          };
+        },
+      );
+      expect(compactLayout.scrollWidth).toBeLessThanOrEqual(
+        compactLayout.clientWidth,
+      );
+      expect(compactLayout.startSpread).toBeLessThanOrEqual(1);
+
+      const lastRemote = boardPage.page
+        .locator(
+          "#connectedUsersList .connected-user-row:not(.connected-user-row-self)",
+        )
+        .last();
+      const friendUserId = await lastRemote.getAttribute("data-user-id");
+      if (!friendUserId) throw new Error("Remote user is missing a surname id");
+      const friendName =
+        (await lastRemote.locator(".connected-user-name-text").textContent()) ||
+        "";
+      const friendButton = lastRemote.locator(".connected-user-friend");
+      await expect(friendButton).toHaveAttribute(
+        "aria-label",
+        `Add ${friendName} as a friend`,
+      );
+      await expect(
+        lastRemote.locator(".connected-user-report"),
+      ).toHaveAttribute("aria-label", `Report ${friendName}`);
+      await friendButton.focus();
+      await friendButton.press("Space");
+
+      await expect
+        .poll(async () => (await boardPage.readConnectedUsers())[1]?.userId)
+        .toBe(friendUserId);
+      const friendRow = boardPage.page.locator(
+        `#connectedUsersList .connected-user-row[data-user-id="${friendUserId}"]`,
+      );
+      await expect(friendRow.locator(".connected-user-friend")).toBeFocused();
+      await expect(friendRow.locator(".connected-user-friend")).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      await expect(
+        friendRow.locator(".connected-user-friend-marker"),
+      ).toBeVisible();
+      await expect(
+        friendRow.locator(".connected-user-friend-marker"),
+      ).toHaveAttribute("aria-hidden", "true");
+      await expect
+        .poll(() =>
+          boardPage.page.evaluate(
+            ({ key, userId }) => {
+              const stored = JSON.parse(localStorage.getItem(key) || "[]");
+              return Array.isArray(stored) && stored.includes(userId);
+            },
+            { key: FRIEND_LAST_NAMES_STORAGE_KEY, userId: friendUserId },
+          ),
+        )
+        .toBe(true);
+
+      await boardPage.gotoBoard(boardName);
+      await boardPage.waitForSocketConnected();
+      await boardPage.connectedUsersToggle.click();
+      await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(3);
+      await expect
+        .poll(async () => {
+          const rows = await boardPage.readConnectedUsers();
+          return { userId: rows[1]?.userId, friend: rows[1]?.friend };
+        })
+        .toEqual({ userId: friendUserId, friend: true });
+
+      const persistedFriend = boardPage.page.locator(
+        `#connectedUsersList .connected-user-row[data-user-id="${friendUserId}"] .connected-user-friend`,
+      );
+      await persistedFriend.click();
+      await expect(persistedFriend).toHaveAttribute("aria-pressed", "false");
+      await expect(persistedFriend).toBeFocused();
+      await expect
+        .poll(() =>
+          boardPage.page.evaluate(
+            ({ key, userId }) => {
+              const stored = JSON.parse(localStorage.getItem(key) || "[]");
+              return Array.isArray(stored) && stored.includes(userId);
+            },
+            { key: FRIEND_LAST_NAMES_STORAGE_KEY, userId: friendUserId },
+          ),
+        )
+        .toBe(false);
+    } finally {
+      await firstRemoteContext.close();
+      await secondRemoteContext.close();
+    }
   });
 
   moderatorPresenceTest(
@@ -429,6 +568,21 @@ test.describe("collaboration and rate limiting", () => {
         await expect
           .poll(() => targetBoard.readConnectionAccessState())
           .toMatchObject({ connected: true, canEdit: false });
+        await expect
+          .poll(() =>
+            targetPage.evaluate(() => window.WBOApp?.access.canReport ?? true),
+          )
+          .toBe(false);
+        await targetBoard.connectedUsersToggle.click();
+        await expect(targetBoard.connectedUsersPanel).toBeVisible();
+        await expect
+          .poll(() => targetBoard.readConnectedUsers())
+          .not.toHaveLength(0);
+        await expect(
+          targetPage.locator(
+            "#connectedUsersList .connected-user-report:visible",
+          ),
+        ).toHaveCount(0);
       } finally {
         await targetContext.close();
       }
@@ -789,6 +943,12 @@ test.describe("collaboration and rate limiting", () => {
 
     const rows = await boardPage.readConnectedUsers();
     expect(new Set(rows.map((row) => row.name)).size).toBe(1);
+    expect(new Set(rows.map((row) => row.userId)).size).toBe(1);
+    const sameIdentityPeer = rows.find((row) => !row.isSelf);
+    expect(sameIdentityPeer).toMatchObject({
+      friendHidden: true,
+      reportHidden: true,
+    });
 
     await peerPage.close();
   });
