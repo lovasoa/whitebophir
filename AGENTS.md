@@ -98,7 +98,11 @@ access, and presence are handled by
 [board_shell_module.js](./client-data/js/board_shell_module.js),
 [board_status_module.js](./client-data/js/board_status_module.js),
 [board_access_module.js](./client-data/js/board_access_module.js), and
-[board_presence_module.js](./client-data/js/board_presence_module.js). Socket
+[board_presence_module.js](./client-data/js/board_presence_module.js). The
+frontend-only friend list is keyed by the visible, secret-derived presence
+`userId`; resilient local persistence and cross-tab synchronization belong to
+[board_friend_store.js](./client-data/js/board_friend_store.js), while presence
+owns friend decoration and display order. Socket
 connection, replay, received-message dispatch, optimistic state, and outgoing
 writes are handled by
 [board_connection_module.js](./client-data/js/board_connection_module.js),

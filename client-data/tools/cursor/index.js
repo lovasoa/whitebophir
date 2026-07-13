@@ -456,6 +456,16 @@ function updateCursorContent(state, cursor, message) {
   }
 }
 
+/** @param {CursorState} state */
+export function onPresenceDisplayChange(state) {
+  for (const [cursorId, cursor] of state.cursors) {
+    if (!cursorId.startsWith("cursor-") || cursorId === "cursor-me") continue;
+    const user = getPresenceUser(state, cursorId.slice("cursor-".length));
+    const name = getCursorPart(cursor.element, "opcursor-name");
+    if (name) name.textContent = user ? getConnectedUserDisplayName(user) : "";
+  }
+}
+
 /**
  * @param {CursorState} state
  * @param {CursorMessage} message

@@ -162,16 +162,35 @@ test("connected user display name marks moderators consistently", async () => {
     }),
     "User 1",
   );
+  assert.equal(
+    getConnectedUserDisplayName({
+      ...createConnectedUser(),
+      friend: true,
+      canClear: true,
+    }),
+    "\u2665\uFE0E \u{1F338} User 1",
+  );
 });
 
-test("connected user display sort pins self before other users", async () => {
+test("connected user display sort pins self, then friends, then other users", async () => {
   const { compareConnectedUsersForDisplay } = await import(
     "../client-data/js/board_presence_module.js"
   );
   const users = [
     { ...createConnectedUser(), socketId: "sock-2", name: "Alice" },
     { ...createConnectedUser(), socketId: "sock-1", name: "Zed" },
-    { ...createConnectedUser(), socketId: "sock-3", name: "Bob" },
+    {
+      ...createConnectedUser(),
+      socketId: "sock-3",
+      name: "Bob",
+      friend: true,
+    },
+    {
+      ...createConnectedUser(),
+      socketId: "sock-4",
+      name: "Aaron",
+      friend: true,
+    },
   ];
 
   users.sort((left, right) =>
@@ -180,7 +199,7 @@ test("connected user display sort pins self before other users", async () => {
 
   assert.deepEqual(
     users.map((user) => user.socketId),
-    ["sock-1", "sock-2", "sock-3"],
+    ["sock-1", "sock-4", "sock-3", "sock-2"],
   );
 });
 
