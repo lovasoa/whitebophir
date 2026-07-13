@@ -207,7 +207,7 @@ test.describe("collaboration and rate limiting", () => {
         await boardPage.reportFirstRemoteUser();
         await expect(page.locator(".wbo-dialog")).toBeVisible();
         await expect(page.locator(".wbo-dialog-choice-button")).toHaveText([
-          "No illegal content",
+          "No illegal or hateful content",
           "No calls for violence",
           "No pornography or naked children",
           "No harassment or personal attacks",
