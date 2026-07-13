@@ -13,7 +13,7 @@ import { parseRequestUrl } from "./request_url.mjs";
 
 /** @typedef {{[name: string]: string}} TranslationDictionary */
 /** @typedef {{[language: string]: TranslationDictionary}} TranslationMap */
-/** @typedef {{baseUrl: string, baseHref: string, languages: string[], language: string, translations: TranslationDictionary, configuration: object, moderator: boolean, htmlHeadSnippet: string, varyCookie?: boolean, [name: string]: any}} TemplateParameters */
+/** @typedef {{baseUrl: string, baseHref: string, languages: string[], language: string, direction: "ltr" | "rtl", translations: TranslationDictionary, configuration: object, moderator: boolean, htmlHeadSnippet: string, varyCookie?: boolean, [name: string]: any}} TemplateParameters */
 /** @typedef {import("http").IncomingMessage} TemplateRequest */
 /** @typedef {import("http").ServerResponse} TemplateResponse */
 /** @typedef {string | string[] | undefined} HeaderValue */
@@ -337,6 +337,7 @@ class Template extends StaticTemplate {
         localizedUrl(baseUrl, linkLanguage),
       ),
       language,
+      direction: language === "ar" ? "rtl" : "ltr",
       canonicalUrl: localizedUrl(baseUrl, language),
       translations,
       configuration,

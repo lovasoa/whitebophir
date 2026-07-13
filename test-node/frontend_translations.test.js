@@ -21,6 +21,7 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
   const requiredKeys = [
     "board_name_placeholder",
     "ban",
+    "ban_user",
     "ban_user_confirmation",
     "back_to_home",
     "cancel",
@@ -47,10 +48,15 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
     "introduction_paragraph",
     "keyboard shortcut",
     "loading",
+    "mark_friend",
     "mousewheel",
     "moderation_acknowledge",
     "moderation_ban_body",
     "moderation_ban_title",
+    "moderation_countdown",
+    "moderation_countdown_done",
+    "moderation_rule_focus",
+    "moderation_rule_prompt",
     "moderation_warning_body",
     "moderation_warning_title",
     "named_private_board_description",
@@ -58,6 +64,8 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
     "open_board",
     "open_public_board",
     "pencil",
+    "peer_report_disconnect_body",
+    "peer_report_disconnect_title",
     "please_zoom_in_to_draw",
     "private_board_description",
     "public_board_description",
@@ -67,7 +75,10 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
     "relative_days_short",
     "relative_hours_short",
     "relative_minutes_short",
+    "relative_seconds_short",
+    "remove_friend",
     "report",
+    "report_user",
     "rules_drawings_body",
     "rules_drawings_shared",
     "rules_drawings_title",
@@ -92,6 +103,7 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
     "unknown_error_reload_page",
     "user_report_notice",
     "users",
+    "users_count",
     "view_source",
     "warn",
     "white-out",
@@ -105,6 +117,7 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
       "relative_days_short",
       "relative_hours_short",
       "relative_minutes_short",
+      "relative_seconds_short",
     ]) {
       assert.match(
         catalog[key],
@@ -122,5 +135,59 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
       /\{relative_time\}/,
       `${language}.connected_user_joined_title must include {relative_time}`,
     );
+    assert.match(
+      catalog.moderation_rule_prompt,
+      /\{name\}/,
+      `${language}.moderation_rule_prompt must include {name}`,
+    );
+    assert.match(
+      catalog.moderation_countdown,
+      /\{time\}/,
+      `${language}.moderation_countdown must include {time}`,
+    );
+    for (const key of [
+      "ban_user",
+      "mark_friend",
+      "remove_friend",
+      "report_user",
+    ]) {
+      assert.match(
+        catalog[key],
+        /\{name\}/,
+        `${language}.${key} must include {name}`,
+      );
+    }
+    assert.match(
+      catalog.users_count,
+      /\{count\}/,
+      `${language}.users_count must include {count}`,
+    );
+    if (language !== "en") {
+      for (const key of [
+        "warn",
+        "moderation_warning_title",
+        "moderation_warning_body",
+        "moderation_ban_title",
+        "moderation_ban_body",
+        "moderation_acknowledge",
+        "moderation_rule_prompt",
+        "moderation_rule_focus",
+        "moderation_countdown",
+        "moderation_countdown_done",
+        "peer_report_disconnect_title",
+        "peer_report_disconnect_body",
+        "ban_user",
+        "mark_friend",
+        "remove_friend",
+        "report_user",
+        "users_count",
+      ]) {
+        assert.notEqual(
+          catalog[key],
+          translations.en[key],
+          `${language}.${key} must be localized`,
+        );
+      }
+    }
   }
 });

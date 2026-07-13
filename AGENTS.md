@@ -232,18 +232,30 @@ The server validates client messages, rejects malformed writes with
 `broadcast` frames.
 
 User reports are sent by clients on the `report_user` event with a payload of
-`{ "socketId": "<reported socket id>" }`. Moderator warning/ban payloads use
-`banDurationMs`: `0` warns without banning, a positive number bans for that
-duration, and an omitted or invalid value preserves the legacy default
-15-minute ban. Ban durations are clamped to at most one week. Before the
-reported socket is closed, the server emits
-`moderation_disconnect { "banDurationMs": <duration> }`; `0` means warning and a
-positive value means ban. Non-moderator reports disconnect the reporter and
-reported user after logging the report, emit
-`moderation_disconnect { "banDurationMs": 0 }` only to the reported target, and
-do not ban. For accepted non-moderator reports, the server emits
-`user_reported` only to connected moderators on that board. The `user_reported`
-payload is `{ "reporterName": "<display name>", "reportedName": "<display name>" }`.
+`{ "socketId": "<reported socket id>" }`. Moderator warning/ban actions add
+`banDurationMs` and may add `moderationRule`. A `banDurationMs` of `0` warns
+without banning, a positive number bans for that duration, and an omitted or
+invalid value preserves the legacy default 15-minute ban. Ban durations are
+clamped to at most one week. A user with an active edit ban receives
+`boardstate.canReport: false`; the client hides report controls, and the server
+also ignores any `report_user` event that user emits. Ban-aware board state also
+includes `accessRefreshAfterMs`, the server-derived delay until the last active
+secret/IP ban expires. The browser schedules one reconnect at that boundary so
+`canEdit` and `canReport` refresh without polling. The server also ignores a
+non-moderator report targeting the reporter's own socket or another socket with
+the same non-empty, secret-derived user identity.
+
+Before the reported socket is closed, the server emits
+`moderation_disconnect { "banDurationMs": <duration>, "source": "moderator" | "peer_report", "moderationRule"?: "<rule>" }`.
+Moderator actions use `source: "moderator"`; `0` means a warning and a positive
+duration means a ban. Non-moderator reports disconnect the reporter and
+reported user after logging the report, emit a zero-duration notice with
+`source: "peer_report"` only to the reported target, and do not ban. The client
+treats a missing, unknown, or incoherent source as moderator-originated for
+backward-compatible, fail-safe wording. For accepted non-moderator reports, the
+server emits `user_reported` only to connected moderators on that board. The
+`user_reported` payload is
+`{ "reporterName": "<display name>", "reportedName": "<display name>" }`.
 Moderator warning/ban actions do not emit `user_reported`; warning actions only
 disconnect the reported user, while ban actions also ban the reported secret and
 IP.

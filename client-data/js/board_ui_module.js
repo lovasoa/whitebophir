@@ -96,6 +96,7 @@
 /**
  * @typedef {{
  *   banDurationMs: number,
+ *   kind: "ban" | "report" | "warning",
  *   title: string,
  *   message: string,
  *   acknowledgeLabel: string,
@@ -103,10 +104,20 @@
  *   privateBoardLabel: string,
  *   countdownLabel: string,
  *   countdownDoneLabel: string,
+ *   countdownUnitPatterns: CountdownUnitPatterns,
  *   ruleHeading?: string,
  *   ruleTitle?: string,
  *   ruleBody?: string,
  * }} ModerationDisconnectNoticeOptions
+ */
+
+/**
+ * @typedef {{
+ *   day: string,
+ *   hour: string,
+ *   minute: string,
+ *   second: string,
+ * }} CountdownUnitPatterns
  */
 
 /**
@@ -118,17 +129,47 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(value, max));
 }
 
-/** @param {number} remainingMs */
-function formatCountdownDuration(remainingMs) {
+/**
+ * @param {string} pattern
+ * @param {number | string} count
+ */
+function formatCountdownUnit(pattern, count) {
+  return pattern.replace("{count}", String(count));
+}
+
+/**
+ * @param {number} remainingMs
+ * @param {CountdownUnitPatterns} unitPatterns
+ */
+export function formatCountdownDuration(remainingMs, unitPatterns) {
   const totalSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
   const days = Math.floor(totalSeconds / 86400);
   const hours = Math.floor((totalSeconds % 86400) / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  if (minutes > 0) return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
-  return `${seconds}s`;
+  if (days > 0) {
+    return [
+      formatCountdownUnit(unitPatterns.day, days),
+      formatCountdownUnit(unitPatterns.hour, hours),
+      formatCountdownUnit(unitPatterns.minute, minutes),
+    ].join(" ");
+  }
+  if (hours > 0) {
+    return [
+      formatCountdownUnit(unitPatterns.hour, hours),
+      formatCountdownUnit(unitPatterns.minute, minutes),
+    ].join(" ");
+  }
+  if (minutes > 0) {
+    return [
+      formatCountdownUnit(unitPatterns.minute, minutes),
+      formatCountdownUnit(
+        unitPatterns.second,
+        String(seconds).padStart(2, "0"),
+      ),
+    ].join(" ");
+  }
+  return formatCountdownUnit(unitPatterns.second, seconds);
 }
 
 /**
@@ -323,6 +364,10 @@ function applyModalBackdropClasses(element, className) {
  */
 function applyDialogPanelClasses(element, className) {
   element.classList.add(DIALOG_PANEL_CLASS);
+  element.dir =
+    document.documentElement?.getAttribute?.("data-ui-direction") === "rtl"
+      ? "rtl"
+      : "ltr";
   addOptionalClasses(element, className);
 }
 
@@ -536,12 +581,64 @@ export function showChoiceDialog({ message, choices, cancelLabel = "Cancel" }) {
   });
 }
 
+const MODAL_FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/**
+ * Keeps keyboard navigation inside a persistent modal panel. Native one-shot
+ * dialogs use showModal(), which already provides this behavior.
+ * @param {HTMLElement} panel
+ * @param {() => void} onEscape
+ * @returns {() => void}
+ */
+function trapPersistentModalFocus(panel, onEscape) {
+  /** @param {KeyboardEvent} event */
+  const onKeyDown = (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onEscape();
+      return;
+    }
+    if (event.key !== "Tab") return;
+
+    const focusable = Array.from(
+      panel.querySelectorAll(MODAL_FOCUSABLE_SELECTOR),
+    ).filter(
+      /** @returns {element is HTMLElement} */
+      (element) =>
+        element instanceof HTMLElement &&
+        !element.hidden &&
+        element.getClientRects().length > 0,
+    );
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (!first || !last) {
+      event.preventDefault();
+      panel.focus();
+      return;
+    }
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+  panel.addEventListener("keydown", onKeyDown);
+  return () => panel.removeEventListener("keydown", onKeyDown);
+}
+
 /**
  * @param {ModerationDisconnectNoticeOptions} options
  * @returns {Promise<void>}
  */
 export function showModerationDisconnectNotice(options) {
   return new Promise((resolve) => {
+    const previousFocus =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
     const shell = createModalShell({
       overlayId: "moderation-disconnect-overlay",
       dialogId: "moderation-disconnect-dialog",
@@ -552,8 +649,7 @@ export function showModerationDisconnectNotice(options) {
     shell.dialog.classList.add("moderation-disconnect-dialog");
     shell.dialog.setAttribute("role", "alertdialog");
     shell.dialog.setAttribute("aria-modal", "true");
-    shell.dialog.dataset.moderationKind =
-      options.banDurationMs > 0 ? "ban" : "warning";
+    shell.dialog.dataset.moderationKind = options.kind;
 
     const icon = document.createElement("div");
     icon.className = "moderation-disconnect-icon";
@@ -568,7 +664,9 @@ export function showModerationDisconnectNotice(options) {
 
     const message = document.createElement("p");
     message.className = "moderation-disconnect-message";
+    message.id = "moderation-disconnect-message";
     message.textContent = options.message;
+    shell.dialog.setAttribute("aria-describedby", message.id);
 
     const ruleCallout = document.createElement("div");
     ruleCallout.className = "moderation-disconnect-rule";
@@ -599,7 +697,10 @@ export function showModerationDisconnectNotice(options) {
         remainingMs > 0
           ? options.countdownLabel.replace(
               "{time}",
-              formatCountdownDuration(remainingMs),
+              formatCountdownDuration(
+                remainingMs,
+                options.countdownUnitPatterns,
+              ),
             )
           : options.countdownDoneLabel;
       if (remainingMs <= 0 && countdownInterval !== null) {
@@ -633,18 +734,24 @@ export function showModerationDisconnectNotice(options) {
     acknowledge.className =
       "wbo-dialog-button wbo-dialog-button-primary moderation-disconnect-ack";
     acknowledge.textContent = options.acknowledgeLabel;
-    acknowledge.addEventListener(
-      "click",
-      () => {
-        if (countdownInterval !== null) {
-          clearInterval(countdownInterval);
-          countdownInterval = null;
-        }
-        shell.hide();
-        resolve();
-      },
-      { once: true },
-    );
+    let settled = false;
+    let releaseFocusTrap = () => {};
+    const settle = () => {
+      if (settled) return;
+      settled = true;
+      if (countdownInterval !== null) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+      }
+      releaseFocusTrap();
+      shell.hide();
+      acknowledge.blur();
+      if (previousFocus?.isConnected && !shell.dialog.contains(previousFocus)) {
+        previousFocus.focus({ preventScroll: true });
+      }
+      resolve();
+    };
+    acknowledge.addEventListener("click", settle, { once: true });
 
     actions.append(privateBoard, acknowledge);
     shell.dialog.append(icon, title, message);
@@ -652,6 +759,7 @@ export function showModerationDisconnectNotice(options) {
     if (options.banDurationMs > 0) shell.dialog.appendChild(countdown);
     shell.dialog.append(rulesLink, actions);
     shell.show();
+    releaseFocusTrap = trapPersistentModalFocus(shell.dialog, settle);
     acknowledge.focus();
   });
 }

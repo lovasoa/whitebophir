@@ -269,6 +269,9 @@ test.describe("collaboration and rate limiting", () => {
         const targetReconnect = targetBoard.waitForDisconnectThenReconnect();
         await boardPage.reportFirstRemoteUser();
         await expect(boardPage.page.locator(".wbo-dialog")).toBeVisible();
+        await boardPage.page
+          .getByRole("button", { name: "No harassment or personal attacks" })
+          .click();
         await boardPage.page.getByRole("button", { name: "Warn" }).click();
 
         await expect
@@ -318,7 +321,10 @@ test.describe("collaboration and rate limiting", () => {
 
         await Promise.all([
           boardPage.gotoBoard(boardName, { token: TOKENS.globalModerator }),
-          targetBoard.gotoBoard(boardName, { token: TOKENS.globalEditor }),
+          targetBoard.gotoBoard(boardName, {
+            lang: "ru",
+            token: TOKENS.globalEditor,
+          }),
         ]);
         await Promise.all([
           boardPage.waitForSocketConnected(),
@@ -332,6 +338,9 @@ test.describe("collaboration and rate limiting", () => {
         const targetReconnect = targetBoard.waitForDisconnectThenReconnect();
         await boardPage.reportFirstRemoteUser();
         await expect(boardPage.page.locator(".wbo-dialog")).toBeVisible();
+        await boardPage.page
+          .getByRole("button", { name: "No harassment or personal attacks" })
+          .click();
         await boardPage.page.getByRole("button", { name: "15m" }).click();
 
         await expect
@@ -339,9 +348,71 @@ test.describe("collaboration and rate limiting", () => {
           .toMatchObject({
             visible: true,
             kind: "ban",
-            title: "Editing is temporarily blocked",
-            acknowledgeLabel: "I understand",
+            title: "Редактирование временно заблокировано",
+            acknowledgeLabel: "Понятно",
           });
+        const disconnectDialog = targetPage.locator(
+          "#moderation-disconnect-dialog",
+        );
+        const dialogGeometry = await disconnectDialog.evaluate((dialog) => {
+          const privateBoard = dialog.querySelector(
+            ".moderation-disconnect-private",
+          );
+          const acknowledge = dialog.querySelector(
+            ".moderation-disconnect-ack",
+          );
+          if (!(privateBoard instanceof HTMLElement)) {
+            throw new Error("Missing private-board action");
+          }
+          if (!(acknowledge instanceof HTMLElement)) {
+            throw new Error("Missing acknowledge action");
+          }
+          const privateRect = privateBoard.getBoundingClientRect();
+          const acknowledgeRect = acknowledge.getBoundingClientRect();
+          return {
+            client: dialog.clientWidth,
+            scroll: dialog.scrollWidth,
+            width: dialog.getBoundingClientRect().width,
+            privateDisplay: getComputedStyle(privateBoard).display,
+            privateAlign: getComputedStyle(privateBoard).alignItems,
+            privateHeight: privateRect.height,
+            acknowledgeHeight: acknowledgeRect.height,
+            centerDelta: Math.abs(
+              privateRect.top +
+                privateRect.height / 2 -
+                (acknowledgeRect.top + acknowledgeRect.height / 2),
+            ),
+          };
+        });
+        expect(dialogGeometry.width).toBe(420);
+        expect(dialogGeometry.scroll).toBeLessThanOrEqual(
+          dialogGeometry.client,
+        );
+        expect(dialogGeometry.privateDisplay).toBe("flex");
+        expect(dialogGeometry.privateAlign).toBe("center");
+        expect(dialogGeometry.privateHeight).toBe(
+          dialogGeometry.acknowledgeHeight,
+        );
+        expect(dialogGeometry.centerDelta).toBeLessThanOrEqual(0.5);
+        await targetPage.setViewportSize({ width: 360, height: 640 });
+        const narrowDialogGeometry = await disconnectDialog.evaluate(
+          (dialog) => ({
+            client: dialog.clientWidth,
+            scroll: dialog.scrollWidth,
+            width: dialog.getBoundingClientRect().width,
+          }),
+        );
+        expect(narrowDialogGeometry.width).toBe(328);
+        expect(narrowDialogGeometry.scroll).toBeLessThanOrEqual(
+          narrowDialogGeometry.client,
+        );
+        const acknowledge = targetPage.locator(".moderation-disconnect-ack");
+        const rulesLink = targetPage.locator(".moderation-disconnect-rules");
+        await expect(acknowledge).toBeFocused();
+        await acknowledge.press("Tab");
+        await expect(rulesLink).toBeFocused();
+        await rulesLink.press("Shift+Tab");
+        await expect(acknowledge).toBeFocused();
         await expect
           .poll(() => targetBoard.readConnectionAccessState())
           .toMatchObject({
@@ -350,6 +421,7 @@ test.describe("collaboration and rate limiting", () => {
           });
 
         await targetBoard.acknowledgeModerationDisconnect();
+        await expect(acknowledge).not.toBeFocused();
         await expect(targetReconnect).resolves.toMatchObject({
           initialId: expect.any(String),
           nextId: expect.any(String),
@@ -482,71 +554,76 @@ test.describe("collaboration and rate limiting", () => {
     await peerPage.close();
   });
 
-  test("reporting a user shows the reported target a warning before reconnect", async ({
+  test("reporting a user shows the reported target a neutral notice before reconnect", async ({
     boardPage,
+    browser,
     server,
-    context,
   }) => {
-    const peerPage = await context.newPage();
+    const peerContext = await browser.newContext();
+    const peerPage = await peerContext.newPage();
     const peerBoard = createBoardPage(peerPage, server);
 
-    await Promise.all([
-      boardPage.gotoBoard("report-user-reconnect"),
-      peerBoard.gotoBoard("report-user-reconnect"),
-    ]);
-    await Promise.all([
-      boardPage.waitForSocketConnected(),
-      peerBoard.waitForSocketConnected(),
-    ]);
+    try {
+      await Promise.all([
+        boardPage.gotoBoard("report-user-reconnect"),
+        peerBoard.gotoBoard("report-user-reconnect"),
+      ]);
+      await Promise.all([
+        boardPage.waitForSocketConnected(),
+        peerBoard.waitForSocketConnected(),
+      ]);
 
-    await boardPage.connectedUsersToggle.click();
-    await peerBoard.connectedUsersToggle.click();
-    await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
-    await expect.poll(() => peerBoard.readConnectedUsers()).toHaveLength(2);
+      await boardPage.connectedUsersToggle.click();
+      await peerBoard.connectedUsersToggle.click();
+      await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+      await expect.poll(() => peerBoard.readConnectedUsers()).toHaveLength(2);
 
-    const reporterReconnect = boardPage.waitForDisconnectThenReconnect();
-    const reportedReconnect = peerBoard.waitForDisconnectThenReconnect();
+      const reporterReconnect = boardPage.waitForDisconnectThenReconnect();
+      const reportedReconnect = peerBoard.waitForDisconnectThenReconnect();
 
-    await boardPage.reportFirstRemoteUser();
+      await boardPage.reportFirstRemoteUser();
 
-    await expect(reporterReconnect).resolves.toMatchObject({
-      initialId: expect.any(String),
-      nextId: expect.any(String),
-    });
-
-    await expect
-      .poll(() => peerBoard.readModerationOverlay())
-      .toMatchObject({
-        visible: true,
-        kind: "warning",
-        title: "Moderator warning",
-        acknowledgeLabel: "I understand",
-      });
-    await expect
-      .poll(() => peerBoard.readConnectionAccessState())
-      .toMatchObject({
-        connected: false,
-        connectionState: "disconnected",
+      await expect(reporterReconnect).resolves.toMatchObject({
+        initialId: expect.any(String),
+        nextId: expect.any(String),
       });
 
-    await peerBoard.acknowledgeModerationDisconnect();
-    await expect(reportedReconnect).resolves.toMatchObject({
-      initialId: expect.any(String),
-      nextId: expect.any(String),
-    });
+      await expect
+        .poll(() => peerBoard.readModerationOverlay())
+        .toMatchObject({
+          visible: true,
+          kind: "report",
+          title: "Disconnected after a user report",
+          message:
+            "Another user reported activity from your connection. Both connections were closed to prevent an immediate conflict. You can reconnect now.",
+          acknowledgeLabel: "I understand",
+        });
+      await expect
+        .poll(() => peerBoard.readConnectionAccessState())
+        .toMatchObject({
+          connected: false,
+          connectionState: "disconnected",
+        });
 
-    await Promise.all([
-      boardPage.waitForSocketConnected(),
-      peerBoard.waitForSocketConnected(),
-    ]);
-    await boardPage.connectedUsersToggle.click();
-    await peerBoard.connectedUsersToggle.click();
-    await expect(boardPage.connectedUsersPanel).toBeVisible();
-    await expect(peerBoard.connectedUsersPanel).toBeVisible();
-    await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
-    await expect.poll(() => peerBoard.readConnectedUsers()).toHaveLength(2);
+      await peerBoard.acknowledgeModerationDisconnect();
+      await expect(reportedReconnect).resolves.toMatchObject({
+        initialId: expect.any(String),
+        nextId: expect.any(String),
+      });
 
-    await peerPage.close();
+      await Promise.all([
+        boardPage.waitForSocketConnected(),
+        peerBoard.waitForSocketConnected(),
+      ]);
+      await boardPage.connectedUsersToggle.click();
+      await peerBoard.connectedUsersToggle.click();
+      await expect(boardPage.connectedUsersPanel).toBeVisible();
+      await expect(peerBoard.connectedUsersPanel).toBeVisible();
+      await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+      await expect.poll(() => peerBoard.readConnectedUsers()).toHaveLength(2);
+    } finally {
+      await peerContext.close();
+    }
   });
 
   test("same-session sockets keep separate activity in the user list", async ({
