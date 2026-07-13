@@ -31,8 +31,13 @@ type ConnectedUserState = {
   isSelf: boolean;
   reportDisabled: boolean;
   reportHidden: boolean;
+  reportLabel: string;
+  reportText: string;
   friend: boolean;
   friendHidden: boolean;
+  friendOpacity: string;
+  reportOpacity: string;
+  actionSlotWidth: string;
   color: string;
   ringWidth: string;
   fontWeight: string;
@@ -373,6 +378,9 @@ window.turnstile = {
         const nameComputed = name ? window.getComputedStyle(name) : null;
         const rowComputed =
           row instanceof HTMLElement ? window.getComputedStyle(row) : null;
+        const actions = row.querySelector(".connected-user-actions");
+        const friendComputed = friend ? window.getComputedStyle(friend) : null;
+        const reportComputed = report ? window.getComputedStyle(report) : null;
         return {
           userId: row instanceof HTMLElement ? (row.dataset.userId ?? "") : "",
           name: name?.textContent ?? "",
@@ -381,8 +389,15 @@ window.turnstile = {
           isSelf: row.classList.contains("connected-user-row-self"),
           reportDisabled: !!(report && (report as HTMLButtonElement).disabled),
           reportHidden: !!(report && (report as HTMLButtonElement).hidden),
+          reportLabel: report?.getAttribute("aria-label") ?? "",
+          reportText: report?.textContent ?? "",
           friend: friend?.getAttribute("aria-pressed") === "true",
           friendHidden: friend?.hidden ?? true,
+          friendOpacity: friendComputed?.opacity ?? "",
+          reportOpacity: reportComputed?.opacity ?? "",
+          actionSlotWidth: actions
+            ? window.getComputedStyle(actions).width
+            : "",
           color: toolBadge?.style.borderColor ?? "",
           ringWidth: toolBadge?.style.borderWidth ?? "",
           fontWeight: nameComputed?.fontWeight ?? "",

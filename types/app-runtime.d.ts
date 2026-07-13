@@ -363,6 +363,8 @@ export type ConnectedUser = {
   pulseMs?: number;
   pulseUntil?: number;
   reported?: boolean;
+  reportPending?: boolean;
+  reportBanned?: boolean;
   friend?: boolean;
   pulseTimeoutId?: number | null;
   removeTimeoutId?: number | null;

@@ -1490,7 +1490,7 @@ test("Cursor renders presence as a viewport-scaled HTML overlay", async () => {
   cursorTool.onPresenceDisplayChange();
   assert.equal(
     findElementByClass(peerCursor, "opcursor-name")?.textContent,
-    "\u2665\uFE0E \u{1F338} Peer User",
+    "\u2764\uFE0F \u{1F338} Peer User",
   );
   assert.equal(
     findElementByClass(peerCursor, "opcursor-toolIcon")?.src,

@@ -72,6 +72,8 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
     "rate_limit_disconnect_message",
     "recent_boards",
     "rectangle",
+    "report_sent",
+    "ban_applied",
     "relative_days_short",
     "relative_hours_short",
     "relative_minutes_short",
@@ -180,6 +182,8 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
         "mark_friend",
         "remove_friend",
         "report_user",
+        "report_sent",
+        "ban_applied",
         "users_count",
       ]) {
         assert.notEqual(

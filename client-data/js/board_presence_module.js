@@ -548,14 +548,9 @@ function schedulePresenceStaleTick(presence) {
  */
 export function getConnectedUserDisplayName(user) {
   const markers = [];
-  if (user.friend === true) markers.push("\u2665\uFE0E");
+  if (user.friend === true) markers.push("\u2764\uFE0F");
   if (user.canClear === true) markers.push("\u{1F338}");
   return markers.length > 0 ? `${markers.join(" ")} ${user.name}` : user.name;
-}
-
-/** @param {ConnectedUser} user */
-function getConnectedUserListName(user) {
-  return user.canClear === true ? `\u{1F338} ${user.name}` : user.name;
 }
 
 /**
@@ -782,6 +777,35 @@ function getReportActionGlyph() {
   return "\u2691\uFE0E";
 }
 
+/** @returns {string} */
+function getReportSentGlyph() {
+  return "\u2713";
+}
+
+/** @returns {boolean} */
+function hasCoarsePointer() {
+  return (
+    (typeof window.matchMedia === "function" &&
+      window.matchMedia("(pointer: coarse)").matches) ||
+    navigator.maxTouchPoints > 0
+  );
+}
+
+/** @param {ConnectedUserRow} row */
+function revealTouchConnectedUserRow(row) {
+  if (!hasCoarsePointer()) return;
+  const list = row.parentElement;
+  if (!list) return;
+  list
+    .querySelectorAll(".connected-user-row-touch-revealed")
+    .forEach((revealedRow) => {
+      if (revealedRow !== row) {
+        revealedRow.classList.remove("connected-user-row-touch-revealed");
+      }
+    });
+  row.classList.add("connected-user-row-touch-revealed");
+}
+
 /**
  * @param {() => AppToolsState} getTools
  * @param {ConnectedUserRow} row
@@ -859,7 +883,7 @@ function updateConnectedUserRow(getTools, row, user) {
     row.querySelector(".connected-user-name-text")
   );
   if (name) {
-    name.textContent = getConnectedUserListName(user);
+    name.textContent = getConnectedUserDisplayName(user);
   }
 
   const friend = /** @type {HTMLButtonElement | null} */ (
@@ -886,10 +910,6 @@ function updateConnectedUserRow(getTools, row, user) {
     friend.setAttribute("aria-pressed", isFriend ? "true" : "false");
     friend.classList.toggle("connected-user-friend-active", isFriend);
     row.classList.toggle("connected-user-row-friend", isFriend);
-    const friendMarker = row.querySelector(".connected-user-friend-marker");
-    if (friendMarker instanceof HTMLElement) {
-      friendMarker.hidden = !isFriend;
-    }
   }
 
   row.classList.toggle("connected-user-row-readonly", user.canEdit === false);
@@ -923,17 +943,22 @@ function updateConnectedUserRow(getTools, row, user) {
       Tools.presence.users,
       user,
     );
-    const reportLabel = getReportActionLabel(Tools, user.name);
-    report.textContent = getReportActionGlyph();
+    const reportLabel = user.reported
+      ? Tools.i18n.t(user.reportBanned ? "ban_applied" : "report_sent")
+      : getReportActionLabel(Tools, user.name);
+    report.textContent = user.reported
+      ? getReportSentGlyph()
+      : getReportActionGlyph();
     report.title = reportLabel;
     report.setAttribute("aria-label", reportLabel);
-    report.hidden =
-      Tools.access.canReport === false ||
-      currentIdentityUser ||
-      !!user.disconnectedAt ||
-      user.canClear === true ||
-      user.reported === true;
-    report.disabled = currentIdentityUser;
+    report.hidden = user.reported
+      ? false
+      : Tools.access.canReport === false ||
+        currentIdentityUser ||
+        user.canClear === true ||
+        !!user.disconnectedAt;
+    report.disabled =
+      currentIdentityUser || !!user.reported || !!user.reportPending;
     report.classList.toggle("connected-user-report-latched", !!user.reported);
   }
 }
@@ -962,7 +987,7 @@ function createConnectedUserRow(getTools, user, presence) {
 
   const friend = document.createElement("button");
   friend.type = "button";
-  friend.className = "connected-user-friend";
+  friend.className = "connected-user-action connected-user-friend";
   const friendGlyph = document.createElement("span");
   friendGlyph.className = "connected-user-friend-glyph";
   friendGlyph.setAttribute("aria-hidden", "true");
@@ -986,15 +1011,10 @@ function createConnectedUserRow(getTools, user, presence) {
 
   const name = document.createElement("div");
   name.className = "connected-user-name";
-  const friendMarker = document.createElement("span");
-  friendMarker.className = "connected-user-friend-marker";
-  friendMarker.setAttribute("aria-hidden", "true");
-  friendMarker.textContent = "\u2665\uFE0E";
-  friendMarker.hidden = true;
   const nameText = document.createElement("bdi");
   nameText.className = "connected-user-name-text";
   nameText.dir = "auto";
-  name.append(friendMarker, nameText);
+  name.appendChild(nameText);
   link.appendChild(name);
 
   const meta = document.createElement("span");
@@ -1002,6 +1022,9 @@ function createConnectedUserRow(getTools, user, presence) {
   link.appendChild(meta);
 
   main.appendChild(link);
+  link.addEventListener("click", () => {
+    revealTouchConnectedUserRow(row);
+  });
   row.appendChild(main);
 
   const actions = document.createElement("span");
@@ -1010,7 +1033,7 @@ function createConnectedUserRow(getTools, user, presence) {
 
   const report = document.createElement("button");
   report.type = "button";
-  report.className = "connected-user-report";
+  report.className = "connected-user-action connected-user-report";
   report.addEventListener("click", (evt) => {
     evt.preventDefault();
     evt.stopPropagation();
@@ -1022,7 +1045,9 @@ function createConnectedUserRow(getTools, user, presence) {
       !connectedUser ||
       Tools.access.canReport === false ||
       connectedUser.canClear === true ||
-      isCurrentIdentityUser(Tools, presence.users, connectedUser)
+      isCurrentIdentityUser(Tools, presence.users, connectedUser) ||
+      connectedUser.reported === true ||
+      connectedUser.reportPending === true
     ) {
       return;
     }
@@ -1031,7 +1056,11 @@ function createConnectedUserRow(getTools, user, presence) {
      * @param {string | undefined} moderationRule
      */
     const reportConnectedUser = (banDurationMs, moderationRule) => {
+      if (connectedUser.reported === true) return;
       connectedUser.reported = true;
+      connectedUser.reportPending = false;
+      connectedUser.reportBanned =
+        typeof banDurationMs === "number" && banDurationMs > 0;
       updateConnectedUserRow(getTools, row, connectedUser);
       /** @type {import("../../types/app-runtime").ReportUserPayload} */
       const payload = {
@@ -1042,6 +1071,8 @@ function createConnectedUserRow(getTools, user, presence) {
       socket.emit(SocketEvents.REPORT_USER, payload);
     };
     if (Tools.access.canClear === true) {
+      connectedUser.reportPending = true;
+      updateConnectedUserRow(getTools, row, connectedUser);
       void Tools.ui
         .showChoiceDialog({
           message: Tools.i18n.format("moderation_rule_prompt", {
@@ -1082,7 +1113,10 @@ function createConnectedUserRow(getTools, user, presence) {
               selection.banDurationMs,
               selection.moderationRule,
             );
+            return;
           }
+          connectedUser.reportPending = false;
+          updateConnectedUserRow(getTools, row, connectedUser);
         });
       return;
     }

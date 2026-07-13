@@ -96,6 +96,8 @@
     "peer_report_disconnect_body": "أبلغ مستخدم آخر عن نشاط صادر من اتصالك. أُغلق اتصالك واتصال المستخدم الآخر لتفادي نشوب خلاف فورًا. يمكنك إعادة الاتصال الآن.",
     "mark_friend": "إضافة {name} إلى الأصدقاء",
     "remove_friend": "إزالة {name} من الأصدقاء",
+    "report_sent": "تم إرسال البلاغ",
+    "ban_applied": "تم تطبيق الحظر",
     "users_count": "المستخدمون: {count}"
   },
   "be": {
@@ -195,6 +197,8 @@
     "peer_report_disconnect_body": "Іншы карыстальнік паскардзіўся на дзеянні з вашага злучэння. Абодва злучэнні закрылі, каб не дапусціць канфлікту адразу пасля скаргі. Цяпер вы можаце падключыцца зноў.",
     "mark_friend": "Дадаць {name} у сябры",
     "remove_friend": "Выдаліць {name} з сяброў",
+    "report_sent": "Скарга адпраўлена",
+    "ban_applied": "Блакіроўка ўжыта",
     "users_count": "Карыстальнікі: {count}"
   },
   "ca": {
@@ -294,6 +298,8 @@
     "peer_report_disconnect_body": "Un altre usuari ha informat d’activitat procedent de la vostra connexió. S’han tancat totes dues connexions per evitar un conflicte immediat. Ja us podeu tornar a connectar.",
     "mark_friend": "Afegeix {name} als amics",
     "remove_friend": "Elimina {name} dels amics",
+    "report_sent": "Denúncia enviada",
+    "ban_applied": "Bloqueig aplicat",
     "users_count": "Usuaris: {count}"
   },
   "de": {
@@ -393,6 +399,8 @@
     "peer_report_disconnect_body": "Ein anderer Nutzer hat Aktivitäten gemeldet, die von deiner Verbindung ausgingen. Beide Verbindungen wurden geschlossen, um einen unmittelbaren Konflikt zu vermeiden. Du kannst dich jetzt wieder verbinden.",
     "mark_friend": "{name} zur Freundesliste hinzufügen",
     "remove_friend": "{name} aus der Freundesliste entfernen",
+    "report_sent": "Meldung gesendet",
+    "ban_applied": "Sperre angewendet",
     "users_count": "Nutzer: {count}"
   },
   "en": {
@@ -492,6 +500,8 @@
     "peer_report_disconnect_body": "Another user reported activity from your connection. Both connections were closed to prevent an immediate conflict. You can reconnect now.",
     "mark_friend": "Add {name} as a friend",
     "remove_friend": "Remove {name} from friends",
+    "report_sent": "Report sent",
+    "ban_applied": "Ban applied",
     "users_count": "Users: {count}"
   },
   "es": {
@@ -591,6 +601,8 @@
     "peer_report_disconnect_body": "Otro usuario denunció actividad procedente de tu conexión. Se cerraron ambas conexiones para evitar un conflicto inmediato. Puedes volver a conectarte ahora.",
     "mark_friend": "Añadir a {name} como amigo",
     "remove_friend": "Eliminar a {name} de tus amigos",
+    "report_sent": "Denuncia enviada",
+    "ban_applied": "Bloqueo aplicado",
     "users_count": "Usuarios: {count}"
   },
   "fr": {
@@ -689,6 +701,8 @@
     "peer_report_disconnect_body": "Un autre utilisateur a signalé une activité provenant de votre connexion. Les deux connexions ont été fermées pour éviter un conflit immédiat. Vous pouvez vous reconnecter dès maintenant.",
     "mark_friend": "Ajouter {name} à vos amis",
     "remove_friend": "Retirer {name} de vos amis",
+    "report_sent": "Signalement envoyé",
+    "ban_applied": "Bannissement appliqué",
     "users_count": "Utilisateurs : {count}"
   },
   "hu": {
@@ -788,6 +802,8 @@
     "peer_report_disconnect_body": "Egy másik felhasználó a kapcsolatodból származó tevékenységet jelentett. Hogy ne alakuljon ki azonnal konfliktus, mindkét kapcsolatot megszakítottuk. Most újra csatlakozhatsz.",
     "mark_friend": "Add hozzá {name} felhasználót a barátaidhoz",
     "remove_friend": "Távolítsd el {name} felhasználót a barátaid közül",
+    "report_sent": "Jelentés elküldve",
+    "ban_applied": "Kitiltás alkalmazva",
     "users_count": "Felhasználók: {count}"
   },
   "id": {
@@ -887,6 +903,8 @@
     "peer_report_disconnect_body": "Pengguna lain melaporkan aktivitas dari koneksi Anda. Kedua koneksi ditutup agar tidak terjadi konflik langsung. Anda dapat tersambung kembali sekarang.",
     "mark_friend": "Tambahkan {name} sebagai teman",
     "remove_friend": "Hapus {name} dari daftar teman",
+    "report_sent": "Laporan terkirim",
+    "ban_applied": "Pemblokiran diterapkan",
     "users_count": "Pengguna: {count}"
   },
   "it": {
@@ -986,6 +1004,8 @@
     "peer_report_disconnect_body": "Un altro utente ha segnalato attività provenienti dalla tua connessione. Entrambe le connessioni sono state chiuse per evitare un conflitto immediato. Ora puoi riconnetterti.",
     "mark_friend": "Aggiungi {name} agli amici",
     "remove_friend": "Rimuovi {name} dagli amici",
+    "report_sent": "Segnalazione inviata",
+    "ban_applied": "Blocco applicato",
     "users_count": "Utenti: {count}"
   },
   "ja": {
@@ -1085,6 +1105,8 @@
     "peer_report_disconnect_body": "別のユーザーが、あなたの接続からの操作を通報しました。すぐにトラブルが起きるのを防ぐため、双方の接続を切断しました。現在は再接続できます。",
     "mark_friend": "{name}を友だちに追加",
     "remove_friend": "{name}を友だちから削除",
+    "report_sent": "通報を送信しました",
+    "ban_applied": "BANを適用しました",
     "users_count": "ユーザー：{count}"
   },
   "my": {
@@ -1184,6 +1206,8 @@
     "peer_report_disconnect_body": "အခြားအသုံးပြုသူတစ်ဦးက သင့်ချိတ်ဆက်မှုမှ လုပ်ဆောင်ချက်ကို တိုင်ကြားခဲ့သည်။ ချက်ချင်း ပဋိပက္ခဖြစ်ပွားမှုကို ကာကွယ်ရန် ချိတ်ဆက်မှုနှစ်ခုလုံးကို ပိတ်ခဲ့သည်။ ယခု ပြန်လည်ချိတ်ဆက်နိုင်ပါသည်။",
     "mark_friend": "{name} ကို သူငယ်ချင်းအဖြစ် ထည့်ရန်",
     "remove_friend": "{name} ကို သူငယ်ချင်းစာရင်းမှ ဖယ်ရှားရန်",
+    "report_sent": "တိုင်ကြားချက် ပို့ပြီးပါပြီ",
+    "ban_applied": "ပိတ်ပင်မှု အသုံးပြုပြီးပါပြီ",
     "users_count": "အသုံးပြုသူများ: {count}"
   },
   "pt": {
@@ -1283,6 +1307,8 @@
     "peer_report_disconnect_body": "Outro usuário denunciou uma atividade proveniente da sua conexão. As duas conexões foram encerradas para evitar um conflito imediato. Você pode se reconectar agora.",
     "mark_friend": "Adicionar {name} aos amigos",
     "remove_friend": "Remover {name} dos amigos",
+    "report_sent": "Denúncia enviada",
+    "ban_applied": "Banimento aplicado",
     "users_count": "Utilizadores: {count}"
   },
   "ru": {
@@ -1382,6 +1408,8 @@
     "peer_report_disconnect_body": "Другой пользователь пожаловался на активность с вашего соединения. Оба соединения закрыли, чтобы сразу после жалобы не возник конфликт. Теперь вы можете подключиться снова.",
     "mark_friend": "Добавить {name} в друзья",
     "remove_friend": "Удалить {name} из друзей",
+    "report_sent": "Жалоба отправлена",
+    "ban_applied": "Блокировка применена",
     "users_count": "Пользователи: {count}"
   },
   "sw": {
@@ -1481,6 +1509,8 @@
     "peer_report_disconnect_body": "Mtumiaji mwingine ameripoti shughuli kutoka kwenye muunganisho wako. Miunganisho yote miwili ilifungwa ili kuepusha mzozo wa papo hapo. Unaweza kuunganisha tena sasa.",
     "mark_friend": "Ongeza {name} kama rafiki",
     "remove_friend": "Ondoa {name} kwenye marafiki",
+    "report_sent": "Ripoti imetumwa",
+    "ban_applied": "Marufuku imetumika",
     "users_count": "Watumiaji: {count}"
   },
   "th": {
@@ -1580,6 +1610,8 @@
     "peer_report_disconnect_body": "ผู้ใช้รายอื่นรายงานกิจกรรมจากการเชื่อมต่อของคุณ เราจึงปิดการเชื่อมต่อของทั้งสองฝ่ายเพื่อป้องกันความขัดแย้งในทันที คุณสามารถเชื่อมต่อใหม่ได้แล้ว",
     "mark_friend": "เพิ่ม {name} เป็นเพื่อน",
     "remove_friend": "ลบ {name} ออกจากรายชื่อเพื่อน",
+    "report_sent": "ส่งรายงานแล้ว",
+    "ban_applied": "ใช้การแบนแล้ว",
     "users_count": "ผู้ใช้: {count}"
   },
   "uk": {
@@ -1679,6 +1711,8 @@
     "peer_report_disconnect_body": "Інший користувач поскаржився на активність із вашого з’єднання. Обидва з’єднання закрили, щоб одразу після скарги не виник конфлікт. Тепер ви можете підключитися знову.",
     "mark_friend": "Додати {name} у друзі",
     "remove_friend": "Видалити {name} із друзів",
+    "report_sent": "Скаргу надіслано",
+    "ban_applied": "Блокування застосовано",
     "users_count": "Користувачі: {count}"
   },
   "vi": {
@@ -1778,6 +1812,8 @@
     "peer_report_disconnect_body": "Một người dùng khác đã báo cáo hoạt động từ kết nối của bạn. Cả hai kết nối đều đã bị đóng để tránh xảy ra xung đột ngay sau đó. Bạn có thể kết nối lại ngay bây giờ.",
     "mark_friend": "Thêm {name} làm bạn",
     "remove_friend": "Xóa {name} khỏi danh sách bạn bè",
+    "report_sent": "Đã gửi báo cáo",
+    "ban_applied": "Đã áp dụng lệnh cấm",
     "users_count": "Người dùng: {count}"
   },
   "zh-CN": {
@@ -1877,6 +1913,8 @@
     "peer_report_disconnect_body": "另一位用户举报了来自你连接的活动。为避免双方立即发生冲突，双方的连接均已关闭。你现在可以重新连接。",
     "mark_friend": "将 {name} 添加为好友",
     "remove_friend": "将 {name} 从好友中移除",
+    "report_sent": "举报已发送",
+    "ban_applied": "已应用封禁",
     "users_count": "用户：{count}"
   },
   "zh-TW": {
@@ -1976,6 +2014,8 @@
     "peer_report_disconnect_body": "另一位使用者檢舉了來自你連線的活動。為避免雙方立即發生衝突，雙方的連線均已關閉。你現在可以重新連線。",
     "mark_friend": "將 {name} 加為好友",
     "remove_friend": "將 {name} 從好友中移除",
+    "report_sent": "檢舉已送出",
+    "ban_applied": "已套用封鎖",
     "users_count": "使用者：{count}"
   },
   "pl": {
@@ -2075,6 +2115,8 @@
     "peer_report_disconnect_body": "Inny użytkownik zgłosił aktywność pochodzącą z Twojego połączenia. Oba połączenia zamknięto, aby nie doszło od razu do konfliktu. Możesz teraz połączyć się ponownie.",
     "mark_friend": "Dodaj {name} do znajomych",
     "remove_friend": "Usuń {name} ze znajomych",
+    "report_sent": "Zgłoszenie wysłane",
+    "ban_applied": "Nałożono blokadę",
     "users_count": "Użytkownicy: {count}"
   }
 }
