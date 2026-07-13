@@ -420,6 +420,12 @@ export class ToolRegistryModule {
       this.normalizeServerRenderedElementsForTool(tool);
     });
   }
+
+  notifyPresenceDisplayChange() {
+    Object.values(this.mounted).forEach((tool) => {
+      tool.onPresenceDisplayChange?.();
+    });
+  }
 }
 
 /**
@@ -780,6 +786,7 @@ function createMountedTool(toolModule, toolState, toolName) {
   const onstart = toolModule.onstart;
   const onquit = toolModule.onquit;
   const onSocketDisconnect = toolModule.onSocketDisconnect;
+  const onPresenceDisplayChange = toolModule.onPresenceDisplayChange;
   const onMutationRejected = toolModule.onMutationRejected;
   const onColorChange = toolModule.onColorChange;
   const onSizeChange = toolModule.onSizeChange;
@@ -819,6 +826,9 @@ function createMountedTool(toolModule, toolState, toolName) {
     onSocketDisconnect: onSocketDisconnect
       ? () => onSocketDisconnect(toolState)
       : () => {},
+    onPresenceDisplayChange: onPresenceDisplayChange
+      ? () => onPresenceDisplayChange(toolState)
+      : undefined,
     onMutationRejected: onMutationRejected
       ? (message, reason) => onMutationRejected(toolState, message, reason)
       : undefined,

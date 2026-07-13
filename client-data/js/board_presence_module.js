@@ -1,4 +1,5 @@
 import { TOOL_ID_BY_CODE } from "../tools/tool-order.js";
+import { FriendStore } from "./board_friend_store.js";
 import { getRequiredElement } from "./board_page_state.js";
 import { VIEWPORT_HASH_SCALE_DECIMALS } from "./board_viewport.js";
 import { getMessageActivityPoint } from "./message_activity_point.js";
@@ -18,6 +19,8 @@ export class PresenceModule {
   constructor(getTools) {
     this.getTools = getTools;
     this.users = /** @type {ConnectedUserMap} */ (new Map());
+    this.friendStore = new FriendStore();
+    this.friendStorageBound = false;
     this.panelOpen = false;
     this.renderScheduled = false;
     /** @type {number | null} */
@@ -55,6 +58,11 @@ export class PresenceModule {
   renderConnectedUsers() {
     const Tools = this.getTools();
     const list = getConnectedUsersList();
+    const focusedListControl =
+      document.activeElement instanceof HTMLElement &&
+      list.contains(document.activeElement)
+        ? document.activeElement
+        : null;
     /** @type {Map<string, ConnectedUserRow>} */
     const rowsBySocketId = new Map();
     Array.from(list.children).forEach((child) => {
@@ -78,7 +86,7 @@ export class PresenceModule {
     users.forEach((user, index) => {
       const row =
         rowsBySocketId.get(user.socketId) ||
-        createConnectedUserRow(this.getTools, user, this.users);
+        createConnectedUserRow(this.getTools, user, this);
       rowsBySocketId.delete(user.socketId);
       updateConnectedUserRow(this.getTools, row, user);
       const currentChild = list.children[index];
@@ -90,6 +98,12 @@ export class PresenceModule {
     rowsBySocketId.forEach((row) => {
       row.remove();
     });
+    if (
+      focusedListControl?.isConnected &&
+      document.activeElement !== focusedListControl
+    ) {
+      focusedListControl.focus({ preventScroll: true });
+    }
     syncConnectedUsersSummary(this, Tools);
     schedulePresenceStaleTick(this);
   }
@@ -112,9 +126,39 @@ export class PresenceModule {
     const joinedAt = previous?.joinedAt || user.joinedAt || Date.now();
     this.users.set(
       user.socketId,
-      Object.assign({}, previous || {}, user, { joinedAt, disconnectedAt: 0 }),
+      Object.assign({}, previous || {}, user, {
+        joinedAt,
+        disconnectedAt: 0,
+        friend: this.friendStore.has(user.userId),
+      }),
     );
+    this.syncFriendStates();
     this.schedulePresenceRender();
+  }
+
+  /** @param {string} userId */
+  toggleFriend(userId) {
+    this.friendStore.toggle(userId);
+    this.syncFriendStates();
+  }
+
+  syncFriendStates() {
+    let changed = false;
+    const currentUserId = this.users.get(
+      this.getTools().connection.socket?.id || "",
+    )?.userId;
+    this.users.forEach((user) => {
+      const friend =
+        user.userId !== currentUserId && this.friendStore.has(user.userId);
+      if (user.friend === friend) return;
+      user.friend = friend;
+      changed = true;
+    });
+    if (changed) {
+      const Tools = this.getTools();
+      Tools.toolRegistry.notifyPresenceDisplayChange();
+      this.schedulePresenceRender(false);
+    }
   }
 
   /** @param {string} socketId */
@@ -184,6 +228,10 @@ export class PresenceModule {
     }
     this.panelOpen = toggle.getAttribute("aria-expanded") === "true";
     syncConnectedUsersToggleLabel(Tools, this.users);
+    if (!this.friendStorageBound) {
+      this.friendStorageBound = true;
+      this.friendStore.subscribe(() => this.syncFriendStates());
+    }
     if (toggle.dataset.connectedUsersUiBound !== "true") {
       toggle.dataset.connectedUsersUiBound = "true";
       const panelController = Tools.ui.createFloatingPanelController({
@@ -213,6 +261,19 @@ function isCurrentSocketUser(Tools, user) {
 }
 
 /**
+ * @param {AppToolsState} Tools
+ * @param {ConnectedUserMap} users
+ * @param {ConnectedUser} user
+ * @returns {boolean}
+ */
+function isCurrentIdentityUser(Tools, users, user) {
+  const currentSocketId = Tools.connection.socket?.id;
+  if (!currentSocketId) return false;
+  const currentUser = users.get(currentSocketId);
+  return !!currentUser && currentUser.userId === user.userId;
+}
+
+/**
  * @param {string | undefined} currentSocketId
  * @param {ConnectedUser} left
  * @param {ConnectedUser} right
@@ -222,7 +283,13 @@ export function compareConnectedUsersForDisplay(currentSocketId, left, right) {
   const leftIsSelf = !!currentSocketId && left.socketId === currentSocketId;
   const rightIsSelf = !!currentSocketId && right.socketId === currentSocketId;
   if (leftIsSelf !== rightIsSelf) return leftIsSelf ? -1 : 1;
-  return left.name.localeCompare(right.name);
+  const leftIsFriend = left.friend === true;
+  const rightIsFriend = right.friend === true;
+  if (leftIsFriend !== rightIsFriend) return leftIsFriend ? -1 : 1;
+  return (
+    left.name.localeCompare(right.name) ||
+    left.socketId.localeCompare(right.socketId)
+  );
 }
 
 function getConnectedUsersToggle() {
@@ -264,7 +331,9 @@ function syncConnectedUsersToggleLabel(Tools, users) {
     toggle.querySelector(".tool-name")
   );
   const userCount = getConnectedUsersCount(users);
-  const accessibleLabel = `${userCount} ${Tools.i18n.t("users")}`;
+  const accessibleLabel = Tools.i18n.format("users_count", {
+    count: String(userCount),
+  });
   toggle.setAttribute("aria-label", accessibleLabel);
   toggle.title = accessibleLabel;
   if (!label) return;
@@ -478,7 +547,15 @@ function schedulePresenceStaleTick(presence) {
  * @returns {string}
  */
 export function getConnectedUserDisplayName(user) {
-  return user.canClear ? `\u{1F338} ${user.name}` : user.name;
+  const markers = [];
+  if (user.friend === true) markers.push("\u2665\uFE0E");
+  if (user.canClear === true) markers.push("\u{1F338}");
+  return markers.length > 0 ? `${markers.join(" ")} ${user.name}` : user.name;
+}
+
+/** @param {ConnectedUser} user */
+function getConnectedUserListName(user) {
+  return user.canClear === true ? `\u{1F338} ${user.name}` : user.name;
 }
 
 /**
@@ -688,20 +765,21 @@ function getConnectedUserFocusHash(Tools, user) {
 
 /**
  * @param {AppToolsState} Tools
+ * @param {string} name
  * @returns {string}
  */
-function getReportActionLabel(Tools) {
+function getReportActionLabel(Tools, name) {
   // The server currently treats clear-capable moderators as report-to-ban users.
   // Keep this UI-only label aligned without broadening the capability model here.
-  return Tools.i18n.t(Tools.access.canClear === true ? "ban" : "report");
+  return Tools.i18n.format(
+    Tools.access.canClear === true ? "ban_user" : "report_user",
+    { name },
+  );
 }
 
-/**
- * @param {AppToolsState} Tools
- * @returns {string}
- */
-function getReportActionGlyph(Tools) {
-  return Tools.access.canClear === true ? "\u{1F4A2}" : "!";
+/** @returns {string} */
+function getReportActionGlyph() {
+  return "\u2691\uFE0E";
 }
 
 /**
@@ -713,6 +791,7 @@ function getReportActionGlyph(Tools) {
 function updateConnectedUserRow(getTools, row, user) {
   const Tools = getTools();
   row.dataset.socketId = user.socketId;
+  row.dataset.userId = user.userId;
   row.classList.toggle(
     "connected-user-row-self",
     isCurrentSocketUser(Tools, user),
@@ -777,10 +856,40 @@ function updateConnectedUserRow(getTools, row, user) {
   }
 
   const name = /** @type {HTMLElement | null} */ (
-    row.querySelector(".connected-user-name")
+    row.querySelector(".connected-user-name-text")
   );
   if (name) {
-    name.textContent = getConnectedUserDisplayName(user);
+    name.textContent = getConnectedUserListName(user);
+  }
+
+  const friend = /** @type {HTMLButtonElement | null} */ (
+    row.querySelector(".connected-user-friend")
+  );
+  if (friend) {
+    const currentIdentityUser = isCurrentIdentityUser(
+      Tools,
+      Tools.presence.users,
+      user,
+    );
+    const isFriend = user.friend === true;
+    const friendLabel = Tools.i18n.format(
+      isFriend ? "remove_friend" : "mark_friend",
+      { name: user.name },
+    );
+    friend.hidden = currentIdentityUser;
+    const friendGlyph = friend.querySelector(".connected-user-friend-glyph");
+    if (friendGlyph) {
+      friendGlyph.textContent = isFriend ? "\u2665\uFE0E" : "\u2661";
+    }
+    friend.title = friendLabel;
+    friend.setAttribute("aria-label", friendLabel);
+    friend.setAttribute("aria-pressed", isFriend ? "true" : "false");
+    friend.classList.toggle("connected-user-friend-active", isFriend);
+    row.classList.toggle("connected-user-row-friend", isFriend);
+    const friendMarker = row.querySelector(".connected-user-friend-marker");
+    if (friendMarker instanceof HTMLElement) {
+      friendMarker.hidden = !isFriend;
+    }
   }
 
   row.classList.toggle("connected-user-row-readonly", user.canEdit === false);
@@ -809,14 +918,22 @@ function updateConnectedUserRow(getTools, row, user) {
     row.querySelector(".connected-user-report")
   );
   if (report) {
-    const currentSocketUser = isCurrentSocketUser(Tools, user);
-    const reportLabel = getReportActionLabel(Tools);
-    report.textContent = getReportActionGlyph(Tools);
+    const currentIdentityUser = isCurrentIdentityUser(
+      Tools,
+      Tools.presence.users,
+      user,
+    );
+    const reportLabel = getReportActionLabel(Tools, user.name);
+    report.textContent = getReportActionGlyph();
     report.title = reportLabel;
     report.setAttribute("aria-label", reportLabel);
     report.hidden =
-      user.canClear === true || !!(user.reported && !currentSocketUser);
-    report.disabled = currentSocketUser;
+      Tools.access.canReport === false ||
+      currentIdentityUser ||
+      !!user.disconnectedAt ||
+      user.canClear === true ||
+      user.reported === true;
+    report.disabled = currentIdentityUser;
     report.classList.toggle("connected-user-report-latched", !!user.reported);
   }
 }
@@ -824,10 +941,10 @@ function updateConnectedUserRow(getTools, row, user) {
 /**
  * @param {() => AppToolsState} getTools
  * @param {ConnectedUser} user
- * @param {ConnectedUserMap} users
+ * @param {PresenceModule} presence
  * @returns {ConnectedUserRow}
  */
-function createConnectedUserRow(getTools, user, users) {
+function createConnectedUserRow(getTools, user, presence) {
   const row = /** @type {ConnectedUserRow} */ (document.createElement("li"));
   row.className = "connected-user-row";
 
@@ -840,18 +957,56 @@ function createConnectedUserRow(getTools, user, users) {
   visual.appendChild(toolBadge);
   row.appendChild(visual);
 
-  const main = document.createElement("a");
-  main.className = "connected-user-main connected-user-main-link";
+  const main = document.createElement("div");
+  main.className = "connected-user-main";
+
+  const friend = document.createElement("button");
+  friend.type = "button";
+  friend.className = "connected-user-friend";
+  const friendGlyph = document.createElement("span");
+  friendGlyph.className = "connected-user-friend-glyph";
+  friendGlyph.setAttribute("aria-hidden", "true");
+  friend.appendChild(friendGlyph);
+  friend.addEventListener("click", (evt) => {
+    evt.preventDefault();
+    evt.stopPropagation();
+    const Tools = getTools();
+    if (!row.dataset.socketId) return;
+    const connectedUser = presence.users.get(row.dataset.socketId);
+    if (
+      !connectedUser ||
+      isCurrentIdentityUser(Tools, presence.users, connectedUser)
+    ) {
+      return;
+    }
+    presence.toggleFriend(connectedUser.userId);
+  });
+  const link = document.createElement("a");
+  link.className = "connected-user-main-link";
 
   const name = document.createElement("div");
   name.className = "connected-user-name";
-  main.appendChild(name);
+  const friendMarker = document.createElement("span");
+  friendMarker.className = "connected-user-friend-marker";
+  friendMarker.setAttribute("aria-hidden", "true");
+  friendMarker.textContent = "\u2665\uFE0E";
+  friendMarker.hidden = true;
+  const nameText = document.createElement("bdi");
+  nameText.className = "connected-user-name-text";
+  nameText.dir = "auto";
+  name.append(friendMarker, nameText);
+  link.appendChild(name);
 
   const meta = document.createElement("span");
   meta.className = "connected-user-meta";
-  main.appendChild(meta);
+  link.appendChild(meta);
 
+  main.appendChild(link);
   row.appendChild(main);
+
+  const actions = document.createElement("span");
+  actions.className = "connected-user-actions";
+  actions.appendChild(friend);
 
   const report = document.createElement("button");
   report.type = "button";
@@ -862,11 +1017,12 @@ function createConnectedUserRow(getTools, user, users) {
     const Tools = getTools();
     const socket = Tools.connection.socket;
     if (!socket || !row.dataset.socketId) return;
-    const connectedUser = users.get(row.dataset.socketId);
+    const connectedUser = presence.users.get(row.dataset.socketId);
     if (
       !connectedUser ||
+      Tools.access.canReport === false ||
       connectedUser.canClear === true ||
-      isCurrentSocketUser(Tools, connectedUser)
+      isCurrentIdentityUser(Tools, presence.users, connectedUser)
     ) {
       return;
     }
@@ -889,7 +1045,7 @@ function createConnectedUserRow(getTools, user, users) {
       void Tools.ui
         .showChoiceDialog({
           message: Tools.i18n.format("moderation_rule_prompt", {
-            name: getConnectedUserDisplayName(connectedUser),
+            name: connectedUser.name,
           }),
           cancelLabel: Tools.i18n.t("Cancel"),
           choices: MODERATION_RULE_OPTIONS.map((option) => ({
@@ -903,7 +1059,7 @@ function createConnectedUserRow(getTools, user, users) {
           return Tools.ui
             .showChoiceDialog({
               message: Tools.i18n.format("ban_user_confirmation", {
-                name: getConnectedUserDisplayName(connectedUser),
+                name: connectedUser.name,
               }),
               cancelLabel: Tools.i18n.t("Cancel"),
               choices: BAN_DURATION_OPTIONS.map((option) => ({
@@ -932,7 +1088,8 @@ function createConnectedUserRow(getTools, user, users) {
     }
     reportConnectedUser(undefined, undefined);
   });
-  row.appendChild(report);
+  actions.appendChild(report);
+  row.appendChild(actions);
 
   updateConnectedUserRow(getTools, row, user);
   return row;
