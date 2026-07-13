@@ -149,7 +149,7 @@ export type ReportUserPayload = {
   moderationRule?: string;
 };
 
-export type { ModerationDisconnectPayload };
+export type { ModerationDisconnectPayload, ModerationDisconnectSource };
 
 export type ValidationStatus = { ok: true } | { ok: false; reason: string };
 

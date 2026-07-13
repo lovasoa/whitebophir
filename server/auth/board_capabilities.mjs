@@ -15,6 +15,7 @@ import { isConfiguredModerator } from "./board_moderators.mjs";
 /** @typedef {{name: string, readonly?: boolean, isReadOnly?: () => boolean}} BoardCapabilityBoard */
 /** @typedef {{token?: string | null, userSecret?: string | null}} BoardCapabilityUserInfo */
 /** @typedef {() => boolean} IsBannedPredicate */
+/** @typedef {() => number | null} GetBanExpiresAt */
 /** @typedef {import("../../types/app-runtime").BoardCapabilities} BoardCapabilities */
 /** @typedef {import("../../types/app-runtime").BoardCapability} BoardCapability */
 /** @typedef {import("../../types/app-runtime").AppBoardState} RenderedBoardState */
@@ -74,15 +75,17 @@ function capabilitiesGrant(capabilities, capability) {
  * Creates a per-request/per-socket resolver so JWT verification happens once
  * for a board and the resulting compatibility role stays inside this module.
  *
- * `isBanned` is a live predicate (re-evaluated on every capability query) so a
- * time-based edit ban degrades `canEdit` to `false` without a separate
- * enforcement path. Moderators bypass it. Defaults to never-banned, which keeps
- * ban-unaware callers (HTTP rendering) untouched.
+ * Ban state is live (re-evaluated on every capability query) so a time-based
+ * edit ban degrades `canEdit` to `false` without a separate enforcement path.
+ * `getBanExpiresAt` also lets rendered state tell the browser when to refresh
+ * access once. `isBanned` remains supported for ban sources without an expiry.
+ * Moderators bypass both. Defaults to never-banned.
  *
- * @param {{config: BoardCapabilityConfig, boardName: string, userInfo?: BoardCapabilityUserInfo, isBanned?: IsBannedPredicate}} input
+ * @param {{config: BoardCapabilityConfig, boardName: string, userInfo?: BoardCapabilityUserInfo, isBanned?: IsBannedPredicate, getBanExpiresAt?: GetBanExpiresAt}} input
  * @returns {{
  *   canOpen: () => boolean,
  *   canBan: () => boolean,
+ *   canReport: () => boolean,
  *   resolveCapabilities: (board: BoardCapabilityBoard) => BoardCapabilities,
  *   boardState: (board: BoardCapabilityBoard) => RenderedBoardState,
  *   requireOpen: () => void,
@@ -92,20 +95,55 @@ function capabilitiesGrant(capabilities, capability) {
 function forBoard(input) {
   const jwtEnabled = input.config.AUTH_SECRET_KEY !== "";
   const role = roleForBoard(input.config, input.boardName, input.userInfo);
-  const isBanned = input.isBanned || (() => false);
+  const moderator = isClearCapableRole(role);
+  const fallbackIsBanned = input.isBanned || (() => false);
+
+  /**
+   * Reads one coherent ban snapshot for a capability response. Expiry-aware
+   * callers return only active expiries; the defensive wall-clock check keeps
+   * stale or malformed values from scheduling needless refreshes.
+   *
+   * @returns {{banned: boolean, refreshAfterMs: number | null}}
+   */
+  function readBanState() {
+    if (moderator) return { banned: false, refreshAfterMs: null };
+    if (!input.getBanExpiresAt) {
+      return { banned: fallbackIsBanned(), refreshAfterMs: null };
+    }
+    const expiresAt = Number(input.getBanExpiresAt());
+    const now = Date.now();
+    if (!Number.isFinite(expiresAt) || expiresAt <= now) {
+      return { banned: false, refreshAfterMs: null };
+    }
+    return {
+      banned: true,
+      refreshAfterMs: Math.max(0, Math.floor(expiresAt - now)),
+    };
+  }
 
   function canOpen() {
     return !jwtEnabled || role !== "forbidden";
   }
 
   /**
+   * Reporting is available to every board viewer except an identity with an
+   * active moderation ban. Moderators retain their existing ban bypass.
+   * Keeping this decision beside the other board permissions prevents callers
+   * from inferring ban state from the broader edit flag.
+   *
+   * @returns {boolean}
+   */
+  function canReport() {
+    return canOpen() && !readBanState().banned;
+  }
+
+  /**
    * @param {BoardCapabilityBoard} board
+   * @param {boolean} banned
    * @returns {BoardCapabilities}
    */
-  function resolveCapabilities(board) {
+  function resolveCapabilitiesForBanState(board, banned) {
     const readonly = isBoardReadOnly(board);
-    const moderator = isClearCapableRole(role);
-    const banned = !moderator && isBanned();
     if (!jwtEnabled && !moderator) {
       return {
         canOpen: true,
@@ -124,11 +162,26 @@ function forBoard(input) {
 
   /**
    * @param {BoardCapabilityBoard} board
+   * @returns {BoardCapabilities}
+   */
+  function resolveCapabilities(board) {
+    return resolveCapabilitiesForBanState(board, readBanState().banned);
+  }
+
+  /**
+   * @param {BoardCapabilityBoard} board
    * @returns {RenderedBoardState}
    */
   function boardState(board) {
-    const capabilities = resolveCapabilities(board);
-    return boardStateForCapabilities(board, capabilities);
+    const banState = readBanState();
+    const capabilities = resolveCapabilitiesForBanState(board, banState.banned);
+    return {
+      ...boardStateForCapabilities(board, capabilities),
+      canReport: canOpen() && !banState.banned,
+      ...(banState.refreshAfterMs === null
+        ? {}
+        : { accessRefreshAfterMs: banState.refreshAfterMs }),
+    };
   }
 
   /**
@@ -152,6 +205,7 @@ function forBoard(input) {
 
   return {
     canOpen,
+    canReport,
     resolveCapabilities,
     boardState,
     requireOpen,

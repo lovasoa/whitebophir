@@ -1,8 +1,11 @@
 import observability from "../observability/index.mjs";
-import { SocketEvents } from "../../client-data/js/socket_events.js";
+import {
+  ModerationDisconnectSources,
+  SocketEvents,
+} from "../../client-data/js/socket_events.js";
 import { banBoardUser, normalizeBanTtlMs } from "./bans.mjs";
 import { getBoardUser, getBoardUserMap } from "./presence.mjs";
-import { canBanOnBoard } from "./policy.mjs";
+import { canBanOnBoard, canReportOnBoard } from "./policy.mjs";
 
 const { logger, tracing } = observability;
 const MODERATION_DISCONNECT_CLOSE_TIMEOUT_MS = 150;
@@ -14,8 +17,8 @@ const MODERATION_RULES = new Set([
   "drawings",
 ]);
 
-/** @import { AppSocket, ModerationDisconnectPayload, ReportUserPayload, ServerConfig } from "../../types/server-runtime.d.ts" */
-/** @typedef {{socketId: string, name: string, ip: string, userSecret?: string, userAgent: string, language: string, canClear?: boolean}} BoardUser */
+/** @import { AppSocket, ModerationDisconnectPayload, ModerationDisconnectSource, ReportUserPayload, ServerConfig } from "../../types/server-runtime.d.ts" */
+/** @typedef {{socketId: string, userId: string, name: string, ip: string, userSecret: string, userAgent: string, language: string, canClear?: boolean}} BoardUser */
 /** @typedef {{board: string, reporter_socket: string, reported_socket: string, reporter_ip: string, reported_ip: string, reporter_user_agent: string, reported_user_agent: string, reporter_language: string, reported_language: string, reporter_name: string, reported_name: string, banned: boolean}} UserReportLog */
 /** @typedef {(socketId: string) => AppSocket | undefined} GetActiveSocket */
 /** @typedef {(socket: AppSocket, eventName: string, infos: {[key: string]: any}) => void} CloseSocket */
@@ -139,16 +142,14 @@ function disconnectReportSocket(boardName, targetSocket, closeSocket) {
  * @param {string} boardName
  * @param {AppSocket} targetSocket
  * @param {CloseSocket} closeSocket
- * @param {number} banDurationMs
- * @param {string | undefined} moderationRule
+ * @param {{banDurationMs: number, source: ModerationDisconnectSource, moderationRule?: string}} details
  * @returns {void}
  */
 function notifyModerationDisconnectThenClose(
   boardName,
   targetSocket,
   closeSocket,
-  banDurationMs,
-  moderationRule,
+  { banDurationMs, source, moderationRule },
 ) {
   /** @type {ReturnType<typeof setTimeout> | null} */
   let timeout = null;
@@ -163,7 +164,10 @@ function notifyModerationDisconnectThenClose(
     disconnectReportSocket(boardName, targetSocket, closeSocket);
   };
   /** @type {ModerationDisconnectPayload} */
-  const payload = { banDurationMs: Math.max(0, Math.floor(banDurationMs)) };
+  const payload = {
+    banDurationMs: Math.max(0, Math.floor(banDurationMs)),
+    source,
+  };
   if (moderationRule !== undefined) payload.moderationRule = moderationRule;
   targetSocket.emit(SocketEvents.MODERATION_DISCONNECT, payload, close);
   if (closed) return;
@@ -179,10 +183,17 @@ function notifyModerationDisconnectThenClose(
 function isSelfReportTarget(reporter, reported) {
   return (
     reporter.socketId === reported.socketId ||
-    (reporter.userSecret !== undefined &&
-      reporter.userSecret !== "" &&
-      reporter.userSecret === reported.userSecret)
+    hasSameUserIdentity(reporter, reported)
   );
+}
+
+/**
+ * @param {BoardUser} first
+ * @param {BoardUser} second
+ * @returns {boolean}
+ */
+function hasSameUserIdentity(first, second) {
+  return first.userSecret !== "" && first.userSecret === second.userSecret;
 }
 
 /**
@@ -232,8 +243,11 @@ function handleReportByModerator(
     board,
     reportedSocket,
     context.closeSocket,
-    banDurationMs,
-    moderationRule,
+    {
+      banDurationMs,
+      source: ModerationDisconnectSources.MODERATOR,
+      ...(moderationRule === undefined ? {} : { moderationRule }),
+    },
   );
 }
 
@@ -261,8 +275,10 @@ function disconnectReported(context, reported) {
       context.boardName,
       reportedSocket,
       context.closeSocket,
-      0,
-      undefined,
+      {
+        banDurationMs: 0,
+        source: ModerationDisconnectSources.PEER_REPORT,
+      },
     );
   }
 }
@@ -290,6 +306,10 @@ function handleReportUserMessage(context) {
   }
 
   const canModerate = canBanOnBoard(config, boardName, socket);
+  if (!canReportOnBoard(config, boardName, socket)) {
+    ignoreReportedUser("blocked_reporter_ignored");
+    return;
+  }
 
   if (canModerate) {
     const banDurationMs = getModeratorBanDurationMs(message);
@@ -307,6 +327,11 @@ function handleReportUserMessage(context) {
       banDurationMs,
       moderationRule,
     );
+    return;
+  }
+
+  if (isSelfReportTarget(resolvedUsers.reporter, resolvedUsers.reported)) {
+    ignoreReportedUser("self_report_ignored");
     return;
   }
 

@@ -77,15 +77,15 @@ function banKey(map, key, now, ttlMs) {
  * @param {Map<string, BanEntry>} map
  * @param {string | undefined | null} key
  * @param {number} now
- * @returns {boolean}
+ * @returns {number | null}
  */
-function isKeyBanned(map, key, now) {
-  if (!key) return false;
+function getKeyBanExpiresAt(map, key, now) {
+  if (!key) return null;
   const entry = touchExisting(map, key);
-  if (!entry) return false;
-  if (!isExpired(entry, now)) return true;
+  if (!entry) return null;
+  if (!isExpired(entry, now)) return entry.expiresAt;
   map.delete(key);
-  return false;
+  return null;
 }
 
 /**
@@ -127,11 +127,28 @@ export function banBoardUser(
  * @returns {boolean}
  */
 export function isEditBanned(boardName, userSecret, ip, now) {
+  return getEditBanExpiresAt(boardName, userSecret, ip, now) !== null;
+}
+
+/**
+ * Returns when every ban matching this identity has expired. Secret and IP
+ * bans can overlap with different lifetimes, so access remains restricted
+ * until the later active expiry.
+ *
+ * @param {string} boardName
+ * @param {string | undefined | null} userSecret
+ * @param {string | undefined | null} ip
+ * @param {number} now
+ * @returns {number | null}
+ */
+export function getEditBanExpiresAt(boardName, userSecret, ip, now) {
   const bans = boardBans.get(boardKey(boardName));
-  if (!bans) return false;
-  return (
-    isKeyBanned(bans.secrets, userSecret, now) || isKeyBanned(bans.ips, ip, now)
-  );
+  if (!bans) return null;
+  const secretExpiresAt = getKeyBanExpiresAt(bans.secrets, userSecret, now);
+  const ipExpiresAt = getKeyBanExpiresAt(bans.ips, ip, now);
+  if (secretExpiresAt === null) return ipExpiresAt;
+  if (ipExpiresAt === null) return secretExpiresAt;
+  return Math.max(secretExpiresAt, ipExpiresAt);
 }
 
 export function resetBans() {

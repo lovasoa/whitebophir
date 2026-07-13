@@ -301,6 +301,7 @@ export type MountedAppTool = PointerListenerMap<ToolPointerListener> & {
   onstart: (oldTool: MaybeMountedAppTool) => void;
   onquit: (newTool: MountedAppTool) => void;
   onSocketDisconnect: () => void;
+  onPresenceDisplayChange?: () => void;
   onMutationRejected?: (message: BoardMessage, reason?: string) => void;
   stylesheet?: string;
   oneTouch?: boolean;
@@ -325,7 +326,9 @@ export type AppBoardState = {
   readonly: boolean;
   canEdit?: boolean;
   canClear?: boolean;
+  canReport?: boolean;
   canWrite: boolean;
+  accessRefreshAfterMs?: number;
 };
 
 export type MutationRejectedPayload = {
@@ -333,9 +336,12 @@ export type MutationRejectedPayload = {
   reason: string;
 };
 
+export type ModerationDisconnectSource = "moderator" | "peer_report";
+
 export type ModerationDisconnectPayload = {
   banDurationMs: number;
   moderationRule?: string;
+  source: ModerationDisconnectSource;
 };
 
 export type ConnectedUser = {
@@ -357,6 +363,7 @@ export type ConnectedUser = {
   pulseMs?: number;
   pulseUntil?: number;
   reported?: boolean;
+  friend?: boolean;
   pulseTimeoutId?: number | null;
   removeTimeoutId?: number | null;
 };
@@ -600,6 +607,7 @@ export type ToolModule<T = unknown> = {
   onstart?(state: T, oldTool: MaybeMountedAppTool): void;
   onquit?(state: T, newTool: MountedAppTool): void;
   onSocketDisconnect?(state: T): void;
+  onPresenceDisplayChange?(state: T): void;
   onMutationRejected?(state: T, message: BoardMessage, reason?: string): void;
   onColorChange?(state: T, color: string): void;
   onSizeChange?(state: T, size: number): void;
