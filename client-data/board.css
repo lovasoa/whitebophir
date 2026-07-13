@@ -42,6 +42,14 @@ body {
   --board-modal-backdrop-bg: rgba(17, 24, 39, 0.32);
 }
 
+html[data-ui-direction="rtl"]
+  #menu
+  :is(.tool-name, .style-panel-title, .style-row-name, .style-row-hint) {
+  direction: rtl;
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+
 #turnstile-overlay {
   background-color: rgba(0, 0, 0, 0.7);
   z-index: 9999;
@@ -70,7 +78,7 @@ body {
   pointer-events: none;
 }
 
-.moderation-disconnect-dialog {
+.wbo-dialog.moderation-disconnect-dialog {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -82,6 +90,7 @@ body {
 .moderation-disconnect-icon {
   display: grid;
   place-items: center;
+  flex: 0 0 56px;
   width: 56px;
   height: 56px;
   margin-bottom: 14px;
@@ -108,13 +117,15 @@ body {
 }
 
 .moderation-disconnect-rule {
+  box-sizing: border-box;
   width: 100%;
+  min-width: 0;
   margin-top: 14px;
   padding: 10px 12px;
   border: 1px solid #d9dde3;
   border-radius: 4px;
   background: #fcfcfd;
-  text-align: left;
+  text-align: start;
 }
 
 .moderation-disconnect-rule-heading {
@@ -240,6 +251,10 @@ dialog.wbo-native-dialog::backdrop {
 }
 
 .wbo-dialog-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
   min-width: 72px;
   min-height: 32px;
   padding: 0 12px;
@@ -247,6 +262,9 @@ dialog.wbo-native-dialog::backdrop {
   border-radius: var(--board-control-radius);
   font: inherit;
   font-size: 13px;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
   cursor: pointer;
 }
 

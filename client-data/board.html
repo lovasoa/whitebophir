@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{language}}"{{#moderator}} data-moderator="true"{{/moderator}}>
+<html lang="{{language}}" dir="ltr" data-ui-direction="{{direction}}"{{#moderator}} data-moderator="true"{{/moderator}}>
 
 <head>
 	<meta charset="utf-8" />
@@ -36,7 +36,7 @@
 </head>
 
 <body>
-	<div id="boardHud" class="board-hud">
+	<div id="boardHud" class="board-hud" dir="{{direction}}">
 		<div class="board-presence">
 			<button id="connectedUsersToggle" class="board-presence-toggle" type="button" aria-haspopup="true"
 				aria-expanded="false">

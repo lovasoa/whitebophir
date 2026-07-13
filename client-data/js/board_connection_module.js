@@ -1,11 +1,14 @@
 import * as BoardMessageReplay from "./board_message_replay.js";
+import { normalizeBoardState } from "./board_page_state.js";
 import { getAuthoritativeBaselineUrl } from "./board_replay_module.js";
 import { connection as BoardConnection } from "./board_transport.js";
 import * as BoardTurnstile from "./board_turnstile.js";
-import { SocketEvents } from "./socket_events.js";
+import { ModerationDisconnectSources, SocketEvents } from "./socket_events.js";
 
 /** @import { AppToolsState, BoardConnectionState, ModerationDisconnectPayload, SocketHeaders } from "../../types/app-runtime" */
-/** @typedef {{banDurationMs: number, moderationRule?: string, acknowledged: boolean, disconnected: boolean}} PendingModerationDisconnect */
+/** @typedef {{banDurationMs: number, moderationRule?: string, source: import("../../types/app-runtime").ModerationDisconnectSource, acknowledged: boolean, disconnected: boolean}} PendingModerationDisconnect */
+const ACCESS_REFRESH_GRACE_MS = 50;
+const MAX_BROWSER_TIMEOUT_MS = 2_147_483_647;
 /** @type {Record<string, string>} */
 const MODERATION_RULE_TITLE_KEYS = {
   illegal: "rules_illegal_title",
@@ -70,27 +73,86 @@ function getAttachedBoardDom(Tools) {
  * @param {unknown} payload
  * @returns {ModerationDisconnectPayload}
  */
-function normalizeModerationDisconnectPayload(payload) {
-  const raw =
-    payload && typeof payload === "object" && "banDurationMs" in payload
-      ? Number(payload.banDurationMs)
-      : 0;
+export function normalizeModerationDisconnectPayload(payload) {
+  /** @type {Record<string, unknown> | null} */
+  const payloadRecord =
+    payload !== null && typeof payload === "object"
+      ? /** @type {Record<string, unknown>} */ (payload)
+      : null;
+  const hasExplicitBanDuration =
+    payloadRecord !== null &&
+    Object.prototype.hasOwnProperty.call(payloadRecord, "banDurationMs");
+  const rawDuration = payloadRecord?.banDurationMs;
+  const raw = typeof rawDuration === "number" ? rawDuration : 0;
   const moderationRule =
-    payload &&
-    typeof payload === "object" &&
-    "moderationRule" in payload &&
-    typeof payload.moderationRule === "string" &&
+    payloadRecord !== null &&
+    "moderationRule" in payloadRecord &&
+    typeof payloadRecord.moderationRule === "string" &&
     Object.prototype.hasOwnProperty.call(
       MODERATION_RULE_TITLE_KEYS,
-      payload.moderationRule,
+      payloadRecord.moderationRule,
     )
-      ? payload.moderationRule
+      ? payloadRecord.moderationRule
       : undefined;
+  const source =
+    payloadRecord !== null &&
+    payloadRecord.source === ModerationDisconnectSources.PEER_REPORT &&
+    hasExplicitBanDuration &&
+    typeof rawDuration === "number" &&
+    Number.isFinite(rawDuration) &&
+    rawDuration === 0 &&
+    !("moderationRule" in payloadRecord)
+      ? ModerationDisconnectSources.PEER_REPORT
+      : ModerationDisconnectSources.MODERATOR;
   return {
     banDurationMs:
       Number.isFinite(raw) && raw > 0 ? Math.max(0, Math.floor(raw)) : 0,
+    source,
     ...(moderationRule === undefined ? {} : { moderationRule }),
   };
+}
+
+/**
+ * @param {ModerationDisconnectPayload} notice
+ * @returns {{kind: "ban" | "report" | "warning", titleKey: string, messageKey: string}}
+ */
+export function getModerationDisconnectNoticeDescriptor(notice) {
+  if (notice.source === ModerationDisconnectSources.PEER_REPORT) {
+    return {
+      kind: "report",
+      titleKey: "peer_report_disconnect_title",
+      messageKey: "peer_report_disconnect_body",
+    };
+  }
+  return notice.banDurationMs > 0
+    ? {
+        kind: "ban",
+        titleKey: "moderation_ban_title",
+        messageKey: "moderation_ban_body",
+      }
+    : {
+        kind: "warning",
+        titleKey: "moderation_warning_title",
+        messageKey: "moderation_warning_body",
+      };
+}
+
+/**
+ * Keeps access-refresh timers inside the browser's reliable timeout range.
+ * Invalid server state cancels an existing timer instead of causing a rapid
+ * reconnect loop.
+ *
+ * @param {unknown} value
+ * @returns {number | null}
+ */
+export function normalizeAccessRefreshDelayMs(value) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    return null;
+  }
+  return Math.min(
+    Math.floor(value),
+    MAX_BROWSER_TIMEOUT_MS - ACCESS_REFRESH_GRACE_MS,
+  );
 }
 
 /**
@@ -135,6 +197,31 @@ export class ConnectionModule {
     this.socketIOExtraHeaders = /** @type {SocketHeaders | null} */ (null);
     this.pendingModerationDisconnect =
       /** @type {PendingModerationDisconnect | null} */ (null);
+    this.accessRefreshTimerId = /** @type {number | null} */ (null);
+  }
+
+  cancelAccessRefresh() {
+    if (this.accessRefreshTimerId === null) return;
+    window.clearTimeout(this.accessRefreshTimerId);
+    this.accessRefreshTimerId = null;
+  }
+
+  /**
+   * Schedules one authoritative access refresh at the server-provided ban
+   * boundary. Every newer board state replaces the timer; unrestricted state
+   * cancels it. A short grace avoids reconnecting just before server expiry.
+   *
+   * @param {unknown} refreshAfterMs
+   */
+  scheduleAccessRefresh(refreshAfterMs) {
+    this.cancelAccessRefresh();
+    const delayMs = normalizeAccessRefreshDelayMs(refreshAfterMs);
+    if (delayMs === null) return;
+    this.accessRefreshTimerId = window.setTimeout(() => {
+      this.accessRefreshTimerId = null;
+      this.logBoardEvent("log", "access.expiry_refresh", { delayMs });
+      this.start();
+    }, delayMs + ACCESS_REFRESH_GRACE_MS);
   }
 
   /** @param {number} [delayMs] */
@@ -245,7 +332,7 @@ export class ConnectionModule {
         Tools.replay.enqueueIncomingBroadcast(msg);
       });
       socket.on(SocketEvents.BOARDSTATE, (boardState) => {
-        Tools.access.applyBoardState(boardState);
+        Tools.access.applyBoardState(normalizeBoardState(boardState));
       });
       socket.on(
         SocketEvents.MUTATION_REJECTED,
@@ -308,10 +395,13 @@ export class ConnectionModule {
          */
         function onModerationDisconnect(payload, ack) {
           const normalized = normalizeModerationDisconnectPayload(payload);
+          const descriptor =
+            getModerationDisconnectNoticeDescriptor(normalized);
           /** @type {PendingModerationDisconnect} */
           const notice = {
             banDurationMs: normalized.banDurationMs,
             moderationRule: normalized.moderationRule,
+            source: normalized.source,
             acknowledged: false,
             disconnected: false,
           };
@@ -320,21 +410,20 @@ export class ConnectionModule {
           void Tools.ui
             .showModerationDisconnectNotice({
               banDurationMs: normalized.banDurationMs,
-              title: Tools.i18n.t(
-                normalized.banDurationMs > 0
-                  ? "moderation_ban_title"
-                  : "moderation_warning_title",
-              ),
-              message: Tools.i18n.t(
-                normalized.banDurationMs > 0
-                  ? "moderation_ban_body"
-                  : "moderation_warning_body",
-              ),
+              kind: descriptor.kind,
+              title: Tools.i18n.t(descriptor.titleKey),
+              message: Tools.i18n.t(descriptor.messageKey),
               acknowledgeLabel: Tools.i18n.t("moderation_acknowledge"),
               rulesLabel: Tools.i18n.t("community_rules_link"),
               privateBoardLabel: Tools.i18n.t("create_private_board"),
               countdownLabel: Tools.i18n.t("moderation_countdown"),
               countdownDoneLabel: Tools.i18n.t("moderation_countdown_done"),
+              countdownUnitPatterns: {
+                day: Tools.i18n.t("relative_days_short"),
+                hour: Tools.i18n.t("relative_hours_short"),
+                minute: Tools.i18n.t("relative_minutes_short"),
+                second: Tools.i18n.t("relative_seconds_short"),
+              },
               ruleHeading: Tools.i18n.t("moderation_rule_focus"),
               ruleTitle:
                 normalized.moderationRule === undefined
@@ -386,6 +475,7 @@ export class ConnectionModule {
             reason: SocketEvents.MODERATION_DISCONNECT,
             socketReason: reason,
             banDurationMs: moderationNotice.banDurationMs,
+            source: moderationNotice.source,
           });
           Tools.replay.beginAuthoritativeResync();
           Tools.connection.resumeAfterModerationDisconnect(moderationNotice);

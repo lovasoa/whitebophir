@@ -429,3 +429,20 @@ test("native modal dialogs only settle on shell clicks", async () => {
   assert.equal(resolved, true);
   assert.equal(dialog.parentNode, null);
 });
+
+test("countdown durations use localized unit patterns", async () => {
+  const { formatCountdownDuration } = await import(
+    "../client-data/js/board_ui_module.js"
+  );
+  const units = {
+    day: "{count}日",
+    hour: "{count}時間",
+    minute: "{count}分",
+    second: "{count}秒",
+  };
+
+  assert.equal(formatCountdownDuration(90_061_000, units), "1日 1時間 1分");
+  assert.equal(formatCountdownDuration(3_661_000, units), "1時間 1分");
+  assert.equal(formatCountdownDuration(62_000, units), "1分 02秒");
+  assert.equal(formatCountdownDuration(900, units), "1秒");
+});

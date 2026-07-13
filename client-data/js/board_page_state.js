@@ -8,6 +8,7 @@ export const DEFAULT_BOARD_STATE = /** @type {BoardState} */ (
     readonly: false,
     canEdit: true,
     canClear: false,
+    canReport: true,
     canWrite: true,
   })
 );
@@ -54,15 +55,23 @@ export function normalizeBoardState(value) {
     return DEFAULT_BOARD_STATE;
   }
   const state =
-    /** @type {{readonly?: boolean, canEdit?: boolean, canClear?: boolean, canWrite?: boolean}} */ (
+    /** @type {{readonly?: boolean, canEdit?: boolean, canClear?: boolean, canReport?: boolean, canWrite?: boolean, accessRefreshAfterMs?: number}} */ (
       value
     );
   const canEdit = state.canEdit === true || state.canWrite === true;
+  const accessRefreshAfterMs =
+    typeof state.accessRefreshAfterMs === "number" &&
+    Number.isFinite(state.accessRefreshAfterMs) &&
+    state.accessRefreshAfterMs >= 0
+      ? Math.floor(state.accessRefreshAfterMs)
+      : undefined;
   return {
     readonly: state.readonly === true,
     canEdit,
     canClear: state.canClear === true,
+    canReport: state.canReport !== false,
     canWrite: canEdit,
+    ...(accessRefreshAfterMs === undefined ? {} : { accessRefreshAfterMs }),
   };
 }
 

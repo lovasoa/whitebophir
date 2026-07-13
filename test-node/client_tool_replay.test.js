@@ -744,6 +744,7 @@ function createHarness() {
       const onstart = moduleNamespace.onstart;
       const onMessage = moduleNamespace.onMessage;
       const onSocketDisconnect = moduleNamespace.onSocketDisconnect;
+      const onPresenceDisplayChange = moduleNamespace.onPresenceDisplayChange;
       const onMutationRejected = moduleNamespace.onMutationRejected;
       const onSizeChange = moduleNamespace.onSizeChange;
       const getTouchPolicy = moduleNamespace.getTouchPolicy;
@@ -790,6 +791,9 @@ function createHarness() {
           : undefined,
         onSocketDisconnect: onSocketDisconnect
           ? () => onSocketDisconnect(toolState)
+          : undefined,
+        onPresenceDisplayChange: onPresenceDisplayChange
+          ? () => onPresenceDisplayChange(toolState)
           : undefined,
         onMutationRejected: onMutationRejected
           ? (/** @type {any} */ message, /** @type {string} */ reason) =>
@@ -1480,6 +1484,13 @@ test("Cursor renders presence as a viewport-scaled HTML overlay", async () => {
   assert.equal(
     findElementByClass(peerCursor, "opcursor-name")?.textContent,
     "\u{1F338} Peer User",
+  );
+  const peerUser = globalAny.Tools.presence.users.get("socket-peer");
+  peerUser.friend = true;
+  cursorTool.onPresenceDisplayChange();
+  assert.equal(
+    findElementByClass(peerCursor, "opcursor-name")?.textContent,
+    "\u2665\uFE0E \u{1F338} Peer User",
   );
   assert.equal(
     findElementByClass(peerCursor, "opcursor-toolIcon")?.src,
