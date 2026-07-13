@@ -3,29 +3,13 @@ import { normalizeBoardState } from "./board_page_state.js";
 import { getAuthoritativeBaselineUrl } from "./board_replay_module.js";
 import { connection as BoardConnection } from "./board_transport.js";
 import * as BoardTurnstile from "./board_turnstile.js";
+import { getModerationRule } from "./moderation_rules.js";
 import { ModerationDisconnectSources, SocketEvents } from "./socket_events.js";
 
 /** @import { AppToolsState, BoardConnectionState, ModerationDisconnectPayload, SocketHeaders } from "../../types/app-runtime" */
 /** @typedef {{banDurationMs: number, moderationRule?: string, source: import("../../types/app-runtime").ModerationDisconnectSource, acknowledged: boolean, disconnected: boolean}} PendingModerationDisconnect */
 const ACCESS_REFRESH_GRACE_MS = 50;
 const MAX_BROWSER_TIMEOUT_MS = 2_147_483_647;
-/** @type {Record<string, string>} */
-const MODERATION_RULE_TITLE_KEYS = {
-  illegal: "rules_illegal_title",
-  violence: "rules_violence_title",
-  pornography: "rules_pornography_title",
-  harassment: "rules_harassment_title",
-  drawings: "rules_drawings_title",
-};
-/** @type {Record<string, string>} */
-const MODERATION_RULE_BODY_KEYS = {
-  illegal: "rules_illegal_law",
-  violence: "rules_violence_body",
-  pornography: "rules_pornography_body",
-  harassment: "rules_harassment_body",
-  drawings: "rules_drawings_body",
-};
-
 /** @type {Promise<typeof io> | null} */
 let socketIoReady = null;
 
@@ -85,14 +69,12 @@ export function normalizeModerationDisconnectPayload(payload) {
   const rawDuration = payloadRecord?.banDurationMs;
   const raw = typeof rawDuration === "number" ? rawDuration : 0;
   const moderationRule =
-    payloadRecord !== null &&
-    "moderationRule" in payloadRecord &&
-    typeof payloadRecord.moderationRule === "string" &&
-    Object.prototype.hasOwnProperty.call(
-      MODERATION_RULE_TITLE_KEYS,
-      payloadRecord.moderationRule,
-    )
-      ? payloadRecord.moderationRule
+    payloadRecord !== null && "moderationRule" in payloadRecord
+      ? getModerationRule(
+          typeof payloadRecord.moderationRule === "string"
+            ? payloadRecord.moderationRule
+            : undefined,
+        )?.id
       : undefined;
   const source =
     payloadRecord !== null &&
@@ -407,6 +389,7 @@ export class ConnectionModule {
           };
           Tools.connection.pendingModerationDisconnect = notice;
           if (typeof ack === "function") ack();
+          const rule = getModerationRule(normalized.moderationRule);
           void Tools.ui
             .showModerationDisconnectNotice({
               banDurationMs: normalized.banDurationMs,
@@ -425,22 +408,13 @@ export class ConnectionModule {
                 second: Tools.i18n.t("relative_seconds_short"),
               },
               ruleHeading: Tools.i18n.t("moderation_rule_focus"),
-              ruleTitle:
-                normalized.moderationRule === undefined
-                  ? undefined
-                  : Tools.i18n.t(
-                      MODERATION_RULE_TITLE_KEYS[
-                        normalized.moderationRule || ""
-                      ] || "",
-                    ),
-              ruleBody:
-                normalized.moderationRule === undefined
-                  ? undefined
-                  : Tools.i18n.t(
-                      MODERATION_RULE_BODY_KEYS[
-                        normalized.moderationRule || ""
-                      ] || "",
-                    ),
+              ruleTitle: rule ? Tools.i18n.t(rule.titleKey) : undefined,
+              ruleBody: rule ? Tools.i18n.t(rule.bodyKeys[0] || "") : undefined,
+              ruleIconUrl: rule ? `../rules/${rule.iconFile}` : undefined,
+              ruleAppealUrl: rule?.appealUrl,
+              ruleAppealLabel: rule?.appealLabelKey
+                ? Tools.i18n.t(rule.appealLabelKey)
+                : undefined,
             })
             .then(() => {
               notice.acknowledged = true;

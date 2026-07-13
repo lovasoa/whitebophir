@@ -117,6 +117,10 @@ html[data-ui-direction="rtl"]
 }
 
 .moderation-disconnect-rule {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  grid-template-rows: auto;
+  gap: 0 10px;
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
@@ -128,7 +132,19 @@ html[data-ui-direction="rtl"]
   text-align: start;
 }
 
+.moderation-disconnect-rule-icon {
+  display: block;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  grid-column: 1;
+  grid-row: 1 / 999;
+  align-self: start;
+  margin-top: 1px;
+}
+
 .moderation-disconnect-rule-heading {
+  grid-column: 2;
   margin-bottom: 4px;
   color: #6b7280;
   font-size: 11px;
@@ -137,12 +153,14 @@ html[data-ui-direction="rtl"]
 }
 
 .moderation-disconnect-rule-title {
+  grid-column: 2;
   color: #111827;
   font-size: 13px;
   font-weight: 700;
 }
 
 .moderation-disconnect-rule-body {
+  grid-column: 2;
   margin: 5px 0 0;
   color: #4b5563;
   font-size: 12px;
@@ -176,6 +194,155 @@ html[data-ui-direction="rtl"]
 
 .moderation-disconnect-private {
   text-decoration: none;
+}
+
+.moderation-disconnect-rule-appeal {
+  grid-column: 2;
+  display: inline-block;
+  margin-top: 8px;
+  color: #25636a;
+  font-size: 12px;
+  text-underline-offset: 3px;
+}
+
+/* Moderation action dialog (single-modal for moderator actions) */
+
+.wbo-dialog.moderation-action-dialog {
+  width: min(420px, calc(100vw - 32px));
+  padding: 18px;
+  text-align: left;
+}
+
+.moderation-action-title {
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.moderation-action-message {
+  margin: 0 0 14px;
+  color: #374151;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.moderation-action-section-title {
+  margin-bottom: 6px;
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.moderation-action-durations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.moderation-action-duration {
+  flex: 0 0 auto;
+  border-color: var(--board-control-border-strong);
+  background: #ffffff;
+  color: #111827;
+}
+
+.moderation-action-duration.wbo-dialog-button-warning,
+.moderation-action-duration.wbo-dialog-button-danger {
+  border-color: var(--board-control-border-strong);
+  background: #ffffff;
+  color: #111827;
+}
+
+.moderation-action-duration-selected {
+  border-color: var(--board-accent-strong);
+  background: var(--board-control-bg-active);
+  box-shadow: 0 0 0 1px var(--board-accent-strong);
+}
+
+.moderation-action-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  border: 0;
+}
+
+.moderation-action-rules {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.moderation-action-rule {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: auto;
+  padding: 12px 8px;
+  border: 1px solid var(--board-control-border);
+  border-radius: var(--board-control-radius);
+  background: var(--board-control-bg);
+  cursor: pointer;
+  text-align: center;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.moderation-action-rule:hover {
+  border-color: var(--board-control-border-strong);
+  box-shadow: var(--board-control-shadow);
+}
+
+.moderation-action-rule:focus-visible {
+  border-color: var(--board-accent-strong);
+  outline: 2px solid var(--board-accent-strong);
+  outline-offset: 1px;
+}
+
+.moderation-action-rule-icon {
+  display: block;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+}
+
+.moderation-action-rule-label {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.moderation-action-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0;
+}
+
+.moderation-action-rules-link {
+  color: #25636a;
+  font-size: 12px;
+  text-underline-offset: 3px;
+}
+
+.moderation-action-cancel {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 380px) {
+  .moderation-action-rules {
+    grid-template-columns: 1fr;
+  }
 }
 
 .wbo-modal-backdrop {
@@ -801,6 +968,10 @@ select {
 .connected-user-row-jumpable:focus-within {
   background: var(--board-control-bg-active);
   outline: none;
+}
+
+.connected-user-action[hidden] {
+  display: none;
 }
 
 .connected-user-report {

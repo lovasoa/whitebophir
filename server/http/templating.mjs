@@ -7,6 +7,7 @@ import {
   boardStateGrantsCapability,
   TOOLBAR_TOOLS,
 } from "../../client-data/tools/manifest.js";
+import { MODERATION_RULES } from "../../client-data/js/moderation_rules.js";
 import { createClientConfiguration } from "./client_configuration.mjs";
 import { startCompressedResponse } from "./compression.mjs";
 import { parseRequestUrl } from "./request_url.mjs";
@@ -545,6 +546,19 @@ class RulesTemplate extends Template {
     params.languageLinks = localizedLinks(params.languages, (linkLanguage) =>
       localizedUrl(rulesUrl, linkLanguage),
     );
+    params.moderationRules = MODERATION_RULES.map((rule) => ({
+      id: rule.id,
+      iconPath: `rules/${rule.iconFile}`,
+      title: params.translations[rule.titleKey] || rule.titleKey,
+      paragraphs: rule.bodyKeys.map((key) => params.translations[key] || key),
+      ...(rule.appealUrl
+        ? {
+            appealUrl: rule.appealUrl,
+            appealLabel:
+              params.translations[rule.appealLabelKey] || rule.appealLabelKey,
+          }
+        : {}),
+    }));
     return params;
   }
 }

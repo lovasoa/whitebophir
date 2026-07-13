@@ -436,6 +436,7 @@ Important files:
 - Board pages stream stored SVG baselines through the HTML shell. The board chrome
   and boot payloads must remain before the streamed board markup.
 - All user-visible strings MUST be localized via `Tools.i18n`. All [translation keys](server/http/translations.json) MUST have a carefully designed, natural sounding, context-aware version in ALL supported languages.
+- The shared moderation rule list lives in [client-data/js/moderation_rules.js](./client-data/js/moderation_rules.js). It defines rule identity, icon files, translation key references, and the moderation-appeal URL. Rule SVG icons live in [client-data/rules/](./client-data/rules/). The `/rules` page, the moderation-action dialog, and the banned disconnect notice all read metadata from this single source.
 
 ## hot paths
 
