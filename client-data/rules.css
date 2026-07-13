@@ -67,6 +67,24 @@
   margin: 0 0 10px;
 }
 
+.rules-list-heading {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.rules-list-heading .moderation-rule-icon {
+  color: #59616d;
+  flex: 0 0 28px;
+  height: 28px;
+  width: 28px;
+}
+
+.rules-list-heading h3 {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .rules-list h3::before {
   color: #667085;
   content: counter(rules) ".";
@@ -77,7 +95,11 @@
 .rules-list p {
   color: #374151;
   line-height: 1.65;
-  margin: 8px 0 0 26px;
+  margin: 8px 0 0 40px;
+}
+
+.rules-appeal a {
+  text-underline-offset: 3px;
 }
 
 .rules-back {

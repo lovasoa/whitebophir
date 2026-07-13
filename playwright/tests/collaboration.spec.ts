@@ -410,26 +410,22 @@ test.describe("collaboration and rate limiting", () => {
         await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
 
         await boardPage.reportFirstRemoteUser();
-        await expect(page.locator(".wbo-dialog")).toBeVisible();
-        await expect(page.locator(".wbo-dialog-choice-button")).toHaveText([
-          "No illegal or hateful content",
-          "No calls for violence",
-          "No pornography or naked children",
+        await expect(page.locator(".moderation-action-dialog")).toBeVisible();
+        await expect(page.locator(".moderation-action-rule-label")).toHaveText([
           "No harassment or personal attacks",
+          "No violence or hate speech",
+          "No pornography or naked children",
+          "No illegal content",
           "Respect other people's drawings",
+          "Respect moderation decisions",
         ]);
 
-        await page
-          .getByRole("button", { name: "No harassment or personal attacks" })
-          .click();
-        await expect(page.locator(".wbo-dialog-choice-button")).toHaveText([
-          "Warn",
-          "15m",
-          "24h",
-          "7d",
-        ]);
+        await expect(page.locator(".moderation-action-duration")).toContainText(
+          ["Warn", "15m", "24h", "7d"],
+        );
 
         await page.getByRole("button", { name: "7d" }).click();
+        await page.getByRole("button", { name: /No harassment/ }).click();
         await expect
           .poll(() => page.evaluate(() => window.__reportedUsers?.[0]))
           .toMatchObject({
@@ -493,11 +489,12 @@ test.describe("collaboration and rate limiting", () => {
 
         const targetReconnect = targetBoard.waitForDisconnectThenReconnect();
         await boardPage.reportFirstRemoteUser();
-        await expect(boardPage.page.locator(".wbo-dialog")).toBeVisible();
+        await expect(
+          boardPage.page.locator(".moderation-action-dialog"),
+        ).toBeVisible();
         await boardPage.page
-          .getByRole("button", { name: "No harassment or personal attacks" })
+          .getByRole("button", { name: /No harassment/ })
           .click();
-        await boardPage.page.getByRole("button", { name: "Warn" }).click();
 
         await expect
           .poll(() => targetBoard.readModerationOverlay())
@@ -562,11 +559,13 @@ test.describe("collaboration and rate limiting", () => {
 
         const targetReconnect = targetBoard.waitForDisconnectThenReconnect();
         await boardPage.reportFirstRemoteUser();
-        await expect(boardPage.page.locator(".wbo-dialog")).toBeVisible();
-        await boardPage.page
-          .getByRole("button", { name: "No harassment or personal attacks" })
-          .click();
+        await expect(
+          boardPage.page.locator(".moderation-action-dialog"),
+        ).toBeVisible();
         await boardPage.page.getByRole("button", { name: "15m" }).click();
+        await boardPage.page
+          .getByRole("button", { name: /No harassment/ })
+          .click();
 
         await expect
           .poll(() => targetBoard.readModerationOverlay())

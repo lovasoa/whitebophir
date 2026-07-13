@@ -44,29 +44,22 @@
         <p class="rules-intro">{{translations.community_rules_intro}}</p>
 
         <ol class="rules-list">
-          <li>
-            <h3>{{translations.rules_illegal_title}}</h3>
-            <p>{{translations.rules_illegal_law}}</p>
-
-            <p>{{translations.rules_illegal_international}}</p>
+          {{#moderationRules}}
+          <li data-rule-id="{{id}}">
+            <div class="rules-list-heading">
+              <img class="moderation-rule-icon" src="{{iconPath}}" alt="" aria-hidden="true" />
+              <h3>{{title}}</h3>
+            </div>
+            {{#paragraphs}}
+            <p>{{.}}</p>
+            {{/paragraphs}}
+            {{#appealUrl}}
+            <p class="rules-appeal">
+              <a href="{{appealUrl}}" target="_blank" rel="noopener">{{appealLabel}}</a>
+            </p>
+            {{/appealUrl}}
           </li>
-          <li>
-            <h3>{{translations.rules_violence_title}}</h3>
-            <p>{{translations.rules_violence_body}}</p>
-          </li>
-          <li>
-            <h3>{{translations.rules_pornography_title}}</h3>
-            <p>{{translations.rules_pornography_body}}</p>
-          </li>
-          <li>
-            <h3>{{translations.rules_harassment_title}}</h3>
-            <p>{{translations.rules_harassment_body}}</p>
-          </li>
-          <li>
-            <h3>{{translations.rules_drawings_title}}</h3>
-            <p>{{translations.rules_drawings_shared}}</p>
-            <p>{{translations.rules_drawings_body}}</p>
-          </li>
+          {{/moderationRules}}
         </ol>
 
         <p class="rules-back">

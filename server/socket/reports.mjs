@@ -1,4 +1,5 @@
 import observability from "../observability/index.mjs";
+import { MODERATION_RULE_IDS } from "../../client-data/js/moderation_rules.js";
 import {
   ModerationDisconnectSources,
   SocketEvents,
@@ -9,13 +10,6 @@ import { canBanOnBoard, canReportOnBoard } from "./policy.mjs";
 
 const { logger, tracing } = observability;
 const MODERATION_DISCONNECT_CLOSE_TIMEOUT_MS = 150;
-const MODERATION_RULES = new Set([
-  "illegal",
-  "violence",
-  "pornography",
-  "harassment",
-  "drawings",
-]);
 
 /** @import { AppSocket, ModerationDisconnectPayload, ModerationDisconnectSource, ReportUserPayload, ServerConfig } from "../../types/server-runtime.d.ts" */
 /** @typedef {{socketId: string, userId: string, name: string, ip: string, userSecret: string, userAgent: string, language: string, canClear?: boolean}} BoardUser */
@@ -42,7 +36,7 @@ function getReportedSocketId(message) {
  */
 function getModeratorRule(message) {
   return typeof message?.moderationRule === "string" &&
-    MODERATION_RULES.has(message.moderationRule)
+    MODERATION_RULE_IDS.has(message.moderationRule)
     ? message.moderationRule
     : undefined;
 }

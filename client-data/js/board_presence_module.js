@@ -2,6 +2,7 @@ import { TOOL_ID_BY_CODE } from "../tools/tool-order.js";
 import { FriendStore } from "./board_friend_store.js";
 import { getRequiredElement } from "./board_page_state.js";
 import { VIEWPORT_HASH_SCALE_DECIMALS } from "./board_viewport.js";
+import { MODERATION_RULES } from "./moderation_rules.js";
 import { getMessageActivityPoint } from "./message_activity_point.js";
 import MessageCommon from "./message_common.js";
 import { LIMITS } from "./message_limits.js";
@@ -408,15 +409,6 @@ const DURATION_UNIT_MS = {
   hour: 60 * 60 * 1000,
   day: 24 * 60 * 60 * 1000,
 };
-/** @type {{value: string, labelKey: string}[]} */
-const MODERATION_RULE_OPTIONS = [
-  { value: "illegal", labelKey: "rules_illegal_title" },
-  { value: "violence", labelKey: "rules_violence_title" },
-  { value: "pornography", labelKey: "rules_pornography_title" },
-  { value: "harassment", labelKey: "rules_harassment_title" },
-  { value: "drawings", labelKey: "rules_drawings_title" },
-];
-
 /** @type {({durationMs: 0, labelKey: "warn", variant: "secondary"} | {durationMs: number, count: number, unit: ConnectedUserDurationUnit, variant: "secondary" | "warning" | "danger"})[]} */
 const BAN_DURATION_OPTIONS = [
   {
@@ -1074,41 +1066,35 @@ function createConnectedUserRow(getTools, user, presence) {
       connectedUser.reportPending = true;
       updateConnectedUserRow(getTools, row, connectedUser);
       void Tools.ui
-        .showChoiceDialog({
-          message: Tools.i18n.format("moderation_rule_prompt", {
+        .showModerationActionDialog({
+          title: Tools.i18n.format("moderation_action_title", {
             name: connectedUser.name,
           }),
-          cancelLabel: Tools.i18n.t("Cancel"),
-          choices: MODERATION_RULE_OPTIONS.map((option) => ({
-            label: Tools.i18n.t(option.labelKey),
-            value: option.value,
-            variant: /** @type {"secondary"} */ ("secondary"),
+          message: Tools.i18n.t("moderation_action_message"),
+          durationLabel: Tools.i18n.t("moderation_action_duration"),
+          ruleLabel: Tools.i18n.t("moderation_action_rule"),
+          rules: MODERATION_RULES.map((rule) => ({
+            id: rule.id,
+            label: Tools.i18n.t(rule.titleKey),
+            iconUrl: `../rules/${rule.iconFile}`,
           })),
-        })
-        .then((moderationRule) => {
-          if (moderationRule === null) return null;
-          return Tools.ui
-            .showChoiceDialog({
-              message: Tools.i18n.format("ban_user_confirmation", {
-                name: connectedUser.name,
-              }),
-              cancelLabel: Tools.i18n.t("Cancel"),
-              choices: BAN_DURATION_OPTIONS.map((option) => ({
-                label:
-                  "labelKey" in option
-                    ? Tools.i18n.t(option.labelKey)
-                    : formatShortRelativeTime(
-                        Tools,
-                        getDurationPartState(option.count, option.unit),
-                      ),
-                value: option.durationMs,
-                variant: option.variant,
-              })),
-            })
-            .then((banDurationMs) => ({ banDurationMs, moderationRule }));
+          durations: BAN_DURATION_OPTIONS.map((option) => ({
+            label:
+              "labelKey" in option
+                ? Tools.i18n.t(option.labelKey)
+                : formatShortRelativeTime(
+                    Tools,
+                    getDurationPartState(option.count, option.unit),
+                  ),
+            durationMs: option.durationMs,
+            variant: option.variant,
+          })),
+          cancelLabel: Tools.i18n.t("Cancel"),
+          rulesLinkLabel: Tools.i18n.t("community_rules_link"),
+          rulesHref: "../rules",
         })
         .then((selection) => {
-          if (selection !== null && selection?.banDurationMs !== null) {
+          if (selection !== null) {
             reportConnectedUser(
               selection.banDurationMs,
               selection.moderationRule,

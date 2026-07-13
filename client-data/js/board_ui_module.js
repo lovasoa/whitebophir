@@ -108,7 +108,36 @@
  *   ruleHeading?: string,
  *   ruleTitle?: string,
  *   ruleBody?: string,
+ *   ruleIconUrl?: string,
+ *   ruleAppealUrl?: string,
+ *   ruleAppealLabel?: string,
  * }} ModerationDisconnectNoticeOptions
+ */
+
+/**
+ * @typedef {{id: string, label: string, iconUrl: string}} ModerationActionRuleOption
+ */
+
+/**
+ * @typedef {{durationMs: number, label: string, variant?: "secondary" | "warning" | "danger"}} ModerationActionDurationOption
+ */
+
+/**
+ * @typedef {{
+ *   title: string,
+ *   message: string,
+ *   durationLabel: string,
+ *   ruleLabel: string,
+ *   rules: ModerationActionRuleOption[],
+ *   durations: ModerationActionDurationOption[],
+ *   cancelLabel: string,
+ *   rulesLinkLabel: string,
+ *   rulesHref: string,
+ * }} ModerationActionDialogOptions
+ */
+
+/**
+ * @typedef {{moderationRule: string, banDurationMs: number}} ModerationAction
  */
 
 /**
@@ -581,6 +610,169 @@ export function showChoiceDialog({ message, choices, cancelLabel = "Cancel" }) {
   });
 }
 
+/**
+ * Selecting a duration only changes the pending action. Selecting a rule is
+ * the explicit action and settles the dialog.
+ * @param {ModerationActionDialogOptions} options
+ * @returns {Promise<ModerationAction | null>}
+ */
+export function showModerationActionDialog(options) {
+  return showModalDialog(
+    /** @type {ModerationAction | null} */ (null),
+    (dialog, settle) => {
+      dialog.classList.add("moderation-action-dialog");
+      dialog.setAttribute("role", "dialog");
+      dialog.setAttribute("aria-modal", "true");
+
+      const title = document.createElement("div");
+      title.className = "moderation-action-title";
+      title.id = "moderation-action-title";
+      title.textContent = options.title;
+      dialog.setAttribute("aria-labelledby", title.id);
+
+      const message = document.createElement("p");
+      message.className = "moderation-action-message";
+      message.id = "moderation-action-message";
+      message.textContent = options.message;
+      dialog.setAttribute("aria-describedby", message.id);
+
+      const durationHeading = document.createElement("div");
+      durationHeading.className = "moderation-action-section-title";
+      durationHeading.textContent = options.durationLabel;
+
+      const durationChoices = document.createElement("div");
+      durationChoices.className = "moderation-action-durations";
+      durationChoices.setAttribute("role", "group");
+      durationChoices.setAttribute("aria-label", options.durationLabel);
+
+      const status = document.createElement("div");
+      status.className = "moderation-action-status";
+      status.setAttribute("role", "status");
+      status.setAttribute("aria-live", "polite");
+
+      const selectedDuration =
+        options.durations.find((choice) => choice.durationMs === 0) ||
+        options.durations[0];
+      let selectedDurationMs = selectedDuration?.durationMs ?? 0;
+
+      /** @param {ModerationActionDurationOption} choice */
+      const actionLabel = (choice) => choice.label;
+
+      /** @param {number} durationMs */
+      const syncDurationState = (durationMs) => {
+        selectedDurationMs = durationMs;
+        options.durations.forEach((choice) => {
+          const button = durationChoices.querySelector(
+            `[data-duration-ms="${choice.durationMs}"]`,
+          );
+          if (!(button instanceof HTMLButtonElement)) return;
+          const selected = choice.durationMs === selectedDurationMs;
+          button.setAttribute("aria-pressed", selected ? "true" : "false");
+          button.classList.toggle(
+            "moderation-action-duration-selected",
+            selected,
+          );
+        });
+        const selected = options.durations.find(
+          (choice) => choice.durationMs === selectedDurationMs,
+        );
+        status.textContent = selected
+          ? `${options.durationLabel}: ${actionLabel(selected)}`
+          : "";
+        ruleButtons.forEach((button) => {
+          const ruleLabel = button.dataset.ruleLabel || "";
+          button.setAttribute(
+            "aria-label",
+            `${ruleLabel} — ${selected ? actionLabel(selected) : ""}`,
+          );
+        });
+      };
+
+      for (const choice of options.durations) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "wbo-dialog-button moderation-action-duration";
+        if (choice.variant) {
+          button.classList.add(`wbo-dialog-button-${choice.variant}`);
+        }
+        button.dataset.durationMs = String(choice.durationMs);
+        button.textContent = choice.label;
+        button.setAttribute("aria-pressed", "false");
+        button.addEventListener("click", () =>
+          syncDurationState(choice.durationMs),
+        );
+        durationChoices.appendChild(button);
+      }
+
+      const ruleHeading = document.createElement("div");
+      ruleHeading.className = "moderation-action-section-title";
+      ruleHeading.textContent = options.ruleLabel;
+
+      const ruleChoices = document.createElement("div");
+      ruleChoices.className = "moderation-action-rules";
+
+      /** @type {HTMLButtonElement[]} */
+      const ruleButtons = [];
+      for (const rule of options.rules) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "moderation-action-rule";
+        button.dataset.ruleLabel = rule.label;
+
+        const icon = document.createElement("img");
+        icon.className = "moderation-action-rule-icon";
+        icon.src = rule.iconUrl;
+        icon.alt = "";
+        icon.setAttribute("aria-hidden", "true");
+
+        const label = document.createElement("span");
+        label.className = "moderation-action-rule-label";
+        label.textContent = rule.label;
+        button.append(icon, label);
+        button.addEventListener("click", () =>
+          settle({
+            moderationRule: rule.id,
+            banDurationMs: selectedDurationMs,
+          }),
+        );
+        ruleButtons.push(button);
+        ruleChoices.appendChild(button);
+      }
+
+      const footer = document.createElement("div");
+      footer.className = "moderation-action-footer";
+
+      const rulesLink = document.createElement("a");
+      rulesLink.className = "moderation-action-rules-link";
+      rulesLink.href = options.rulesHref;
+      rulesLink.target = "_blank";
+      rulesLink.rel = "noopener";
+      rulesLink.textContent = options.rulesLinkLabel;
+
+      const cancel = document.createElement("button");
+      cancel.type = "button";
+      cancel.className =
+        "wbo-dialog-button wbo-dialog-button-secondary moderation-action-cancel";
+      cancel.textContent = options.cancelLabel;
+      cancel.addEventListener("click", () => settle(null));
+
+      footer.append(rulesLink, cancel);
+      dialog.append(
+        title,
+        message,
+        durationHeading,
+        durationChoices,
+        status,
+        ruleHeading,
+        ruleChoices,
+        footer,
+      );
+      syncDurationState(selectedDurationMs);
+      ruleButtons[0]?.focus();
+    },
+  );
+}
+
 const MODAL_FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -671,6 +863,14 @@ export function showModerationDisconnectNotice(options) {
     const ruleCallout = document.createElement("div");
     ruleCallout.className = "moderation-disconnect-rule";
     if (options.ruleTitle) {
+      if (options.ruleIconUrl) {
+        const ruleIcon = document.createElement("img");
+        ruleIcon.className = "moderation-disconnect-rule-icon";
+        ruleIcon.src = options.ruleIconUrl;
+        ruleIcon.alt = "";
+        ruleIcon.setAttribute("aria-hidden", "true");
+        ruleCallout.appendChild(ruleIcon);
+      }
       const ruleHeading = document.createElement("div");
       ruleHeading.className = "moderation-disconnect-rule-heading";
       ruleHeading.textContent = options.ruleHeading || "";
@@ -683,6 +883,15 @@ export function showModerationDisconnectNotice(options) {
         ruleBody.className = "moderation-disconnect-rule-body";
         ruleBody.textContent = options.ruleBody;
         ruleCallout.appendChild(ruleBody);
+      }
+      if (options.ruleAppealUrl && options.ruleAppealLabel) {
+        const appeal = document.createElement("a");
+        appeal.className = "moderation-disconnect-rule-appeal";
+        appeal.href = options.ruleAppealUrl;
+        appeal.target = "_blank";
+        appeal.rel = "noopener";
+        appeal.textContent = options.ruleAppealLabel;
+        ruleCallout.appendChild(appeal);
       }
     }
 
@@ -788,6 +997,11 @@ export class UiModule {
   /** @template T @param {ChoiceDialogOptions<T>} options */
   showChoiceDialog(options) {
     return showChoiceDialog(options);
+  }
+
+  /** @param {ModerationActionDialogOptions} options */
+  showModerationActionDialog(options) {
+    return showModerationActionDialog(options);
   }
 
   /** @param {ModerationDisconnectNoticeOptions} options */
