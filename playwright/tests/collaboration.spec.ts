@@ -666,7 +666,7 @@ test.describe("collaboration and rate limiting", () => {
           .not.toHaveLength(0);
         await expect(
           targetPage.locator(
-            "#connectedUsersList .connected-user-report:visible",
+            "#connectedUsersList .connected-user-report:not([hidden])",
           ),
         ).toHaveCount(0);
       } finally {
