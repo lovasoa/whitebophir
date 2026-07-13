@@ -576,6 +576,7 @@ select {
 
 .connected-users-panel {
   position: absolute;
+  box-sizing: border-box;
   top: calc(100% + 8px);
   right: 0;
   width: min(224px, var(--board-hud-max-width));
@@ -622,14 +623,33 @@ select {
 }
 
 .connected-user-name {
+  display: flex;
+  align-items: baseline;
   min-width: 0;
   color: #111827;
   font-size: 12px;
   font-weight: 400;
   line-height: 1.2;
+}
+
+.connected-user-name-text {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.connected-user-friend-marker {
+  flex: 0 0 auto;
+  margin-inline-end: 3px;
+  color: #805866;
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  font-style: normal;
+}
+
+.connected-user-friend-marker[hidden] {
+  display: none;
 }
 
 .connected-user-row-self {
@@ -649,13 +669,24 @@ select {
 }
 
 .connected-user-main {
+  display: flex;
+  align-items: flex-start;
   min-width: 0;
 }
 
 .connected-user-main-link {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
   color: inherit;
   text-decoration: none;
   outline: none;
+}
+
+.connected-user-main-link:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid var(--board-accent-strong);
+  outline-offset: 1px;
 }
 
 .connected-user-meta {
@@ -674,6 +705,69 @@ select {
   justify-content: center;
   width: 36px;
   justify-self: center;
+}
+
+.connected-user-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-self: end;
+  gap: 1px;
+}
+
+.connected-user-friend {
+  display: inline-flex;
+  position: relative;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: #8a919b;
+  cursor: pointer;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1;
+  transition:
+    color 120ms ease,
+    opacity 120ms ease;
+}
+
+.connected-user-friend::after {
+  position: absolute;
+  inset: -2px;
+  content: "";
+}
+
+.connected-user-row:hover
+  .connected-user-friend:not(.connected-user-friend-active),
+.connected-user-friend:hover {
+  color: #59616d;
+}
+
+.connected-user-friend:focus-visible {
+  outline: 2px solid var(--board-accent-strong);
+  outline-offset: 1px;
+  opacity: 1;
+}
+
+.connected-user-friend-active {
+  color: #805866;
+}
+
+@media (hover: hover) {
+  .connected-user-row-friend:not(:hover):not(:focus-within)
+    .connected-user-friend-active {
+    opacity: 0;
+  }
+}
+
+.connected-user-friend[hidden] {
+  display: none;
 }
 
 .connected-user-toolBadge {
@@ -715,18 +809,28 @@ select {
 }
 
 .connected-user-report {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   padding: 0;
-  border: 1px solid var(--board-control-border);
+  border: 0;
   border-radius: 2px;
-  background: #ffffff;
-  color: #374151;
+  background: transparent;
+  color: #59616d;
   cursor: pointer;
   font-size: 12px;
   font-weight: 700;
-  line-height: 18px;
+  line-height: 24px;
   text-align: center;
+}
+
+.connected-user-report:hover:not([disabled]) {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.connected-user-report:focus-visible {
+  outline: 2px solid var(--board-accent-strong);
+  outline-offset: 1px;
 }
 
 .connected-user-row-inactive .connected-user-name,
@@ -748,9 +852,7 @@ select {
 }
 
 .connected-user-report-latched {
-  opacity: 1;
   background: #f3f4f6;
-  border-color: var(--board-control-border-strong);
   color: #111111;
 }
 
