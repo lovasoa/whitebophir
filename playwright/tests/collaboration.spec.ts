@@ -229,6 +229,15 @@ test.describe("collaboration and rate limiting", () => {
         (await lastRemote.locator(".connected-user-name-text").textContent()) ||
         "";
       const friendButton = lastRemote.locator(".connected-user-friend");
+      await expect(friendButton).toHaveCSS("opacity", "0");
+      await expect(lastRemote.locator(".connected-user-report")).toHaveCSS(
+        "opacity",
+        "0",
+      );
+      await expect(lastRemote.locator(".connected-user-actions")).toHaveCSS(
+        "width",
+        "49px",
+      );
       await expect(friendButton).toHaveAttribute(
         "aria-label",
         `Add ${friendName} as a friend`,
@@ -237,6 +246,11 @@ test.describe("collaboration and rate limiting", () => {
         lastRemote.locator(".connected-user-report"),
       ).toHaveAttribute("aria-label", `Report ${friendName}`);
       await friendButton.focus();
+      await expect(friendButton).toHaveCSS("opacity", "1");
+      await expect(lastRemote.locator(".connected-user-report")).toHaveCSS(
+        "opacity",
+        "1",
+      );
       await friendButton.press("Space");
 
       await expect
@@ -251,11 +265,12 @@ test.describe("collaboration and rate limiting", () => {
         "true",
       );
       await expect(
-        friendRow.locator(".connected-user-friend-marker"),
-      ).toBeVisible();
-      await expect(
-        friendRow.locator(".connected-user-friend-marker"),
-      ).toHaveAttribute("aria-hidden", "true");
+        friendRow.locator(".connected-user-name-text"),
+      ).toContainText("\u2764\uFE0F");
+      await expect(friendRow.locator(".connected-user-friend")).toHaveCSS(
+        "opacity",
+        "1",
+      );
       await expect
         .poll(() =>
           boardPage.page.evaluate(
@@ -282,7 +297,8 @@ test.describe("collaboration and rate limiting", () => {
       const persistedFriend = boardPage.page.locator(
         `#connectedUsersList .connected-user-row[data-user-id="${friendUserId}"] .connected-user-friend`,
       );
-      await persistedFriend.click();
+      await persistedFriend.focus();
+      await persistedFriend.press("Space");
       await expect(persistedFriend).toHaveAttribute("aria-pressed", "false");
       await expect(persistedFriend).toBeFocused();
       await expect
@@ -299,6 +315,56 @@ test.describe("collaboration and rate limiting", () => {
     } finally {
       await firstRemoteContext.close();
       await secondRemoteContext.close();
+    }
+  });
+
+  test("touch row taps navigate and reveal only that row's actions", async ({
+    browser,
+    server,
+  }) => {
+    const touchContext = await browser.newContext({
+      hasTouch: true,
+      viewport: { width: 390, height: 844 },
+    });
+    const peerContext = await browser.newContext();
+    const touchPage = await touchContext.newPage();
+    const peerPage = await peerContext.newPage();
+    const touchBoard = createBoardPage(touchPage, server);
+    const peerBoard = createBoardPage(peerPage, server);
+
+    try {
+      await Promise.all([
+        touchBoard.gotoBoard("presence-touch-actions"),
+        peerBoard.gotoBoard("presence-touch-actions"),
+      ]);
+      await Promise.all([
+        touchBoard.waitForSocketConnected(),
+        peerBoard.waitForSocketConnected(),
+      ]);
+      await touchBoard.connectedUsersToggle.tap();
+      await expect(touchBoard.connectedUsersPanel).toBeVisible();
+      await expect.poll(() => touchBoard.readConnectedUsers()).toHaveLength(2);
+
+      const remoteRow = touchPage.locator(
+        "#connectedUsersList .connected-user-row:not(.connected-user-row-self)",
+      );
+      await expect(remoteRow.locator(".connected-user-friend")).toHaveCSS(
+        "opacity",
+        "0",
+      );
+      await remoteRow.locator(".connected-user-main-link").tap();
+      await expect(remoteRow).toHaveClass(/connected-user-row-touch-revealed/);
+      await expect(remoteRow.locator(".connected-user-friend")).toHaveCSS(
+        "opacity",
+        "1",
+      );
+
+      const urlAfterNavigation = touchPage.url();
+      await remoteRow.locator(".connected-user-friend").tap();
+      expect(touchPage.url()).toBe(urlAfterNavigation);
+    } finally {
+      await peerContext.close();
+      await touchContext.close();
     }
   });
 
@@ -370,6 +436,26 @@ test.describe("collaboration and rate limiting", () => {
             banDurationMs: 7 * 24 * 60 * 60 * 1000,
             moderationRule: "harassment",
           });
+        if (!(await boardPage.connectedUsersPanel.isVisible())) {
+          await boardPage.connectedUsersToggle.click();
+        }
+        const banReport = page.locator(
+          "#connectedUsersList .connected-user-row:not(.connected-user-row-self) .connected-user-report",
+        );
+        await expect(banReport).toBeVisible();
+        await expect(banReport).toBeDisabled();
+        await expect(banReport).toHaveAttribute("aria-label", "Ban applied");
+        await expect(banReport).toHaveText("✓");
+        await page.evaluate(() => {
+          document
+            .querySelector<HTMLButtonElement>(
+              "#connectedUsersList .connected-user-row:not(.connected-user-row-self) .connected-user-report",
+            )
+            ?.click();
+        });
+        await expect
+          .poll(() => page.evaluate(() => window.__reportedUsers?.length ?? 0))
+          .toBe(1);
       } finally {
         await targetContext.close();
       }

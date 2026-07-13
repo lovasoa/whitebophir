@@ -605,7 +605,7 @@ select {
 
 .connected-user-row {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) auto;
+  grid-template-columns: 36px minmax(0, 1fr) 49px;
   align-items: center;
   gap: 7px;
   min-height: 34px;
@@ -637,19 +637,6 @@ select {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.connected-user-friend-marker {
-  flex: 0 0 auto;
-  margin-inline-end: 3px;
-  color: #805866;
-  font-family: Arial, sans-serif;
-  font-size: 10px;
-  font-style: normal;
-}
-
-.connected-user-friend-marker[hidden] {
-  display: none;
 }
 
 .connected-user-row-self {
@@ -708,15 +695,18 @@ select {
 }
 
 .connected-user-actions {
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
+  justify-content: end;
+  width: 49px;
+  min-width: 49px;
   justify-self: end;
   gap: 1px;
 }
 
-.connected-user-friend {
+.connected-user-action {
   display: inline-flex;
-  position: relative;
   align-items: center;
   justify-content: center;
   flex: 0 0 24px;
@@ -729,12 +719,18 @@ select {
   background: transparent;
   color: #8a919b;
   cursor: pointer;
-  font-family: Arial, sans-serif;
-  font-size: 14px;
   line-height: 1;
   transition:
     color 120ms ease,
     opacity 120ms ease;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.connected-user-friend {
+  position: relative;
+  font-family: Arial, sans-serif;
+  font-size: 13px;
 }
 
 .connected-user-friend::after {
@@ -743,8 +739,14 @@ select {
   content: "";
 }
 
-.connected-user-row:hover
-  .connected-user-friend:not(.connected-user-friend-active),
+.connected-user-row:hover .connected-user-action,
+.connected-user-row:focus-within .connected-user-action,
+.connected-user-row-touch-revealed .connected-user-action,
+.connected-user-action:hover {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .connected-user-friend:hover {
   color: #59616d;
 }
@@ -757,13 +759,6 @@ select {
 
 .connected-user-friend-active {
   color: #805866;
-}
-
-@media (hover: hover) {
-  .connected-user-row-friend:not(:hover):not(:focus-within)
-    .connected-user-friend-active {
-    opacity: 0;
-  }
 }
 
 .connected-user-friend[hidden] {
@@ -809,14 +804,8 @@ select {
 }
 
 .connected-user-report {
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 0;
-  border-radius: 2px;
   background: transparent;
   color: #59616d;
-  cursor: pointer;
   font-size: 12px;
   font-weight: 700;
   line-height: 24px;
@@ -854,6 +843,8 @@ select {
 .connected-user-report-latched {
   background: #f3f4f6;
   color: #111111;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 @keyframes connected-user-enter {

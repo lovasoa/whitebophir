@@ -168,7 +168,7 @@ test("connected user display name marks moderators consistently", async () => {
       friend: true,
       canClear: true,
     }),
-    "\u2665\uFE0E \u{1F338} User 1",
+    "\u2764\uFE0F \u{1F338} User 1",
   );
 });
 
