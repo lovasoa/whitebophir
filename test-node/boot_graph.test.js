@@ -61,6 +61,7 @@ test("pan-ready boot graph excludes full app and tool implementations", () => {
     "client-data/js/board.js",
     "client-data/js/board_access_module.js",
     "client-data/js/board_connection_module.js",
+    "client-data/js/board_friend_store.js",
     "client-data/js/board_message_module.js",
     "client-data/js/board_optimistic_module.js",
     "client-data/js/board_presence_module.js",
