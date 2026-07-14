@@ -53,11 +53,11 @@
             {{#paragraphs}}
             <p>{{.}}</p>
             {{/paragraphs}}
-            {{#appealUrl}}
+            {{#if appealUrl}}
             <p class="rules-appeal">
               <a href="{{appealUrl}}" target="_blank" rel="noopener">{{appealLabel}}</a>
             </p>
-            {{/appealUrl}}
+            {{/if}}
           </li>
           {{/moderationRules}}
         </ol>
