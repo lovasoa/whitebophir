@@ -1,4 +1,4 @@
-import { TOOL_BY_CODE, TOOL_BY_ID, TOOL_IDS } from "../tools/manifest.js";
+import { TOOL_BY_ID, TOOL_ID_BY_CODE } from "../tools/manifest.js";
 import { getMutationTypeCode, MutationType } from "./mutation_type.js";
 
 /** @typedef {import("../../types/app-runtime").ToolCode} ToolCode */
@@ -22,8 +22,7 @@ const MUTATION_TYPE_NAME_BY_CODE = Object.freeze({
 export function getToolCode(tool) {
   return typeof tool === "number" &&
     Number.isSafeInteger(tool) &&
-    tool >= 1 &&
-    tool <= TOOL_IDS.length
+    Object.prototype.hasOwnProperty.call(TOOL_ID_BY_CODE, tool)
     ? /** @type {ToolCode} */ (tool)
     : undefined;
 }
@@ -34,14 +33,14 @@ export function getToolId(tool) {
     return TOOL_BY_ID[tool] ? tool : undefined;
   }
   const toolCode = getToolCode(tool);
-  return toolCode === undefined ? undefined : TOOL_IDS[toolCode - 1];
+  return toolCode === undefined ? undefined : TOOL_ID_BY_CODE[toolCode];
 }
 
 /** @param {unknown} tool */
 export function getTool(tool) {
   if (typeof tool === "string") return TOOL_BY_ID[tool];
-  const toolCode = getToolCode(tool);
-  return toolCode === undefined ? undefined : TOOL_BY_CODE[toolCode - 1];
+  const toolId = getToolId(tool);
+  return toolId === undefined ? undefined : TOOL_BY_ID[toolId];
 }
 
 /** @param {unknown} tool */
