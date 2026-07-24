@@ -1120,17 +1120,37 @@ export function normalizeServerRenderedElement(state, line) {
 }
 
 /**
+ * @param {{type?: unknown, id?: unknown, _children?: unknown}} message
+ * @param {string} activeId
+ * @returns {boolean}
+ */
+function messageDeletesActiveStroke(message, activeId) {
+  if (message.type === MutationType.DELETE && message.id === activeId) {
+    return true;
+  }
+  if (!Array.isArray(message._children)) return false;
+  for (const child of message._children) {
+    if (!child || typeof child !== "object") continue;
+    const record = /** @type {{type?: unknown, id?: unknown}} */ (child);
+    if (record.type === MutationType.DELETE && record.id === activeId) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Handles authoritative board events that invalidate the active local stroke.
  * The overlay is local-only, so clear/delete must explicitly discard it.
+ * Hand selection deletes arrive as a batch, so child deletes are inspected too.
  * @param {PencilState} state
- * @param {{type?: unknown, id?: string}} message
+ * @param {{type?: unknown, id?: string, _children?: unknown}} message
  */
 export function onMessage(state, message) {
-  if (message.type === MutationType.CLEAR) {
-    clearActiveStrokeState(state);
-    return;
-  }
-  if (message.type === MutationType.DELETE && message.id === state.curLineId) {
+  if (
+    message.type === MutationType.CLEAR ||
+    messageDeletesActiveStroke(message, state.curLineId)
+  ) {
     clearActiveStrokeState(state);
   }
 }
