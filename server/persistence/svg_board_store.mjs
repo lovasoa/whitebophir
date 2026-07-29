@@ -208,7 +208,18 @@ async function readStoredSvgWithFallback(
         try {
           await quarantineUnreadableSvg(candidate.file);
         } catch (quarantineError) {
-          if (errorCode(quarantineError) !== "ENOENT") throw quarantineError;
+          const quarantineErrorCode = errorCode(quarantineError);
+          if (
+            quarantineErrorCode !== "ENOENT" &&
+            quarantineErrorCode !== "ENAMETOOLONG"
+          ) {
+            throw quarantineError;
+          }
+          logSvgStoreInfo("svg.quarantine_skipped", {
+            board: boardName,
+            "error.code": quarantineErrorCode,
+            "file.path": candidate.file,
+          });
         }
         continue;
       }

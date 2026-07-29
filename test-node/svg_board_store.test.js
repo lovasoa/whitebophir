@@ -685,6 +685,28 @@ test("readCanonicalBoardState quarantines an unreadable primary svg before falli
   });
 });
 
+test("readCanonicalBoardState falls back when primary svg quarantine name is too long", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-svg-store-long-quarantine-"),
+  );
+  const boardName = "q".repeat(238);
+  const svgFile = svgPath(boardName, historyDir);
+  const stagedSvg =
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="640" height="480" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="7" data-wbo-readonly="true"><defs id="defs"></defs><g id="drawingArea"><rect id="rect-1" x="1" y="2" width="29" height="38" stroke="#123456" stroke-width="4" fill="none"></rect></g><g id="cursors"></g></svg>';
+
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
+    await fs.writeFile(svgFile, "not valid svg", "utf8");
+    await fs.writeFile(`${svgFile}.bak`, stagedSvg, "utf8");
+
+    const state = await readCanonicalBoardState(boardName, historyDir);
+
+    assert.equal(state.source, "svg_backup");
+    assert.deepEqual(state.paintOrder, ["rect-1"]);
+    assert.equal(await fs.readFile(svgFile, "utf8"), stagedSvg);
+    await assert.rejects(fs.stat(`${svgFile}.bak`), { code: "ENOENT" });
+  });
+});
+
 test("readServedBaseline returns stored svg bytes unchanged when svg exists", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-served-opaque-"),

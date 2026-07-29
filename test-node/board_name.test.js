@@ -21,6 +21,13 @@ test("isValidBoardName only accepts canonical board names", () => {
   assert.equal(isValidBoardName(""), false);
 });
 
+test("isValidBoardName rejects names that exceed stored filename byte limits", () => {
+  assert.equal(isValidBoardName("a".repeat(200)), true);
+  assert.equal(isValidBoardName("a".repeat(201)), false);
+  assert.equal(isValidBoardName("界".repeat(66)), true);
+  assert.equal(isValidBoardName("界".repeat(67)), false);
+});
+
 test("decodeAndValidateBoardName accepts only canonical encoded names", () => {
   assert.equal(
     decodeAndValidateBoardName(encodeURIComponent("тест-room")),
