@@ -421,6 +421,15 @@ export type ReportUserPayload = {
   moderationRule?: string;
 };
 
+export type SetTemporaryModeratorPayload = {
+  socketId: string;
+  durationMs: number;
+};
+
+export type SetTemporaryModeratorResult =
+  | { ok: true; expiresAt: number | null }
+  | { ok: false; reason: string };
+
 export type TurnstileSuccessAck = {
   success: true;
   validationWindowMs?: unknown;
@@ -436,6 +445,10 @@ export type TurnstileAck = TurnstileSuccessAck | TurnstileFailureAck;
 export type ClientSocketOutgoingEventArgs = {
   [SocketEvents.BROADCAST]: [message: LiveBoardMessage];
   [SocketEvents.REPORT_USER]: [payload: ReportUserPayload];
+  [SocketEvents.SET_TEMPORARY_MODERATOR]: [
+    payload: SetTemporaryModeratorPayload,
+    ack: (result: SetTemporaryModeratorResult) => void,
+  ];
   [SocketEvents.TURNSTILE_TOKEN]: [
     token: string,
     ack?: (result: unknown) => void,

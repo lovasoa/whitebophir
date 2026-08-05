@@ -149,6 +149,19 @@ export type ReportUserPayload = {
   moderationRule?: string;
 };
 
+export type SetTemporaryModeratorPayload = {
+  socketId?: string;
+  durationMs?: number;
+};
+
+export type SetTemporaryModeratorResult =
+  | { ok: true; expiresAt: number | null }
+  | { ok: false; reason: string };
+
+export type SetTemporaryModeratorAck = (
+  result: SetTemporaryModeratorResult,
+) => void;
+
 export type { ModerationDisconnectPayload, ModerationDisconnectSource };
 
 export type ValidationStatus = { ok: true } | { ok: false; reason: string };

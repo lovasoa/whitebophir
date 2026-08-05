@@ -15,9 +15,9 @@ import {
 } from "./request.mjs";
 
 /** @import { AppSocket, ConnectedUserPayload, NormalizedMessageData, ServerConfig } from "../../types/server-runtime.d.ts" */
-/** @typedef {{socketId: string, userId: string, userSecret: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number, joinedAt: number, position: {x: number, y: number}, canEdit: boolean, canClear: boolean}} BoardUser */
+/** @typedef {{socketId: string, userId: string, userSecret: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number, joinedAt: number, position: {x: number, y: number}, canEdit: boolean, canClear: boolean, canBan: boolean, canGrantTemporaryModerator: boolean, temporaryModeratorExpiresAt?: number}} BoardUser */
 /** @typedef {(socket: AppSocket, boardName: string, config: ServerConfig) => string} ResolveClientIp */
-/** @typedef {{canEdit: boolean, canClear: boolean}} UserCapabilities */
+/** @typedef {{canEdit: boolean, canClear: boolean, canBan: boolean, canGrantTemporaryModerator: boolean, temporaryModeratorExpiresAt?: number}} UserCapabilities */
 
 /** @type {Map<string, Map<string, BoardUser>>} */
 const boardUsers = new Map();
@@ -82,6 +82,13 @@ function buildBoardUserRecord(
     position: { x: 0, y: 0 },
     canEdit: capabilities.canEdit,
     canClear: capabilities.canClear,
+    canBan: capabilities.canBan,
+    canGrantTemporaryModerator: capabilities.canGrantTemporaryModerator,
+    ...(capabilities.temporaryModeratorExpiresAt === undefined
+      ? {}
+      : {
+          temporaryModeratorExpiresAt: capabilities.temporaryModeratorExpiresAt,
+        }),
   };
 }
 
@@ -133,6 +140,11 @@ function serializeBoardUser(user) {
     position: user.position,
     canEdit: user.canEdit,
     canClear: user.canClear,
+    canBan: user.canBan,
+    canGrantTemporaryModerator: user.canGrantTemporaryModerator,
+    ...(user.temporaryModeratorExpiresAt === undefined
+      ? {}
+      : { temporaryModeratorExpiresAt: user.temporaryModeratorExpiresAt }),
   };
 }
 
@@ -188,6 +200,35 @@ function emitUserJoinedToBoard(socket, boardName, user) {
   socket.broadcast
     .to(boardName)
     .emit(SocketEvents.USER_JOINED, serializeBoardUser(user));
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @param {BoardUser} user
+ * @returns {void}
+ */
+function emitUserUpdatedToBoard(socket, boardName, user) {
+  const payload = serializeBoardUser(user);
+  socket.emit(SocketEvents.USER_JOINED, payload);
+  socket.broadcast.to(boardName).emit(SocketEvents.USER_JOINED, payload);
+}
+
+/**
+ * @param {BoardUser} user
+ * @param {UserCapabilities} capabilities
+ * @returns {void}
+ */
+function updateBoardUserCapabilities(user, capabilities) {
+  user.canEdit = capabilities.canEdit;
+  user.canClear = capabilities.canClear;
+  user.canBan = capabilities.canBan;
+  user.canGrantTemporaryModerator = capabilities.canGrantTemporaryModerator;
+  if (capabilities.temporaryModeratorExpiresAt === undefined) {
+    delete user.temporaryModeratorExpiresAt;
+  } else {
+    user.temporaryModeratorExpiresAt = capabilities.temporaryModeratorExpiresAt;
+  }
 }
 
 /**
@@ -271,10 +312,12 @@ export {
   clearBoardUsers,
   emitBoardUsersToSocket,
   emitUserJoinedToBoard,
+  emitUserUpdatedToBoard,
   ensureBoardUser,
   getBoardUser,
   getBoardUserMap,
   removeBoardUser,
   resetBoardUserMaps,
   updateBoardUserFromMessage,
+  updateBoardUserCapabilities,
 };

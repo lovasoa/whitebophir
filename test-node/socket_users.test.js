@@ -428,6 +428,8 @@ test("socket boardstate uses the same capability-shaped state as rendered board 
         readonly: false,
         canEdit: true,
         canClear: true,
+        canBan: true,
+        canGrantTemporaryModerator: true,
         canReport: true,
         canWrite: true,
       });
@@ -470,10 +472,111 @@ test("presence payloads expose canEdit/canClear for sidebar status", async () =>
 
       assert.equal(moderatorPayload.canEdit, true);
       assert.equal(moderatorPayload.canClear, true);
+      assert.equal(moderatorPayload.canBan, true);
+      assert.equal(moderatorPayload.canGrantTemporaryModerator, true);
       assert.equal(viewerPayload.canEdit, true);
       assert.equal(viewerPayload.canClear, false);
+      assert.equal(viewerPayload.canBan, false);
+      assert.equal(viewerPayload.canGrantTemporaryModerator, false);
       assert.deepEqual(moderatorPayload.position, { x: 0, y: 0 });
       assert.deepEqual(viewerPayload.position, { x: 0, y: 0 });
+    },
+  );
+});
+
+test("permanent moderators grant and revoke every tab for a temporary moderator", async () => {
+  const moderatorSecret = "12121212121212121212121212121212";
+  const targetSecret = "34343434343434343434343434343434";
+  await createSocketScenario(
+    {
+      historyDirPrefix: "wbo-users-temporary-moderator-",
+      config: {
+        BOARD_MODERATORS: new Map([
+          ["temporary-moderator-board", new Set([moderatorSecret])],
+        ]),
+      },
+    },
+    async ({ connect, invoke, test }) => {
+      const moderator = await connect({
+        id: "socket-temporary-moderator-actor",
+        headers: withUserSecretCookie(moderatorSecret),
+        query: { board: "temporary-moderator-board", tool: "hand" },
+      });
+      const target = await connect({
+        id: "socket-temporary-moderator-target",
+        headers: withUserSecretCookie(targetSecret),
+        query: { board: "temporary-moderator-board", tool: "hand" },
+      });
+      const sibling = await connect({
+        id: "socket-temporary-moderator-sibling",
+        headers: withUserSecretCookie(targetSecret),
+        query: { board: "temporary-moderator-board", tool: "hand" },
+      });
+
+      /** @type {import("../types/app-runtime").SetTemporaryModeratorResult | undefined} */
+      let grantResult;
+      await invoke(
+        moderator,
+        "set_temporary_moderator",
+        { socketId: target.socket.id, durationMs: 15 * 60 * 1000 },
+        (
+          /** @type {import("../types/app-runtime").SetTemporaryModeratorResult} */ result,
+        ) => {
+          grantResult = result;
+        },
+      );
+      grantResult = getRequiredValue(grantResult);
+      assert.equal(grantResult.ok, true);
+      assert.equal(typeof grantResult.expiresAt, "number");
+
+      for (const created of [target, sibling]) {
+        const states = created.emitted.filter(
+          (event) => event.event === "boardstate",
+        );
+        const state = getRequiredValue(states[states.length - 1]).payload;
+        assert.equal(state.canEdit, true);
+        assert.equal(state.canClear, true);
+        assert.equal(state.canBan, true);
+        assert.equal(state.canGrantTemporaryModerator, false);
+        assert.equal(state.temporaryModeratorExpiresAt, grantResult.expiresAt);
+      }
+
+      const users = test.getBoardUserMap("temporary-moderator-board");
+      assert.equal(users.get(target.socket.id).canBan, true);
+      assert.equal(users.get(sibling.socket.id).canBan, true);
+
+      /** @type {import("../types/app-runtime").SetTemporaryModeratorResult | undefined} */
+      let delegatedResult;
+      await invoke(
+        target,
+        "set_temporary_moderator",
+        { socketId: moderator.socket.id, durationMs: 15 * 60 * 1000 },
+        (
+          /** @type {import("../types/app-runtime").SetTemporaryModeratorResult} */ result,
+        ) => {
+          delegatedResult = result;
+        },
+      );
+      assert.deepEqual(delegatedResult, {
+        ok: false,
+        reason: "permission_denied",
+      });
+
+      /** @type {import("../types/app-runtime").SetTemporaryModeratorResult | undefined} */
+      let revokeResult;
+      await invoke(
+        moderator,
+        "set_temporary_moderator",
+        { socketId: target.socket.id, durationMs: 0 },
+        (
+          /** @type {import("../types/app-runtime").SetTemporaryModeratorResult} */ result,
+        ) => {
+          revokeResult = result;
+        },
+      );
+      assert.deepEqual(revokeResult, { ok: true, expiresAt: null });
+      assert.equal(users.get(target.socket.id).canBan, false);
+      assert.equal(users.get(sibling.socket.id).canBan, false);
     },
   );
 });

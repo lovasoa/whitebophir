@@ -12,7 +12,7 @@ const { logger, tracing } = observability;
 const MODERATION_DISCONNECT_CLOSE_TIMEOUT_MS = 150;
 
 /** @import { AppSocket, ModerationDisconnectPayload, ModerationDisconnectSource, ReportUserPayload, ServerConfig } from "../../types/server-runtime.d.ts" */
-/** @typedef {{socketId: string, userId: string, name: string, ip: string, userSecret: string, userAgent: string, language: string, canClear?: boolean}} BoardUser */
+/** @typedef {{socketId: string, userId: string, name: string, ip: string, userSecret: string, userAgent: string, language: string, canBan?: boolean}} BoardUser */
 /** @typedef {{board: string, reporter_socket: string, reported_socket: string, reporter_ip: string, reported_ip: string, reporter_user_agent: string, reported_user_agent: string, reporter_language: string, reported_language: string, reporter_name: string, reported_name: string, banned: boolean}} UserReportLog */
 /** @typedef {(socketId: string) => AppSocket | undefined} GetActiveSocket */
 /** @typedef {(socket: AppSocket, eventName: string, infos: {[key: string]: any}) => void} CloseSocket */
@@ -112,7 +112,7 @@ function notifyBoardModeratorsOfReport(context, users) {
     reportedName: users.reported.name,
   };
   getBoardUserMap(context.boardName).forEach(function notifyUser(user) {
-    if (!user.canClear) return;
+    if (!user.canBan) return;
     const socket = context.getActiveSocket(user.socketId);
     if (!socket) return;
     socket.emit(SocketEvents.USER_REPORTED, payload);
@@ -329,7 +329,7 @@ function handleReportUserMessage(context) {
     return;
   }
 
-  if (resolvedUsers.reported.canClear === true) {
+  if (resolvedUsers.reported.canBan === true) {
     handleReportedModerator(context, boardName, resolvedUsers);
     return;
   }
