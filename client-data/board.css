@@ -273,6 +273,35 @@ html[data-ui-direction="rtl"]
   border: 0;
 }
 
+.moderation-action-friend {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 9px;
+  width: 100%;
+  min-height: 42px;
+  margin: 2px 0 18px;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.moderation-action-friend-glyph {
+  color: #805866;
+  font-family: Arial, sans-serif;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.moderation-action-friend-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.moderation-action-friend-active {
+  border-color: #b89aa5;
+  background: #fcf7f9;
+}
+
 .moderation-action-rules {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -324,12 +353,14 @@ html[data-ui-direction="rtl"]
 
 .moderation-action-footer {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
+  gap: 8px;
   margin-top: 0;
 }
 
 .moderation-action-rules-link {
+  margin-right: auto;
   color: #25636a;
   font-size: 12px;
   text-underline-offset: 3px;
@@ -772,7 +803,7 @@ select {
 
 .connected-user-row {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) 74px;
+  grid-template-columns: 36px minmax(0, 1fr) 49px;
   align-items: center;
   gap: 7px;
   min-height: 34px;
@@ -866,8 +897,8 @@ select {
   display: inline-flex;
   align-items: center;
   justify-content: end;
-  width: 74px;
-  min-width: 74px;
+  width: 49px;
+  min-width: 49px;
   justify-self: end;
   gap: 1px;
 }
@@ -904,6 +935,30 @@ select {
   position: absolute;
   inset: -2px;
   content: "";
+}
+
+.connected-user-friend-manager-badge {
+  position: absolute;
+  right: 0;
+  bottom: 1px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 10px;
+  height: 10px;
+  border: 1px solid #ffffff;
+  border-radius: 999px;
+  background: #527d7d;
+  color: #ffffff;
+  font-family: Arial, sans-serif;
+  font-size: 7px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.connected-user-friend-manager .connected-user-friend-manager-badge {
+  display: inline-flex;
 }
 
 .connected-user-row:hover .connected-user-action,

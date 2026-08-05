@@ -906,10 +906,12 @@ function updateConnectedUserRow(getTools, row, user) {
       user,
     );
     const isFriend = user.friend === true;
-    const friendLabel = Tools.i18n.format(
-      isFriend ? "remove_friend" : "mark_friend",
-      { name: user.name },
-    );
+    const managesUser = Tools.access.canGrantTemporaryModerator === true;
+    const friendLabel = managesUser
+      ? Tools.i18n.format("moderation_action_title", { name: user.name })
+      : Tools.i18n.format(isFriend ? "remove_friend" : "mark_friend", {
+          name: user.name,
+        });
     friend.hidden = currentIdentityUser;
     const friendGlyph = friend.querySelector(".connected-user-friend-glyph");
     if (friendGlyph) {
@@ -918,6 +920,10 @@ function updateConnectedUserRow(getTools, row, user) {
     friend.title = friendLabel;
     friend.setAttribute("aria-label", friendLabel);
     friend.setAttribute("aria-pressed", isFriend ? "true" : "false");
+    if (managesUser) friend.setAttribute("aria-haspopup", "dialog");
+    else friend.removeAttribute("aria-haspopup");
+    friend.disabled = !!user.temporaryModeratorPending;
+    friend.classList.toggle("connected-user-friend-manager", managesUser);
     friend.classList.toggle("connected-user-friend-active", isFriend);
     row.classList.toggle("connected-user-row-friend", isFriend);
   }
@@ -971,32 +977,72 @@ function updateConnectedUserRow(getTools, row, user) {
       currentIdentityUser || !!user.reported || !!user.reportPending;
     report.classList.toggle("connected-user-report-latched", !!user.reported);
   }
+}
 
-  const temporaryModerator = /** @type {HTMLButtonElement | null} */ (
-    row.querySelector(".connected-user-temporary-moderator")
-  );
-  if (temporaryModerator) {
-    const currentIdentityUser = isCurrentIdentityUser(
-      Tools,
-      Tools.presence.users,
-      user,
+/**
+ * @param {AppToolsState} Tools
+ * @param {PresenceModule} presence
+ * @param {ConnectedUserRow} row
+ * @param {ConnectedUser} user
+ */
+function showConnectedUserManagementDialog(Tools, presence, row, user) {
+  const socket = Tools.connection.socket;
+  if (!socket || user.temporaryModeratorPending) return;
+  const activeGrant = Number(user.temporaryModeratorExpiresAt) > Date.now();
+  const canChangeModerator =
+    user.canGrantTemporaryModerator !== true &&
+    (user.canBan !== true || activeGrant);
+
+  /** @param {number} durationMs */
+  const submit = (durationMs) => {
+    user.temporaryModeratorPending = true;
+    updateConnectedUserRow(() => Tools, row, user);
+    socket.emit(
+      SocketEvents.SET_TEMPORARY_MODERATOR,
+      { socketId: user.socketId, durationMs },
+      () => {
+        const current = presence.users.get(user.socketId);
+        if (!current) return;
+        current.temporaryModeratorPending = false;
+        updateConnectedUserRow(() => Tools, row, current);
+      },
     );
-    const activeGrant = Number(user.temporaryModeratorExpiresAt) > Date.now();
-    const label = Tools.i18n.format(
-      activeGrant ? "revoke_temporary_moderator" : "make_temporary_moderator",
-      { name: user.name },
-    );
-    temporaryModerator.textContent = activeGrant ? "\u2212" : "+";
-    temporaryModerator.title = label;
-    temporaryModerator.setAttribute("aria-label", label);
-    temporaryModerator.hidden =
-      Tools.access.canGrantTemporaryModerator !== true ||
-      currentIdentityUser ||
-      user.canGrantTemporaryModerator === true ||
-      (!activeGrant && user.canBan === true) ||
-      !!user.disconnectedAt;
-    temporaryModerator.disabled = !!user.temporaryModeratorPending;
-  }
+  };
+
+  void Tools.ui
+    .showModerationActionDialog({
+      title: Tools.i18n.format("moderation_action_title", { name: user.name }),
+      ...(canChangeModerator && !activeGrant
+        ? { message: Tools.i18n.t("temporary_moderator_action_message") }
+        : {}),
+      ...(canChangeModerator && !activeGrant
+        ? {
+            durationLabel: Tools.i18n.t("moderation_action_duration"),
+            durations: getTemporaryModeratorDurationOptions(Tools),
+          }
+        : {}),
+      friendAction: {
+        active: user.friend === true,
+        addLabel: Tools.i18n.format("mark_friend", { name: user.name }),
+        removeLabel: Tools.i18n.format("remove_friend", { name: user.name }),
+        onToggle: () => presence.toggleFriend(user.userId),
+      },
+      ...(canChangeModerator
+        ? {
+            confirmLabel: activeGrant
+              ? Tools.i18n.format("revoke_temporary_moderator", {
+                  name: user.name,
+                })
+              : Tools.i18n.t("make_temporary_moderator_confirm"),
+          }
+        : {}),
+      cancelLabel: Tools.i18n.t("Cancel"),
+    })
+    .then((selection) => {
+      if (selection !== null && canChangeModerator) {
+        submit(activeGrant ? 0 : selection.banDurationMs);
+      }
+    });
 }
 
 /**
@@ -1027,7 +1073,11 @@ function createConnectedUserRow(getTools, user, presence) {
   const friendGlyph = document.createElement("span");
   friendGlyph.className = "connected-user-friend-glyph";
   friendGlyph.setAttribute("aria-hidden", "true");
-  friend.appendChild(friendGlyph);
+  const friendManagerBadge = document.createElement("span");
+  friendManagerBadge.className = "connected-user-friend-manager-badge";
+  friendManagerBadge.textContent = "M";
+  friendManagerBadge.setAttribute("aria-hidden", "true");
+  friend.append(friendGlyph, friendManagerBadge);
   friend.addEventListener("click", (evt) => {
     evt.preventDefault();
     evt.stopPropagation();
@@ -1038,6 +1088,10 @@ function createConnectedUserRow(getTools, user, presence) {
       !connectedUser ||
       isCurrentIdentityUser(Tools, presence.users, connectedUser)
     ) {
+      return;
+    }
+    if (Tools.access.canGrantTemporaryModerator === true) {
+      showConnectedUserManagementDialog(Tools, presence, row, connectedUser);
       return;
     }
     presence.toggleFriend(connectedUser.userId);
@@ -1066,65 +1120,6 @@ function createConnectedUserRow(getTools, user, presence) {
   const actions = document.createElement("span");
   actions.className = "connected-user-actions";
   actions.appendChild(friend);
-
-  const temporaryModerator = document.createElement("button");
-  temporaryModerator.type = "button";
-  temporaryModerator.className =
-    "connected-user-action connected-user-temporary-moderator";
-  temporaryModerator.addEventListener("click", (evt) => {
-    evt.preventDefault();
-    evt.stopPropagation();
-    const Tools = getTools();
-    const socket = Tools.connection.socket;
-    if (!socket || !row.dataset.socketId) return;
-    const connectedUser = presence.users.get(row.dataset.socketId);
-    if (
-      !connectedUser ||
-      Tools.access.canGrantTemporaryModerator !== true ||
-      connectedUser.temporaryModeratorPending ||
-      isCurrentIdentityUser(Tools, presence.users, connectedUser)
-    ) {
-      return;
-    }
-
-    const activeGrant =
-      Number(connectedUser.temporaryModeratorExpiresAt) > Date.now();
-    /** @param {number} durationMs */
-    const submit = (durationMs) => {
-      connectedUser.temporaryModeratorPending = true;
-      updateConnectedUserRow(getTools, row, connectedUser);
-      socket.emit(
-        SocketEvents.SET_TEMPORARY_MODERATOR,
-        { socketId: connectedUser.socketId, durationMs },
-        () => {
-          const current = presence.users.get(connectedUser.socketId);
-          if (!current) return;
-          current.temporaryModeratorPending = false;
-          updateConnectedUserRow(getTools, row, current);
-        },
-      );
-    };
-    if (activeGrant) {
-      submit(0);
-      return;
-    }
-
-    void Tools.ui
-      .showModerationActionDialog({
-        title: Tools.i18n.format("temporary_moderator_action_title", {
-          name: connectedUser.name,
-        }),
-        message: Tools.i18n.t("temporary_moderator_action_message"),
-        durationLabel: Tools.i18n.t("moderation_action_duration"),
-        durations: getTemporaryModeratorDurationOptions(Tools),
-        confirmLabel: Tools.i18n.t("make_temporary_moderator_confirm"),
-        cancelLabel: Tools.i18n.t("Cancel"),
-      })
-      .then((selection) => {
-        if (selection !== null) submit(selection.banDurationMs);
-      });
-  });
-  actions.appendChild(temporaryModerator);
 
   const report = document.createElement("button");
   report.type = "button";
