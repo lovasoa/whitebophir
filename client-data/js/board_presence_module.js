@@ -451,11 +451,6 @@ function getModerationDurationOptions(Tools) {
   }));
 }
 
-/** @param {AppToolsState} Tools */
-function getTemporaryModeratorDurationOptions(Tools) {
-  return getModerationDurationOptions(Tools).slice(1);
-}
-
 /** @param {ConnectedUser} user */
 function clearConnectedUserTimers(user) {
   if (user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
@@ -1004,12 +999,14 @@ function showConnectedUserManagementDialog(Tools, presence, user) {
       value: "0",
     });
   } else if (user.canBan !== true) {
-    getTemporaryModeratorDurationOptions(Tools).forEach((duration) => {
-      choices.push({
-        label: duration.label,
-        value: String(duration.durationMs),
+    getModerationDurationOptions(Tools)
+      .slice(1)
+      .forEach((duration) => {
+        choices.push({
+          label: duration.label,
+          value: String(duration.durationMs),
+        });
       });
-    });
   }
 
   void Tools.ui

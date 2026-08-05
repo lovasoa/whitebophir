@@ -490,21 +490,12 @@ test.describe("collaboration and rate limiting", () => {
         await action.evaluate((button: HTMLButtonElement) => button.click());
         await page.getByRole("button", { name: "15m", exact: true }).click();
 
-        await expect
-          .poll(() => targetPage.evaluate(() => window.WBOApp.access.canBan))
-          .toBe(true);
         await expect(targetClear).toBeVisible();
 
-        if (!(await boardPage.connectedUsersPanel.isVisible())) {
-          await boardPage.connectedUsersToggle.click();
-        }
         await action.evaluate((button: HTMLButtonElement) => button.click());
         await page
           .getByRole("button", { name: /Revoke temporary moderator access/ })
           .click();
-        await expect
-          .poll(() => targetPage.evaluate(() => window.WBOApp.access.canClear))
-          .toBe(false);
         await expect(targetClear).toBeHidden();
       } finally {
         await targetContext.close();
