@@ -1,8 +1,7 @@
 import { capToMaxSize } from "./bounded_state_map.mjs";
 
 const MAX_GRANTS = 4096;
-/** @type {Map<string, number>} */
-const grants = new Map();
+const grants = /** @type {Map<string, number>} */ (new Map());
 
 /** @param {string} boardName @param {string} userSecret */
 function grantKey(boardName, userSecret) {

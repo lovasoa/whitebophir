@@ -2,12 +2,7 @@ import { canGrantTemporaryModeratorOnBoard } from "./policy.mjs";
 import { getBoardUser } from "./presence.mjs";
 import { setTemporaryModerator } from "./temporary_moderators.mjs";
 
-const DURATIONS = new Set([
-  0,
-  15 * 60 * 1000,
-  24 * 60 * 60 * 1000,
-  7 * 24 * 60 * 60 * 1000,
-]);
+const DURATIONS = [0, 900_000, 86_400_000, 604_800_000];
 
 /** @import { AppSocket, ServerConfig, SetTemporaryModeratorPayload } from "../../types/server-runtime.d.ts" */
 /** @typedef {{socket: AppSocket, boardName: string, message: SetTemporaryModeratorPayload | undefined, config: ServerConfig, now: number, getActiveSocket: (socketId: string) => AppSocket | undefined, refreshUserAccess: (boardName: string, userSecret: string) => Promise<void>}} Context */
@@ -21,7 +16,7 @@ export async function handleSetTemporaryModeratorMessage(context) {
   if (
     !socketId ||
     !Number.isSafeInteger(durationMs) ||
-    !DURATIONS.has(/** @type {number} */ (durationMs)) ||
+    !DURATIONS.includes(/** @type {number} */ (durationMs)) ||
     !socket.rooms.has(boardName)
   ) {
     return;
@@ -32,11 +27,7 @@ export async function handleSetTemporaryModeratorMessage(context) {
   const target = getBoardUser(boardName, socketId);
   const targetSocket = context.getActiveSocket(socketId);
   if (!actor || !target || !targetSocket?.rooms.has(boardName)) return;
-  if (
-    !target.userSecret ||
-    actor.socketId === target.socketId ||
-    actor.userSecret === target.userSecret
-  ) {
+  if (!target.userSecret || actor.userSecret === target.userSecret) {
     return;
   }
   if (canGrantTemporaryModeratorOnBoard(config, boardName, targetSocket))
