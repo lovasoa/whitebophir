@@ -1,9 +1,6 @@
 import { canGrantTemporaryModeratorOnBoard } from "./policy.mjs";
 import { getBoardUser } from "./presence.mjs";
-import {
-  grantTemporaryModerator,
-  revokeTemporaryModerator,
-} from "./temporary_moderators.mjs";
+import { setTemporaryModerator } from "./temporary_moderators.mjs";
 
 const DURATIONS = new Set([
   0,
@@ -29,16 +26,12 @@ export async function handleSetTemporaryModeratorMessage(context) {
   ) {
     return;
   }
-  if (!canGrantTemporaryModeratorOnBoard(config, boardName, socket)) {
-    return;
-  }
+  if (!canGrantTemporaryModeratorOnBoard(config, boardName, socket)) return;
 
   const actor = getBoardUser(boardName, socket.id);
   const target = getBoardUser(boardName, socketId);
   const targetSocket = context.getActiveSocket(socketId);
-  if (!actor || !target || !targetSocket?.rooms.has(boardName)) {
-    return;
-  }
+  if (!actor || !target || !targetSocket?.rooms.has(boardName)) return;
   if (
     !target.userSecret ||
     actor.socketId === target.socketId ||
@@ -46,18 +39,13 @@ export async function handleSetTemporaryModeratorMessage(context) {
   ) {
     return;
   }
-  if (canGrantTemporaryModeratorOnBoard(config, boardName, targetSocket)) {
+  if (canGrantTemporaryModeratorOnBoard(config, boardName, targetSocket))
     return;
-  }
 
-  if (durationMs) {
-    grantTemporaryModerator(
-      boardName,
-      target.userSecret,
-      context.now + durationMs,
-    );
-  } else {
-    revokeTemporaryModerator(boardName, target.userSecret);
-  }
+  setTemporaryModerator(
+    boardName,
+    target.userSecret,
+    durationMs ? context.now + durationMs : null,
+  );
   await context.refreshUserAccess(boardName, target.userSecret);
 }

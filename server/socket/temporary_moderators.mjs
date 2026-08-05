@@ -9,15 +9,12 @@ function grantKey(boardName, userSecret) {
   return `${String(boardName).toLowerCase()}\0${userSecret}`;
 }
 
-/** @param {string} boardName @param {string} userSecret @param {number} expiresAt */
-export function grantTemporaryModerator(boardName, userSecret, expiresAt) {
-  grants.set(grantKey(boardName, userSecret), expiresAt);
+/** @param {string} boardName @param {string} userSecret @param {number | null} expiresAt */
+export function setTemporaryModerator(boardName, userSecret, expiresAt) {
+  const key = grantKey(boardName, userSecret);
+  if (expiresAt === null) grants.delete(key);
+  else grants.set(key, expiresAt);
   capToMaxSize(grants, MAX_GRANTS);
-}
-
-/** @param {string} boardName @param {string | null | undefined} userSecret */
-export function revokeTemporaryModerator(boardName, userSecret) {
-  return !!userSecret && grants.delete(grantKey(boardName, userSecret));
 }
 
 /** @param {string} boardName @param {string | null | undefined} userSecret @param {number} now */
