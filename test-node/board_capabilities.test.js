@@ -111,6 +111,8 @@ test("board capabilities allow clear-capable JWT claims to clear boards", () => 
     readonly: false,
     canEdit: true,
     canClear: true,
+    canBan: true,
+    canGrantTemporaryModerator: true,
     canReport: true,
     canWrite: true,
   });
@@ -201,7 +203,44 @@ test("expiry-aware board state carries one access refresh delay", () => {
     readonly: false,
     canEdit: true,
     canClear: false,
+    canBan: false,
+    canGrantTemporaryModerator: false,
     canReport: true,
     canWrite: true,
+  });
+});
+
+test("temporary moderator capabilities are live and cannot delegate", () => {
+  const { BoardPermissions } = require(BOARD_CAPABILITIES_PATH);
+  const config = createConfig({ AUTH_SECRET_KEY: "" });
+  const board = createBoard("readonly-board", true);
+  let expiresAt = Date.now() + 60_000;
+  const permissions = BoardPermissions.forBoard({
+    config,
+    boardName: board.name,
+    userInfo: {},
+    getTemporaryModeratorExpiresAt: () => expiresAt,
+  });
+
+  assert.equal(permissions.canBan(), true);
+  assert.equal(permissions.canGrantTemporaryModerator(), false);
+  const state = permissions.boardState(board);
+  assert.equal(state.canEdit, true);
+  assert.equal(state.canClear, true);
+  assert.equal(state.canBan, true);
+  assert.equal(state.canGrantTemporaryModerator, false);
+  assert.equal(state.temporaryModeratorExpiresAt, expiresAt);
+  assert.ok(
+    typeof state.accessRefreshAfterMs === "number" &&
+      state.accessRefreshAfterMs > 59_000 &&
+      state.accessRefreshAfterMs <= 60_000,
+  );
+
+  expiresAt = 0;
+  assert.equal(permissions.canBan(), false);
+  assert.deepEqual(permissions.resolveCapabilities(board), {
+    canOpen: true,
+    canEdit: false,
+    canClear: false,
   });
 });

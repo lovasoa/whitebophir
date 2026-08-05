@@ -8,6 +8,8 @@ export const DEFAULT_BOARD_STATE = /** @type {BoardState} */ (
     readonly: false,
     canEdit: true,
     canClear: false,
+    canBan: false,
+    canGrantTemporaryModerator: false,
     canReport: true,
     canWrite: true,
   })
@@ -55,7 +57,7 @@ export function normalizeBoardState(value) {
     return DEFAULT_BOARD_STATE;
   }
   const state =
-    /** @type {{readonly?: boolean, canEdit?: boolean, canClear?: boolean, canReport?: boolean, canWrite?: boolean, accessRefreshAfterMs?: number}} */ (
+    /** @type {{readonly?: boolean, canEdit?: boolean, canClear?: boolean, canBan?: boolean, canGrantTemporaryModerator?: boolean, canReport?: boolean, canWrite?: boolean, accessRefreshAfterMs?: number, temporaryModeratorExpiresAt?: number}} */ (
       value
     );
   const canEdit = state.canEdit === true || state.canWrite === true;
@@ -65,13 +67,24 @@ export function normalizeBoardState(value) {
     state.accessRefreshAfterMs >= 0
       ? Math.floor(state.accessRefreshAfterMs)
       : undefined;
+  const temporaryModeratorExpiresAt =
+    typeof state.temporaryModeratorExpiresAt === "number" &&
+    Number.isFinite(state.temporaryModeratorExpiresAt) &&
+    state.temporaryModeratorExpiresAt > 0
+      ? Math.floor(state.temporaryModeratorExpiresAt)
+      : undefined;
   return {
     readonly: state.readonly === true,
     canEdit,
     canClear: state.canClear === true,
+    canBan: state.canBan === true,
+    canGrantTemporaryModerator: state.canGrantTemporaryModerator === true,
     canReport: state.canReport !== false,
     canWrite: canEdit,
     ...(accessRefreshAfterMs === undefined ? {} : { accessRefreshAfterMs }),
+    ...(temporaryModeratorExpiresAt === undefined
+      ? {}
+      : { temporaryModeratorExpiresAt }),
   };
 }
 

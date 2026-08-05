@@ -326,9 +326,12 @@ export type AppBoardState = {
   readonly: boolean;
   canEdit?: boolean;
   canClear?: boolean;
+  canBan?: boolean;
+  canGrantTemporaryModerator?: boolean;
   canReport?: boolean;
   canWrite: boolean;
   accessRefreshAfterMs?: number;
+  temporaryModeratorExpiresAt?: number;
 };
 
 export type MutationRejectedPayload = {
@@ -355,6 +358,9 @@ export type ConnectedUser = {
   disconnectedAt?: number;
   canEdit?: boolean;
   canClear?: boolean;
+  canBan?: boolean;
+  canGrantTemporaryModerator?: boolean;
+  temporaryModeratorExpiresAt?: number;
   position: {
     x: number;
     y: number;

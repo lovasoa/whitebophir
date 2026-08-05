@@ -9,6 +9,7 @@ import observability from "../observability/index.mjs";
 import { getEditBanExpiresAt } from "./bans.mjs";
 import { normalizeIncomingMessage } from "./message_validation.mjs";
 import { getSocketUserSecret } from "./request.mjs";
+import { getTemporaryModeratorExpiresAt } from "./temporary_moderators.mjs";
 
 const { logger, metrics, tracing } = observability;
 
@@ -396,6 +397,8 @@ function boardPermissionsForSocket(config, boardName, socket) {
         resolveClientIpSafe(config, socket),
         Date.now(),
       ),
+    getTemporaryModeratorExpiresAt: () =>
+      getTemporaryModeratorExpiresAt(boardName, userSecret, Date.now()),
   });
   socket.boardPermissionContext = { boardName, permissions };
   return permissions;
@@ -420,6 +423,20 @@ function canAccessBoard(config, boardName, socket) {
  */
 function canBanOnBoard(config, boardName, socket) {
   return boardPermissionsForSocket(config, boardName, socket).canBan();
+}
+
+/**
+ * @param {SocketPolicyConfig} config
+ * @param {string} boardName
+ * @param {AppSocket} socket
+ * @returns {boolean}
+ */
+function canGrantTemporaryModeratorOnBoard(config, boardName, socket) {
+  return boardPermissionsForSocket(
+    config,
+    boardName,
+    socket,
+  ).canGrantTemporaryModerator();
 }
 
 /**
@@ -490,6 +507,7 @@ export {
   canAccessBoard,
   canApplyBoardMessage,
   canBanOnBoard,
+  canGrantTemporaryModeratorOnBoard,
   canReportOnBoard,
   canEditBoard,
   clientIpFallback,
