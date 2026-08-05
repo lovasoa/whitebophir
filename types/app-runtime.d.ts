@@ -369,7 +369,6 @@ export type ConnectedUser = {
   reported?: boolean;
   reportPending?: boolean;
   reportBanned?: boolean;
-  temporaryModeratorPending?: boolean;
   friend?: boolean;
   pulseTimeoutId?: number | null;
   removeTimeoutId?: number | null;
@@ -425,10 +424,6 @@ export type SetTemporaryModeratorPayload = {
   durationMs?: number;
 };
 
-export type SetTemporaryModeratorResult =
-  | { ok: true }
-  | { ok: false; reason: string };
-
 export type TurnstileSuccessAck = {
   success: true;
   validationWindowMs?: unknown;
@@ -446,7 +441,6 @@ export type ClientSocketOutgoingEventArgs = {
   [SocketEvents.REPORT_USER]: [payload: ReportUserPayload];
   [SocketEvents.SET_TEMPORARY_MODERATOR]: [
     payload: SetTemporaryModeratorPayload,
-    ack: (result: SetTemporaryModeratorResult) => void,
   ];
   [SocketEvents.TURNSTILE_TOKEN]: [
     token: string,

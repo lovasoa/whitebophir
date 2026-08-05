@@ -922,7 +922,6 @@ function updateConnectedUserRow(getTools, row, user) {
     friend.setAttribute("aria-pressed", isFriend ? "true" : "false");
     if (managesUser) friend.setAttribute("aria-haspopup", "dialog");
     else friend.removeAttribute("aria-haspopup");
-    friend.disabled = !!user.temporaryModeratorPending;
     friend.classList.toggle("connected-user-friend-manager", managesUser);
     friend.classList.toggle("connected-user-friend-active", isFriend);
     row.classList.toggle("connected-user-row-friend", isFriend);
@@ -982,12 +981,11 @@ function updateConnectedUserRow(getTools, row, user) {
 /**
  * @param {AppToolsState} Tools
  * @param {PresenceModule} presence
- * @param {ConnectedUserRow} row
  * @param {ConnectedUser} user
  */
-function showConnectedUserManagementDialog(Tools, presence, row, user) {
+function showConnectedUserManagementDialog(Tools, presence, user) {
   const socket = Tools.connection.socket;
-  if (!socket || user.temporaryModeratorPending) return;
+  if (!socket) return;
   const activeGrant =
     user.canBan === true && user.canGrantTemporaryModerator !== true;
   const choices = [
@@ -1028,18 +1026,10 @@ function showConnectedUserManagementDialog(Tools, presence, row, user) {
         return;
       }
       if (selection === null) return;
-      user.temporaryModeratorPending = true;
-      updateConnectedUserRow(() => Tools, row, user);
-      socket.emit(
-        SocketEvents.SET_TEMPORARY_MODERATOR,
-        { socketId: user.socketId, durationMs: Number(selection) },
-        () => {
-          const current = presence.users.get(user.socketId);
-          if (!current) return;
-          current.temporaryModeratorPending = false;
-          updateConnectedUserRow(() => Tools, row, current);
-        },
-      );
+      socket.emit(SocketEvents.SET_TEMPORARY_MODERATOR, {
+        socketId: user.socketId,
+        durationMs: Number(selection),
+      });
     });
 }
 
@@ -1085,7 +1075,7 @@ function createConnectedUserRow(getTools, user, presence) {
       return;
     }
     if (Tools.access.canGrantTemporaryModerator === true) {
-      showConnectedUserManagementDialog(Tools, presence, row, connectedUser);
+      showConnectedUserManagementDialog(Tools, presence, connectedUser);
       return;
     }
     presence.toggleFriend(connectedUser.userId);

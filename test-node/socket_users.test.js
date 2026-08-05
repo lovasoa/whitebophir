@@ -508,24 +508,14 @@ test("permanent moderators grant and revoke every tab for a temporary moderator"
       const target = await connectAs("temporary-mod-target", targetSecret);
       const sibling = await connectAs("temporary-mod-sibling", targetSecret);
 
-      /** @param {any} actor @param {any} subject @param {number} durationMs */
-      async function setTemporaryModerator(actor, subject, durationMs) {
-        let result;
-        await invoke(
-          actor,
-          "set_temporary_moderator",
-          { socketId: subject.socket.id, durationMs },
-          (/** @type {unknown} */ value) => {
-            result = value;
-          },
-        );
-        return result;
-      }
+      /** @param {any} actor @param {number} durationMs */
+      const setTemporaryModerator = (actor, durationMs) =>
+        invoke(actor, "set_temporary_moderator", {
+          socketId: target.socket.id,
+          durationMs,
+        });
 
-      assert.deepEqual(
-        await setTemporaryModerator(moderator, target, 15 * 60 * 1000),
-        { ok: true },
-      );
+      await setTemporaryModerator(moderator, 15 * 60 * 1000);
       /** @param {any} created */
       const latestState = (created) =>
         created.emitted.findLast(
@@ -538,13 +528,7 @@ test("permanent moderators grant and revoke every tab for a temporary moderator"
       );
       assert.equal(latestState(target)?.canGrantTemporaryModerator, false);
 
-      assert.deepEqual(
-        await setTemporaryModerator(target, moderator, 15 * 60 * 1000),
-        { ok: false, reason: "permission_denied" },
-      );
-      assert.deepEqual(await setTemporaryModerator(moderator, target, 0), {
-        ok: true,
-      });
+      await setTemporaryModerator(moderator, 0);
       assert.deepEqual(
         [target, sibling].map((created) => latestState(created)?.canBan),
         [false, false],

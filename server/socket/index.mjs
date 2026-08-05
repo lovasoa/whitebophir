@@ -66,7 +66,7 @@ import { handleTurnstileTokenMessage } from "./turnstile.mjs";
 const { Server } = socketIO;
 const { logger, metrics, tracing } = observability;
 
-/** @import { AppSocket, MessageData, NormalizedMessageData, ReportUserPayload, ServerConfig, SetTemporaryModeratorAck, SetTemporaryModeratorPayload, TurnstileAckCallback } from "../../types/server-runtime.d.ts" */
+/** @import { AppSocket, MessageData, NormalizedMessageData, ReportUserPayload, ServerConfig, SetTemporaryModeratorPayload, TurnstileAckCallback } from "../../types/server-runtime.d.ts" */
 /** @typedef {{type: number, fromSeq: number, seq: number, _children: NormalizedMessageData[]}} ConnectionReplayBatch */
 /** @typedef {{ok: true, boardName: string, board: BoardData, baselineSeq: number, latestSeq: number, minReplayableSeq: number, replayBatch: ConnectionReplayBatch, outcome: "empty" | "replayed"} | {ok: false, reason: string, boardName?: string, baselineSeq?: number, latestSeq?: number, minReplayableSeq?: number, error?: unknown}} ConnectionReplayBootstrap */
 /** @type {Map<string, AppSocket>} */
@@ -698,13 +698,11 @@ async function handleSocketConnection(socket, config) {
     SocketEvents.SET_TEMPORARY_MODERATOR,
     function onSetTemporaryModerator(
       /** @type {SetTemporaryModeratorPayload | undefined} */ message,
-      /** @type {SetTemporaryModeratorAck | undefined} */ ack,
     ) {
       return handleSetTemporaryModeratorMessage({
         socket,
         boardName,
         message,
-        ack,
         config,
         now: Date.now(),
         getActiveSocket,
