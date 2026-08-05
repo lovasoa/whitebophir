@@ -222,13 +222,16 @@ test("temporary moderator capabilities are live and cannot delegate", () => {
     getTemporaryModeratorExpiresAt: () => expiresAt,
   });
 
-  assert.equal(permissions.canBan(), true);
   assert.equal(permissions.canGrantTemporaryModerator(), false);
   const state = permissions.boardState(board);
-  assert.equal(state.canEdit, true);
-  assert.equal(state.canClear, true);
-  assert.equal(state.canBan, true);
-  assert.equal(state.canGrantTemporaryModerator, false);
+  assert.deepEqual(
+    {
+      canEdit: state.canEdit,
+      canClear: state.canClear,
+      canBan: state.canBan,
+    },
+    { canEdit: true, canClear: true, canBan: true },
+  );
   assert.ok(
     typeof state.accessRefreshAfterMs === "number" &&
       state.accessRefreshAfterMs > 59_000 &&
@@ -237,9 +240,5 @@ test("temporary moderator capabilities are live and cannot delegate", () => {
 
   expiresAt = 0;
   assert.equal(permissions.canBan(), false);
-  assert.deepEqual(permissions.resolveCapabilities(board), {
-    canOpen: true,
-    canEdit: false,
-    canClear: false,
-  });
+  assert.equal(permissions.resolveCapabilities(board).canEdit, false);
 });

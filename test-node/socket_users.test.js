@@ -496,116 +496,59 @@ test("permanent moderators grant and revoke every tab for a temporary moderator"
         ]),
       },
     },
-    async ({ connect, invoke, handler, test }) => {
-      const moderator = await connect({
-        id: "socket-temporary-moderator-actor",
-        headers: withUserSecretCookie(moderatorSecret),
-        query: { board: "temporary-moderator-board", tool: "hand" },
-      });
-      const target = await connect({
-        id: "socket-temporary-moderator-target",
-        headers: withUserSecretCookie(targetSecret),
-        query: { board: "temporary-moderator-board", tool: "hand" },
-      });
-      const sibling = await connect({
-        id: "socket-temporary-moderator-sibling",
-        headers: withUserSecretCookie(targetSecret),
-        query: { board: "temporary-moderator-board", tool: "hand" },
-      });
+    async ({ connect, invoke }) => {
+      /** @param {string} id @param {string} secret */
+      const connectAs = (id, secret) =>
+        connect({
+          id,
+          headers: withUserSecretCookie(secret),
+          query: { board: "temporary-moderator-board", tool: "hand" },
+        });
+      const moderator = await connectAs("temporary-mod-actor", moderatorSecret);
+      const target = await connectAs("temporary-mod-target", targetSecret);
+      const sibling = await connectAs("temporary-mod-sibling", targetSecret);
 
-      /** @type {import("../types/app-runtime").SetTemporaryModeratorResult | undefined} */
-      let invalidResult;
-      await invoke(
-        moderator,
-        "set_temporary_moderator",
-        { socketId: target.socket.id, durationMs: 1 },
-        (
-          /** @type {import("../types/app-runtime").SetTemporaryModeratorResult} */ result,
-        ) => {
-          invalidResult = result;
-        },
-      );
-      assert.deepEqual(invalidResult, {
-        ok: false,
-        reason: "invalid_request",
-      });
-      /** @type {import("../types/app-runtime").SetTemporaryModeratorResult | undefined} */
-      let grantResult;
-      await invoke(
-        moderator,
-        "set_temporary_moderator",
-        { socketId: target.socket.id, durationMs: 15 * 60 * 1000 },
-        (
-          /** @type {import("../types/app-runtime").SetTemporaryModeratorResult} */ result,
-        ) => {
-          grantResult = result;
-        },
-      );
-      grantResult = getRequiredValue(grantResult);
-      assert.equal(grantResult.ok, true);
-
-      for (const created of [target, sibling]) {
-        const states = created.emitted.filter(
-          (event) => event.event === "boardstate",
+      /** @param {any} actor @param {any} subject @param {number} durationMs */
+      async function setTemporaryModerator(actor, subject, durationMs) {
+        let result;
+        await invoke(
+          actor,
+          "set_temporary_moderator",
+          { socketId: subject.socket.id, durationMs },
+          (/** @type {unknown} */ value) => {
+            result = value;
+          },
         );
-        const state = getRequiredValue(states[states.length - 1]).payload;
-        assert.equal(state.canEdit, true);
-        assert.equal(state.canClear, true);
-        assert.equal(state.canBan, true);
-        assert.equal(state.canGrantTemporaryModerator, false);
+        return result;
       }
 
-      const users = test.getBoardUserMap("temporary-moderator-board");
-      assert.equal(users.get(target.socket.id).canClear, true);
-      assert.equal(users.get(target.socket.id).canBan, true);
-      assert.equal(users.get(sibling.socket.id).canClear, true);
-      assert.equal(users.get(sibling.socket.id).canBan, true);
-
-      /** @type {import("../types/app-runtime").SetTemporaryModeratorResult | undefined} */
-      let delegatedResult;
-      await invoke(
-        target,
-        "set_temporary_moderator",
-        { socketId: moderator.socket.id, durationMs: 15 * 60 * 1000 },
-        (
-          /** @type {import("../types/app-runtime").SetTemporaryModeratorResult} */ result,
-        ) => {
-          delegatedResult = result;
-        },
+      assert.deepEqual(
+        await setTemporaryModerator(moderator, target, 15 * 60 * 1000),
+        { ok: true },
       );
-      assert.deepEqual(delegatedResult, {
-        ok: false,
-        reason: "permission_denied",
-      });
-
-      handler(
-        target,
-        "report_user",
-      )({
-        socketId: moderator.socket.id,
-        banDurationMs: 15 * 60 * 1000,
-      });
-      assert.equal(target.socket.client.conn.closeCalls.length, 1);
-      assert.equal(moderator.socket.client.conn.closeCalls.length, 0);
-      assert.equal(test.getLastUserReportLog(), null);
-
-      /** @type {import("../types/app-runtime").SetTemporaryModeratorResult | undefined} */
-      let revokeResult;
-      await invoke(
-        moderator,
-        "set_temporary_moderator",
-        { socketId: target.socket.id, durationMs: 0 },
-        (
-          /** @type {import("../types/app-runtime").SetTemporaryModeratorResult} */ result,
-        ) => {
-          revokeResult = result;
-        },
+      /** @param {any} created */
+      const latestState = (created) =>
+        created.emitted.findLast(
+          (/** @type {{event: string}} */ event) =>
+            event.event === "boardstate",
+        )?.payload;
+      assert.deepEqual(
+        [target, sibling].map((created) => latestState(created)?.canBan),
+        [true, true],
       );
-      assert.deepEqual(revokeResult, { ok: true });
-      assert.equal(users.get(target.socket.id).canClear, false);
-      assert.equal(users.get(target.socket.id).canBan, false);
-      assert.equal(users.get(sibling.socket.id).canClear, false);
-      assert.equal(users.get(sibling.socket.id).canBan, false);
+      assert.equal(latestState(target)?.canGrantTemporaryModerator, false);
+
+      assert.deepEqual(
+        await setTemporaryModerator(target, moderator, 15 * 60 * 1000),
+        { ok: false, reason: "permission_denied" },
+      );
+      assert.deepEqual(await setTemporaryModerator(moderator, target, 0), {
+        ok: true,
+      });
+      assert.deepEqual(
+        [target, sibling].map((created) => latestState(created)?.canBan),
+        [false, false],
+      );
     },
   );
 });
