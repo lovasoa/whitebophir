@@ -561,7 +561,7 @@ function schedulePresenceStaleTick(presence) {
 export function getConnectedUserDisplayName(user) {
   const markers = [];
   if (user.friend === true) markers.push("\u2764\uFE0F");
-  if (user.canClear === true) markers.push("\u{1F338}");
+  if (user.canBan === true) markers.push("\u{1F338}");
   return markers.length > 0 ? `${markers.join(" ")} ${user.name}` : user.name;
 }
 
@@ -777,7 +777,7 @@ function getConnectedUserFocusHash(Tools, user) {
  */
 function getReportActionLabel(Tools, name) {
   return Tools.i18n.format(
-    Tools.access.canClear === true ? "ban_user" : "report_user",
+    Tools.access.canBan === true ? "ban_user" : "report_user",
     { name },
   );
 }
@@ -971,7 +971,7 @@ function updateConnectedUserRow(getTools, row, user) {
       ? false
       : Tools.access.canReport === false ||
         currentIdentityUser ||
-        user.canClear === true ||
+        user.canBan === true ||
         !!user.disconnectedAt;
     report.disabled =
       currentIdentityUser || !!user.reported || !!user.reportPending;
@@ -989,10 +989,10 @@ function showConnectedUserManagementDialog(Tools, presence, row, user) {
   const socket = Tools.connection.socket;
   if (!socket || user.temporaryModeratorPending) return;
   const activeGrant =
-    user.canClear === true && user.canGrantTemporaryModerator !== true;
+    user.canBan === true && user.canGrantTemporaryModerator !== true;
   const canChangeModerator =
     user.canGrantTemporaryModerator !== true &&
-    (user.canClear !== true || activeGrant);
+    (user.canBan !== true || activeGrant);
 
   /** @param {number} durationMs */
   const submit = (durationMs) => {
@@ -1131,7 +1131,7 @@ function createConnectedUserRow(getTools, user, presence) {
     if (
       !connectedUser ||
       Tools.access.canReport === false ||
-      connectedUser.canClear === true ||
+      connectedUser.canBan === true ||
       isCurrentIdentityUser(Tools, presence.users, connectedUser) ||
       connectedUser.reported === true ||
       connectedUser.reportPending === true
@@ -1157,7 +1157,7 @@ function createConnectedUserRow(getTools, user, presence) {
       if (moderationRule !== undefined) payload.moderationRule = moderationRule;
       socket.emit(SocketEvents.REPORT_USER, payload);
     };
-    if (Tools.access.canClear === true) {
+    if (Tools.access.canBan === true) {
       connectedUser.reportPending = true;
       updateConnectedUserRow(getTools, row, connectedUser);
       void Tools.ui

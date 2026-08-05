@@ -151,14 +151,15 @@ test("connected user display name marks moderators consistently", async () => {
   assert.equal(
     getConnectedUserDisplayName({
       ...createConnectedUser(),
-      canClear: true,
+      canBan: true,
     }),
     "\u{1F338} User 1",
   );
   assert.equal(
     getConnectedUserDisplayName({
       ...createConnectedUser(),
-      canClear: false,
+      canBan: false,
+      canClear: true,
     }),
     "User 1",
   );
@@ -166,7 +167,7 @@ test("connected user display name marks moderators consistently", async () => {
     getConnectedUserDisplayName({
       ...createConnectedUser(),
       friend: true,
-      canClear: true,
+      canBan: true,
     }),
     "\u2764\uFE0F \u{1F338} User 1",
   );

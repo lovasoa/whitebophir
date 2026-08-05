@@ -506,6 +506,9 @@ test.describe("collaboration and rate limiting", () => {
         await expect
           .poll(() => targetPage.evaluate(() => window.WBOApp.access.canClear))
           .toBe(true);
+        await expect
+          .poll(() => targetPage.evaluate(() => window.WBOApp.access.canBan))
+          .toBe(true);
         await expect(targetClear).toBeVisible();
         await expect(targetClear).toHaveAttribute("aria-disabled", "false");
         await expect
@@ -515,7 +518,7 @@ test.describe("collaboration and rate limiting", () => {
                 Array.from(window.WBOApp.presence.users.values()).find(
                   (user) =>
                     user.socketId !== window.WBOApp.connection.socket?.id,
-                )?.canClear,
+                )?.canBan,
             ),
           )
           .toBe(true);

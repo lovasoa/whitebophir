@@ -428,6 +428,7 @@ test("socket boardstate uses the same capability-shaped state as rendered board 
         readonly: false,
         canEdit: true,
         canClear: true,
+        canBan: true,
         canGrantTemporaryModerator: true,
         canReport: true,
         canWrite: true,
@@ -436,7 +437,7 @@ test("socket boardstate uses the same capability-shaped state as rendered board 
   );
 });
 
-test("presence payloads expose canEdit/canClear for sidebar status", async () => {
+test("presence payloads expose board capabilities for sidebar status", async () => {
   const moderatorSecret = "dddddddddddddddddddddddddddddddd";
   await createSocketScenario(
     {
@@ -471,9 +472,11 @@ test("presence payloads expose canEdit/canClear for sidebar status", async () =>
 
       assert.equal(moderatorPayload.canEdit, true);
       assert.equal(moderatorPayload.canClear, true);
+      assert.equal(moderatorPayload.canBan, true);
       assert.equal(moderatorPayload.canGrantTemporaryModerator, true);
       assert.equal(viewerPayload.canEdit, true);
       assert.equal(viewerPayload.canClear, false);
+      assert.equal(viewerPayload.canBan, false);
       assert.equal(viewerPayload.canGrantTemporaryModerator, false);
       assert.deepEqual(moderatorPayload.position, { x: 0, y: 0 });
       assert.deepEqual(viewerPayload.position, { x: 0, y: 0 });
@@ -548,12 +551,15 @@ test("permanent moderators grant and revoke every tab for a temporary moderator"
         const state = getRequiredValue(states[states.length - 1]).payload;
         assert.equal(state.canEdit, true);
         assert.equal(state.canClear, true);
+        assert.equal(state.canBan, true);
         assert.equal(state.canGrantTemporaryModerator, false);
       }
 
       const users = test.getBoardUserMap("temporary-moderator-board");
       assert.equal(users.get(target.socket.id).canClear, true);
+      assert.equal(users.get(target.socket.id).canBan, true);
       assert.equal(users.get(sibling.socket.id).canClear, true);
+      assert.equal(users.get(sibling.socket.id).canBan, true);
 
       /** @type {import("../types/app-runtime").SetTemporaryModeratorResult | undefined} */
       let delegatedResult;
@@ -597,12 +603,14 @@ test("permanent moderators grant and revoke every tab for a temporary moderator"
       );
       assert.deepEqual(revokeResult, { ok: true });
       assert.equal(users.get(target.socket.id).canClear, false);
+      assert.equal(users.get(target.socket.id).canBan, false);
       assert.equal(users.get(sibling.socket.id).canClear, false);
+      assert.equal(users.get(sibling.socket.id).canBan, false);
     },
   );
 });
 
-test("report_user ignores canClear targets without disconnecting the moderator", async () => {
+test("report_user ignores canBan targets without disconnecting the moderator", async () => {
   const moderatorSecret = "fdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfd";
   await createSocketScenario(
     {
@@ -679,6 +687,7 @@ test("presence reflects JWT moderator role, not just configured moderators", asy
           .find((event) => event.payload.socketId === "socket-jwt-mod"),
       ).payload;
       assert.equal(moderatorPayload.canClear, true);
+      assert.equal(moderatorPayload.canBan, true);
       assert.equal(moderatorPayload.canEdit, true);
     },
   );
@@ -760,6 +769,7 @@ test("a banned user reconnects read-only in their own boardstate and in presence
       ).payload;
       assert.equal(moderatorPayload.canEdit, true);
       assert.equal(moderatorPayload.canClear, true);
+      assert.equal(moderatorPayload.canBan, true);
     },
   );
 });
@@ -2120,7 +2130,7 @@ test("report_user ignores stale presence capabilities for active board members",
       // Authorization is live even if an expired grant left stale presentation state.
       test
         .getBoardUserMap("board-report")
-        .get(reported.socket.id).canClear = true;
+        .get(reported.socket.id).canBan = true;
 
       handler(
         reporter,

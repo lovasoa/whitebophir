@@ -14,13 +14,28 @@ import {
   getSocketUserSecret,
 } from "./request.mjs";
 
+/** @import { PresenceCapabilities } from "../../types/app-runtime.d.ts" */
 /** @import { AppSocket, ConnectedUserPayload, NormalizedMessageData, ServerConfig } from "../../types/server-runtime.d.ts" */
-/** @typedef {{socketId: string, userId: string, userSecret: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number, joinedAt: number, position: {x: number, y: number}, canEdit: boolean, canClear: boolean, canGrantTemporaryModerator: boolean}} BoardUser */
+/** @typedef {{socketId: string, userId: string, userSecret: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number, joinedAt: number, position: {x: number, y: number}} & Required<PresenceCapabilities>} BoardUser */
 /** @typedef {(socket: AppSocket, boardName: string, config: ServerConfig) => string} ResolveClientIp */
-/** @typedef {{canEdit: boolean, canClear: boolean, canGrantTemporaryModerator: boolean}} UserCapabilities */
+/** @typedef {Required<PresenceCapabilities>} UserCapabilities */
 
 /** @type {Map<string, Map<string, BoardUser>>} */
 const boardUsers = new Map();
+
+/**
+ * Keeps the board-state-to-presence wire projection in one place.
+ * @param {PresenceCapabilities} boardState
+ * @returns {UserCapabilities}
+ */
+function presenceCapabilitiesFromBoardState(boardState) {
+  return {
+    canEdit: boardState.canEdit === true,
+    canClear: boardState.canClear === true,
+    canBan: boardState.canBan === true,
+    canGrantTemporaryModerator: boardState.canGrantTemporaryModerator === true,
+  };
+}
 
 /**
  * @param {string} userSecret
@@ -80,9 +95,7 @@ function buildBoardUserRecord(
     lastSeen: now || Date.now(),
     joinedAt: now || Date.now(),
     position: { x: 0, y: 0 },
-    canEdit: capabilities.canEdit,
-    canClear: capabilities.canClear,
-    canGrantTemporaryModerator: capabilities.canGrantTemporaryModerator,
+    ...presenceCapabilitiesFromBoardState(capabilities),
   };
 }
 
@@ -132,9 +145,7 @@ function serializeBoardUser(user) {
     lastTool: user.lastTool,
     joinedAt: user.joinedAt,
     position: user.position,
-    canEdit: user.canEdit,
-    canClear: user.canClear,
-    canGrantTemporaryModerator: user.canGrantTemporaryModerator,
+    ...presenceCapabilitiesFromBoardState(user),
   };
 }
 
@@ -210,9 +221,7 @@ function emitUserUpdatedToBoard(socket, boardName, user) {
  * @returns {void}
  */
 function updateBoardUserCapabilities(user, capabilities) {
-  user.canEdit = capabilities.canEdit;
-  user.canClear = capabilities.canClear;
-  user.canGrantTemporaryModerator = capabilities.canGrantTemporaryModerator;
+  Object.assign(user, presenceCapabilitiesFromBoardState(capabilities));
 }
 
 /**
@@ -300,6 +309,7 @@ export {
   ensureBoardUser,
   getBoardUser,
   getBoardUserMap,
+  presenceCapabilitiesFromBoardState,
   removeBoardUser,
   resetBoardUserMaps,
   updateBoardUserFromMessage,

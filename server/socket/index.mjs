@@ -36,6 +36,7 @@ import {
   emitUserUpdatedToBoard,
   ensureBoardUser,
   getBoardUserMap,
+  presenceCapabilitiesFromBoardState,
   removeBoardUser,
   resetBoardUserMaps,
   updateBoardUserCapabilities,
@@ -294,12 +295,10 @@ async function refreshUserAccess(boardName, userSecret, config) {
     const targetSocket = activeSockets.get(user.socketId);
     if (!targetSocket || !targetSocket.rooms.has(boardName)) continue;
     const boardState = boardStateForSocket(config, board, targetSocket);
-    updateBoardUserCapabilities(user, {
-      canEdit: boardState.canEdit === true,
-      canClear: boardState.canClear === true,
-      canGrantTemporaryModerator:
-        boardState.canGrantTemporaryModerator === true,
-    });
+    updateBoardUserCapabilities(
+      user,
+      presenceCapabilitiesFromBoardState(boardState),
+    );
     targetSocket.emit(SocketEvents.BOARDSTATE, boardState);
     emitUserUpdatedToBoard(targetSocket, boardName, user);
   }
@@ -513,12 +512,7 @@ async function bootstrapSocketBoard(socket, replay, config) {
           boardName,
           config,
           resolveClientIp,
-          {
-            canEdit: boardState.canEdit === true,
-            canClear: boardState.canClear === true,
-            canGrantTemporaryModerator:
-              boardState.canGrantTemporaryModerator === true,
-          },
+          presenceCapabilitiesFromBoardState(boardState),
         );
         if (!wasJoined) {
           connectedUsersTotal += 1;
@@ -929,6 +923,7 @@ export const __test = {
       {
         canEdit: true,
         canClear: false,
+        canBan: false,
         canGrantTemporaryModerator: false,
       },
       now,

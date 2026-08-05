@@ -249,6 +249,10 @@ secret/IP ban expires. The browser schedules one reconnect at that boundary so
 non-moderator report targeting the reporter's own socket or another socket with
 the same non-empty, secret-derived user identity.
 
+Board state and presence expose `canBan` separately from `canClear`. Moderation
+UI and moderator markers use `canBan`; Clear-tool access, large-batch admission,
+and destructive rate-limit bypasses use `canClear`.
+
 Before the reported socket is closed, the server emits
 `moderation_disconnect { "banDurationMs": <duration>, "source": "moderator" | "peer_report", "moderationRule"?: "<rule>" }`.
 Moderator actions use `source: "moderator"`; `0` means a warning and a positive

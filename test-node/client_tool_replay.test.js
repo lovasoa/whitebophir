@@ -708,6 +708,7 @@ function createHarness() {
             name: "Peer User",
             lastTool: "hand",
             canClear: true,
+            canBan: true,
           },
         ],
       ]),

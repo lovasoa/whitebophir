@@ -322,11 +322,15 @@ export type MountedAppToolPromise = Promise<MaybeMountedAppTool>;
 
 export type MountedToolRegistry = ToolNameMap<MountedAppTool>;
 
-export type AppBoardState = {
-  readonly: boolean;
+export type PresenceCapabilities = {
   canEdit?: boolean;
   canClear?: boolean;
+  canBan?: boolean;
   canGrantTemporaryModerator?: boolean;
+};
+
+export type AppBoardState = PresenceCapabilities & {
+  readonly: boolean;
   canReport?: boolean;
   canWrite: boolean;
   accessRefreshAfterMs?: number;
@@ -345,7 +349,7 @@ export type ModerationDisconnectPayload = {
   source: ModerationDisconnectSource;
 };
 
-export type ConnectedUser = {
+export type ConnectedUser = PresenceCapabilities & {
   socketId: string;
   userId: string;
   name: string;
@@ -354,9 +358,6 @@ export type ConnectedUser = {
   lastTool: string;
   joinedAt?: number;
   disconnectedAt?: number;
-  canEdit?: boolean;
-  canClear?: boolean;
-  canGrantTemporaryModerator?: boolean;
   position: {
     x: number;
     y: number;

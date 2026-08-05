@@ -223,6 +223,7 @@ function forBoard(input) {
     const capabilities = resolveCapabilitiesForAccessState(board, accessState);
     return {
       ...boardStateForCapabilities(board, capabilities),
+      canBan: accessState.moderator,
       canGrantTemporaryModerator: permanentModerator,
       canReport: capabilities.canOpen && !accessState.banned,
       ...(accessState.refreshAfterMs === null

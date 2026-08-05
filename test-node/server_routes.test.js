@@ -150,7 +150,7 @@ function assertSnippetBeforeHeadEnd(body, snippet) {
 
 /**
  * @param {string} body
- * @returns {{readonly: boolean, canEdit: boolean, canClear: boolean, canReport?: boolean, canWrite?: boolean, accessRefreshAfterMs?: number}}
+ * @returns {{readonly: boolean, canEdit: boolean, canClear: boolean, canBan: boolean, canReport?: boolean, canWrite?: boolean, accessRefreshAfterMs?: number}}
  */
 function parseRenderedBoardState(body) {
   const match = body.match(
@@ -1230,6 +1230,7 @@ test("board pages fall back to legacy json metadata and inline baseline renderin
       readonly: true,
       canEdit: false,
       canClear: false,
+      canBan: false,
       canGrantTemporaryModerator: false,
       canReport: true,
       canWrite: false,
@@ -1258,6 +1259,7 @@ test("board pages render JWT-disabled writable capability state without Clear", 
       readonly: false,
       canEdit: true,
       canClear: false,
+      canBan: false,
       canGrantTemporaryModerator: false,
       canReport: true,
       canWrite: true,
@@ -1531,6 +1533,7 @@ test("board-scoped JWTs can access their authorized board pages", async () => {
       readonly: true,
       canEdit: true,
       canClear: false,
+      canBan: false,
       canGrantTemporaryModerator: false,
       canReport: true,
       canWrite: true,
@@ -1539,6 +1542,7 @@ test("board-scoped JWTs can access their authorized board pages", async () => {
       readonly: false,
       canEdit: true,
       canClear: true,
+      canBan: true,
       canGrantTemporaryModerator: true,
       canReport: true,
       canWrite: true,
@@ -1575,6 +1579,7 @@ test("banned users get a read-only board page while other visitors do not", asyn
       readonly: false,
       canEdit: false,
       canClear: false,
+      canBan: false,
       canGrantTemporaryModerator: false,
       canReport: false,
       canWrite: false,
@@ -1592,6 +1597,7 @@ test("banned users get a read-only board page while other visitors do not", asyn
       readonly: false,
       canEdit: true,
       canClear: false,
+      canBan: false,
       canGrantTemporaryModerator: false,
       canReport: true,
       canWrite: true,
