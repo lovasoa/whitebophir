@@ -115,14 +115,13 @@ function forBoard(input) {
    * callers return only active expiries; the defensive wall-clock check keeps
    * stale or malformed values from scheduling needless refreshes.
    *
-   * @returns {{moderator: boolean, temporaryModeratorExpiresAt: number | null, banned: boolean, refreshAfterMs: number | null}}
+   * @returns {{moderator: boolean, banned: boolean, refreshAfterMs: number | null}}
    */
   function readAccessState() {
     const temporaryModeratorExpiresAt = readTemporaryModeratorExpiresAt();
     if (permanentModerator) {
       return {
         moderator: true,
-        temporaryModeratorExpiresAt: null,
         banned: false,
         refreshAfterMs: null,
       };
@@ -130,7 +129,6 @@ function forBoard(input) {
     if (temporaryModeratorExpiresAt !== null) {
       return {
         moderator: true,
-        temporaryModeratorExpiresAt,
         banned: false,
         refreshAfterMs: Math.max(
           0,
@@ -141,7 +139,6 @@ function forBoard(input) {
     if (!input.getBanExpiresAt) {
       return {
         moderator: false,
-        temporaryModeratorExpiresAt: null,
         banned: fallbackIsBanned(),
         refreshAfterMs: null,
       };
@@ -151,14 +148,12 @@ function forBoard(input) {
     if (!Number.isFinite(expiresAt) || expiresAt <= now) {
       return {
         moderator: false,
-        temporaryModeratorExpiresAt: null,
         banned: false,
         refreshAfterMs: null,
       };
     }
     return {
       moderator: false,
-      temporaryModeratorExpiresAt: null,
       banned: true,
       refreshAfterMs: Math.max(0, Math.floor(expiresAt - now)),
     };
@@ -199,7 +194,8 @@ function forBoard(input) {
       };
     }
 
-    const open = canOpen();
+    const open =
+      !jwtEnabled || role !== "forbidden" || accessState.moderator === true;
     return {
       canOpen: open,
       canEdit:
@@ -227,15 +223,8 @@ function forBoard(input) {
     const capabilities = resolveCapabilitiesForAccessState(board, accessState);
     return {
       ...boardStateForCapabilities(board, capabilities),
-      canBan: accessState.moderator,
       canGrantTemporaryModerator: permanentModerator,
-      canReport: canOpen() && !accessState.banned,
-      ...(accessState.temporaryModeratorExpiresAt === null
-        ? {}
-        : {
-            temporaryModeratorExpiresAt:
-              accessState.temporaryModeratorExpiresAt,
-          }),
+      canReport: capabilities.canOpen && !accessState.banned,
       ...(accessState.refreshAfterMs === null
         ? {}
         : { accessRefreshAfterMs: accessState.refreshAfterMs }),

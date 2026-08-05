@@ -62,10 +62,7 @@ import {
 import { getSocketUserSecret } from "./request.mjs";
 import { handleTurnstileTokenMessage } from "./turnstile.mjs";
 import { handleSetTemporaryModeratorMessage } from "./temporary_moderator_actions.mjs";
-import {
-  listTemporaryModeratorGrants,
-  resetTemporaryModerators,
-} from "./temporary_moderators.mjs";
+import { resetTemporaryModerators } from "./temporary_moderators.mjs";
 
 const { Server } = socketIO;
 const { logger, metrics, tracing } = observability;
@@ -280,24 +277,6 @@ function getActiveSocket(socketId) {
 }
 
 /**
- * Adds revocable grant records only for permanent moderators.
- * @param {ServerConfig} config
- * @param {BoardData} board
- * @param {AppSocket} socket
- */
-function manageableBoardState(config, board, socket) {
-  const boardState = boardStateForSocket(config, board, socket);
-  if (boardState.canGrantTemporaryModerator !== true) return boardState;
-  return {
-    ...boardState,
-    temporaryModeratorGrants: listTemporaryModeratorGrants(
-      board.name,
-      Date.now(),
-    ),
-  };
-}
-
-/**
  * Re-emits authoritative access and presence for every tab sharing an identity.
  * @param {string} boardName
  * @param {string} userSecret
@@ -314,41 +293,15 @@ async function refreshUserAccess(boardName, userSecret, config) {
     if (user.userSecret !== userSecret) continue;
     const targetSocket = activeSockets.get(user.socketId);
     if (!targetSocket || !targetSocket.rooms.has(boardName)) continue;
-    const boardState = manageableBoardState(config, board, targetSocket);
+    const boardState = boardStateForSocket(config, board, targetSocket);
     updateBoardUserCapabilities(user, {
       canEdit: boardState.canEdit === true,
       canClear: boardState.canClear === true,
-      canBan: boardState.canBan === true,
       canGrantTemporaryModerator:
         boardState.canGrantTemporaryModerator === true,
-      ...(boardState.temporaryModeratorExpiresAt === undefined
-        ? {}
-        : {
-            temporaryModeratorExpiresAt: boardState.temporaryModeratorExpiresAt,
-          }),
     });
     targetSocket.emit(SocketEvents.BOARDSTATE, boardState);
     emitUserUpdatedToBoard(targetSocket, boardName, user);
-  }
-}
-
-/**
- * Re-emits the private grant list to every permanent moderator on a board.
- * @param {string} boardName
- * @param {ServerConfig} config
- */
-async function refreshBoardModeratorAccess(boardName, config) {
-  const refreshedSecrets = new Set();
-  for (const user of getBoardUserMap(boardName).values()) {
-    if (
-      !user.canGrantTemporaryModerator ||
-      !user.userSecret ||
-      refreshedSecrets.has(user.userSecret)
-    ) {
-      continue;
-    }
-    refreshedSecrets.add(user.userSecret);
-    await refreshUserAccess(boardName, user.userSecret, config);
   }
 }
 
@@ -551,7 +504,7 @@ async function bootstrapSocketBoard(socket, replay, config) {
       }
       // Capabilities the joining socket has on this board. Reused both as the
       // socket's own BOARDSTATE and as the capabilities other users see for it.
-      const boardState = manageableBoardState(config, board, socket);
+      const boardState = boardStateForSocket(config, board, socket);
       const wasJoined = board.users.has(socket.id);
       board.users.add(socket.id);
       if (!wasJoined || !getBoardUserMap(boardName).has(socket.id)) {
@@ -563,15 +516,8 @@ async function bootstrapSocketBoard(socket, replay, config) {
           {
             canEdit: boardState.canEdit === true,
             canClear: boardState.canClear === true,
-            canBan: boardState.canBan === true,
             canGrantTemporaryModerator:
               boardState.canGrantTemporaryModerator === true,
-            ...(boardState.temporaryModeratorExpiresAt === undefined
-              ? {}
-              : {
-                  temporaryModeratorExpiresAt:
-                    boardState.temporaryModeratorExpiresAt,
-                }),
           },
         );
         if (!wasJoined) {
@@ -780,8 +726,6 @@ async function handleSocketConnection(socket, config) {
             getActiveSocket,
             refreshUserAccess: (targetBoardName, userSecret) =>
               refreshUserAccess(targetBoardName, userSecret, config),
-            refreshModeratorAccess: (targetBoardName) =>
-              refreshBoardModeratorAccess(targetBoardName, config),
           });
         },
       );
@@ -985,7 +929,6 @@ export const __test = {
       {
         canEdit: true,
         canClear: false,
-        canBan: false,
         canGrantTemporaryModerator: false,
       },
       now,

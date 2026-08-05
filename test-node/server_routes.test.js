@@ -1230,13 +1230,12 @@ test("board pages fall back to legacy json metadata and inline baseline renderin
       readonly: true,
       canEdit: false,
       canClear: false,
-      canBan: false,
       canGrantTemporaryModerator: false,
       canReport: true,
       canWrite: false,
     });
     assert.match(response.body, /toolID-hand/);
-    assert.doesNotMatch(response.body, /toolID-pencil/);
+    assert.match(response.body, /id="toolID-pencil"[^>]*hidden/);
     assert.match(
       response.body,
       /<div id="board">\s*<svg id="canvas"[\s\S]*data-wbo-readonly="true"[\s\S]*<rect id="rect-1"/,
@@ -1259,13 +1258,12 @@ test("board pages render JWT-disabled writable capability state without Clear", 
       readonly: false,
       canEdit: true,
       canClear: false,
-      canBan: false,
       canGrantTemporaryModerator: false,
       canReport: true,
       canWrite: true,
     });
     assert.match(response.body, /toolID-pencil/);
-    assert.doesNotMatch(response.body, /toolID-clear/);
+    assert.match(response.body, /id="toolID-clear"[^>]*hidden/);
   } finally {
     await closeServer(app);
   }
@@ -1533,7 +1531,6 @@ test("board-scoped JWTs can access their authorized board pages", async () => {
       readonly: true,
       canEdit: true,
       canClear: false,
-      canBan: false,
       canGrantTemporaryModerator: false,
       canReport: true,
       canWrite: true,
@@ -1542,7 +1539,6 @@ test("board-scoped JWTs can access their authorized board pages", async () => {
       readonly: false,
       canEdit: true,
       canClear: true,
-      canBan: true,
       canGrantTemporaryModerator: true,
       canReport: true,
       canWrite: true,
@@ -1579,7 +1575,6 @@ test("banned users get a read-only board page while other visitors do not", asyn
       readonly: false,
       canEdit: false,
       canClear: false,
-      canBan: false,
       canGrantTemporaryModerator: false,
       canReport: false,
       canWrite: false,
@@ -1590,14 +1585,13 @@ test("banned users get a read-only board page while other visitors do not", asyn
         accessRefreshAfterMs <= 15 * 60 * 1000,
     );
     assert.match(bannedResponse.body, /toolID-hand/);
-    assert.doesNotMatch(bannedResponse.body, /toolID-pencil/);
+    assert.match(bannedResponse.body, /id="toolID-pencil"[^>]*hidden/);
 
     // A different visitor on the same board is unaffected by the ban.
     assert.deepEqual(parseRenderedBoardState(visitorResponse.body), {
       readonly: false,
       canEdit: true,
       canClear: false,
-      canBan: false,
       canGrantTemporaryModerator: false,
       canReport: true,
       canWrite: true,

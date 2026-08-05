@@ -8,7 +8,6 @@ export const DEFAULT_BOARD_STATE = /** @type {BoardState} */ (
     readonly: false,
     canEdit: true,
     canClear: false,
-    canBan: false,
     canGrantTemporaryModerator: false,
     canReport: true,
     canWrite: true,
@@ -57,7 +56,7 @@ export function normalizeBoardState(value) {
     return DEFAULT_BOARD_STATE;
   }
   const state =
-    /** @type {{readonly?: boolean, canEdit?: boolean, canClear?: boolean, canBan?: boolean, canGrantTemporaryModerator?: boolean, canReport?: boolean, canWrite?: boolean, accessRefreshAfterMs?: number, temporaryModeratorExpiresAt?: number, temporaryModeratorGrants?: unknown}} */ (
+    /** @type {{readonly?: boolean, canEdit?: boolean, canClear?: boolean, canGrantTemporaryModerator?: boolean, canReport?: boolean, canWrite?: boolean, accessRefreshAfterMs?: number}} */ (
       value
     );
   const canEdit = state.canEdit === true || state.canWrite === true;
@@ -67,57 +66,15 @@ export function normalizeBoardState(value) {
     state.accessRefreshAfterMs >= 0
       ? Math.floor(state.accessRefreshAfterMs)
       : undefined;
-  const temporaryModeratorExpiresAt =
-    typeof state.temporaryModeratorExpiresAt === "number" &&
-    Number.isFinite(state.temporaryModeratorExpiresAt) &&
-    state.temporaryModeratorExpiresAt > 0
-      ? Math.floor(state.temporaryModeratorExpiresAt)
-      : undefined;
-  const temporaryModeratorGrants = Array.isArray(state.temporaryModeratorGrants)
-    ? state.temporaryModeratorGrants.filter(isTemporaryModeratorGrant)
-    : undefined;
   return {
     readonly: state.readonly === true,
     canEdit,
     canClear: state.canClear === true,
-    canBan: state.canBan === true,
     canGrantTemporaryModerator: state.canGrantTemporaryModerator === true,
     canReport: state.canReport !== false,
     canWrite: canEdit,
     ...(accessRefreshAfterMs === undefined ? {} : { accessRefreshAfterMs }),
-    ...(temporaryModeratorExpiresAt === undefined
-      ? {}
-      : { temporaryModeratorExpiresAt }),
-    ...(temporaryModeratorGrants === undefined
-      ? {}
-      : { temporaryModeratorGrants }),
   };
-}
-
-/** @param {unknown} value */
-function isTemporaryModeratorGrant(value) {
-  if (!value || typeof value !== "object") return false;
-  const grant =
-    /** @type {{id?: unknown, expiresAt?: unknown, user?: unknown}} */ (value);
-  if (
-    typeof grant.id !== "string" ||
-    grant.id.length === 0 ||
-    typeof grant.expiresAt !== "number" ||
-    !Number.isFinite(grant.expiresAt) ||
-    grant.expiresAt <= 0
-  ) {
-    return false;
-  }
-  if (!grant.user || typeof grant.user !== "object") return false;
-  const user =
-    /** @type {{socketId?: unknown, userId?: unknown, name?: unknown}} */ (
-      grant.user
-    );
-  return (
-    typeof user.socketId === "string" &&
-    typeof user.userId === "string" &&
-    typeof user.name === "string"
-  );
 }
 
 /**

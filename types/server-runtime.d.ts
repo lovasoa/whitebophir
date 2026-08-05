@@ -151,12 +151,11 @@ export type ReportUserPayload = {
 
 export type SetTemporaryModeratorPayload = {
   socketId?: string;
-  grantId?: string;
   durationMs?: number;
 };
 
 export type SetTemporaryModeratorResult =
-  | { ok: true; expiresAt: number | null }
+  | { ok: true }
   | { ok: false; reason: string };
 
 export type SetTemporaryModeratorAck = (

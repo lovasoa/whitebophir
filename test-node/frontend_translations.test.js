@@ -49,7 +49,6 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
     "keyboard shortcut",
     "loading",
     "mark_friend",
-    "make_temporary_moderator",
     "make_temporary_moderator_confirm",
     "mousewheel",
     "moderation_acknowledge",
@@ -105,7 +104,6 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
     "tagline",
     "text",
     "temporary_moderator_action_message",
-    "temporary_moderator_action_title",
     "turnstile_status_prefix",
     "unknown_error_reload_page",
     "user_report_notice",
@@ -155,11 +153,9 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
     for (const key of [
       "ban_user",
       "mark_friend",
-      "make_temporary_moderator",
       "remove_friend",
       "revoke_temporary_moderator",
       "report_user",
-      "temporary_moderator_action_title",
     ]) {
       assert.match(
         catalog[key],
@@ -188,7 +184,6 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
         "peer_report_disconnect_body",
         "ban_user",
         "mark_friend",
-        "make_temporary_moderator",
         "make_temporary_moderator_confirm",
         "remove_friend",
         "revoke_temporary_moderator",
@@ -197,7 +192,6 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
         "ban_applied",
         "users_count",
         "temporary_moderator_action_message",
-        "temporary_moderator_action_title",
       ]) {
         assert.notEqual(
           catalog[key],

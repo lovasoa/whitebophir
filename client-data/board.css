@@ -1184,6 +1184,10 @@ select {
   width: max-content;
 }
 
+#tools > .tool[hidden] {
+  display: none;
+}
+
 #menu .tool:hover {
   max-width: 100%;
 }

@@ -15,9 +15,9 @@ import {
 } from "./request.mjs";
 
 /** @import { AppSocket, ConnectedUserPayload, NormalizedMessageData, ServerConfig } from "../../types/server-runtime.d.ts" */
-/** @typedef {{socketId: string, userId: string, userSecret: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number, joinedAt: number, position: {x: number, y: number}, canEdit: boolean, canClear: boolean, canBan: boolean, canGrantTemporaryModerator: boolean, temporaryModeratorExpiresAt?: number}} BoardUser */
+/** @typedef {{socketId: string, userId: string, userSecret: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number, joinedAt: number, position: {x: number, y: number}, canEdit: boolean, canClear: boolean, canGrantTemporaryModerator: boolean}} BoardUser */
 /** @typedef {(socket: AppSocket, boardName: string, config: ServerConfig) => string} ResolveClientIp */
-/** @typedef {{canEdit: boolean, canClear: boolean, canBan: boolean, canGrantTemporaryModerator: boolean, temporaryModeratorExpiresAt?: number}} UserCapabilities */
+/** @typedef {{canEdit: boolean, canClear: boolean, canGrantTemporaryModerator: boolean}} UserCapabilities */
 
 /** @type {Map<string, Map<string, BoardUser>>} */
 const boardUsers = new Map();
@@ -82,13 +82,7 @@ function buildBoardUserRecord(
     position: { x: 0, y: 0 },
     canEdit: capabilities.canEdit,
     canClear: capabilities.canClear,
-    canBan: capabilities.canBan,
     canGrantTemporaryModerator: capabilities.canGrantTemporaryModerator,
-    ...(capabilities.temporaryModeratorExpiresAt === undefined
-      ? {}
-      : {
-          temporaryModeratorExpiresAt: capabilities.temporaryModeratorExpiresAt,
-        }),
   };
 }
 
@@ -140,9 +134,7 @@ function serializeBoardUser(user) {
     position: user.position,
     canEdit: user.canEdit,
     canClear: user.canClear,
-    canBan: user.canBan,
     canGrantTemporaryModerator: user.canGrantTemporaryModerator,
-    temporaryModeratorExpiresAt: user.temporaryModeratorExpiresAt || null,
   };
 }
 
@@ -220,13 +212,7 @@ function emitUserUpdatedToBoard(socket, boardName, user) {
 function updateBoardUserCapabilities(user, capabilities) {
   user.canEdit = capabilities.canEdit;
   user.canClear = capabilities.canClear;
-  user.canBan = capabilities.canBan;
   user.canGrantTemporaryModerator = capabilities.canGrantTemporaryModerator;
-  if (capabilities.temporaryModeratorExpiresAt === undefined) {
-    delete user.temporaryModeratorExpiresAt;
-  } else {
-    user.temporaryModeratorExpiresAt = capabilities.temporaryModeratorExpiresAt;
-  }
 }
 
 /**

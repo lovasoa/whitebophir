@@ -392,6 +392,8 @@ test.describe("collaboration and rate limiting", () => {
           boardPage.waitForSocketConnected(),
           targetBoard.waitForSocketConnected(),
         ]);
+        const targetClear = targetPage.locator("#toolID-clear");
+        await expect(targetClear).toBeHidden();
         await page.evaluate(() => {
           const socket = window.WBOApp.connection.socket as any;
           if (!socket) throw new Error("Missing socket");
@@ -475,6 +477,8 @@ test.describe("collaboration and rate limiting", () => {
           boardPage.waitForSocketConnected(),
           targetBoard.waitForSocketConnected(),
         ]);
+        const targetClear = targetPage.locator("#toolID-clear");
+        await expect(targetClear).toBeHidden();
         await boardPage.connectedUsersToggle.click();
         await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
 
@@ -500,8 +504,10 @@ test.describe("collaboration and rate limiting", () => {
           .click();
 
         await expect
-          .poll(() => targetPage.evaluate(() => window.WBOApp.access.canBan))
+          .poll(() => targetPage.evaluate(() => window.WBOApp.access.canClear))
           .toBe(true);
+        await expect(targetClear).toBeVisible();
+        await expect(targetClear).toHaveAttribute("aria-disabled", "false");
         await expect
           .poll(() =>
             page.evaluate(
@@ -509,30 +515,14 @@ test.describe("collaboration and rate limiting", () => {
                 Array.from(window.WBOApp.presence.users.values()).find(
                   (user) =>
                     user.socketId !== window.WBOApp.connection.socket?.id,
-                )?.temporaryModeratorExpiresAt,
-            ),
-          )
-          .toBeGreaterThan(Date.now());
-
-        await targetPage.evaluate(() =>
-          window.WBOApp.connection.socket?.disconnect?.(),
-        );
-        await expect
-          .poll(() =>
-            page.evaluate(() =>
-              Array.from(window.WBOApp.presence.users.values()).some(
-                (user) => user.temporaryModeratorGrantOnly === true,
-              ),
+                )?.canClear,
             ),
           )
           .toBe(true);
+
         if (!(await boardPage.connectedUsersPanel.isVisible())) {
           await boardPage.connectedUsersToggle.click();
         }
-        await expect(remoteRow).toHaveAttribute(
-          "data-socket-id",
-          /^temporary-moderator:/,
-        );
         await action.evaluate((button: HTMLButtonElement) => button.click());
         await expect(page.locator(".moderation-action-friend")).toHaveText(
           /Remove .* from friends/,
@@ -540,13 +530,10 @@ test.describe("collaboration and rate limiting", () => {
         await page
           .getByRole("button", { name: /Revoke temporary moderator access/ })
           .click();
-        await targetPage.evaluate(() =>
-          window.WBOApp.connection.socket?.connect(),
-        );
-        await targetBoard.waitForSocketConnected();
         await expect
-          .poll(() => targetPage.evaluate(() => window.WBOApp.access.canBan))
+          .poll(() => targetPage.evaluate(() => window.WBOApp.access.canClear))
           .toBe(false);
+        await expect(targetClear).toBeHidden();
         await expect(action).toHaveAttribute("aria-label", /Moderate .*/);
       } finally {
         await targetContext.close();

@@ -100,8 +100,8 @@ WBO evaluates board access as three capabilities:
 - `canEdit`: the user may send normal board changes.
 - `canClear`: the user may use the Clear tool, which wipes all content from the board.
 
-Moderation is exposed separately through `canBan`. Permanent moderators also
-receive `canGrantTemporaryModerator`; temporary moderators do not, so delegated
+Moderators receive `canClear`. Permanent moderators also receive
+`canGrantTemporaryModerator`; temporary moderators do not, so delegated
 moderation cannot be delegated again.
 
 JWT role strings can define these capabilities. They are declared in the JWT payload:

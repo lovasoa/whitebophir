@@ -10,7 +10,7 @@ import { MutationType } from "./message_tool_metadata.js";
 import { SocketEvents } from "./socket_events.js";
 import { createToolIconBadge, updateToolIconBadge } from "./tool_icon_badge.js";
 
-/** @import { AppToolsState, AttachedBoardDomModule, BoardMessage, ConnectedUser, ConnectedUserMap, HandChildMessage, TemporaryModeratorGrant } from "../../types/app-runtime" */
+/** @import { AppToolsState, AttachedBoardDomModule, BoardMessage, ConnectedUser, ConnectedUserMap, HandChildMessage } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 /** @typedef {"minute" | "hour" | "day"} ConnectedUserDurationUnit */
 /** @typedef {{kind: "now"} | {kind: "duration", count: number, unit: ConnectedUserDurationUnit, shortKey: string}} ConnectedUserRelativeTime */
@@ -20,8 +20,6 @@ export class PresenceModule {
   constructor(getTools) {
     this.getTools = getTools;
     this.users = /** @type {ConnectedUserMap} */ (new Map());
-    /** @type {TemporaryModeratorGrant[]} */
-    this.temporaryModeratorGrants = [];
     this.friendStore = new FriendStore();
     this.friendStorageBound = false;
     this.panelOpen = false;
@@ -39,7 +37,6 @@ export class PresenceModule {
       this.staleTickId = null;
     }
     this.users = /** @type {ConnectedUserMap} */ (new Map());
-    this.temporaryModeratorGrants = [];
     if (this.panelOpen) this.renderConnectedUsers();
     else syncConnectedUsersSummary(this);
   }
@@ -136,88 +133,6 @@ export class PresenceModule {
         friend: this.friendStore.has(user.userId),
       }),
     );
-    if (this.temporaryModeratorGrants.length > 0) {
-      this.syncTemporaryModeratorGrants(this.temporaryModeratorGrants);
-    }
-    this.syncFriendStates();
-    this.schedulePresenceRender();
-  }
-
-  /** @param {TemporaryModeratorGrant[]} grants */
-  syncTemporaryModeratorGrants(grants) {
-    const now = Date.now();
-    this.temporaryModeratorGrants = grants.filter(
-      (grant) => grant.expiresAt > now && grant.user,
-    );
-    const activeGrantIds = new Set(
-      this.temporaryModeratorGrants.map((grant) => grant.id),
-    );
-
-    this.users.forEach((user, socketId) => {
-      if (
-        user.temporaryModeratorGrantOnly &&
-        !activeGrantIds.has(user.temporaryModeratorGrantId || "")
-      ) {
-        clearConnectedUserTimers(user);
-        this.users.delete(socketId);
-      } else if (
-        user.temporaryModeratorGrantId &&
-        !activeGrantIds.has(user.temporaryModeratorGrantId)
-      ) {
-        delete user.temporaryModeratorGrantId;
-      }
-    });
-
-    this.temporaryModeratorGrants.forEach((grant) => {
-      const grantUser = grant.user;
-      if (!grantUser) return;
-      const connected = Array.from(this.users.values()).find(
-        (user) =>
-          !user.temporaryModeratorGrantOnly &&
-          (user.socketId === grantUser.socketId ||
-            (user.userId === grantUser.userId &&
-              user.temporaryModeratorExpiresAt === grant.expiresAt)),
-      );
-      const syntheticSocketId = `temporary-moderator:${grant.id}`;
-      const synthetic = this.users.get(syntheticSocketId);
-      if (connected) {
-        connected.temporaryModeratorGrantId = grant.id;
-        connected.temporaryModeratorExpiresAt = grant.expiresAt;
-        if (synthetic) {
-          clearConnectedUserTimers(synthetic);
-          this.users.delete(syntheticSocketId);
-        }
-        return;
-      }
-      if (synthetic) return;
-
-      const user = /** @type {ConnectedUser} */ ({
-        ...grantUser,
-        socketId: syntheticSocketId,
-        joinedAt: grantUser.joinedAt || now,
-        disconnectedAt: now,
-        canEdit: true,
-        canClear: true,
-        canBan: true,
-        canGrantTemporaryModerator: false,
-        temporaryModeratorExpiresAt: grant.expiresAt,
-        temporaryModeratorGrantId: grant.id,
-        temporaryModeratorGrantOnly: true,
-        friend: this.friendStore.has(grantUser.userId),
-      });
-      user.removeTimeoutId = window.setTimeout(
-        () => {
-          if (this.users.get(syntheticSocketId) !== user) return;
-          this.users.delete(syntheticSocketId);
-          this.temporaryModeratorGrants = this.temporaryModeratorGrants.filter(
-            (current) => current.id !== grant.id,
-          );
-          this.schedulePresenceRender();
-        },
-        Math.max(0, grant.expiresAt - now),
-      );
-      this.users.set(syntheticSocketId, user);
-    });
     this.syncFriendStates();
     this.schedulePresenceRender();
   }
@@ -257,11 +172,7 @@ export class PresenceModule {
       const current = this.users.get(socketId);
       if (current && current.disconnectedAt) {
         this.users.delete(socketId);
-        if (this.temporaryModeratorGrants.length > 0) {
-          this.syncTemporaryModeratorGrants(this.temporaryModeratorGrants);
-        } else {
-          this.schedulePresenceRender();
-        }
+        this.schedulePresenceRender();
       }
     }, 3500);
     this.schedulePresenceRender();
@@ -525,24 +436,24 @@ const BAN_DURATION_OPTIONS = [
   },
 ];
 
-/**
- * @param {AppToolsState} Tools
- * @returns {{label: string, durationMs: number, variant: "secondary" | "warning" | "danger"}[]}
- */
+/** @param {AppToolsState} Tools */
+function getModerationDurationOptions(Tools) {
+  return BAN_DURATION_OPTIONS.map((option) => ({
+    label:
+      "labelKey" in option
+        ? Tools.i18n.t(option.labelKey)
+        : formatShortRelativeTime(
+            Tools,
+            getDurationPartState(option.count, option.unit),
+          ),
+    durationMs: option.durationMs,
+    variant: option.variant,
+  }));
+}
+
+/** @param {AppToolsState} Tools */
 export function getTemporaryModeratorDurationOptions(Tools) {
-  return BAN_DURATION_OPTIONS.filter((option) => option.durationMs > 0).map(
-    (option) => ({
-      label:
-        "labelKey" in option
-          ? Tools.i18n.t(option.labelKey)
-          : formatShortRelativeTime(
-              Tools,
-              getDurationPartState(option.count, option.unit),
-            ),
-      durationMs: option.durationMs,
-      variant: option.variant,
-    }),
-  );
+  return getModerationDurationOptions(Tools).slice(1);
 }
 
 /** @param {ConnectedUser} user */
@@ -650,7 +561,7 @@ function schedulePresenceStaleTick(presence) {
 export function getConnectedUserDisplayName(user) {
   const markers = [];
   if (user.friend === true) markers.push("\u2764\uFE0F");
-  if (user.canBan === true) markers.push("\u{1F338}");
+  if (user.canClear === true) markers.push("\u{1F338}");
   return markers.length > 0 ? `${markers.join(" ")} ${user.name}` : user.name;
 }
 
@@ -866,7 +777,7 @@ function getConnectedUserFocusHash(Tools, user) {
  */
 function getReportActionLabel(Tools, name) {
   return Tools.i18n.format(
-    Tools.access.canBan === true ? "ban_user" : "report_user",
+    Tools.access.canClear === true ? "ban_user" : "report_user",
     { name },
   );
 }
@@ -1060,7 +971,7 @@ function updateConnectedUserRow(getTools, row, user) {
       ? false
       : Tools.access.canReport === false ||
         currentIdentityUser ||
-        user.canBan === true ||
+        user.canClear === true ||
         !!user.disconnectedAt;
     report.disabled =
       currentIdentityUser || !!user.reported || !!user.reportPending;
@@ -1077,10 +988,11 @@ function updateConnectedUserRow(getTools, row, user) {
 function showConnectedUserManagementDialog(Tools, presence, row, user) {
   const socket = Tools.connection.socket;
   if (!socket || user.temporaryModeratorPending) return;
-  const activeGrant = Number(user.temporaryModeratorExpiresAt) > Date.now();
+  const activeGrant =
+    user.canClear === true && user.canGrantTemporaryModerator !== true;
   const canChangeModerator =
     user.canGrantTemporaryModerator !== true &&
-    (user.canBan !== true || activeGrant);
+    (user.canClear !== true || activeGrant);
 
   /** @param {number} durationMs */
   const submit = (durationMs) => {
@@ -1088,9 +1000,7 @@ function showConnectedUserManagementDialog(Tools, presence, row, user) {
     updateConnectedUserRow(() => Tools, row, user);
     socket.emit(
       SocketEvents.SET_TEMPORARY_MODERATOR,
-      activeGrant && user.temporaryModeratorGrantId
-        ? { grantId: user.temporaryModeratorGrantId, durationMs }
-        : { socketId: user.socketId, durationMs },
+      { socketId: user.socketId, durationMs },
       () => {
         const current = presence.users.get(user.socketId);
         if (!current) return;
@@ -1221,7 +1131,7 @@ function createConnectedUserRow(getTools, user, presence) {
     if (
       !connectedUser ||
       Tools.access.canReport === false ||
-      connectedUser.canBan === true ||
+      connectedUser.canClear === true ||
       isCurrentIdentityUser(Tools, presence.users, connectedUser) ||
       connectedUser.reported === true ||
       connectedUser.reportPending === true
@@ -1263,17 +1173,7 @@ function createConnectedUserRow(getTools, user, presence) {
             label: Tools.i18n.t(rule.titleKey),
             iconUrl: `../rules/${rule.iconFile}`,
           })),
-          durations: BAN_DURATION_OPTIONS.map((option) => ({
-            label:
-              "labelKey" in option
-                ? Tools.i18n.t(option.labelKey)
-                : formatShortRelativeTime(
-                    Tools,
-                    getDurationPartState(option.count, option.unit),
-                  ),
-            durationMs: option.durationMs,
-            variant: option.variant,
-          })),
+          durations: getModerationDurationOptions(Tools),
           cancelLabel: Tools.i18n.t("Cancel"),
           rulesLinkLabel: Tools.i18n.t("community_rules_link"),
           rulesHref: "../rules",
