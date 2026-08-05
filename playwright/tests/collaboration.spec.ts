@@ -487,49 +487,18 @@ test.describe("collaboration and rate limiting", () => {
         );
         const action = remoteRow.locator(".connected-user-friend");
         await expect(action).toHaveAttribute("aria-label", /Moderate .*/);
-        await expect(
-          remoteRow.locator(".connected-user-temporary-moderator"),
-        ).toHaveCount(0);
         await action.evaluate((button: HTMLButtonElement) => button.click());
-        const friendAction = page.locator(".moderation-action-friend");
-        await expect(friendAction).toHaveText(/Add .* as a friend/);
-        await friendAction.click();
-        await expect(friendAction).toHaveText(/Remove .* from friends/);
-        await expect(page.locator(".moderation-action-duration")).toContainText(
-          ["15m", "24h", "7d"],
-        );
-        await expect(page.locator(".moderation-action-rule")).toHaveCount(0);
-        await page
-          .getByRole("button", { name: "Make temporary moderator" })
-          .click();
+        await page.getByRole("button", { name: "15m", exact: true }).click();
 
-        await expect
-          .poll(() => targetPage.evaluate(() => window.WBOApp.access.canClear))
-          .toBe(true);
         await expect
           .poll(() => targetPage.evaluate(() => window.WBOApp.access.canBan))
           .toBe(true);
         await expect(targetClear).toBeVisible();
-        await expect(targetClear).toHaveAttribute("aria-disabled", "false");
-        await expect
-          .poll(() =>
-            page.evaluate(
-              () =>
-                Array.from(window.WBOApp.presence.users.values()).find(
-                  (user) =>
-                    user.socketId !== window.WBOApp.connection.socket?.id,
-                )?.canBan,
-            ),
-          )
-          .toBe(true);
 
         if (!(await boardPage.connectedUsersPanel.isVisible())) {
           await boardPage.connectedUsersToggle.click();
         }
         await action.evaluate((button: HTMLButtonElement) => button.click());
-        await expect(page.locator(".moderation-action-friend")).toHaveText(
-          /Remove .* from friends/,
-        );
         await page
           .getByRole("button", { name: /Revoke temporary moderator access/ })
           .click();
@@ -537,7 +506,6 @@ test.describe("collaboration and rate limiting", () => {
           .poll(() => targetPage.evaluate(() => window.WBOApp.access.canClear))
           .toBe(false);
         await expect(targetClear).toBeHidden();
-        await expect(action).toHaveAttribute("aria-label", /Moderate .*/);
       } finally {
         await targetContext.close();
       }

@@ -2,11 +2,11 @@ import { TOOL_ID_BY_CODE } from "../tools/tool-order.js";
 import { FriendStore } from "./board_friend_store.js";
 import { getRequiredElement } from "./board_page_state.js";
 import { VIEWPORT_HASH_SCALE_DECIMALS } from "./board_viewport.js";
-import { MODERATION_RULES } from "./moderation_rules.js";
 import { getMessageActivityPoint } from "./message_activity_point.js";
 import MessageCommon from "./message_common.js";
 import { LIMITS } from "./message_limits.js";
 import { MutationType } from "./message_tool_metadata.js";
+import { MODERATION_RULES } from "./moderation_rules.js";
 import { SocketEvents } from "./socket_events.js";
 import { createToolIconBadge, updateToolIconBadge } from "./tool_icon_badge.js";
 
@@ -452,7 +452,7 @@ function getModerationDurationOptions(Tools) {
 }
 
 /** @param {AppToolsState} Tools */
-export function getTemporaryModeratorDurationOptions(Tools) {
+function getTemporaryModeratorDurationOptions(Tools) {
   return getModerationDurationOptions(Tools).slice(1);
 }
 
@@ -990,59 +990,56 @@ function showConnectedUserManagementDialog(Tools, presence, row, user) {
   if (!socket || user.temporaryModeratorPending) return;
   const activeGrant =
     user.canBan === true && user.canGrantTemporaryModerator !== true;
-  const canChangeModerator =
-    user.canGrantTemporaryModerator !== true &&
-    (user.canBan !== true || activeGrant);
-
-  /** @param {number} durationMs */
-  const submit = (durationMs) => {
-    user.temporaryModeratorPending = true;
-    updateConnectedUserRow(() => Tools, row, user);
-    socket.emit(
-      SocketEvents.SET_TEMPORARY_MODERATOR,
-      { socketId: user.socketId, durationMs },
-      () => {
-        const current = presence.users.get(user.socketId);
-        if (!current) return;
-        current.temporaryModeratorPending = false;
-        updateConnectedUserRow(() => Tools, row, current);
-      },
-    );
-  };
+  const choices = [
+    {
+      label: Tools.i18n.format(user.friend ? "remove_friend" : "mark_friend", {
+        name: user.name,
+      }),
+      value: "friend",
+    },
+  ];
+  if (activeGrant) {
+    choices.push({
+      label: Tools.i18n.format("revoke_temporary_moderator", {
+        name: user.name,
+      }),
+      value: "0",
+    });
+  } else if (user.canBan !== true) {
+    getTemporaryModeratorDurationOptions(Tools).forEach((duration) => {
+      choices.push({
+        label: duration.label,
+        value: String(duration.durationMs),
+      });
+    });
+  }
 
   void Tools.ui
-    .showModerationActionDialog({
-      title: Tools.i18n.format("moderation_action_title", { name: user.name }),
-      ...(canChangeModerator && !activeGrant
-        ? { message: Tools.i18n.t("temporary_moderator_action_message") }
-        : {}),
-      ...(canChangeModerator && !activeGrant
-        ? {
-            durationLabel: Tools.i18n.t("moderation_action_duration"),
-            durations: getTemporaryModeratorDurationOptions(Tools),
-          }
-        : {}),
-      friendAction: {
-        active: user.friend === true,
-        addLabel: Tools.i18n.format("mark_friend", { name: user.name }),
-        removeLabel: Tools.i18n.format("remove_friend", { name: user.name }),
-        onToggle: () => presence.toggleFriend(user.userId),
-      },
-      ...(canChangeModerator
-        ? {
-            confirmLabel: activeGrant
-              ? Tools.i18n.format("revoke_temporary_moderator", {
-                  name: user.name,
-                })
-              : Tools.i18n.t("make_temporary_moderator_confirm"),
-          }
-        : {}),
+    .showChoiceDialog({
+      message: Tools.i18n.format("moderation_action_title", {
+        name: user.name,
+      }),
+      choices,
       cancelLabel: Tools.i18n.t("Cancel"),
     })
     .then((selection) => {
-      if (selection !== null && canChangeModerator) {
-        submit(activeGrant ? 0 : selection.banDurationMs);
+      if (selection === "friend") {
+        presence.toggleFriend(user.userId);
+        return;
       }
+      if (selection === null) return;
+      user.temporaryModeratorPending = true;
+      updateConnectedUserRow(() => Tools, row, user);
+      socket.emit(
+        SocketEvents.SET_TEMPORARY_MODERATOR,
+        { socketId: user.socketId, durationMs: Number(selection) },
+        () => {
+          const current = presence.users.get(user.socketId);
+          if (!current) return;
+          current.temporaryModeratorPending = false;
+          updateConnectedUserRow(() => Tools, row, current);
+        },
+      );
     });
 }
 

@@ -123,27 +123,21 @@
  */
 
 /**
- * @typedef {{active: boolean, addLabel: string, removeLabel: string, onToggle: (active: boolean) => void}} ModerationActionFriendOption
- */
-
-/**
  * @typedef {{
  *   title: string,
- *   message?: string,
- *   durationLabel?: string,
- *   ruleLabel?: string,
- *   rules?: ModerationActionRuleOption[],
- *   durations?: ModerationActionDurationOption[],
- *   friendAction?: ModerationActionFriendOption,
+ *   message: string,
+ *   durationLabel: string,
+ *   ruleLabel: string,
+ *   rules: ModerationActionRuleOption[],
+ *   durations: ModerationActionDurationOption[],
  *   cancelLabel: string,
- *   rulesLinkLabel?: string,
- *   rulesHref?: string,
- *   confirmLabel?: string,
+ *   rulesLinkLabel: string,
+ *   rulesHref: string,
  * }} ModerationActionDialogOptions
  */
 
 /**
- * @typedef {{moderationRule?: string, banDurationMs: number}} ModerationAction
+ * @typedef {{moderationRule: string, banDurationMs: number}} ModerationAction
  */
 
 /**
@@ -639,60 +633,17 @@ export function showModerationActionDialog(options) {
       const message = document.createElement("p");
       message.className = "moderation-action-message";
       message.id = "moderation-action-message";
-      message.textContent = options.message || "";
-      if (options.message) dialog.setAttribute("aria-describedby", message.id);
-
-      /** @type {HTMLButtonElement | null} */
-      let friendButton = null;
-      if (options.friendAction) {
-        let friendActive = options.friendAction.active;
-        friendButton = document.createElement("button");
-        friendButton.type = "button";
-        friendButton.className =
-          "moderation-action-friend wbo-dialog-button wbo-dialog-button-secondary";
-        friendButton.setAttribute(
-          "aria-pressed",
-          friendActive ? "true" : "false",
-        );
-
-        const glyph = document.createElement("span");
-        glyph.className = "moderation-action-friend-glyph";
-        glyph.setAttribute("aria-hidden", "true");
-        const label = document.createElement("span");
-        label.className = "moderation-action-friend-label";
-        const syncFriendState = () => {
-          glyph.textContent = friendActive ? "\u2665\uFE0E" : "\u2661";
-          label.textContent = friendActive
-            ? options.friendAction?.removeLabel || ""
-            : options.friendAction?.addLabel || "";
-          friendButton?.setAttribute(
-            "aria-pressed",
-            friendActive ? "true" : "false",
-          );
-          friendButton?.classList.toggle(
-            "moderation-action-friend-active",
-            friendActive,
-          );
-        };
-        friendButton.append(glyph, label);
-        friendButton.addEventListener("click", () => {
-          friendActive = !friendActive;
-          options.friendAction?.onToggle(friendActive);
-          syncFriendState();
-        });
-        syncFriendState();
-      }
-
-      const durations = options.durations || [];
+      message.textContent = options.message;
+      dialog.setAttribute("aria-describedby", message.id);
 
       const durationHeading = document.createElement("div");
       durationHeading.className = "moderation-action-section-title";
-      durationHeading.textContent = options.durationLabel || "";
+      durationHeading.textContent = options.durationLabel;
 
       const durationChoices = document.createElement("div");
       durationChoices.className = "moderation-action-durations";
       durationChoices.setAttribute("role", "group");
-      durationChoices.setAttribute("aria-label", options.durationLabel || "");
+      durationChoices.setAttribute("aria-label", options.durationLabel);
 
       const status = document.createElement("div");
       status.className = "moderation-action-status";
@@ -700,7 +651,8 @@ export function showModerationActionDialog(options) {
       status.setAttribute("aria-live", "polite");
 
       const selectedDuration =
-        durations.find((choice) => choice.durationMs === 0) || durations[0];
+        options.durations.find((choice) => choice.durationMs === 0) ||
+        options.durations[0];
       let selectedDurationMs = selectedDuration?.durationMs ?? 0;
 
       /** @param {ModerationActionDurationOption} choice */
@@ -709,7 +661,7 @@ export function showModerationActionDialog(options) {
       /** @param {number} durationMs */
       const syncDurationState = (durationMs) => {
         selectedDurationMs = durationMs;
-        durations.forEach((choice) => {
+        options.durations.forEach((choice) => {
           const button = durationChoices.querySelector(
             `[data-duration-ms="${choice.durationMs}"]`,
           );
@@ -721,11 +673,11 @@ export function showModerationActionDialog(options) {
             selected,
           );
         });
-        const selected = durations.find(
+        const selected = options.durations.find(
           (choice) => choice.durationMs === selectedDurationMs,
         );
         status.textContent = selected
-          ? `${options.durationLabel || ""}: ${actionLabel(selected)}`
+          ? `${options.durationLabel}: ${actionLabel(selected)}`
           : "";
         ruleButtons.forEach((button) => {
           const ruleLabel = button.dataset.ruleLabel || "";
@@ -736,7 +688,7 @@ export function showModerationActionDialog(options) {
         });
       };
 
-      for (const choice of durations) {
+      for (const choice of options.durations) {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "wbo-dialog-button moderation-action-duration";
@@ -752,14 +704,15 @@ export function showModerationActionDialog(options) {
         durationChoices.appendChild(button);
       }
 
-      /** @type {HTMLButtonElement[]} */
-      const ruleButtons = [];
       const ruleHeading = document.createElement("div");
       ruleHeading.className = "moderation-action-section-title";
-      ruleHeading.textContent = options.ruleLabel || "";
+      ruleHeading.textContent = options.ruleLabel;
       const ruleChoices = document.createElement("div");
       ruleChoices.className = "moderation-action-rules";
-      for (const rule of options.rules || []) {
+
+      /** @type {HTMLButtonElement[]} */
+      const ruleButtons = [];
+      for (const rule of options.rules) {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "moderation-action-rule";
@@ -788,15 +741,12 @@ export function showModerationActionDialog(options) {
       const footer = document.createElement("div");
       footer.className = "moderation-action-footer";
 
-      if (options.rulesHref && options.rulesLinkLabel) {
-        const rulesLink = document.createElement("a");
-        rulesLink.className = "moderation-action-rules-link";
-        rulesLink.href = options.rulesHref;
-        rulesLink.target = "_blank";
-        rulesLink.rel = "noopener";
-        rulesLink.textContent = options.rulesLinkLabel;
-        footer.appendChild(rulesLink);
-      }
+      const rulesLink = document.createElement("a");
+      rulesLink.className = "moderation-action-rules-link";
+      rulesLink.href = options.rulesHref;
+      rulesLink.target = "_blank";
+      rulesLink.rel = "noopener";
+      rulesLink.textContent = options.rulesLinkLabel;
 
       const cancel = document.createElement("button");
       cancel.type = "button";
@@ -805,30 +755,19 @@ export function showModerationActionDialog(options) {
       cancel.textContent = options.cancelLabel;
       cancel.addEventListener("click", () => settle(null));
 
-      footer.appendChild(cancel);
-      let confirm = null;
-      if (options.confirmLabel) {
-        confirm = document.createElement("button");
-        confirm.type = "button";
-        confirm.className =
-          "wbo-dialog-button wbo-dialog-button-primary moderation-action-confirm";
-        confirm.textContent = options.confirmLabel;
-        confirm.addEventListener("click", () =>
-          settle({ banDurationMs: selectedDurationMs }),
-        );
-        footer.appendChild(confirm);
-      }
-
-      dialog.appendChild(title);
-      if (options.message) dialog.appendChild(message);
-      if (friendButton) dialog.appendChild(friendButton);
-      if (durations.length > 0) {
-        dialog.append(durationHeading, durationChoices, status);
-      }
-      if (ruleButtons.length > 0) dialog.append(ruleHeading, ruleChoices);
-      dialog.appendChild(footer);
+      footer.append(rulesLink, cancel);
+      dialog.append(
+        title,
+        message,
+        durationHeading,
+        durationChoices,
+        status,
+        ruleHeading,
+        ruleChoices,
+        footer,
+      );
       syncDurationState(selectedDurationMs);
-      (friendButton || ruleButtons[0] || confirm)?.focus();
+      ruleButtons[0]?.focus();
     },
   );
 }

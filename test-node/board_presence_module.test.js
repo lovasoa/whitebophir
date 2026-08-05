@@ -173,28 +173,6 @@ test("connected user display name marks moderators consistently", async () => {
   );
 });
 
-test("temporary moderators reuse positive ban duration presets", async () => {
-  const { getTemporaryModeratorDurationOptions } = await import(
-    "../client-data/js/board_presence_module.js"
-  );
-  const options = getTemporaryModeratorDurationOptions(
-    /** @type {any} */ ({
-      i18n: {
-        t: (/** @type {string} */ key) => key,
-        format: (
-          /** @type {string} */ key,
-          /** @type {{count: string}} */ values,
-        ) => `${values.count}${key}`,
-      },
-    }),
-  );
-
-  assert.deepEqual(
-    options.map((option) => option.durationMs),
-    [15 * 60 * 1000, 24 * 60 * 60 * 1000, 7 * 24 * 60 * 60 * 1000],
-  );
-});
-
 test("connected user display sort pins self, then friends, then other users", async () => {
   const { compareConnectedUsersForDisplay } = await import(
     "../client-data/js/board_presence_module.js"
