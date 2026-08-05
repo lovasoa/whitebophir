@@ -98,7 +98,7 @@ function isSelectableElement(target) {
 
 /**
  * @param {EventTarget | null} target
- * @returns {target is { matches(selector: string): boolean }}
+ * @returns {target is EventTarget & { matches(selector: string): boolean }}
  */
 function isMatchableTarget(target) {
   return !!(target && typeof target === "object" && "matches" in target);

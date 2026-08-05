@@ -279,12 +279,14 @@ connectedUsersGauge.addCallback(function observeConnectedUsers(observer) {
 function buildLogRecordProcessors() {
   /** @type {import("@opentelemetry/sdk-logs").LogRecordProcessor[]} */
   const processors = [
-    new SimpleLogRecordProcessor(
-      new LogfmtLogRecordExporter(undefined, OBSERVABILITY_OPTIONS),
-    ),
+    new SimpleLogRecordProcessor({
+      exporter: new LogfmtLogRecordExporter(undefined, OBSERVABILITY_OPTIONS),
+    }),
   ];
   if (hasConfiguredOtlpEndpoint("logs")) {
-    processors.push(new BatchLogRecordProcessor(new OTLPLogExporter()));
+    processors.push(
+      new BatchLogRecordProcessor({ exporter: new OTLPLogExporter() }),
+    );
   }
   return processors;
 }
