@@ -269,14 +269,10 @@ disconnect the reported user, while ban actions also ban the reported secret and
 IP. Active moderators are protected targets based on authoritative live
 capabilities, including when the reporter is a temporary moderator.
 
-Permanent moderators can send `set_temporary_moderator` with
-`{ "socketId": "<target socket id>", "durationMs": <milliseconds> }` and an
-acknowledgement callback. Positive durations grant the target's secret-derived
-identity the full moderator permission bundle for up to one week; `0` revokes
-the grant. Temporary moderators cannot grant or revoke moderator access. Grants
-are board-scoped, process-local, shared by tabs with the same non-empty user
-secret, and lost on restart. Successful changes refresh `boardstate` and
-presence for every matching active socket.
+Permanent moderators use `set_temporary_moderator { socketId, durationMs }` to
+grant up to one week or revoke with `0`. Grants are board-scoped, process-local,
+secret-keyed across tabs, lost on restart, and cannot be delegated by temporary
+moderators. Changes refresh board state and presence for every matching socket.
 
 Client write messages normally have top-level `tool` and `type` fields.
 Tool-owned batches have top-level `tool` plus `_children`; each child carries its
