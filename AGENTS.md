@@ -249,6 +249,10 @@ secret/IP ban expires. The browser schedules one reconnect at that boundary so
 non-moderator report targeting the reporter's own socket or another socket with
 the same non-empty, secret-derived user identity.
 
+Board state and presence expose `canBan` separately from `canClear`. Moderation
+UI and moderator markers use `canBan`; Clear-tool access, large-batch admission,
+and destructive rate-limit bypasses use `canClear`.
+
 Before the reported socket is closed, the server emits
 `moderation_disconnect { "banDurationMs": <duration>, "source": "moderator" | "peer_report", "moderationRule"?: "<rule>" }`.
 Moderator actions use `source: "moderator"`; `0` means a warning and a positive
@@ -262,7 +266,13 @@ server emits `user_reported` only to connected moderators on that board. The
 `{ "reporterName": "<display name>", "reportedName": "<display name>" }`.
 Moderator warning/ban actions do not emit `user_reported`; warning actions only
 disconnect the reported user, while ban actions also ban the reported secret and
-IP.
+IP. Active moderators are protected targets based on authoritative live
+capabilities, including when the reporter is a temporary moderator.
+
+Permanent moderators use `set_temporary_moderator { socketId, durationMs }` to
+grant up to one week or revoke with `0`. Grants are board-scoped, process-local,
+secret-keyed across tabs, lost on restart, and cannot be delegated by temporary
+moderators. Changes refresh board state and presence for every matching socket.
 
 Client write messages normally have top-level `tool` and `type` fields.
 Tool-owned batches have top-level `tool` plus `_children`; each child carries its

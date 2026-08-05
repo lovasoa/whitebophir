@@ -18,7 +18,7 @@ import { parseRequestUrl } from "./request_url.mjs";
 /** @typedef {import("http").IncomingMessage} TemplateRequest */
 /** @typedef {import("http").ServerResponse} TemplateResponse */
 /** @typedef {string | string[] | undefined} HeaderValue */
-/** @typedef {{blockedTools?: string[] | null, boardState?: {canEdit?: boolean, canClear?: boolean, canWrite?: boolean} | null}} VisibleToolOptions */
+/** @typedef {{blockedTools?: string[] | null}} RenderedToolOptions */
 /** @typedef {NonNullable<typeof TOOLBAR_TOOLS[number]>} ToolbarTool */
 /** @typedef {import("./client_configuration.mjs").ClientConfiguration} ClientConfig */
 /** @typedef {"zstd" | "br" | "gzip"} CompressionEncoding */
@@ -51,18 +51,14 @@ function isToolbarTool(tool) {
 }
 
 /**
- * @param {VisibleToolOptions} options
+ * @param {RenderedToolOptions} options
  * @returns {typeof TOOLBAR_TOOLS}
  */
-function getVisibleTools(options) {
+function getRenderedTools(options) {
   const blockedTools = new Set(options.blockedTools || []);
-  return TOOLBAR_TOOLS.filter(isToolbarTool).filter((tool) => {
-    if (blockedTools.has(tool.toolId)) return false;
-    return boardStateGrantsCapability(
-      options.boardState,
-      tool.requiredCapability,
-    );
-  });
+  return TOOLBAR_TOOLS.filter(isToolbarTool).filter(
+    (tool) => !blockedTools.has(tool.toolId),
+  );
 }
 
 /**
@@ -451,17 +447,25 @@ class BoardTemplate extends Template {
     const blockedTools = Array.isArray(configuration.BLOCKED_TOOLS)
       ? configuration.BLOCKED_TOOLS
       : [];
-    const visibleTools = /** @type {ToolbarTool[]} */ (
-      getVisibleTools({
+    const renderedTools = /** @type {ToolbarTool[]} */ (
+      getRenderedTools({
         blockedTools: blockedTools,
-        boardState: params.boardState,
       })
     );
-    params.tools = visibleTools.map((tool) => ({
-      id: tool.toolId,
-      label: params.translations[tool.translationKey] || tool.label,
-      iconUrl: `../${tool.iconPath}`,
-    }));
+    params.tools = renderedTools.map((tool) => {
+      const visible = boardStateGrantsCapability(
+        params.boardState,
+        tool.requiredCapability,
+      );
+      const iconUrl = `../${tool.iconPath}`;
+      return {
+        id: tool.toolId,
+        label: params.translations[tool.translationKey] || tool.label,
+        iconUrl,
+        initialIconUrl: visible ? iconUrl : "data:,",
+        visible,
+      };
+    });
     return params;
   }
 

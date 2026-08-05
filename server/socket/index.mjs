@@ -12,12 +12,12 @@ import {
   setLoadedBoard,
 } from "../board/registry.mjs";
 import observability from "../observability/index.mjs";
+import { resetBans } from "./bans.mjs";
 import {
   boardMutationTraceAttributes,
   handleBroadcastWriteMessage,
   shouldTraceBroadcast,
 } from "./broadcasts.mjs";
-import { resetBans } from "./bans.mjs";
 import {
   boardStateForSocket,
   clientIpFallback,
@@ -33,6 +33,7 @@ import {
   buildBoardUserRecord as createBoardUserRecord,
   emitBoardUsersToSocket,
   emitUserJoinedToBoard,
+  emitUserUpdatedToBoard,
   ensureBoardUser,
   getBoardUserMap,
   removeBoardUser,
@@ -58,12 +59,14 @@ import {
   resetSocketReports,
 } from "./reports.mjs";
 import { getSocketUserSecret } from "./request.mjs";
+import { handleSetTemporaryModeratorMessage } from "./temporary_moderator_actions.mjs";
+import { resetTemporaryModerators } from "./temporary_moderators.mjs";
 import { handleTurnstileTokenMessage } from "./turnstile.mjs";
 
 const { Server } = socketIO;
 const { logger, metrics, tracing } = observability;
 
-/** @import { AppSocket, MessageData, NormalizedMessageData, ReportUserPayload, ServerConfig, TurnstileAckCallback } from "../../types/server-runtime.d.ts" */
+/** @import { AppSocket, MessageData, NormalizedMessageData, ReportUserPayload, ServerConfig, SetTemporaryModeratorPayload, TurnstileAckCallback } from "../../types/server-runtime.d.ts" */
 /** @typedef {{type: number, fromSeq: number, seq: number, _children: NormalizedMessageData[]}} ConnectionReplayBatch */
 /** @typedef {{ok: true, boardName: string, board: BoardData, baselineSeq: number, latestSeq: number, minReplayableSeq: number, replayBatch: ConnectionReplayBatch, outcome: "empty" | "replayed"} | {ok: false, reason: string, boardName?: string, baselineSeq?: number, latestSeq?: number, minReplayableSeq?: number, error?: unknown}} ConnectionReplayBootstrap */
 /** @type {Map<string, AppSocket>} */
@@ -270,6 +273,34 @@ function closeSocket(socket, eventName, infos) {
  */
 function getActiveSocket(socketId) {
   return activeSockets.get(socketId);
+}
+
+/**
+ * Re-emits authoritative access and presence for every tab sharing an identity.
+ * @param {string} boardName
+ * @param {string} userSecret
+ * @param {ServerConfig} config
+ * @returns {Promise<void>}
+ */
+async function refreshUserAccess(boardName, userSecret, config) {
+  if (!userSecret) return;
+  const boardPromise = getLoadedBoard(boardName);
+  if (!boardPromise) return;
+  const board = await boardPromise;
+  const users = getBoardUserMap(boardName);
+  for (const user of users.values()) {
+    if (user.userSecret !== userSecret) continue;
+    const targetSocket = activeSockets.get(user.socketId);
+    if (!targetSocket || !targetSocket.rooms.has(boardName)) continue;
+    const boardState = boardStateForSocket(config, board, targetSocket);
+    user.canEdit = boardState.canEdit === true;
+    user.canClear = boardState.canClear === true;
+    user.canBan = boardState.canBan === true;
+    user.canGrantTemporaryModerator =
+      boardState.canGrantTemporaryModerator === true;
+    targetSocket.emit(SocketEvents.BOARDSTATE, boardState);
+    emitUserUpdatedToBoard(targetSocket, boardName, user);
+  }
 }
 
 /**
@@ -480,10 +511,7 @@ async function bootstrapSocketBoard(socket, replay, config) {
           boardName,
           config,
           resolveClientIp,
-          {
-            canEdit: boardState.canEdit === true,
-            canClear: boardState.canClear === true,
-          },
+          boardState,
         );
         if (!wasJoined) {
           connectedUsersTotal += 1;
@@ -662,6 +690,25 @@ async function handleSocketConnection(socket, config) {
           });
         },
       );
+    },
+  );
+
+  onSocketEvent(
+    socket,
+    SocketEvents.SET_TEMPORARY_MODERATOR,
+    function onSetTemporaryModerator(
+      /** @type {SetTemporaryModeratorPayload | undefined} */ message,
+    ) {
+      return handleSetTemporaryModeratorMessage({
+        socket,
+        boardName,
+        message,
+        config,
+        now: Date.now(),
+        getActiveSocket,
+        refreshUserAccess: (targetBoardName, userSecret) =>
+          refreshUserAccess(targetBoardName, userSecret, config),
+      });
     },
   );
 
@@ -859,7 +906,12 @@ export const __test = {
       boardName,
       config,
       resolveClientIp,
-      { canEdit: true, canClear: false },
+      {
+        canEdit: true,
+        canClear: false,
+        canBan: false,
+        canGrantTemporaryModerator: false,
+      },
       now,
     );
   },
@@ -904,6 +956,7 @@ export const __test = {
   resetRateLimitMaps: function resetRateLimitMaps() {
     resetSocketRateLimitMaps();
     resetBans();
+    resetTemporaryModerators();
     resetBoardUserMaps();
     activeSockets.clear();
     syncedPersistentSockets.clear();

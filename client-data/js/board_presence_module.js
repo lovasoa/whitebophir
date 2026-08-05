@@ -2,11 +2,11 @@ import { TOOL_ID_BY_CODE } from "../tools/tool-order.js";
 import { FriendStore } from "./board_friend_store.js";
 import { getRequiredElement } from "./board_page_state.js";
 import { VIEWPORT_HASH_SCALE_DECIMALS } from "./board_viewport.js";
-import { MODERATION_RULES } from "./moderation_rules.js";
 import { getMessageActivityPoint } from "./message_activity_point.js";
 import MessageCommon from "./message_common.js";
 import { LIMITS } from "./message_limits.js";
 import { MutationType } from "./message_tool_metadata.js";
+import { MODERATION_RULES } from "./moderation_rules.js";
 import { SocketEvents } from "./socket_events.js";
 import { createToolIconBadge, updateToolIconBadge } from "./tool_icon_badge.js";
 
@@ -436,6 +436,21 @@ const BAN_DURATION_OPTIONS = [
   },
 ];
 
+/** @param {AppToolsState} Tools */
+function getModerationDurationOptions(Tools) {
+  return BAN_DURATION_OPTIONS.map((option) => ({
+    label:
+      "labelKey" in option
+        ? Tools.i18n.t(option.labelKey)
+        : formatShortRelativeTime(
+            Tools,
+            getDurationPartState(option.count, option.unit),
+          ),
+    durationMs: option.durationMs,
+    variant: option.variant,
+  }));
+}
+
 /** @param {ConnectedUser} user */
 function clearConnectedUserTimers(user) {
   if (user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
@@ -541,7 +556,7 @@ function schedulePresenceStaleTick(presence) {
 export function getConnectedUserDisplayName(user) {
   const markers = [];
   if (user.friend === true) markers.push("\u2764\uFE0F");
-  if (user.canClear === true) markers.push("\u{1F338}");
+  if (user.canBan === true) markers.push("\u{1F338}");
   return markers.length > 0 ? `${markers.join(" ")} ${user.name}` : user.name;
 }
 
@@ -756,10 +771,8 @@ function getConnectedUserFocusHash(Tools, user) {
  * @returns {string}
  */
 function getReportActionLabel(Tools, name) {
-  // The server currently treats clear-capable moderators as report-to-ban users.
-  // Keep this UI-only label aligned without broadening the capability model here.
   return Tools.i18n.format(
-    Tools.access.canClear === true ? "ban_user" : "report_user",
+    Tools.access.canBan === true ? "ban_user" : "report_user",
     { name },
   );
 }
@@ -888,10 +901,12 @@ function updateConnectedUserRow(getTools, row, user) {
       user,
     );
     const isFriend = user.friend === true;
-    const friendLabel = Tools.i18n.format(
-      isFriend ? "remove_friend" : "mark_friend",
-      { name: user.name },
-    );
+    const managesUser = Tools.access.canGrantTemporaryModerator === true;
+    const friendLabel = managesUser
+      ? Tools.i18n.format("moderation_action_title", { name: user.name })
+      : Tools.i18n.format(isFriend ? "remove_friend" : "mark_friend", {
+          name: user.name,
+        });
     friend.hidden = currentIdentityUser;
     const friendGlyph = friend.querySelector(".connected-user-friend-glyph");
     if (friendGlyph) {
@@ -900,6 +915,9 @@ function updateConnectedUserRow(getTools, row, user) {
     friend.title = friendLabel;
     friend.setAttribute("aria-label", friendLabel);
     friend.setAttribute("aria-pressed", isFriend ? "true" : "false");
+    if (managesUser) friend.setAttribute("aria-haspopup", "dialog");
+    else friend.removeAttribute("aria-haspopup");
+    friend.classList.toggle("connected-user-friend-manager", managesUser);
     friend.classList.toggle("connected-user-friend-active", isFriend);
     row.classList.toggle("connected-user-row-friend", isFriend);
   }
@@ -947,12 +965,78 @@ function updateConnectedUserRow(getTools, row, user) {
       ? false
       : Tools.access.canReport === false ||
         currentIdentityUser ||
-        user.canClear === true ||
+        user.canBan === true ||
         !!user.disconnectedAt;
     report.disabled =
       currentIdentityUser || !!user.reported || !!user.reportPending;
     report.classList.toggle("connected-user-report-latched", !!user.reported);
   }
+}
+
+/**
+ * @param {AppToolsState} Tools
+ * @param {PresenceModule} presence
+ * @param {ConnectedUser} user
+ */
+function showConnectedUserManagementDialog(Tools, presence, user) {
+  const socket = Tools.connection.socket;
+  if (!socket) return;
+  const activeGrant =
+    user.canBan === true && user.canGrantTemporaryModerator !== true;
+  /** @type {{label: string, value: string | number}[]} */
+  const actionChoices = [
+    {
+      label: Tools.i18n.format(user.friend ? "remove_friend" : "mark_friend", {
+        name: user.name,
+      }),
+      value: "friend",
+    },
+  ];
+  /** @type {{id: string, label?: string, layout: "stacked" | "segmented", submit: boolean, choices: {label: string, value: string | number}[]}[]} */
+  const sections = [
+    { id: "action", layout: "stacked", submit: true, choices: actionChoices },
+  ];
+  if (activeGrant) {
+    actionChoices.push({
+      label: Tools.i18n.format("revoke_temporary_moderator", {
+        name: user.name,
+      }),
+      value: 0,
+    });
+  } else if (user.canBan !== true) {
+    sections.push({
+      id: "duration",
+      label: Tools.i18n.t("make_temporary_moderator"),
+      layout: "segmented",
+      submit: true,
+      choices: getModerationDurationOptions(Tools)
+        .slice(1)
+        .map((duration) => ({
+          label: duration.label,
+          value: duration.durationMs,
+        })),
+    });
+  }
+
+  void Tools.ui
+    .showActionDialog({
+      title: Tools.i18n.format("moderation_action_title", {
+        name: user.name,
+      }),
+      sections,
+      cancelLabel: Tools.i18n.t("Cancel"),
+    })
+    .then((selection) => {
+      if (selection?.value === "friend") {
+        presence.toggleFriend(user.userId);
+        return;
+      }
+      if (selection === null) return;
+      socket.emit(SocketEvents.SET_TEMPORARY_MODERATOR, {
+        socketId: user.socketId,
+        durationMs: Number(selection.value),
+      });
+    });
 }
 
 /**
@@ -996,6 +1080,10 @@ function createConnectedUserRow(getTools, user, presence) {
     ) {
       return;
     }
+    if (Tools.access.canGrantTemporaryModerator === true) {
+      showConnectedUserManagementDialog(Tools, presence, connectedUser);
+      return;
+    }
     presence.toggleFriend(connectedUser.userId);
   });
   const link = document.createElement("a");
@@ -1036,7 +1124,7 @@ function createConnectedUserRow(getTools, user, presence) {
     if (
       !connectedUser ||
       Tools.access.canReport === false ||
-      connectedUser.canClear === true ||
+      connectedUser.canBan === true ||
       isCurrentIdentityUser(Tools, presence.users, connectedUser) ||
       connectedUser.reported === true ||
       connectedUser.reportPending === true
@@ -1062,42 +1150,50 @@ function createConnectedUserRow(getTools, user, presence) {
       if (moderationRule !== undefined) payload.moderationRule = moderationRule;
       socket.emit(SocketEvents.REPORT_USER, payload);
     };
-    if (Tools.access.canClear === true) {
+    if (Tools.access.canBan === true) {
       connectedUser.reportPending = true;
       updateConnectedUserRow(getTools, row, connectedUser);
       void Tools.ui
-        .showModerationActionDialog({
+        .showActionDialog({
           title: Tools.i18n.format("moderation_action_title", {
             name: connectedUser.name,
           }),
           message: Tools.i18n.t("moderation_action_message"),
-          durationLabel: Tools.i18n.t("moderation_action_duration"),
-          ruleLabel: Tools.i18n.t("moderation_action_rule"),
-          rules: MODERATION_RULES.map((rule) => ({
-            id: rule.id,
-            label: Tools.i18n.t(rule.titleKey),
-            iconUrl: `../rules/${rule.iconFile}`,
-          })),
-          durations: BAN_DURATION_OPTIONS.map((option) => ({
-            label:
-              "labelKey" in option
-                ? Tools.i18n.t(option.labelKey)
-                : formatShortRelativeTime(
-                    Tools,
-                    getDurationPartState(option.count, option.unit),
-                  ),
-            durationMs: option.durationMs,
-            variant: option.variant,
-          })),
+          sections: [
+            {
+              id: "duration",
+              label: Tools.i18n.t("moderation_action_duration"),
+              layout: "segmented",
+              initialValue: 0,
+              choices: getModerationDurationOptions(Tools).map((duration) => ({
+                label: duration.label,
+                value: duration.durationMs,
+                variant: duration.variant,
+              })),
+            },
+            {
+              id: "rule",
+              label: Tools.i18n.t("moderation_action_rule"),
+              layout: "grid",
+              submit: true,
+              choices: MODERATION_RULES.map((rule) => ({
+                label: Tools.i18n.t(rule.titleKey),
+                value: rule.id,
+                iconUrl: `../rules/${rule.iconFile}`,
+              })),
+            },
+          ],
           cancelLabel: Tools.i18n.t("Cancel"),
-          rulesLinkLabel: Tools.i18n.t("community_rules_link"),
-          rulesHref: "../rules",
+          link: {
+            label: Tools.i18n.t("community_rules_link"),
+            href: "../rules",
+          },
         })
         .then((selection) => {
           if (selection !== null) {
             reportConnectedUser(
-              selection.banDurationMs,
-              selection.moderationRule,
+              Number(selection.selections.duration),
+              String(selection.value),
             );
             return;
           }

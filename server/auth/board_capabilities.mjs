@@ -16,6 +16,7 @@ import { isConfiguredModerator } from "./board_moderators.mjs";
 /** @typedef {{token?: string | null, userSecret?: string | null}} BoardCapabilityUserInfo */
 /** @typedef {() => boolean} IsBannedPredicate */
 /** @typedef {() => number | null} GetBanExpiresAt */
+/** @typedef {() => number | null} GetTemporaryModeratorExpiresAt */
 /** @typedef {import("../../types/app-runtime").BoardCapabilities} BoardCapabilities */
 /** @typedef {import("../../types/app-runtime").BoardCapability} BoardCapability */
 /** @typedef {import("../../types/app-runtime").AppBoardState} RenderedBoardState */
@@ -81,10 +82,11 @@ function capabilitiesGrant(capabilities, capability) {
  * access once. `isBanned` remains supported for ban sources without an expiry.
  * Moderators bypass both. Defaults to never-banned.
  *
- * @param {{config: BoardCapabilityConfig, boardName: string, userInfo?: BoardCapabilityUserInfo, isBanned?: IsBannedPredicate, getBanExpiresAt?: GetBanExpiresAt}} input
+ * @param {{config: BoardCapabilityConfig, boardName: string, userInfo?: BoardCapabilityUserInfo, isBanned?: IsBannedPredicate, getBanExpiresAt?: GetBanExpiresAt, getTemporaryModeratorExpiresAt?: GetTemporaryModeratorExpiresAt}} input
  * @returns {{
  *   canOpen: () => boolean,
  *   canBan: () => boolean,
+ *   canGrantTemporaryModerator: () => boolean,
  *   canReport: () => boolean,
  *   resolveCapabilities: (board: BoardCapabilityBoard) => BoardCapabilities,
  *   boardState: (board: BoardCapabilityBoard) => RenderedBoardState,
@@ -95,7 +97,7 @@ function capabilitiesGrant(capabilities, capability) {
 function forBoard(input) {
   const jwtEnabled = input.config.AUTH_SECRET_KEY !== "";
   const role = roleForBoard(input.config, input.boardName, input.userInfo);
-  const moderator = isClearCapableRole(role);
+  const permanentModerator = isClearCapableRole(role);
   const fallbackIsBanned = input.isBanned || (() => false);
 
   /**
@@ -103,26 +105,43 @@ function forBoard(input) {
    * callers return only active expiries; the defensive wall-clock check keeps
    * stale or malformed values from scheduling needless refreshes.
    *
-   * @returns {{banned: boolean, refreshAfterMs: number | null}}
+   * @returns {{moderator: boolean, banned: boolean, refreshAfterMs: number | null}}
    */
-  function readBanState() {
-    if (moderator) return { banned: false, refreshAfterMs: null };
+  function readAccessState() {
+    const now = Date.now();
+    const temporaryModeratorExpiresAt = permanentModerator
+      ? 0
+      : Number(input.getTemporaryModeratorExpiresAt?.());
+    if (permanentModerator) {
+      return { moderator: true, banned: false, refreshAfterMs: null };
+    }
+    if (temporaryModeratorExpiresAt > now) {
+      return {
+        moderator: true,
+        banned: false,
+        refreshAfterMs: Math.floor(temporaryModeratorExpiresAt - now),
+      };
+    }
     if (!input.getBanExpiresAt) {
-      return { banned: fallbackIsBanned(), refreshAfterMs: null };
+      return {
+        moderator: false,
+        banned: fallbackIsBanned(),
+        refreshAfterMs: null,
+      };
     }
     const expiresAt = Number(input.getBanExpiresAt());
-    const now = Date.now();
     if (!Number.isFinite(expiresAt) || expiresAt <= now) {
-      return { banned: false, refreshAfterMs: null };
+      return { moderator: false, banned: false, refreshAfterMs: null };
     }
     return {
+      moderator: false,
       banned: true,
       refreshAfterMs: Math.max(0, Math.floor(expiresAt - now)),
     };
   }
 
   function canOpen() {
-    return !jwtEnabled || role !== "forbidden";
+    return !jwtEnabled || role !== "forbidden" || readAccessState().moderator;
   }
 
   /**
@@ -134,29 +153,33 @@ function forBoard(input) {
    * @returns {boolean}
    */
   function canReport() {
-    return canOpen() && !readBanState().banned;
+    return canOpen() && !readAccessState().banned;
   }
 
   /**
    * @param {BoardCapabilityBoard} board
-   * @param {boolean} banned
+   * @param {{moderator: boolean, banned: boolean}} accessState
    * @returns {BoardCapabilities}
    */
-  function resolveCapabilitiesForBanState(board, banned) {
+  function resolveCapabilitiesForAccessState(board, accessState) {
     const readonly = isBoardReadOnly(board);
-    if (!jwtEnabled && !moderator) {
+    if (!jwtEnabled && !accessState.moderator) {
       return {
         canOpen: true,
-        canEdit: !readonly && !banned,
+        canEdit: !readonly && !accessState.banned,
         canClear: false,
       };
     }
 
-    const open = canOpen();
+    const open =
+      !jwtEnabled || role !== "forbidden" || accessState.moderator === true;
     return {
       canOpen: open,
-      canEdit: open && !banned && (!readonly || isEditCapableRole(role)),
-      canClear: moderator,
+      canEdit:
+        open &&
+        !accessState.banned &&
+        (!readonly || accessState.moderator || isEditCapableRole(role)),
+      canClear: accessState.moderator,
     };
   }
 
@@ -165,7 +188,7 @@ function forBoard(input) {
    * @returns {BoardCapabilities}
    */
   function resolveCapabilities(board) {
-    return resolveCapabilitiesForBanState(board, readBanState().banned);
+    return resolveCapabilitiesForAccessState(board, readAccessState());
   }
 
   /**
@@ -173,14 +196,16 @@ function forBoard(input) {
    * @returns {RenderedBoardState}
    */
   function boardState(board) {
-    const banState = readBanState();
-    const capabilities = resolveCapabilitiesForBanState(board, banState.banned);
+    const accessState = readAccessState();
+    const capabilities = resolveCapabilitiesForAccessState(board, accessState);
     return {
       ...boardStateForCapabilities(board, capabilities),
-      canReport: canOpen() && !banState.banned,
-      ...(banState.refreshAfterMs === null
+      canBan: accessState.moderator,
+      canGrantTemporaryModerator: permanentModerator,
+      canReport: capabilities.canOpen && !accessState.banned,
+      ...(accessState.refreshAfterMs === null
         ? {}
-        : { accessRefreshAfterMs: banState.refreshAfterMs }),
+        : { accessRefreshAfterMs: accessState.refreshAfterMs }),
     };
   }
 
@@ -210,9 +235,8 @@ function forBoard(input) {
     boardState,
     requireOpen,
     canApplyBoardMessage,
-    // canBan currently mirrors canClear (both require the moderator role) but is
-    // kept as its own capability so banning and clearing can diverge later.
-    canBan: () => isClearCapableRole(role),
+    canBan: () => readAccessState().moderator,
+    canGrantTemporaryModerator: () => permanentModerator,
   };
 }
 

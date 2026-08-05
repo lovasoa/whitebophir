@@ -62,9 +62,9 @@
 		<div id="menuItems">
 			<ul id="tools" class="tools">
 				{{#tools}}
-				<li class="tool disabledTool" tabindex="-1" id="toolID-{{id}}" data-tool-id="{{id}}" aria-label="{{label}}"
+				<li class="tool disabledTool" tabindex="-1" id="toolID-{{id}}" data-tool-id="{{id}}" aria-label="{{label}}" {{^visible}}hidden{{/visible}}
 					aria-disabled="true">
-					<img class="tool-icon" width="35" height="35" src="{{iconUrl}}" alt="" aria-hidden="true"
+					<img class="tool-icon" width="35" height="35" src="{{initialIconUrl}}" data-icon-url="{{iconUrl}}" alt="" aria-hidden="true"
 						fetchpriority="low" />
 					<span class="tool-name">{{label}}</span>
 					<img class="tool-icon secondaryIcon" width="35" height="35" src="data:," alt="" aria-hidden="true" />

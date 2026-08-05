@@ -37,7 +37,7 @@ test.describe("JWT auth and readonly flows", () => {
       token: TOKENS.readOnlyViewer,
     });
     await expect(boardPage.tool("hand")).toBeVisible();
-    await expect(boardPage.tool("pencil")).toHaveCount(0);
+    await expect(boardPage.tool("pencil")).toBeHidden();
     await expect(boardPage.settings).toBeHidden();
     await boardPage.emitBroadcast({
       type: MutationType.CREATE,
@@ -137,14 +137,14 @@ test.describe("JWT auth and readonly flows", () => {
     await boardPage.gotoBoard("testboard", {
       token: TOKENS.globalEditor,
     });
-    await expect(boardPage.tool("clear")).toHaveCount(0);
+    await expect(boardPage.tool("clear")).toBeHidden();
     await expect(boardPage.menu).toBeVisible();
 
     await boardPage.gotoBoard("testboard", {
       token: TOKENS.boardEditorTestboard,
     });
     await expect(boardPage.menu).toBeVisible();
-    await expect(boardPage.tool("clear")).toHaveCount(0);
+    await expect(boardPage.tool("clear")).toBeHidden();
 
     await boardPage.gotoBoard("testboard123", {
       token: TOKENS.boardEditorTestboard,
@@ -176,8 +176,8 @@ test.describe("public authless flows", () => {
 
     await boardPage.gotoBoard("readonly-public");
     await expect(boardPage.tool("hand")).toBeVisible();
-    await expect(boardPage.tool("pencil")).toHaveCount(0);
-    await expect(boardPage.tool("straight-line")).toHaveCount(0);
+    await expect(boardPage.tool("pencil")).toBeHidden();
+    await expect(boardPage.tool("straight-line")).toBeHidden();
     await expect(boardPage.settings).toBeHidden();
     await boardPage.emitBroadcast({
       type: MutationType.CREATE,

@@ -428,6 +428,8 @@ test("socket boardstate uses the same capability-shaped state as rendered board 
         readonly: false,
         canEdit: true,
         canClear: true,
+        canBan: true,
+        canGrantTemporaryModerator: true,
         canReport: true,
         canWrite: true,
       });
@@ -435,7 +437,7 @@ test("socket boardstate uses the same capability-shaped state as rendered board 
   );
 });
 
-test("presence payloads expose canEdit/canClear for sidebar status", async () => {
+test("presence payloads expose board capabilities for sidebar status", async () => {
   const moderatorSecret = "dddddddddddddddddddddddddddddddd";
   await createSocketScenario(
     {
@@ -470,15 +472,72 @@ test("presence payloads expose canEdit/canClear for sidebar status", async () =>
 
       assert.equal(moderatorPayload.canEdit, true);
       assert.equal(moderatorPayload.canClear, true);
+      assert.equal(moderatorPayload.canBan, true);
+      assert.equal(moderatorPayload.canGrantTemporaryModerator, true);
       assert.equal(viewerPayload.canEdit, true);
       assert.equal(viewerPayload.canClear, false);
+      assert.equal(viewerPayload.canBan, false);
+      assert.equal(viewerPayload.canGrantTemporaryModerator, false);
       assert.deepEqual(moderatorPayload.position, { x: 0, y: 0 });
       assert.deepEqual(viewerPayload.position, { x: 0, y: 0 });
     },
   );
 });
 
-test("report_user ignores canClear targets without disconnecting the moderator", async () => {
+test("permanent moderators grant and revoke every tab for a temporary moderator", async () => {
+  const moderatorSecret = "12121212121212121212121212121212";
+  const targetSecret = "34343434343434343434343434343434";
+  await createSocketScenario(
+    {
+      historyDirPrefix: "wbo-users-temporary-moderator-",
+      config: {
+        BOARD_MODERATORS: new Map([
+          ["temporary-moderator-board", new Set([moderatorSecret])],
+        ]),
+      },
+    },
+    async ({ connect, invoke }) => {
+      /** @param {string} id @param {string} secret */
+      const connectAs = (id, secret) =>
+        connect({
+          id,
+          headers: withUserSecretCookie(secret),
+          query: { board: "temporary-moderator-board", tool: "hand" },
+        });
+      const moderator = await connectAs("temporary-mod-actor", moderatorSecret);
+      const target = await connectAs("temporary-mod-target", targetSecret);
+      const sibling = await connectAs("temporary-mod-sibling", targetSecret);
+
+      /** @param {any} actor @param {number} durationMs */
+      const setTemporaryModerator = (actor, durationMs) =>
+        invoke(actor, "set_temporary_moderator", {
+          socketId: target.socket.id,
+          durationMs,
+        });
+
+      await setTemporaryModerator(moderator, 15 * 60 * 1000);
+      /** @param {any} created */
+      const latestState = (created) =>
+        created.emitted.findLast(
+          (/** @type {{event: string}} */ event) =>
+            event.event === "boardstate",
+        )?.payload;
+      assert.deepEqual(
+        [target, sibling].map((created) => latestState(created)?.canBan),
+        [true, true],
+      );
+      assert.equal(latestState(target)?.canGrantTemporaryModerator, false);
+
+      await setTemporaryModerator(moderator, 0);
+      assert.deepEqual(
+        [target, sibling].map((created) => latestState(created)?.canBan),
+        [false, false],
+      );
+    },
+  );
+});
+
+test("report_user ignores canBan targets without disconnecting the moderator", async () => {
   const moderatorSecret = "fdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfd";
   await createSocketScenario(
     {
@@ -555,6 +614,7 @@ test("presence reflects JWT moderator role, not just configured moderators", asy
           .find((event) => event.payload.socketId === "socket-jwt-mod"),
       ).payload;
       assert.equal(moderatorPayload.canClear, true);
+      assert.equal(moderatorPayload.canBan, true);
       assert.equal(moderatorPayload.canEdit, true);
     },
   );
@@ -636,6 +696,7 @@ test("a banned user reconnects read-only in their own boardstate and in presence
       ).payload;
       assert.equal(moderatorPayload.canEdit, true);
       assert.equal(moderatorPayload.canClear, true);
+      assert.equal(moderatorPayload.canBan, true);
     },
   );
 });
@@ -1956,7 +2017,7 @@ test("same-session sockets keep a shared userId in presence but live payload att
   );
 });
 
-test("report_user logs reporter and reported user details for active board members", async () => {
+test("report_user ignores stale presence capabilities for active board members", async () => {
   await createSocketScenario(
     {
       historyDirPrefix: "wbo-users-report-",
@@ -1993,6 +2054,10 @@ test("report_user logs reporter and reported user details for active board membe
         },
       });
       const reportedEmitCountBeforeReport = reported.emitted.length;
+      // Authorization is live even if an expired grant left stale presentation state.
+      test
+        .getBoardUserMap("board-report")
+        .get(reported.socket.id).canBan = true;
 
       handler(
         reporter,

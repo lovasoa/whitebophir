@@ -111,6 +111,8 @@ test("board capabilities allow clear-capable JWT claims to clear boards", () => 
     readonly: false,
     canEdit: true,
     canClear: true,
+    canBan: true,
+    canGrantTemporaryModerator: true,
     canReport: true,
     canWrite: true,
   });
@@ -201,6 +203,8 @@ test("expiry-aware board state carries one access refresh delay", () => {
     readonly: false,
     canEdit: true,
     canClear: false,
+    canBan: false,
+    canGrantTemporaryModerator: false,
     canReport: true,
     canWrite: true,
   });

@@ -326,6 +326,8 @@ export type AppBoardState = {
   readonly: boolean;
   canEdit?: boolean;
   canClear?: boolean;
+  canBan?: boolean;
+  canGrantTemporaryModerator?: boolean;
   canReport?: boolean;
   canWrite: boolean;
   accessRefreshAfterMs?: number;
@@ -355,6 +357,8 @@ export type ConnectedUser = {
   disconnectedAt?: number;
   canEdit?: boolean;
   canClear?: boolean;
+  canBan?: boolean;
+  canGrantTemporaryModerator?: boolean;
   position: {
     x: number;
     y: number;
@@ -415,6 +419,11 @@ export type ReportUserPayload = {
   moderationRule?: string;
 };
 
+export type SetTemporaryModeratorPayload = {
+  socketId?: string;
+  durationMs?: number;
+};
+
 export type TurnstileSuccessAck = {
   success: true;
   validationWindowMs?: unknown;
@@ -430,6 +439,9 @@ export type TurnstileAck = TurnstileSuccessAck | TurnstileFailureAck;
 export type ClientSocketOutgoingEventArgs = {
   [SocketEvents.BROADCAST]: [message: LiveBoardMessage];
   [SocketEvents.REPORT_USER]: [payload: ReportUserPayload];
+  [SocketEvents.SET_TEMPORARY_MODERATOR]: [
+    payload: SetTemporaryModeratorPayload,
+  ];
   [SocketEvents.TURNSTILE_TOKEN]: [
     token: string,
     ack?: (result: unknown) => void,

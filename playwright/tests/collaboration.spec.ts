@@ -392,6 +392,8 @@ test.describe("collaboration and rate limiting", () => {
           boardPage.waitForSocketConnected(),
           targetBoard.waitForSocketConnected(),
         ]);
+        const targetClear = targetPage.locator("#toolID-clear");
+        await expect(targetClear).toBeHidden();
         await page.evaluate(() => {
           const socket = window.WBOApp.connection.socket as any;
           if (!socket) throw new Error("Missing socket");
@@ -452,6 +454,66 @@ test.describe("collaboration and rate limiting", () => {
         await expect
           .poll(() => page.evaluate(() => window.__reportedUsers?.length ?? 0))
           .toBe(1);
+      } finally {
+        await targetContext.close();
+      }
+    },
+  );
+
+  moderatorPresenceTest(
+    "permanent moderators grant and revoke temporary moderator access",
+    async ({ boardPage, browser, page, server }) => {
+      const boardName = "temporary-moderator-ui";
+      const targetContext = await browser.newContext();
+      const targetPage = await targetContext.newPage();
+      const targetBoard = createBoardPage(targetPage, server);
+
+      try {
+        await Promise.all([
+          boardPage.gotoBoard(boardName, { token: TOKENS.globalModerator }),
+          targetBoard.gotoBoard(boardName, { token: TOKENS.globalEditor }),
+        ]);
+        await Promise.all([
+          boardPage.waitForSocketConnected(),
+          targetBoard.waitForSocketConnected(),
+        ]);
+        const targetClear = targetPage.locator("#toolID-clear");
+        await expect(targetClear).toBeHidden();
+        await boardPage.connectedUsersToggle.click();
+        await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+
+        const remoteRow = page.locator(
+          "#connectedUsersList .connected-user-row:not(.connected-user-row-self)",
+        );
+        const action = remoteRow.locator(".connected-user-friend");
+        await expect(action).toHaveAttribute("aria-label", /Moderate .*/);
+        await action.evaluate((button: HTMLButtonElement) => button.click());
+        await expect(page.getByText("Make temporary moderator")).toBeVisible();
+        await expect(
+          page.locator(
+            ".moderation-action-segmented .moderation-action-choice",
+          ),
+        ).toHaveText(["15m", "24h", "7d"]);
+        await page.getByRole("button", { name: "15m", exact: true }).click();
+
+        await expect(targetClear).toBeVisible();
+        await expect
+          .poll(() =>
+            page.evaluate(
+              () =>
+                Array.from(window.WBOApp.presence.users.values()).find(
+                  (user) =>
+                    user.socketId !== window.WBOApp.connection.socket?.id,
+                )?.canBan,
+            ),
+          )
+          .toBe(true);
+
+        await action.evaluate((button: HTMLButtonElement) => button.click());
+        await page
+          .getByRole("button", { name: /Revoke temporary moderator access/ })
+          .click();
+        await expect(targetClear).toBeHidden();
       } finally {
         await targetContext.close();
       }

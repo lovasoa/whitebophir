@@ -12,7 +12,7 @@ const { logger, tracing } = observability;
 const MODERATION_DISCONNECT_CLOSE_TIMEOUT_MS = 150;
 
 /** @import { AppSocket, ModerationDisconnectPayload, ModerationDisconnectSource, ReportUserPayload, ServerConfig } from "../../types/server-runtime.d.ts" */
-/** @typedef {{socketId: string, userId: string, name: string, ip: string, userSecret: string, userAgent: string, language: string, canClear?: boolean}} BoardUser */
+/** @typedef {{socketId: string, userId: string, name: string, ip: string, userSecret: string, userAgent: string, language: string}} BoardUser */
 /** @typedef {{board: string, reporter_socket: string, reported_socket: string, reporter_ip: string, reported_ip: string, reporter_user_agent: string, reported_user_agent: string, reporter_language: string, reported_language: string, reporter_name: string, reported_name: string, banned: boolean}} UserReportLog */
 /** @typedef {(socketId: string) => AppSocket | undefined} GetActiveSocket */
 /** @typedef {(socket: AppSocket, eventName: string, infos: {[key: string]: any}) => void} CloseSocket */
@@ -112,9 +112,14 @@ function notifyBoardModeratorsOfReport(context, users) {
     reportedName: users.reported.name,
   };
   getBoardUserMap(context.boardName).forEach(function notifyUser(user) {
-    if (!user.canClear) return;
     const socket = context.getActiveSocket(user.socketId);
-    if (!socket) return;
+    if (
+      !socket ||
+      !socket.rooms.has(context.boardName) ||
+      !canBanOnBoard(context.config, context.boardName, socket)
+    ) {
+      return;
+    }
     socket.emit(SocketEvents.USER_REPORTED, payload);
   });
 }
@@ -305,6 +310,27 @@ function handleReportUserMessage(context) {
     return;
   }
 
+  const selfTarget = isSelfReportTarget(
+    resolvedUsers.reporter,
+    resolvedUsers.reported,
+  );
+  if (!canModerate && selfTarget) {
+    ignoreReportedUser("self_report_ignored");
+    return;
+  }
+
+  const reportedSocket = context.getActiveSocket(
+    resolvedUsers.reported.socketId,
+  );
+  if (!reportedSocket || !reportedSocket.rooms.has(boardName)) {
+    ignoreReportedUser("target_not_found");
+    return;
+  }
+  if (!selfTarget && canBanOnBoard(config, boardName, reportedSocket)) {
+    handleReportedModerator(context, boardName, resolvedUsers);
+    return;
+  }
+
   if (canModerate) {
     const banDurationMs = getModeratorBanDurationMs(message);
     const moderationRule = getModeratorRule(message);
@@ -321,16 +347,6 @@ function handleReportUserMessage(context) {
       banDurationMs,
       moderationRule,
     );
-    return;
-  }
-
-  if (isSelfReportTarget(resolvedUsers.reporter, resolvedUsers.reported)) {
-    ignoreReportedUser("self_report_ignored");
-    return;
-  }
-
-  if (resolvedUsers.reported.canClear === true) {
-    handleReportedModerator(context, boardName, resolvedUsers);
     return;
   }
 

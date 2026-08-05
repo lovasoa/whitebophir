@@ -3,6 +3,7 @@ import type {
   ConnectedUser,
   ModerationDisconnectPayload,
   SequencedMutationBroadcast,
+  SetTemporaryModeratorPayload,
 } from "./app-runtime";
 
 export type ServerConfig = typeof import("../server/configuration.mjs");
@@ -149,7 +150,11 @@ export type ReportUserPayload = {
   moderationRule?: string;
 };
 
-export type { ModerationDisconnectPayload, ModerationDisconnectSource };
+export type {
+  ModerationDisconnectPayload,
+  ModerationDisconnectSource,
+  SetTemporaryModeratorPayload,
+};
 
 export type ValidationStatus = { ok: true } | { ok: false; reason: string };
 

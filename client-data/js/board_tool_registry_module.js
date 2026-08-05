@@ -106,6 +106,7 @@ export class ToolRegistryModule {
     this.bootPromises =
       /** @type {import("../../types/app-runtime").ToolNameMap<import("../../types/app-runtime").MountedAppToolPromise>} */ ({});
     this.bootedNames = new Set();
+    this.lazyBootEnabled = false;
     this.pendingMessages = /** @type {PendingMessages} */ ({});
   }
 
@@ -246,7 +247,7 @@ export class ToolRegistryModule {
   shouldDisplayTool(toolName) {
     if (getToolButton(toolName) === null) return false;
     // A tool is only shown when the current board state grants its capability,
-    // mirroring the server's getVisibleTools. This keeps read-only users (e.g.
+    // mirroring the server-rendered initial visibility. This keeps read-only users (e.g.
     // banned ones) from seeing or activating tools they cannot use.
     return boardStateGrantsCapability(
       Tools.access.boardState,
@@ -274,6 +275,22 @@ export class ToolRegistryModule {
       !this.mounted[toolName] || this.shouldDisableTool(toolName);
     toolElem.classList.toggle("disabledTool", disabled);
     toolElem.setAttribute("aria-disabled", disabled ? "true" : "false");
+  }
+
+  syncRenderedToolAvailability() {
+    this.getRenderedToolNames().forEach((toolName) => {
+      const toolElem = getToolButton(toolName);
+      if (!toolElem) return;
+      const visible = this.shouldDisplayTool(toolName);
+      toolElem.hidden = !visible;
+      if (!visible) return;
+      const icon = toolElem.querySelector(".tool-icon");
+      if (icon instanceof HTMLImageElement && icon.dataset.iconUrl) {
+        icon.src = icon.dataset.iconUrl;
+        delete icon.dataset.iconUrl;
+      }
+      if (this.lazyBootEnabled) void this.bootTool(toolName);
+    });
   }
 
   /** @param {boolean} force */
@@ -329,7 +346,11 @@ export class ToolRegistryModule {
    * @returns {Promise<void>}
    */
   async bootInitialTools(options) {
-    const visibleToolNames = new Set(this.getRenderedToolNames());
+    const visibleToolNames = new Set(
+      this.getRenderedToolNames().filter((toolName) =>
+        this.shouldDisplayTool(toolName),
+      ),
+    );
     for (const toolName of options.criticalToolNames) {
       if (!visibleToolNames.has(toolName)) continue;
       await this.bootTool(toolName);
@@ -351,8 +372,14 @@ export class ToolRegistryModule {
    * @returns {Promise<void>}
    */
   scheduleLazyBootRenderedTools(skippedToolNames) {
+    this.lazyBootEnabled = true;
     return this.scheduleLazyBootToolNames(
-      [...this.getRenderedToolNames(), "cursor"],
+      [
+        ...this.getRenderedToolNames().filter((toolName) =>
+          this.shouldDisplayTool(toolName),
+        ),
+        "cursor",
+      ],
       skippedToolNames,
     );
   }

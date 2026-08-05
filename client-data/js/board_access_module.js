@@ -21,6 +21,14 @@ export class AccessModule {
     return this.boardState.canClear;
   }
 
+  get canBan() {
+    return this.boardState.canBan === true;
+  }
+
+  get canGrantTemporaryModerator() {
+    return this.boardState.canGrantTemporaryModerator === true;
+  }
+
   get canReport() {
     return this.boardState.canReport !== false;
   }
@@ -34,7 +42,6 @@ export class AccessModule {
     const Tools = this.getTools();
     this.boardState = boardState;
     Tools.connection.scheduleAccessRefresh(boardState.accessRefreshAfterMs);
-
     // Hide editing affordances whenever the user cannot edit (a read-only board,
     // or a banned user on a writable one). The drawing tools themselves are
     // gated by shouldDisplayTool, which is capability-aware.
@@ -42,19 +49,11 @@ export class AccessModule {
     const settings = document.getElementById("settings");
     if (settings) settings.style.display = hideEditingTools ? "none" : "";
 
-    Object.keys(Tools.toolRegistry.mounted || {}).forEach((toolName) => {
-      const toolElem = document.getElementById(`toolID-${toolName}`);
-      if (!toolElem) return;
-      toolElem.style.display = Tools.toolRegistry.shouldDisplayTool(toolName)
-        ? ""
-        : "none";
-    });
-
+    Tools.toolRegistry.syncRenderedToolAvailability();
     Tools.toolRegistry.syncDrawToolAvailability(true);
     Tools.presence.schedulePresenceRender();
 
     if (
-      hideEditingTools &&
       Tools.toolRegistry.current &&
       !Tools.toolRegistry.shouldDisplayTool(Tools.toolRegistry.current.name) &&
       Tools.toolRegistry.mounted.hand

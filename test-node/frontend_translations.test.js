@@ -49,6 +49,7 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
     "keyboard shortcut",
     "loading",
     "mark_friend",
+    "make_temporary_moderator",
     "mousewheel",
     "moderation_acknowledge",
     "moderation_ban_body",
@@ -79,6 +80,7 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
     "relative_minutes_short",
     "relative_seconds_short",
     "remove_friend",
+    "revoke_temporary_moderator",
     "report",
     "report_user",
     "rules_drawings_body",
@@ -151,6 +153,7 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
       "ban_user",
       "mark_friend",
       "remove_friend",
+      "revoke_temporary_moderator",
       "report_user",
     ]) {
       assert.match(
@@ -180,7 +183,9 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
         "peer_report_disconnect_body",
         "ban_user",
         "mark_friend",
+        "make_temporary_moderator",
         "remove_friend",
+        "revoke_temporary_moderator",
         "report_user",
         "report_sent",
         "ban_applied",

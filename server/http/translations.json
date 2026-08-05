@@ -105,7 +105,9 @@
     "moderation_action_title": "إشراف على {name}",
     "moderation_action_message": "اختر مدة وحدد القاعدة التي تم خرقها.",
     "moderation_action_duration": "المدة",
-    "moderation_action_rule": "القاعدة المخالفة"
+    "moderation_action_rule": "القاعدة المخالفة",
+    "make_temporary_moderator": "تعيين مشرف مؤقت",
+    "revoke_temporary_moderator": "إلغاء إشراف {name} المؤقت"
   },
   "be": {
     "white-out": "Замазка",
@@ -213,7 +215,9 @@
     "moderation_action_title": "Мадэрацыя {name}",
     "moderation_action_message": "Выберыце тэрмін і пазначце, якое правіла было парушана.",
     "moderation_action_duration": "Тэрмін",
-    "moderation_action_rule": "Парушанае правіла"
+    "moderation_action_rule": "Парушанае правіла",
+    "make_temporary_moderator": "Прызначыць часовага мадэратара",
+    "revoke_temporary_moderator": "Скасаваць часовыя правы мадэратара для {name}"
   },
   "ca": {
     "white-out": "Corrector blanc",
@@ -321,7 +325,9 @@
     "moderation_action_title": "Moderar {name}",
     "moderation_action_message": "Trieu una durada i seleccioneu la norma que s'ha infringit.",
     "moderation_action_duration": "Durada",
-    "moderation_action_rule": "Norma infringida"
+    "moderation_action_rule": "Norma infringida",
+    "make_temporary_moderator": "Fes-lo moderador temporal",
+    "revoke_temporary_moderator": "Revoca la moderació temporal de {name}"
   },
   "de": {
     "board_name_placeholder": "Name des Whiteboards…",
@@ -429,7 +435,9 @@
     "moderation_action_title": "{name} moderieren",
     "moderation_action_message": "Wähle eine Dauer und die gebrochene Regel aus.",
     "moderation_action_duration": "Dauer",
-    "moderation_action_rule": "Gebrochene Regel"
+    "moderation_action_rule": "Gebrochene Regel",
+    "make_temporary_moderator": "Temporären Moderator ernennen",
+    "revoke_temporary_moderator": "Temporäre Moderationsrechte von {name} entziehen"
   },
   "en": {
     "white-out": "White-out",
@@ -537,7 +545,9 @@
     "moderation_action_title": "Moderate {name}",
     "moderation_action_message": "Choose a duration and select the rule that was broken.",
     "moderation_action_duration": "Duration",
-    "moderation_action_rule": "Rule broken"
+    "moderation_action_rule": "Rule broken",
+    "make_temporary_moderator": "Make temporary moderator",
+    "revoke_temporary_moderator": "Revoke temporary moderator access from {name}"
   },
   "es": {
     "board_name_placeholder": "Nombre de la pizarra …",
@@ -645,7 +655,9 @@
     "moderation_action_title": "Moderar a {name}",
     "moderation_action_message": "Elige una duración y selecciona la norma que se ha infringido.",
     "moderation_action_duration": "Duración",
-    "moderation_action_rule": "Norma infringida"
+    "moderation_action_rule": "Norma infringida",
+    "make_temporary_moderator": "Nombrar moderador temporal",
+    "revoke_temporary_moderator": "Revocar la moderación temporal de {name}"
   },
   "fr": {
     "board_name_placeholder": "Nom du tableau…",
@@ -752,7 +764,9 @@
     "moderation_action_title": "Modérer {name}",
     "moderation_action_message": "Choisissez une durée et sélectionnez la règle qui a été enfreinte.",
     "moderation_action_duration": "Durée",
-    "moderation_action_rule": "Règle enfreinte"
+    "moderation_action_rule": "Règle enfreinte",
+    "make_temporary_moderator": "Nommer modérateur temporaire",
+    "revoke_temporary_moderator": "Retirer les droits de modération temporaires de {name}"
   },
   "hu": {
     "white-out": "Lefedő",
@@ -860,7 +874,9 @@
     "moderation_action_title": "{name} moderálása",
     "moderation_action_message": "Válasszon időtartamot, és jelölje meg a megszegett szabályt.",
     "moderation_action_duration": "Időtartam",
-    "moderation_action_rule": "Megszegett szabály"
+    "moderation_action_rule": "Megszegett szabály",
+    "make_temporary_moderator": "Kinevezés ideiglenes moderátornak",
+    "revoke_temporary_moderator": "{name} ideiglenes moderátori jogainak visszavonása"
   },
   "id": {
     "white-out": "Cairan koreksi",
@@ -968,7 +984,9 @@
     "moderation_action_title": "Moderasi {name}",
     "moderation_action_message": "Pilih durasi dan pilih aturan yang dilanggar.",
     "moderation_action_duration": "Durasi",
-    "moderation_action_rule": "Aturan yang dilanggar"
+    "moderation_action_rule": "Aturan yang dilanggar",
+    "make_temporary_moderator": "Jadikan moderator sementara",
+    "revoke_temporary_moderator": "Cabut akses moderator sementara {name}"
   },
   "it": {
     "board_name_placeholder": "Nome della lavagna…",
@@ -1076,7 +1094,9 @@
     "moderation_action_title": "Moderare {name}",
     "moderation_action_message": "Scegli una durata e seleziona la regola che è stata infranta.",
     "moderation_action_duration": "Durata",
-    "moderation_action_rule": "Regola infranta"
+    "moderation_action_rule": "Regola infranta",
+    "make_temporary_moderator": "Nomina moderatore temporaneo",
+    "revoke_temporary_moderator": "Revoca i permessi di moderatore temporaneo a {name}"
   },
   "ja": {
     "board_name_placeholder": "ボードの名前",
@@ -1184,7 +1204,9 @@
     "moderation_action_title": "{name} をモデレート",
     "moderation_action_message": "期間を選択し、違反されたルールを選んでください。",
     "moderation_action_duration": "期間",
-    "moderation_action_rule": "違反されたルール"
+    "moderation_action_rule": "違反されたルール",
+    "make_temporary_moderator": "一時モデレーターにする",
+    "revoke_temporary_moderator": "{name} の一時モデレーター権限を取り消す"
   },
   "my": {
     "board_name_placeholder": "ဝှိုက်ဘုတ်အမည် ... ",
@@ -1292,7 +1314,9 @@
     "moderation_action_title": "{name} ကို စိစစ်ပါ",
     "moderation_action_message": "ကြာချိန်တစ်ခုရွေးပြီး ချိုးဖောက်ခံရသော စည်းမျဉ်းကို ရွေးချယ်ပါ။",
     "moderation_action_duration": "ကြာချိန်",
-    "moderation_action_rule": "ချိုးဖောက်ခံရသော စည်းမျဉ်း"
+    "moderation_action_rule": "ချိုးဖောက်ခံရသော စည်းမျဉ်း",
+    "make_temporary_moderator": "ယာယီကြီးကြပ်သူ သတ်မှတ်ရန်",
+    "revoke_temporary_moderator": "{name} ၏ ယာယီကြီးကြပ်ခွင့်ကို ရုပ်သိမ်းရန်"
   },
   "pt": {
     "white-out": "Branquejar",
@@ -1400,7 +1424,9 @@
     "moderation_action_title": "Moderar {name}",
     "moderation_action_message": "Escolha uma duração e selecione a regra que foi violada.",
     "moderation_action_duration": "Duração",
-    "moderation_action_rule": "Regra violada"
+    "moderation_action_rule": "Regra violada",
+    "make_temporary_moderator": "Nomear moderador temporário",
+    "revoke_temporary_moderator": "Revogar a moderação temporária de {name}"
   },
   "ru": {
     "board_name_placeholder": "Название доски",
@@ -1508,7 +1534,9 @@
     "moderation_action_title": "Модерация {name}",
     "moderation_action_message": "Выберите длительность и укажите, какое правило было нарушено.",
     "moderation_action_duration": "Длительность",
-    "moderation_action_rule": "Нарушенное правило"
+    "moderation_action_rule": "Нарушенное правило",
+    "make_temporary_moderator": "Назначить временным модератором",
+    "revoke_temporary_moderator": "Отозвать временные права модератора у {name}"
   },
   "sw": {
     "board_name_placeholder": "Jina la ubao mweupe ...",
@@ -1616,7 +1644,9 @@
     "moderation_action_title": "Simamia {name}",
     "moderation_action_message": "Chagua muda na uchague sheria iliyovunjwa.",
     "moderation_action_duration": "Muda",
-    "moderation_action_rule": "Sheria iliyovunjwa"
+    "moderation_action_rule": "Sheria iliyovunjwa",
+    "make_temporary_moderator": "Teua msimamizi wa muda",
+    "revoke_temporary_moderator": "Ondoa ruhusa za muda za usimamizi za {name}"
   },
   "th": {
     "board_name_placeholder": "ชื่อไวท์บอร์ด ...",
@@ -1724,7 +1754,9 @@
     "moderation_action_title": "ดูแล {name}",
     "moderation_action_message": "เลือกระยะเวลาและเลือกกฎที่ถูกละเมิด",
     "moderation_action_duration": "ระยะเวลา",
-    "moderation_action_rule": "กฎที่ถูกละเมิด"
+    "moderation_action_rule": "กฎที่ถูกละเมิด",
+    "make_temporary_moderator": "แต่งตั้งผู้ดูแลชั่วคราว",
+    "revoke_temporary_moderator": "ถอนสิทธิ์ผู้ดูแลชั่วคราวของ {name}"
   },
   "uk": {
     "white-out": "Коректор",
@@ -1832,7 +1864,9 @@
     "moderation_action_title": "Модерувати {name}",
     "moderation_action_message": "Виберіть тривалість і вкажіть, яке правило було порушено.",
     "moderation_action_duration": "Тривалість",
-    "moderation_action_rule": "Порушене правило"
+    "moderation_action_rule": "Порушене правило",
+    "make_temporary_moderator": "Призначити тимчасовим модератором",
+    "revoke_temporary_moderator": "Відкликати тимчасові права модератора у {name}"
   },
   "vi": {
     "white-out": "Bút xóa",
@@ -1940,7 +1974,9 @@
     "moderation_action_title": "Kiểm duyệt {name}",
     "moderation_action_message": "Chọn thời lượng và chọn quy tắc đã bị vi phạm.",
     "moderation_action_duration": "Thời lượng",
-    "moderation_action_rule": "Quy tắc bị vi phạm"
+    "moderation_action_rule": "Quy tắc bị vi phạm",
+    "make_temporary_moderator": "Đặt làm người kiểm duyệt tạm thời",
+    "revoke_temporary_moderator": "Thu hồi quyền kiểm duyệt tạm thời của {name}"
   },
   "zh-CN": {
     "board_name_placeholder": "白板名称",
@@ -2048,7 +2084,9 @@
     "moderation_action_title": "管理 {name}",
     "moderation_action_message": "选择一个持续时间，然后选择被违反的规则。",
     "moderation_action_duration": "持续时间",
-    "moderation_action_rule": "违反的规则"
+    "moderation_action_rule": "违反的规则",
+    "make_temporary_moderator": "设为临时管理员",
+    "revoke_temporary_moderator": "撤销 {name} 的临时管理员权限"
   },
   "zh-TW": {
     "board_name_placeholder": "白板名稱",
@@ -2156,7 +2194,9 @@
     "moderation_action_title": "管理 {name}",
     "moderation_action_message": "選擇一個持續時間，然後選擇被違反的規則。",
     "moderation_action_duration": "持續時間",
-    "moderation_action_rule": "違反的規則"
+    "moderation_action_rule": "違反的規則",
+    "make_temporary_moderator": "設為臨時管理員",
+    "revoke_temporary_moderator": "撤銷 {name} 的臨時管理員權限"
   },
   "pl": {
     "board_name_placeholder": "Nazwa tablicy",
@@ -2264,6 +2304,8 @@
     "moderation_action_title": "Moderuj {name}",
     "moderation_action_message": "Wybierz czas trwania i wskaż, która zasada została złamana.",
     "moderation_action_duration": "Czas trwania",
-    "moderation_action_rule": "Złamana zasada"
+    "moderation_action_rule": "Złamana zasada",
+    "make_temporary_moderator": "Nadaj tymczasowe uprawnienia",
+    "revoke_temporary_moderator": "Odbierz użytkownikowi {name} tymczasowe uprawnienia moderatora"
   }
 }

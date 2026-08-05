@@ -18,6 +18,7 @@ import { requestScheme } from "../http/observation.mjs";
 import { publicPath } from "../http/request_url.mjs";
 import { getEditBanExpiresAt } from "../socket/bans.mjs";
 import { resolveRequestClientIpSafe } from "../socket/policy.mjs";
+import { getTemporaryModeratorExpiresAt } from "../socket/temporary_moderators.mjs";
 
 /** @import { HttpRequest, HttpResponse, ObservedHttpRequest, ServerConfig } from "../../types/server-runtime.d.ts" */
 
@@ -208,6 +209,8 @@ function boardPermissionsForRequest(ctx, boardName) {
         resolveRequestClientIpSafe(config, ctx.request),
         Date.now(),
       ),
+    getTemporaryModeratorExpiresAt: () =>
+      getTemporaryModeratorExpiresAt(boardName, userSecret, Date.now()),
   });
 }
 

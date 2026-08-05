@@ -15,9 +15,9 @@ import {
 } from "./request.mjs";
 
 /** @import { AppSocket, ConnectedUserPayload, NormalizedMessageData, ServerConfig } from "../../types/server-runtime.d.ts" */
-/** @typedef {{socketId: string, userId: string, userSecret: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number, joinedAt: number, position: {x: number, y: number}, canEdit: boolean, canClear: boolean}} BoardUser */
+/** @typedef {{socketId: string, userId: string, userSecret: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number, joinedAt: number, position: {x: number, y: number}, canEdit: boolean, canClear: boolean, canBan: boolean, canGrantTemporaryModerator: boolean}} BoardUser */
 /** @typedef {(socket: AppSocket, boardName: string, config: ServerConfig) => string} ResolveClientIp */
-/** @typedef {{canEdit: boolean, canClear: boolean}} UserCapabilities */
+/** @typedef {{canEdit?: boolean, canClear?: boolean, canBan?: boolean, canGrantTemporaryModerator?: boolean}} UserCapabilities */
 
 /** @type {Map<string, Map<string, BoardUser>>} */
 const boardUsers = new Map();
@@ -80,8 +80,11 @@ function buildBoardUserRecord(
     lastSeen: now || Date.now(),
     joinedAt: now || Date.now(),
     position: { x: 0, y: 0 },
-    canEdit: capabilities.canEdit,
-    canClear: capabilities.canClear,
+    canEdit: capabilities.canEdit === true,
+    canClear: capabilities.canClear === true,
+    canBan: capabilities.canBan === true,
+    canGrantTemporaryModerator:
+      capabilities.canGrantTemporaryModerator === true,
   };
 }
 
@@ -133,6 +136,8 @@ function serializeBoardUser(user) {
     position: user.position,
     canEdit: user.canEdit,
     canClear: user.canClear,
+    canBan: user.canBan,
+    canGrantTemporaryModerator: user.canGrantTemporaryModerator,
   };
 }
 
@@ -188,6 +193,18 @@ function emitUserJoinedToBoard(socket, boardName, user) {
   socket.broadcast
     .to(boardName)
     .emit(SocketEvents.USER_JOINED, serializeBoardUser(user));
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @param {BoardUser} user
+ * @returns {void}
+ */
+function emitUserUpdatedToBoard(socket, boardName, user) {
+  const payload = serializeBoardUser(user);
+  socket.emit(SocketEvents.USER_JOINED, payload);
+  socket.broadcast.to(boardName).emit(SocketEvents.USER_JOINED, payload);
 }
 
 /**
@@ -271,6 +288,7 @@ export {
   clearBoardUsers,
   emitBoardUsersToSocket,
   emitUserJoinedToBoard,
+  emitUserUpdatedToBoard,
   ensureBoardUser,
   getBoardUser,
   getBoardUserMap,
