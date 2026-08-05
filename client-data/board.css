@@ -772,7 +772,7 @@ select {
 
 .connected-user-row {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) 49px;
+  grid-template-columns: 36px minmax(0, 1fr) 74px;
   align-items: center;
   gap: 7px;
   min-height: 34px;
@@ -866,8 +866,8 @@ select {
   display: inline-flex;
   align-items: center;
   justify-content: end;
-  width: 49px;
-  min-width: 49px;
+  width: 74px;
+  min-width: 74px;
   justify-self: end;
   gap: 1px;
 }

@@ -127,17 +127,18 @@
  *   title: string,
  *   message: string,
  *   durationLabel: string,
- *   ruleLabel: string,
- *   rules: ModerationActionRuleOption[],
+ *   ruleLabel?: string,
+ *   rules?: ModerationActionRuleOption[],
  *   durations: ModerationActionDurationOption[],
  *   cancelLabel: string,
- *   rulesLinkLabel: string,
- *   rulesHref: string,
+ *   rulesLinkLabel?: string,
+ *   rulesHref?: string,
+ *   confirmLabel?: string,
  * }} ModerationActionDialogOptions
  */
 
 /**
- * @typedef {{moderationRule: string, banDurationMs: number}} ModerationAction
+ * @typedef {{moderationRule?: string, banDurationMs: number}} ModerationAction
  */
 
 /**
@@ -704,16 +705,14 @@ export function showModerationActionDialog(options) {
         durationChoices.appendChild(button);
       }
 
-      const ruleHeading = document.createElement("div");
-      ruleHeading.className = "moderation-action-section-title";
-      ruleHeading.textContent = options.ruleLabel;
-
-      const ruleChoices = document.createElement("div");
-      ruleChoices.className = "moderation-action-rules";
-
       /** @type {HTMLButtonElement[]} */
       const ruleButtons = [];
-      for (const rule of options.rules) {
+      const ruleHeading = document.createElement("div");
+      ruleHeading.className = "moderation-action-section-title";
+      ruleHeading.textContent = options.ruleLabel || "";
+      const ruleChoices = document.createElement("div");
+      ruleChoices.className = "moderation-action-rules";
+      for (const rule of options.rules || []) {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "moderation-action-rule";
@@ -742,12 +741,15 @@ export function showModerationActionDialog(options) {
       const footer = document.createElement("div");
       footer.className = "moderation-action-footer";
 
-      const rulesLink = document.createElement("a");
-      rulesLink.className = "moderation-action-rules-link";
-      rulesLink.href = options.rulesHref;
-      rulesLink.target = "_blank";
-      rulesLink.rel = "noopener";
-      rulesLink.textContent = options.rulesLinkLabel;
+      if (options.rulesHref && options.rulesLinkLabel) {
+        const rulesLink = document.createElement("a");
+        rulesLink.className = "moderation-action-rules-link";
+        rulesLink.href = options.rulesHref;
+        rulesLink.target = "_blank";
+        rulesLink.rel = "noopener";
+        rulesLink.textContent = options.rulesLinkLabel;
+        footer.appendChild(rulesLink);
+      }
 
       const cancel = document.createElement("button");
       cancel.type = "button";
@@ -756,19 +758,25 @@ export function showModerationActionDialog(options) {
       cancel.textContent = options.cancelLabel;
       cancel.addEventListener("click", () => settle(null));
 
-      footer.append(rulesLink, cancel);
-      dialog.append(
-        title,
-        message,
-        durationHeading,
-        durationChoices,
-        status,
-        ruleHeading,
-        ruleChoices,
-        footer,
-      );
+      footer.appendChild(cancel);
+      let confirm = null;
+      if (options.confirmLabel) {
+        confirm = document.createElement("button");
+        confirm.type = "button";
+        confirm.className =
+          "wbo-dialog-button wbo-dialog-button-primary moderation-action-confirm";
+        confirm.textContent = options.confirmLabel;
+        confirm.addEventListener("click", () =>
+          settle({ banDurationMs: selectedDurationMs }),
+        );
+        footer.appendChild(confirm);
+      }
+
+      dialog.append(title, message, durationHeading, durationChoices, status);
+      if (ruleButtons.length > 0) dialog.append(ruleHeading, ruleChoices);
+      dialog.appendChild(footer);
       syncDurationState(selectedDurationMs);
-      ruleButtons[0]?.focus();
+      (ruleButtons[0] || confirm)?.focus();
     },
   );
 }

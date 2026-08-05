@@ -371,6 +371,7 @@ export type ConnectedUser = {
   reported?: boolean;
   reportPending?: boolean;
   reportBanned?: boolean;
+  temporaryModeratorPending?: boolean;
   friend?: boolean;
   pulseTimeoutId?: number | null;
   removeTimeoutId?: number | null;

@@ -151,14 +151,14 @@ test("connected user display name marks moderators consistently", async () => {
   assert.equal(
     getConnectedUserDisplayName({
       ...createConnectedUser(),
-      canClear: true,
+      canBan: true,
     }),
     "\u{1F338} User 1",
   );
   assert.equal(
     getConnectedUserDisplayName({
       ...createConnectedUser(),
-      canClear: false,
+      canBan: false,
     }),
     "User 1",
   );
@@ -166,9 +166,31 @@ test("connected user display name marks moderators consistently", async () => {
     getConnectedUserDisplayName({
       ...createConnectedUser(),
       friend: true,
-      canClear: true,
+      canBan: true,
     }),
     "\u2764\uFE0F \u{1F338} User 1",
+  );
+});
+
+test("temporary moderators reuse positive ban duration presets", async () => {
+  const { getTemporaryModeratorDurationOptions } = await import(
+    "../client-data/js/board_presence_module.js"
+  );
+  const options = getTemporaryModeratorDurationOptions(
+    /** @type {any} */ ({
+      i18n: {
+        t: (/** @type {string} */ key) => key,
+        format: (
+          /** @type {string} */ key,
+          /** @type {{count: string}} */ values,
+        ) => `${values.count}${key}`,
+      },
+    }),
+  );
+
+  assert.deepEqual(
+    options.map((option) => option.durationMs),
+    [15 * 60 * 1000, 24 * 60 * 60 * 1000, 7 * 24 * 60 * 60 * 1000],
   );
 });
 

@@ -436,6 +436,26 @@ const BAN_DURATION_OPTIONS = [
   },
 ];
 
+/**
+ * @param {AppToolsState} Tools
+ * @returns {{label: string, durationMs: number, variant: "secondary" | "warning" | "danger"}[]}
+ */
+export function getTemporaryModeratorDurationOptions(Tools) {
+  return BAN_DURATION_OPTIONS.filter((option) => option.durationMs > 0).map(
+    (option) => ({
+      label:
+        "labelKey" in option
+          ? Tools.i18n.t(option.labelKey)
+          : formatShortRelativeTime(
+              Tools,
+              getDurationPartState(option.count, option.unit),
+            ),
+      durationMs: option.durationMs,
+      variant: option.variant,
+    }),
+  );
+}
+
 /** @param {ConnectedUser} user */
 function clearConnectedUserTimers(user) {
   if (user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
@@ -541,7 +561,7 @@ function schedulePresenceStaleTick(presence) {
 export function getConnectedUserDisplayName(user) {
   const markers = [];
   if (user.friend === true) markers.push("\u2764\uFE0F");
-  if (user.canClear === true) markers.push("\u{1F338}");
+  if (user.canBan === true) markers.push("\u{1F338}");
   return markers.length > 0 ? `${markers.join(" ")} ${user.name}` : user.name;
 }
 
@@ -756,10 +776,8 @@ function getConnectedUserFocusHash(Tools, user) {
  * @returns {string}
  */
 function getReportActionLabel(Tools, name) {
-  // The server currently treats clear-capable moderators as report-to-ban users.
-  // Keep this UI-only label aligned without broadening the capability model here.
   return Tools.i18n.format(
-    Tools.access.canClear === true ? "ban_user" : "report_user",
+    Tools.access.canBan === true ? "ban_user" : "report_user",
     { name },
   );
 }
@@ -947,11 +965,37 @@ function updateConnectedUserRow(getTools, row, user) {
       ? false
       : Tools.access.canReport === false ||
         currentIdentityUser ||
-        user.canClear === true ||
+        user.canBan === true ||
         !!user.disconnectedAt;
     report.disabled =
       currentIdentityUser || !!user.reported || !!user.reportPending;
     report.classList.toggle("connected-user-report-latched", !!user.reported);
+  }
+
+  const temporaryModerator = /** @type {HTMLButtonElement | null} */ (
+    row.querySelector(".connected-user-temporary-moderator")
+  );
+  if (temporaryModerator) {
+    const currentIdentityUser = isCurrentIdentityUser(
+      Tools,
+      Tools.presence.users,
+      user,
+    );
+    const activeGrant = Number(user.temporaryModeratorExpiresAt) > Date.now();
+    const label = Tools.i18n.format(
+      activeGrant ? "revoke_temporary_moderator" : "make_temporary_moderator",
+      { name: user.name },
+    );
+    temporaryModerator.textContent = activeGrant ? "\u2212" : "+";
+    temporaryModerator.title = label;
+    temporaryModerator.setAttribute("aria-label", label);
+    temporaryModerator.hidden =
+      Tools.access.canGrantTemporaryModerator !== true ||
+      currentIdentityUser ||
+      user.canGrantTemporaryModerator === true ||
+      (!activeGrant && user.canBan === true) ||
+      !!user.disconnectedAt;
+    temporaryModerator.disabled = !!user.temporaryModeratorPending;
   }
 }
 
@@ -1023,6 +1067,63 @@ function createConnectedUserRow(getTools, user, presence) {
   actions.className = "connected-user-actions";
   actions.appendChild(friend);
 
+  const temporaryModerator = document.createElement("button");
+  temporaryModerator.type = "button";
+  temporaryModerator.className =
+    "connected-user-action connected-user-temporary-moderator";
+  temporaryModerator.addEventListener("click", (evt) => {
+    evt.preventDefault();
+    evt.stopPropagation();
+    const Tools = getTools();
+    const socket = Tools.connection.socket;
+    if (!socket || !row.dataset.socketId) return;
+    const connectedUser = presence.users.get(row.dataset.socketId);
+    if (
+      !connectedUser ||
+      Tools.access.canGrantTemporaryModerator !== true ||
+      connectedUser.temporaryModeratorPending ||
+      isCurrentIdentityUser(Tools, presence.users, connectedUser)
+    ) {
+      return;
+    }
+
+    const activeGrant =
+      Number(connectedUser.temporaryModeratorExpiresAt) > Date.now();
+    /** @param {number} durationMs */
+    const submit = (durationMs) => {
+      connectedUser.temporaryModeratorPending = true;
+      updateConnectedUserRow(getTools, row, connectedUser);
+      socket.emit(
+        SocketEvents.SET_TEMPORARY_MODERATOR,
+        { socketId: connectedUser.socketId, durationMs },
+        () => {
+          connectedUser.temporaryModeratorPending = false;
+          updateConnectedUserRow(getTools, row, connectedUser);
+        },
+      );
+    };
+    if (activeGrant) {
+      submit(0);
+      return;
+    }
+
+    void Tools.ui
+      .showModerationActionDialog({
+        title: Tools.i18n.format("temporary_moderator_action_title", {
+          name: connectedUser.name,
+        }),
+        message: Tools.i18n.t("temporary_moderator_action_message"),
+        durationLabel: Tools.i18n.t("moderation_action_duration"),
+        durations: getTemporaryModeratorDurationOptions(Tools),
+        confirmLabel: Tools.i18n.t("make_temporary_moderator_confirm"),
+        cancelLabel: Tools.i18n.t("Cancel"),
+      })
+      .then((selection) => {
+        if (selection !== null) submit(selection.banDurationMs);
+      });
+  });
+  actions.appendChild(temporaryModerator);
+
   const report = document.createElement("button");
   report.type = "button";
   report.className = "connected-user-action connected-user-report";
@@ -1036,7 +1137,7 @@ function createConnectedUserRow(getTools, user, presence) {
     if (
       !connectedUser ||
       Tools.access.canReport === false ||
-      connectedUser.canClear === true ||
+      connectedUser.canBan === true ||
       isCurrentIdentityUser(Tools, presence.users, connectedUser) ||
       connectedUser.reported === true ||
       connectedUser.reportPending === true
