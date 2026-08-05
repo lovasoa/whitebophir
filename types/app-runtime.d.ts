@@ -360,7 +360,7 @@ export type ConnectedUser = {
   canClear?: boolean;
   canBan?: boolean;
   canGrantTemporaryModerator?: boolean;
-  temporaryModeratorExpiresAt?: number;
+  temporaryModeratorExpiresAt?: number | null;
   position: {
     x: number;
     y: number;

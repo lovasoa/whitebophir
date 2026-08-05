@@ -264,6 +264,15 @@ Moderator warning/ban actions do not emit `user_reported`; warning actions only
 disconnect the reported user, while ban actions also ban the reported secret and
 IP.
 
+Permanent moderators can send `set_temporary_moderator` with
+`{ "socketId": "<target socket id>", "durationMs": <milliseconds> }` and an
+acknowledgement callback. Positive durations grant the target's secret-derived
+identity the full moderator permission bundle for up to one week; `0` revokes
+the grant. Temporary moderators cannot grant or revoke moderator access. Grants
+are board-scoped, process-local, shared by tabs with the same non-empty user
+secret, and lost on restart. Successful changes refresh `boardstate` and
+presence for every matching active socket.
+
 Client write messages normally have top-level `tool` and `type` fields.
 Tool-owned batches have top-level `tool` plus `_children`; each child carries its
 own mutation `type`. Normal socket batches are capped by `WBO_MAX_CHILDREN`, but

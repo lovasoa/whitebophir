@@ -1097,8 +1097,10 @@ function createConnectedUserRow(getTools, user, presence) {
         SocketEvents.SET_TEMPORARY_MODERATOR,
         { socketId: connectedUser.socketId, durationMs },
         () => {
-          connectedUser.temporaryModeratorPending = false;
-          updateConnectedUserRow(getTools, row, connectedUser);
+          const current = presence.users.get(connectedUser.socketId);
+          if (!current) return;
+          current.temporaryModeratorPending = false;
+          updateConnectedUserRow(getTools, row, current);
         },
       );
     };

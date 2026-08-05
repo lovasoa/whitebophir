@@ -142,9 +142,7 @@ function serializeBoardUser(user) {
     canClear: user.canClear,
     canBan: user.canBan,
     canGrantTemporaryModerator: user.canGrantTemporaryModerator,
-    ...(user.temporaryModeratorExpiresAt === undefined
-      ? {}
-      : { temporaryModeratorExpiresAt: user.temporaryModeratorExpiresAt }),
+    temporaryModeratorExpiresAt: user.temporaryModeratorExpiresAt || null,
   };
 }
 

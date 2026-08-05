@@ -100,6 +100,10 @@ WBO evaluates board access as three capabilities:
 - `canEdit`: the user may send normal board changes.
 - `canClear`: the user may use the Clear tool, which wipes all content from the board.
 
+Moderation is exposed separately through `canBan`. Permanent moderators also
+receive `canGrantTemporaryModerator`; temporary moderators do not, so delegated
+moderation cannot be delegated again.
+
 JWT role strings can define these capabilities. They are declared in the JWT payload:
 
 ```json
@@ -148,6 +152,12 @@ Board visibility and board editability are separate.
 - On instances without JWT authentication, a read-only board does not grant `canEdit` because there is no authenticated edit-capable claim.
 - Without JWT authentication, `canClear` is never granted.
 - With JWT authentication, only `moderator` claims grant `canClear`.
+
+Permanent moderators can grant another connected user the full moderator
+permission bundle for 15 minutes, 24 hours, or 7 days from the connected-users
+panel. Grants are board-scoped, follow the user's secret cookie across tabs and
+reconnections, and can be revoked before expiry. Temporary grants are kept in
+process memory and are lost when the server restarts.
 
 Read-only state is stored on the persisted board SVG root as `data-wbo-readonly`:
 

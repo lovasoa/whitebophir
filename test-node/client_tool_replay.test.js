@@ -707,7 +707,7 @@ function createHarness() {
             socketId: "socket-peer",
             name: "Peer User",
             lastTool: "hand",
-            canClear: true,
+            canBan: true,
           },
         ],
       ]),
