@@ -71,15 +71,17 @@ export async function handleSetTemporaryModeratorMessage(context) {
     return;
   }
 
-  const expiresAt =
-    durationMs === 0
-      ? (revokeTemporaryModerator(boardName, target.userSecret), null)
-      : grantTemporaryModerator(
-          boardName,
-          target.userSecret,
-          context.now,
-          durationMs,
-        );
+  let expiresAt = null;
+  if (durationMs === 0) {
+    revokeTemporaryModerator(boardName, target.userSecret);
+  } else {
+    expiresAt = grantTemporaryModerator(
+      boardName,
+      target.userSecret,
+      context.now,
+      durationMs,
+    );
+  }
   if (durationMs > 0 && expiresAt === null) {
     acknowledge(context.ack, { ok: false, reason: "invalid_request" });
     return;
