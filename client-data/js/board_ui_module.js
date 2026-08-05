@@ -54,23 +54,11 @@
  * }} ConfirmDialogOptions
  */
 
-/**
- * @template T
- * @typedef {{
- *   label: string,
- *   value: T,
- *   variant?: "secondary" | "warning" | "danger",
- * }} ChoiceDialogOption
- */
-
-/**
- * @template T
- * @typedef {{
- *   message: string,
- *   choices: ChoiceDialogOption<T>[],
- *   cancelLabel?: string,
- * }} ChoiceDialogOptions
- */
+/** @typedef {string | number} ActionDialogValue */
+/** @typedef {{label: string, value: ActionDialogValue, iconUrl?: string, variant?: "secondary" | "warning" | "danger"}} ActionDialogChoice */
+/** @typedef {{id: string, label?: string, layout: "stacked" | "segmented" | "grid", choices: ActionDialogChoice[], initialValue?: ActionDialogValue, submit?: boolean}} ActionDialogSection */
+/** @typedef {{title: string, message?: string, sections: ActionDialogSection[], cancelLabel: string, link?: {label: string, href: string}}} ActionDialogOptions */
+/** @typedef {{sectionId: string, value: ActionDialogValue, selections: Record<string, ActionDialogValue>}} ActionDialogResult */
 
 /**
  * @typedef {{
@@ -112,32 +100,6 @@
  *   ruleAppealUrl?: string,
  *   ruleAppealLabel?: string,
  * }} ModerationDisconnectNoticeOptions
- */
-
-/**
- * @typedef {{id: string, label: string, iconUrl: string}} ModerationActionRuleOption
- */
-
-/**
- * @typedef {{durationMs: number, label: string, variant?: "secondary" | "warning" | "danger"}} ModerationActionDurationOption
- */
-
-/**
- * @typedef {{
- *   title: string,
- *   message: string,
- *   durationLabel: string,
- *   ruleLabel: string,
- *   rules: ModerationActionRuleOption[],
- *   durations: ModerationActionDurationOption[],
- *   cancelLabel: string,
- *   rulesLinkLabel: string,
- *   rulesHref: string,
- * }} ModerationActionDialogOptions
- */
-
-/**
- * @typedef {{moderationRule: string, banDurationMs: number}} ModerationAction
  */
 
 /**
@@ -567,58 +529,10 @@ export function showConfirmDialog({
   );
 }
 
-/**
- * @template T
- * @param {ChoiceDialogOptions<T>} options
- * @returns {Promise<T | null>}
- */
-export function showChoiceDialog({ message, choices, cancelLabel = "Cancel" }) {
-  return showModalDialog(/** @type {T | null} */ (null), (dialog, settle) => {
-    const titleElement = document.createElement("div");
-    titleElement.className = "wbo-dialog-title";
-    titleElement.textContent = message;
-    dialog.appendChild(titleElement);
-
-    const choicesContainer = document.createElement("div");
-    choicesContainer.className = "wbo-dialog-choices";
-    /** @type {HTMLButtonElement[]} */
-    const choiceButtons = [];
-
-    for (const choice of choices) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "wbo-dialog-button wbo-dialog-choice-button";
-      if (choice.variant) {
-        button.classList.add(`wbo-dialog-button-${choice.variant}`);
-      }
-      button.textContent = choice.label;
-      button.addEventListener("click", () => settle(choice.value));
-      choiceButtons.push(button);
-      choicesContainer.appendChild(button);
-    }
-    dialog.appendChild(choicesContainer);
-
-    const cancelButton = document.createElement("button");
-    cancelButton.type = "button";
-    cancelButton.className =
-      "wbo-dialog-button wbo-dialog-button-secondary wbo-dialog-choice-cancel";
-    cancelButton.textContent = cancelLabel;
-    cancelButton.addEventListener("click", () => settle(null));
-    dialog.appendChild(cancelButton);
-
-    choiceButtons[0]?.focus();
-  });
-}
-
-/**
- * Selecting a duration only changes the pending action. Selecting a rule is
- * the explicit action and settles the dialog.
- * @param {ModerationActionDialogOptions} options
- * @returns {Promise<ModerationAction | null>}
- */
-export function showModerationActionDialog(options) {
+/** @param {ActionDialogOptions} options @returns {Promise<ActionDialogResult | null>} */
+export function showActionDialog(options) {
   return showModalDialog(
-    /** @type {ModerationAction | null} */ (null),
+    /** @type {ActionDialogResult | null} */ (null),
     (dialog, settle) => {
       dialog.classList.add("moderation-action-dialog");
       dialog.setAttribute("role", "dialog");
@@ -629,124 +543,101 @@ export function showModerationActionDialog(options) {
       title.id = "moderation-action-title";
       title.textContent = options.title;
       dialog.setAttribute("aria-labelledby", title.id);
+      dialog.appendChild(title);
 
-      const message = document.createElement("p");
-      message.className = "moderation-action-message";
-      message.id = "moderation-action-message";
-      message.textContent = options.message;
-      dialog.setAttribute("aria-describedby", message.id);
-
-      const durationHeading = document.createElement("div");
-      durationHeading.className = "moderation-action-section-title";
-      durationHeading.textContent = options.durationLabel;
-
-      const durationChoices = document.createElement("div");
-      durationChoices.className = "moderation-action-durations";
-      durationChoices.setAttribute("role", "group");
-      durationChoices.setAttribute("aria-label", options.durationLabel);
-
-      const status = document.createElement("div");
-      status.className = "moderation-action-status";
-      status.setAttribute("role", "status");
-      status.setAttribute("aria-live", "polite");
-
-      const selectedDuration =
-        options.durations.find((choice) => choice.durationMs === 0) ||
-        options.durations[0];
-      let selectedDurationMs = selectedDuration?.durationMs ?? 0;
-
-      /** @param {ModerationActionDurationOption} choice */
-      const actionLabel = (choice) => choice.label;
-
-      /** @param {number} durationMs */
-      const syncDurationState = (durationMs) => {
-        selectedDurationMs = durationMs;
-        options.durations.forEach((choice) => {
-          const button = durationChoices.querySelector(
-            `[data-duration-ms="${choice.durationMs}"]`,
-          );
-          if (!(button instanceof HTMLButtonElement)) return;
-          const selected = choice.durationMs === selectedDurationMs;
-          button.setAttribute("aria-pressed", selected ? "true" : "false");
-          button.classList.toggle(
-            "moderation-action-duration-selected",
-            selected,
-          );
-        });
-        const selected = options.durations.find(
-          (choice) => choice.durationMs === selectedDurationMs,
-        );
-        status.textContent = selected
-          ? `${options.durationLabel}: ${actionLabel(selected)}`
-          : "";
-        ruleButtons.forEach((button) => {
-          const ruleLabel = button.dataset.ruleLabel || "";
-          button.setAttribute(
-            "aria-label",
-            `${ruleLabel} — ${selected ? actionLabel(selected) : ""}`,
-          );
-        });
-      };
-
-      for (const choice of options.durations) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "wbo-dialog-button moderation-action-duration";
-        if (choice.variant) {
-          button.classList.add(`wbo-dialog-button-${choice.variant}`);
-        }
-        button.dataset.durationMs = String(choice.durationMs);
-        button.textContent = choice.label;
-        button.setAttribute("aria-pressed", "false");
-        button.addEventListener("click", () =>
-          syncDurationState(choice.durationMs),
-        );
-        durationChoices.appendChild(button);
+      if (options.message) {
+        const message = document.createElement("p");
+        message.className = "moderation-action-message";
+        message.id = "moderation-action-message";
+        message.textContent = options.message;
+        dialog.setAttribute("aria-describedby", message.id);
+        dialog.appendChild(message);
       }
 
-      const ruleHeading = document.createElement("div");
-      ruleHeading.className = "moderation-action-section-title";
-      ruleHeading.textContent = options.ruleLabel;
-      const ruleChoices = document.createElement("div");
-      ruleChoices.className = "moderation-action-rules";
-
+      /** @type {Record<string, ActionDialogValue>} */
+      const selections = {};
       /** @type {HTMLButtonElement[]} */
-      const ruleButtons = [];
-      for (const rule of options.rules) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "moderation-action-rule";
-        button.dataset.ruleLabel = rule.label;
-
-        const icon = document.createElement("img");
-        icon.className = "moderation-action-rule-icon";
-        icon.src = rule.iconUrl;
-        icon.alt = "";
-        icon.setAttribute("aria-hidden", "true");
-
-        const label = document.createElement("span");
-        label.className = "moderation-action-rule-label";
-        label.textContent = rule.label;
-        button.append(icon, label);
-        button.addEventListener("click", () =>
-          settle({
-            moderationRule: rule.id,
-            banDurationMs: selectedDurationMs,
-          }),
-        );
-        ruleButtons.push(button);
-        ruleChoices.appendChild(button);
+      const allButtons = [];
+      for (const section of options.sections) {
+        if (section.label) {
+          const heading = document.createElement("div");
+          heading.className = "moderation-action-section-title";
+          heading.textContent = section.label;
+          dialog.appendChild(heading);
+        }
+        const choices = document.createElement("div");
+        choices.className = `moderation-action-${section.layout}`;
+        choices.setAttribute("role", "group");
+        if (section.label) choices.setAttribute("aria-label", section.label);
+        const buttons = section.choices.map((choice) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className =
+            section.layout === "grid"
+              ? "moderation-action-rule"
+              : "wbo-dialog-button moderation-action-choice";
+          if (section.layout === "segmented")
+            button.classList.add("moderation-action-duration");
+          if (choice.variant)
+            button.classList.add(`wbo-dialog-button-${choice.variant}`);
+          if (choice.iconUrl) {
+            const icon = document.createElement("img");
+            icon.className = "moderation-action-rule-icon";
+            icon.src = choice.iconUrl;
+            icon.alt = "";
+            button.appendChild(icon);
+          }
+          const label = document.createElement("span");
+          label.className =
+            section.layout === "grid"
+              ? "moderation-action-rule-label"
+              : "moderation-action-choice-label";
+          label.textContent = choice.label;
+          button.appendChild(label);
+          button.addEventListener("click", () => {
+            if (section.submit) {
+              settle({
+                sectionId: section.id,
+                value: choice.value,
+                selections: { ...selections },
+              });
+              return;
+            }
+            selections[section.id] = choice.value;
+            buttons.forEach((entry, index) => {
+              const selected = section.choices[index]?.value === choice.value;
+              entry.setAttribute("aria-pressed", String(selected));
+              entry.classList.toggle(
+                "moderation-action-choice-selected",
+                selected,
+              );
+            });
+          });
+          allButtons.push(button);
+          choices.appendChild(button);
+          return button;
+        });
+        if (section.initialValue !== undefined) {
+          selections[section.id] = section.initialValue;
+          const selectedIndex = section.choices.findIndex(
+            (choice) => choice.value === section.initialValue,
+          );
+          buttons[selectedIndex]?.click();
+        }
+        dialog.appendChild(choices);
       }
 
       const footer = document.createElement("div");
       footer.className = "moderation-action-footer";
-
-      const rulesLink = document.createElement("a");
-      rulesLink.className = "moderation-action-rules-link";
-      rulesLink.href = options.rulesHref;
-      rulesLink.target = "_blank";
-      rulesLink.rel = "noopener";
-      rulesLink.textContent = options.rulesLinkLabel;
+      if (options.link) {
+        const link = document.createElement("a");
+        link.className = "moderation-action-rules-link";
+        link.href = options.link.href;
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.textContent = options.link.label;
+        footer.appendChild(link);
+      }
 
       const cancel = document.createElement("button");
       cancel.type = "button";
@@ -754,20 +645,9 @@ export function showModerationActionDialog(options) {
         "wbo-dialog-button wbo-dialog-button-secondary moderation-action-cancel";
       cancel.textContent = options.cancelLabel;
       cancel.addEventListener("click", () => settle(null));
-
-      footer.append(rulesLink, cancel);
-      dialog.append(
-        title,
-        message,
-        durationHeading,
-        durationChoices,
-        status,
-        ruleHeading,
-        ruleChoices,
-        footer,
-      );
-      syncDurationState(selectedDurationMs);
-      ruleButtons[0]?.focus();
+      footer.appendChild(cancel);
+      dialog.appendChild(footer);
+      allButtons[0]?.focus();
     },
   );
 }
@@ -993,14 +873,9 @@ export class UiModule {
     return showConfirmDialog(options);
   }
 
-  /** @template T @param {ChoiceDialogOptions<T>} options */
-  showChoiceDialog(options) {
-    return showChoiceDialog(options);
-  }
-
-  /** @param {ModerationActionDialogOptions} options */
-  showModerationActionDialog(options) {
-    return showModerationActionDialog(options);
+  /** @param {ActionDialogOptions} options */
+  showActionDialog(options) {
+    return showActionDialog(options);
   }
 
   /** @param {ModerationDisconnectNoticeOptions} options */

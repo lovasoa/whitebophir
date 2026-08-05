@@ -983,7 +983,8 @@ function showConnectedUserManagementDialog(Tools, presence, user) {
   if (!socket) return;
   const activeGrant =
     user.canBan === true && user.canGrantTemporaryModerator !== true;
-  const choices = [
+  /** @type {{label: string, value: string | number}[]} */
+  const actionChoices = [
     {
       label: Tools.i18n.format(user.friend ? "remove_friend" : "mark_friend", {
         name: user.name,
@@ -991,41 +992,49 @@ function showConnectedUserManagementDialog(Tools, presence, user) {
       value: "friend",
     },
   ];
+  /** @type {{id: string, label?: string, layout: "stacked" | "segmented", submit: boolean, choices: {label: string, value: string | number}[]}[]} */
+  const sections = [
+    { id: "action", layout: "stacked", submit: true, choices: actionChoices },
+  ];
   if (activeGrant) {
-    choices.push({
+    actionChoices.push({
       label: Tools.i18n.format("revoke_temporary_moderator", {
         name: user.name,
       }),
-      value: "0",
+      value: 0,
     });
   } else if (user.canBan !== true) {
-    getModerationDurationOptions(Tools)
-      .slice(1)
-      .forEach((duration) => {
-        choices.push({
+    sections.push({
+      id: "duration",
+      label: Tools.i18n.t("make_temporary_moderator"),
+      layout: "segmented",
+      submit: true,
+      choices: getModerationDurationOptions(Tools)
+        .slice(1)
+        .map((duration) => ({
           label: duration.label,
-          value: String(duration.durationMs),
-        });
-      });
+          value: duration.durationMs,
+        })),
+    });
   }
 
   void Tools.ui
-    .showChoiceDialog({
-      message: Tools.i18n.format("moderation_action_title", {
+    .showActionDialog({
+      title: Tools.i18n.format("moderation_action_title", {
         name: user.name,
       }),
-      choices,
+      sections,
       cancelLabel: Tools.i18n.t("Cancel"),
     })
     .then((selection) => {
-      if (selection === "friend") {
+      if (selection?.value === "friend") {
         presence.toggleFriend(user.userId);
         return;
       }
       if (selection === null) return;
       socket.emit(SocketEvents.SET_TEMPORARY_MODERATOR, {
         socketId: user.socketId,
-        durationMs: Number(selection),
+        durationMs: Number(selection.value),
       });
     });
 }
@@ -1145,28 +1154,46 @@ function createConnectedUserRow(getTools, user, presence) {
       connectedUser.reportPending = true;
       updateConnectedUserRow(getTools, row, connectedUser);
       void Tools.ui
-        .showModerationActionDialog({
+        .showActionDialog({
           title: Tools.i18n.format("moderation_action_title", {
             name: connectedUser.name,
           }),
           message: Tools.i18n.t("moderation_action_message"),
-          durationLabel: Tools.i18n.t("moderation_action_duration"),
-          ruleLabel: Tools.i18n.t("moderation_action_rule"),
-          rules: MODERATION_RULES.map((rule) => ({
-            id: rule.id,
-            label: Tools.i18n.t(rule.titleKey),
-            iconUrl: `../rules/${rule.iconFile}`,
-          })),
-          durations: getModerationDurationOptions(Tools),
+          sections: [
+            {
+              id: "duration",
+              label: Tools.i18n.t("moderation_action_duration"),
+              layout: "segmented",
+              initialValue: 0,
+              choices: getModerationDurationOptions(Tools).map((duration) => ({
+                label: duration.label,
+                value: duration.durationMs,
+                variant: duration.variant,
+              })),
+            },
+            {
+              id: "rule",
+              label: Tools.i18n.t("moderation_action_rule"),
+              layout: "grid",
+              submit: true,
+              choices: MODERATION_RULES.map((rule) => ({
+                label: Tools.i18n.t(rule.titleKey),
+                value: rule.id,
+                iconUrl: `../rules/${rule.iconFile}`,
+              })),
+            },
+          ],
           cancelLabel: Tools.i18n.t("Cancel"),
-          rulesLinkLabel: Tools.i18n.t("community_rules_link"),
-          rulesHref: "../rules",
+          link: {
+            label: Tools.i18n.t("community_rules_link"),
+            href: "../rules",
+          },
         })
         .then((selection) => {
           if (selection !== null) {
             reportConnectedUser(
-              selection.banDurationMs,
-              selection.moderationRule,
+              Number(selection.selections.duration),
+              String(selection.value),
             );
             return;
           }

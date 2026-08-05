@@ -488,9 +488,26 @@ test.describe("collaboration and rate limiting", () => {
         const action = remoteRow.locator(".connected-user-friend");
         await expect(action).toHaveAttribute("aria-label", /Moderate .*/);
         await action.evaluate((button: HTMLButtonElement) => button.click());
+        await expect(page.getByText("Make temporary moderator")).toBeVisible();
+        await expect(
+          page.locator(
+            ".moderation-action-segmented .moderation-action-choice",
+          ),
+        ).toHaveText(["15m", "24h", "7d"]);
         await page.getByRole("button", { name: "15m", exact: true }).click();
 
         await expect(targetClear).toBeVisible();
+        await expect
+          .poll(() =>
+            page.evaluate(
+              () =>
+                Array.from(window.WBOApp.presence.users.values()).find(
+                  (user) =>
+                    user.socketId !== window.WBOApp.connection.socket?.id,
+                )?.canBan,
+            ),
+          )
+          .toBe(true);
 
         await action.evaluate((button: HTMLButtonElement) => button.click());
         await page

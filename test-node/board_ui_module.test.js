@@ -399,13 +399,21 @@ test("native modal dialogs only settle on shell clicks", async () => {
     createElement: (tagName) => new FakeDomElement(tagName),
   });
   /** @type {any} */ (document).body = body;
-  const { showChoiceDialog } = await import(
+  const { showActionDialog } = await import(
     "../client-data/js/board_ui_module.js"
   );
 
-  const resultPromise = showChoiceDialog({
-    message: "Ban user?",
-    choices: [{ label: "1 hour", value: 60 * 60 * 1000 }],
+  const resultPromise = showActionDialog({
+    title: "Ban user?",
+    sections: [
+      {
+        id: "duration",
+        layout: "segmented",
+        submit: true,
+        choices: [{ label: "1 hour", value: 60 * 60 * 1000 }],
+      },
+    ],
+    cancelLabel: "Cancel",
   });
   let resolved = false;
   void resultPromise.then(() => {

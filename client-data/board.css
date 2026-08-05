@@ -235,45 +235,58 @@ html[data-ui-direction="rtl"]
   text-transform: uppercase;
 }
 
-.moderation-action-durations {
-  display: flex;
-  flex-wrap: wrap;
+.moderation-action-stacked {
+  display: grid;
   gap: 6px;
+  margin-bottom: 14px;
+}
+
+.moderation-action-stacked .moderation-action-choice {
+  width: 100%;
+}
+
+.moderation-action-segmented {
+  display: flex;
+  width: 100%;
   margin-bottom: 12px;
 }
 
-.moderation-action-duration {
-  flex: 0 0 auto;
+.moderation-action-segmented .moderation-action-choice {
+  flex: 1 1 0;
+  min-width: 0;
+  margin-inline-start: -1px;
+  border-radius: 0;
   border-color: var(--board-control-border-strong);
   background: #ffffff;
   color: #111827;
 }
 
-.moderation-action-duration.wbo-dialog-button-warning,
-.moderation-action-duration.wbo-dialog-button-danger {
+.moderation-action-segmented .moderation-action-choice:first-child {
+  margin-inline-start: 0;
+  border-start-start-radius: var(--board-control-radius);
+  border-end-start-radius: var(--board-control-radius);
+}
+
+.moderation-action-segmented .moderation-action-choice:last-child {
+  border-start-end-radius: var(--board-control-radius);
+  border-end-end-radius: var(--board-control-radius);
+}
+
+.moderation-action-segmented .wbo-dialog-button-warning,
+.moderation-action-segmented .wbo-dialog-button-danger {
   border-color: var(--board-control-border-strong);
   background: #ffffff;
   color: #111827;
 }
 
-.moderation-action-duration-selected {
+.moderation-action-choice-selected {
+  z-index: 1;
   border-color: var(--board-accent-strong);
   background: var(--board-control-bg-active);
   box-shadow: 0 0 0 1px var(--board-accent-strong);
 }
 
-.moderation-action-status {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  border: 0;
-}
-
-.moderation-action-rules {
+.moderation-action-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 8px;
@@ -340,7 +353,7 @@ html[data-ui-direction="rtl"]
 }
 
 @media (max-width: 380px) {
-  .moderation-action-rules {
+  .moderation-action-grid {
     grid-template-columns: 1fr;
   }
 }
