@@ -2,7 +2,6 @@ import { canGrantTemporaryModeratorOnBoard } from "./policy.mjs";
 import { getBoardUser } from "./presence.mjs";
 import {
   grantTemporaryModerator,
-  MAX_TEMPORARY_MODERATOR_TTL_MS,
   revokeTemporaryModerator,
 } from "./temporary_moderators.mjs";
 
@@ -10,7 +9,7 @@ const DURATIONS = new Set([
   0,
   15 * 60 * 1000,
   24 * 60 * 60 * 1000,
-  MAX_TEMPORARY_MODERATOR_TTL_MS,
+  7 * 24 * 60 * 60 * 1000,
 ]);
 
 /** @import { AppSocket, ServerConfig, SetTemporaryModeratorPayload } from "../../types/server-runtime.d.ts" */
@@ -55,8 +54,7 @@ export async function handleSetTemporaryModeratorMessage(context) {
     grantTemporaryModerator(
       boardName,
       target.userSecret,
-      context.now,
-      durationMs,
+      context.now + durationMs,
     );
   } else {
     revokeTemporaryModerator(boardName, target.userSecret);
