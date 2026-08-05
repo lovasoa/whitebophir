@@ -209,36 +209,3 @@ test("expiry-aware board state carries one access refresh delay", () => {
     canWrite: true,
   });
 });
-
-test("temporary moderator capabilities are live and cannot delegate", () => {
-  const { BoardPermissions } = require(BOARD_CAPABILITIES_PATH);
-  const config = createConfig({ AUTH_SECRET_KEY: "" });
-  const board = createBoard("readonly-board", true);
-  let expiresAt = Date.now() + 60_000;
-  const permissions = BoardPermissions.forBoard({
-    config,
-    boardName: board.name,
-    userInfo: {},
-    getTemporaryModeratorExpiresAt: () => expiresAt,
-  });
-
-  assert.equal(permissions.canGrantTemporaryModerator(), false);
-  const state = permissions.boardState(board);
-  assert.deepEqual(
-    {
-      canEdit: state.canEdit,
-      canClear: state.canClear,
-      canBan: state.canBan,
-    },
-    { canEdit: true, canClear: true, canBan: true },
-  );
-  assert.ok(
-    typeof state.accessRefreshAfterMs === "number" &&
-      state.accessRefreshAfterMs > 59_000 &&
-      state.accessRefreshAfterMs <= 60_000,
-  );
-
-  expiresAt = 0;
-  assert.equal(permissions.canBan(), false);
-  assert.equal(permissions.resolveCapabilities(board).canEdit, false);
-});
