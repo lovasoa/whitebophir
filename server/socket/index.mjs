@@ -12,12 +12,12 @@ import {
   setLoadedBoard,
 } from "../board/registry.mjs";
 import observability from "../observability/index.mjs";
+import { resetBans } from "./bans.mjs";
 import {
   boardMutationTraceAttributes,
   handleBroadcastWriteMessage,
   shouldTraceBroadcast,
 } from "./broadcasts.mjs";
-import { resetBans } from "./bans.mjs";
 import {
   boardStateForSocket,
   clientIpFallback,
@@ -36,10 +36,8 @@ import {
   emitUserUpdatedToBoard,
   ensureBoardUser,
   getBoardUserMap,
-  presenceCapabilitiesFromBoardState,
   removeBoardUser,
   resetBoardUserMaps,
-  updateBoardUserCapabilities,
 } from "./presence.mjs";
 import {
   consumeFixedWindowRateLimit,
@@ -61,9 +59,9 @@ import {
   resetSocketReports,
 } from "./reports.mjs";
 import { getSocketUserSecret } from "./request.mjs";
-import { handleTurnstileTokenMessage } from "./turnstile.mjs";
 import { handleSetTemporaryModeratorMessage } from "./temporary_moderator_actions.mjs";
 import { resetTemporaryModerators } from "./temporary_moderators.mjs";
+import { handleTurnstileTokenMessage } from "./turnstile.mjs";
 
 const { Server } = socketIO;
 const { logger, metrics, tracing } = observability;
@@ -295,10 +293,11 @@ async function refreshUserAccess(boardName, userSecret, config) {
     const targetSocket = activeSockets.get(user.socketId);
     if (!targetSocket || !targetSocket.rooms.has(boardName)) continue;
     const boardState = boardStateForSocket(config, board, targetSocket);
-    updateBoardUserCapabilities(
-      user,
-      presenceCapabilitiesFromBoardState(boardState),
-    );
+    user.canEdit = boardState.canEdit === true;
+    user.canClear = boardState.canClear === true;
+    user.canBan = boardState.canBan === true;
+    user.canGrantTemporaryModerator =
+      boardState.canGrantTemporaryModerator === true;
     targetSocket.emit(SocketEvents.BOARDSTATE, boardState);
     emitUserUpdatedToBoard(targetSocket, boardName, user);
   }
@@ -512,7 +511,7 @@ async function bootstrapSocketBoard(socket, replay, config) {
           boardName,
           config,
           resolveClientIp,
-          presenceCapabilitiesFromBoardState(boardState),
+          boardState,
         );
         if (!wasJoined) {
           connectedUsersTotal += 1;
@@ -701,28 +700,17 @@ async function handleSocketConnection(socket, config) {
       /** @type {SetTemporaryModeratorPayload | undefined} */ message,
       /** @type {SetTemporaryModeratorAck | undefined} */ ack,
     ) {
-      return tracing.withActiveSpan(
-        "socket.set_temporary_moderator",
-        {
-          kind: tracing.SpanKind.INTERNAL,
-          attributes: socketTraceAttributes("set_temporary_moderator", {
-            "wbo.board": boardName,
-          }),
-        },
-        function traceSetTemporaryModerator() {
-          return handleSetTemporaryModeratorMessage({
-            socket,
-            boardName,
-            message,
-            ack,
-            config,
-            now: Date.now(),
-            getActiveSocket,
-            refreshUserAccess: (targetBoardName, userSecret) =>
-              refreshUserAccess(targetBoardName, userSecret, config),
-          });
-        },
-      );
+      return handleSetTemporaryModeratorMessage({
+        socket,
+        boardName,
+        message,
+        ack,
+        config,
+        now: Date.now(),
+        getActiveSocket,
+        refreshUserAccess: (targetBoardName, userSecret) =>
+          refreshUserAccess(targetBoardName, userSecret, config),
+      });
     },
   );
 

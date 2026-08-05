@@ -100,16 +100,6 @@ function forBoard(input) {
   const permanentModerator = isClearCapableRole(role);
   const fallbackIsBanned = input.isBanned || (() => false);
 
-  /** @returns {number | null} */
-  function readTemporaryModeratorExpiresAt() {
-    if (permanentModerator || !input.getTemporaryModeratorExpiresAt)
-      return null;
-    const expiresAt = Number(input.getTemporaryModeratorExpiresAt());
-    return Number.isFinite(expiresAt) && expiresAt > Date.now()
-      ? expiresAt
-      : null;
-  }
-
   /**
    * Reads one coherent ban snapshot for a capability response. Expiry-aware
    * callers return only active expiries; the defensive wall-clock check keeps
@@ -118,22 +108,18 @@ function forBoard(input) {
    * @returns {{moderator: boolean, banned: boolean, refreshAfterMs: number | null}}
    */
   function readAccessState() {
-    const temporaryModeratorExpiresAt = readTemporaryModeratorExpiresAt();
+    const now = Date.now();
+    const temporaryModeratorExpiresAt = permanentModerator
+      ? 0
+      : Number(input.getTemporaryModeratorExpiresAt?.());
     if (permanentModerator) {
-      return {
-        moderator: true,
-        banned: false,
-        refreshAfterMs: null,
-      };
+      return { moderator: true, banned: false, refreshAfterMs: null };
     }
-    if (temporaryModeratorExpiresAt !== null) {
+    if (temporaryModeratorExpiresAt > now) {
       return {
         moderator: true,
         banned: false,
-        refreshAfterMs: Math.max(
-          0,
-          Math.floor(temporaryModeratorExpiresAt - Date.now()),
-        ),
+        refreshAfterMs: Math.floor(temporaryModeratorExpiresAt - now),
       };
     }
     if (!input.getBanExpiresAt) {
@@ -144,13 +130,8 @@ function forBoard(input) {
       };
     }
     const expiresAt = Number(input.getBanExpiresAt());
-    const now = Date.now();
     if (!Number.isFinite(expiresAt) || expiresAt <= now) {
-      return {
-        moderator: false,
-        banned: false,
-        refreshAfterMs: null,
-      };
+      return { moderator: false, banned: false, refreshAfterMs: null };
     }
     return {
       moderator: false,
@@ -160,11 +141,7 @@ function forBoard(input) {
   }
 
   function canOpen() {
-    return (
-      !jwtEnabled ||
-      role !== "forbidden" ||
-      readTemporaryModeratorExpiresAt() !== null
-    );
+    return !jwtEnabled || role !== "forbidden" || readAccessState().moderator;
   }
 
   /**
@@ -258,8 +235,7 @@ function forBoard(input) {
     boardState,
     requireOpen,
     canApplyBoardMessage,
-    canBan: () =>
-      permanentModerator || readTemporaryModeratorExpiresAt() !== null,
+    canBan: () => readAccessState().moderator,
     canGrantTemporaryModerator: () => permanentModerator,
   };
 }

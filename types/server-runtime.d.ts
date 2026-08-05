@@ -3,6 +3,8 @@ import type {
   ConnectedUser,
   ModerationDisconnectPayload,
   SequencedMutationBroadcast,
+  SetTemporaryModeratorPayload,
+  SetTemporaryModeratorResult,
 } from "./app-runtime";
 
 export type ServerConfig = typeof import("../server/configuration.mjs");
@@ -149,20 +151,16 @@ export type ReportUserPayload = {
   moderationRule?: string;
 };
 
-export type SetTemporaryModeratorPayload = {
-  socketId?: string;
-  durationMs?: number;
-};
-
-export type SetTemporaryModeratorResult =
-  | { ok: true }
-  | { ok: false; reason: string };
-
 export type SetTemporaryModeratorAck = (
   result: SetTemporaryModeratorResult,
 ) => void;
 
-export type { ModerationDisconnectPayload, ModerationDisconnectSource };
+export type {
+  ModerationDisconnectPayload,
+  ModerationDisconnectSource,
+  SetTemporaryModeratorPayload,
+  SetTemporaryModeratorResult,
+};
 
 export type ValidationStatus = { ok: true } | { ok: false; reason: string };
 
