@@ -10,7 +10,7 @@ import { MutationType } from "./message_tool_metadata.js";
 import { SocketEvents } from "./socket_events.js";
 import { createToolIconBadge, updateToolIconBadge } from "./tool_icon_badge.js";
 
-/** @import { AppToolsState, AttachedBoardDomModule, BoardMessage, ConnectedUser, ConnectedUserMap, HandChildMessage } from "../../types/app-runtime" */
+/** @import { AppToolsState, AttachedBoardDomModule, BoardMessage, ConnectedUser, ConnectedUserMap, HandChildMessage, TemporaryModeratorGrant } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 /** @typedef {"minute" | "hour" | "day"} ConnectedUserDurationUnit */
 /** @typedef {{kind: "now"} | {kind: "duration", count: number, unit: ConnectedUserDurationUnit, shortKey: string}} ConnectedUserRelativeTime */
@@ -20,6 +20,8 @@ export class PresenceModule {
   constructor(getTools) {
     this.getTools = getTools;
     this.users = /** @type {ConnectedUserMap} */ (new Map());
+    /** @type {TemporaryModeratorGrant[]} */
+    this.temporaryModeratorGrants = [];
     this.friendStore = new FriendStore();
     this.friendStorageBound = false;
     this.panelOpen = false;
@@ -37,6 +39,7 @@ export class PresenceModule {
       this.staleTickId = null;
     }
     this.users = /** @type {ConnectedUserMap} */ (new Map());
+    this.temporaryModeratorGrants = [];
     if (this.panelOpen) this.renderConnectedUsers();
     else syncConnectedUsersSummary(this);
   }
@@ -133,6 +136,88 @@ export class PresenceModule {
         friend: this.friendStore.has(user.userId),
       }),
     );
+    if (this.temporaryModeratorGrants.length > 0) {
+      this.syncTemporaryModeratorGrants(this.temporaryModeratorGrants);
+    }
+    this.syncFriendStates();
+    this.schedulePresenceRender();
+  }
+
+  /** @param {TemporaryModeratorGrant[]} grants */
+  syncTemporaryModeratorGrants(grants) {
+    const now = Date.now();
+    this.temporaryModeratorGrants = grants.filter(
+      (grant) => grant.expiresAt > now && grant.user,
+    );
+    const activeGrantIds = new Set(
+      this.temporaryModeratorGrants.map((grant) => grant.id),
+    );
+
+    this.users.forEach((user, socketId) => {
+      if (
+        user.temporaryModeratorGrantOnly &&
+        !activeGrantIds.has(user.temporaryModeratorGrantId || "")
+      ) {
+        clearConnectedUserTimers(user);
+        this.users.delete(socketId);
+      } else if (
+        user.temporaryModeratorGrantId &&
+        !activeGrantIds.has(user.temporaryModeratorGrantId)
+      ) {
+        delete user.temporaryModeratorGrantId;
+      }
+    });
+
+    this.temporaryModeratorGrants.forEach((grant) => {
+      const grantUser = grant.user;
+      if (!grantUser) return;
+      const connected = Array.from(this.users.values()).find(
+        (user) =>
+          !user.temporaryModeratorGrantOnly &&
+          (user.socketId === grantUser.socketId ||
+            (user.userId === grantUser.userId &&
+              user.temporaryModeratorExpiresAt === grant.expiresAt)),
+      );
+      const syntheticSocketId = `temporary-moderator:${grant.id}`;
+      const synthetic = this.users.get(syntheticSocketId);
+      if (connected) {
+        connected.temporaryModeratorGrantId = grant.id;
+        connected.temporaryModeratorExpiresAt = grant.expiresAt;
+        if (synthetic) {
+          clearConnectedUserTimers(synthetic);
+          this.users.delete(syntheticSocketId);
+        }
+        return;
+      }
+      if (synthetic) return;
+
+      const user = /** @type {ConnectedUser} */ ({
+        ...grantUser,
+        socketId: syntheticSocketId,
+        joinedAt: grantUser.joinedAt || now,
+        disconnectedAt: now,
+        canEdit: true,
+        canClear: true,
+        canBan: true,
+        canGrantTemporaryModerator: false,
+        temporaryModeratorExpiresAt: grant.expiresAt,
+        temporaryModeratorGrantId: grant.id,
+        temporaryModeratorGrantOnly: true,
+        friend: this.friendStore.has(grantUser.userId),
+      });
+      user.removeTimeoutId = window.setTimeout(
+        () => {
+          if (this.users.get(syntheticSocketId) !== user) return;
+          this.users.delete(syntheticSocketId);
+          this.temporaryModeratorGrants = this.temporaryModeratorGrants.filter(
+            (current) => current.id !== grant.id,
+          );
+          this.schedulePresenceRender();
+        },
+        Math.max(0, grant.expiresAt - now),
+      );
+      this.users.set(syntheticSocketId, user);
+    });
     this.syncFriendStates();
     this.schedulePresenceRender();
   }
@@ -172,7 +257,11 @@ export class PresenceModule {
       const current = this.users.get(socketId);
       if (current && current.disconnectedAt) {
         this.users.delete(socketId);
-        this.schedulePresenceRender();
+        if (this.temporaryModeratorGrants.length > 0) {
+          this.syncTemporaryModeratorGrants(this.temporaryModeratorGrants);
+        } else {
+          this.schedulePresenceRender();
+        }
       }
     }, 3500);
     this.schedulePresenceRender();
@@ -999,7 +1088,9 @@ function showConnectedUserManagementDialog(Tools, presence, row, user) {
     updateConnectedUserRow(() => Tools, row, user);
     socket.emit(
       SocketEvents.SET_TEMPORARY_MODERATOR,
-      { socketId: user.socketId, durationMs },
+      activeGrant && user.temporaryModeratorGrantId
+        ? { grantId: user.temporaryModeratorGrantId, durationMs }
+        : { socketId: user.socketId, durationMs },
       () => {
         const current = presence.users.get(user.socketId);
         if (!current) return;
@@ -1073,11 +1164,7 @@ function createConnectedUserRow(getTools, user, presence) {
   const friendGlyph = document.createElement("span");
   friendGlyph.className = "connected-user-friend-glyph";
   friendGlyph.setAttribute("aria-hidden", "true");
-  const friendManagerBadge = document.createElement("span");
-  friendManagerBadge.className = "connected-user-friend-manager-badge";
-  friendManagerBadge.textContent = "M";
-  friendManagerBadge.setAttribute("aria-hidden", "true");
-  friend.append(friendGlyph, friendManagerBadge);
+  friend.appendChild(friendGlyph);
   friend.addEventListener("click", (evt) => {
     evt.preventDefault();
     evt.stopPropagation();

@@ -484,9 +484,6 @@ test.describe("collaboration and rate limiting", () => {
         const action = remoteRow.locator(".connected-user-friend");
         await expect(action).toHaveAttribute("aria-label", /Moderate .*/);
         await expect(
-          action.locator(".connected-user-friend-manager-badge"),
-        ).toHaveText("M");
-        await expect(
           remoteRow.locator(".connected-user-temporary-moderator"),
         ).toHaveCount(0);
         await action.evaluate((button: HTMLButtonElement) => button.click());
@@ -516,6 +513,26 @@ test.describe("collaboration and rate limiting", () => {
             ),
           )
           .toBeGreaterThan(Date.now());
+
+        await targetPage.evaluate(() =>
+          window.WBOApp.connection.socket?.disconnect?.(),
+        );
+        await expect
+          .poll(() =>
+            page.evaluate(() =>
+              Array.from(window.WBOApp.presence.users.values()).some(
+                (user) => user.temporaryModeratorGrantOnly === true,
+              ),
+            ),
+          )
+          .toBe(true);
+        if (!(await boardPage.connectedUsersPanel.isVisible())) {
+          await boardPage.connectedUsersToggle.click();
+        }
+        await expect(remoteRow).toHaveAttribute(
+          "data-socket-id",
+          /^temporary-moderator:/,
+        );
         await action.evaluate((button: HTMLButtonElement) => button.click());
         await expect(page.locator(".moderation-action-friend")).toHaveText(
           /Remove .* from friends/,
@@ -523,6 +540,10 @@ test.describe("collaboration and rate limiting", () => {
         await page
           .getByRole("button", { name: /Revoke temporary moderator access/ })
           .click();
+        await targetPage.evaluate(() =>
+          window.WBOApp.connection.socket?.connect(),
+        );
+        await targetBoard.waitForSocketConnected();
         await expect
           .poll(() => targetPage.evaluate(() => window.WBOApp.access.canBan))
           .toBe(false);

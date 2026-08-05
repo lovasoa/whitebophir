@@ -268,10 +268,13 @@ Permanent moderators can send `set_temporary_moderator` with
 `{ "socketId": "<target socket id>", "durationMs": <milliseconds> }` and an
 acknowledgement callback. Positive durations grant the target's secret-derived
 identity the full moderator permission bundle for up to one week; `0` revokes
-the grant. Temporary moderators cannot grant or revoke moderator access. Grants
-are board-scoped, process-local, shared by tabs with the same non-empty user
-secret, and lost on restart. Successful changes refresh `boardstate` and
-presence for every matching active socket.
+the grant. Revocation may instead use the opaque `grantId` from a permanent
+moderator's `boardstate.temporaryModeratorGrants`, so disconnected recipients
+remain revocable without exposing their user secret. Temporary moderators cannot
+grant or revoke moderator access. Grants are board-scoped, process-local, shared
+by tabs with the same non-empty user secret, and lost on restart. Successful
+changes refresh `boardstate` and presence for every matching active socket and
+refresh the private grant list for connected permanent moderators.
 
 Client write messages normally have top-level `tool` and `type` fields.
 Tool-owned batches have top-level `tool` plus `_children`; each child carries its

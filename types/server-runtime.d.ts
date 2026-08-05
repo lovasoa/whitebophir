@@ -151,6 +151,7 @@ export type ReportUserPayload = {
 
 export type SetTemporaryModeratorPayload = {
   socketId?: string;
+  grantId?: string;
   durationMs?: number;
 };
 

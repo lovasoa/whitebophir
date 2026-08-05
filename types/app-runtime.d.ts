@@ -332,6 +332,23 @@ export type AppBoardState = {
   canWrite: boolean;
   accessRefreshAfterMs?: number;
   temporaryModeratorExpiresAt?: number;
+  temporaryModeratorGrants?: TemporaryModeratorGrant[];
+};
+
+export type TemporaryModeratorGrant = {
+  id: string;
+  expiresAt: number;
+  user: Pick<
+    ConnectedUser,
+    | "socketId"
+    | "userId"
+    | "name"
+    | "color"
+    | "size"
+    | "lastTool"
+    | "joinedAt"
+    | "position"
+  > | null;
 };
 
 export type MutationRejectedPayload = {
@@ -372,6 +389,8 @@ export type ConnectedUser = {
   reportPending?: boolean;
   reportBanned?: boolean;
   temporaryModeratorPending?: boolean;
+  temporaryModeratorGrantId?: string;
+  temporaryModeratorGrantOnly?: boolean;
   friend?: boolean;
   pulseTimeoutId?: number | null;
   removeTimeoutId?: number | null;
@@ -423,7 +442,8 @@ export type ReportUserPayload = {
 };
 
 export type SetTemporaryModeratorPayload = {
-  socketId: string;
+  socketId?: string;
+  grantId?: string;
   durationMs: number;
 };
 

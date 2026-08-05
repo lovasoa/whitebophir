@@ -432,6 +432,7 @@ test("socket boardstate uses the same capability-shaped state as rendered board 
         canGrantTemporaryModerator: true,
         canReport: true,
         canWrite: true,
+        temporaryModeratorGrants: [],
       });
     },
   );
@@ -484,7 +485,7 @@ test("presence payloads expose canEdit/canClear for sidebar status", async () =>
   );
 });
 
-test("permanent moderators grant and revoke every tab for a temporary moderator", async () => {
+test("permanent moderators revoke a temporary moderator after every tab disconnects", async () => {
   const moderatorSecret = "12121212121212121212121212121212";
   const targetSecret = "34343434343434343434343434343434";
   await createSocketScenario(
@@ -562,12 +563,31 @@ test("permanent moderators grant and revoke every tab for a temporary moderator"
         reason: "permission_denied",
       });
 
+      const moderatorStates = moderator.emitted.filter(
+        (event) => event.event === "boardstate",
+      );
+      const moderatorState = getRequiredValue(
+        moderatorStates[moderatorStates.length - 1],
+      ).payload;
+      assert.equal(moderatorState.temporaryModeratorGrants.length, 1);
+      const grantId = moderatorState.temporaryModeratorGrants[0].id;
+      assert.equal(typeof grantId, "string");
+      assert.equal(
+        "userSecret" in moderatorState.temporaryModeratorGrants[0],
+        false,
+      );
+
+      await invoke(target, "disconnecting", "transport close");
+      await invoke(sibling, "disconnecting", "transport close");
+      assert.equal(users.has(target.socket.id), false);
+      assert.equal(users.has(sibling.socket.id), false);
+
       /** @type {import("../types/app-runtime").SetTemporaryModeratorResult | undefined} */
       let revokeResult;
       await invoke(
         moderator,
         "set_temporary_moderator",
-        { socketId: target.socket.id, durationMs: 0 },
+        { grantId, durationMs: 0 },
         (
           /** @type {import("../types/app-runtime").SetTemporaryModeratorResult} */ result,
         ) => {
@@ -575,8 +595,17 @@ test("permanent moderators grant and revoke every tab for a temporary moderator"
         },
       );
       assert.deepEqual(revokeResult, { ok: true, expiresAt: null });
-      assert.equal(users.get(target.socket.id).canBan, false);
-      assert.equal(users.get(sibling.socket.id).canBan, false);
+      const reconnected = await connect({
+        id: "socket-temporary-moderator-reconnected",
+        headers: withUserSecretCookie(targetSecret),
+        query: { board: "temporary-moderator-board", tool: "hand" },
+      });
+      const states = reconnected.emitted.filter(
+        (event) => event.event === "boardstate",
+      );
+      const state = getRequiredValue(states[states.length - 1]).payload;
+      assert.equal(state.canBan, false);
+      assert.equal(state.canGrantTemporaryModerator, false);
     },
   );
 });

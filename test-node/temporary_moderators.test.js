@@ -39,15 +39,27 @@ test("temporary moderator grants can be replaced and revoked", () => {
   const {
     getTemporaryModeratorExpiresAt,
     grantTemporaryModerator,
+    listTemporaryModeratorGrants,
     resetTemporaryModerators,
     revokeTemporaryModerator,
+    revokeTemporaryModeratorById,
   } = require(STORE_PATH);
   resetTemporaryModerators();
   const now = 2_000;
   const secret = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
-  grantTemporaryModerator("board-a", secret, now, 10_000);
-  grantTemporaryModerator("board-a", secret, now, 20_000);
+  const user = {
+    socketId: "socket-a",
+    userId: "visible-id",
+    name: "Visible name",
+    color: "#001f3f",
+    size: 4,
+    lastTool: "hand",
+    joinedAt: now,
+    position: { x: 0, y: 0 },
+  };
+  grantTemporaryModerator("board-a", secret, now, 10_000, user);
+  grantTemporaryModerator("board-a", secret, now, 20_000, user);
   assert.equal(
     getTemporaryModeratorExpiresAt("board-a", secret, now),
     now + 20_000,
@@ -55,6 +67,17 @@ test("temporary moderator grants can be replaced and revoked", () => {
   assert.equal(revokeTemporaryModerator("board-a", secret), true);
   assert.equal(getTemporaryModeratorExpiresAt("board-a", secret, now), null);
   assert.equal(revokeTemporaryModerator("board-a", secret), false);
+
+  grantTemporaryModerator("board-a", secret, now, 20_000, user);
+  const grants = listTemporaryModeratorGrants("board-a", now);
+  assert.equal(grants.length, 1);
+  assert.equal(grants[0].user.name, "Visible name");
+  assert.equal("userSecret" in grants[0], false);
+  assert.equal(
+    revokeTemporaryModeratorById("board-a", grants[0].id).userSecret,
+    secret,
+  );
+  assert.deepEqual(listTemporaryModeratorGrants("board-a", now), []);
 });
 
 test("temporary moderator grants reject empty identities and invalid durations", () => {

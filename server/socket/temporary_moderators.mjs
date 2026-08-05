@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   capToMaxSize,
   pruneStaleEntries,
@@ -9,7 +10,9 @@ export const MAX_TEMPORARY_MODERATOR_TTL_MS = MAX_BAN_TTL_MS;
 const GRANT_MAP_MAX_SIZE = 4096;
 const GRANT_STALE_SCAN_LIMIT = 16;
 
-/** @typedef {{expiresAt: number}} TemporaryModeratorGrant */
+/** @typedef {{id: string, expiresAt: number, user: TemporaryModeratorGrantUser | null}} TemporaryModeratorGrant */
+/** @typedef {{socketId: string, userId: string, name: string, color: string, size: number, lastTool: string, joinedAt: number, position: {x: number, y: number}}} TemporaryModeratorGrantUser */
+/** @typedef {{id: string, expiresAt: number, user: TemporaryModeratorGrantUser | null}} PublicTemporaryModeratorGrant */
 
 /** @type {Map<string, Map<string, TemporaryModeratorGrant>>} */
 const boardGrants = new Map();
@@ -37,9 +40,16 @@ function getBoardGrants(boardName) {
  * @param {string | undefined | null} userSecret
  * @param {number} now
  * @param {number} ttlMs
+ * @param {TemporaryModeratorGrantUser | null} [user]
  * @returns {number | null}
  */
-export function grantTemporaryModerator(boardName, userSecret, now, ttlMs) {
+export function grantTemporaryModerator(
+  boardName,
+  userSecret,
+  now,
+  ttlMs,
+  user = null,
+) {
   if (!userSecret) return null;
   const duration = Number(ttlMs);
   if (
@@ -56,7 +66,12 @@ export function grantTemporaryModerator(boardName, userSecret, now, ttlMs) {
     GRANT_STALE_SCAN_LIMIT,
   );
   const expiresAt = now + Math.floor(duration);
-  grants.set(userSecret, { expiresAt });
+  const existing = grants.get(userSecret);
+  grants.set(userSecret, {
+    id: existing?.id || randomUUID(),
+    expiresAt,
+    user: user || existing?.user || null,
+  });
   capToMaxSize(grants, GRANT_MAP_MAX_SIZE);
   return expiresAt;
 }
@@ -74,6 +89,46 @@ export function revokeTemporaryModerator(boardName, userSecret) {
   const deleted = grants.delete(userSecret);
   if (grants.size === 0) boardGrants.delete(key);
   return deleted;
+}
+
+/**
+ * @param {string} boardName
+ * @param {string} grantId
+ * @returns {{userSecret: string, grant: TemporaryModeratorGrant} | null}
+ */
+export function revokeTemporaryModeratorById(boardName, grantId) {
+  if (!grantId) return null;
+  const key = boardKey(boardName);
+  const grants = boardGrants.get(key);
+  if (!grants) return null;
+  for (const [userSecret, grant] of grants) {
+    if (grant.id !== grantId) continue;
+    grants.delete(userSecret);
+    if (grants.size === 0) boardGrants.delete(key);
+    return { userSecret, grant };
+  }
+  return null;
+}
+
+/**
+ * @param {string} boardName
+ * @param {number} now
+ * @returns {PublicTemporaryModeratorGrant[]}
+ */
+export function listTemporaryModeratorGrants(boardName, now) {
+  const key = boardKey(boardName);
+  const grants = boardGrants.get(key);
+  if (!grants) return [];
+  const result = [];
+  for (const [userSecret, grant] of grants) {
+    if (grant.expiresAt <= now) {
+      grants.delete(userSecret);
+      continue;
+    }
+    result.push({ id: grant.id, expiresAt: grant.expiresAt, user: grant.user });
+  }
+  if (grants.size === 0) boardGrants.delete(key);
+  return result;
 }
 
 /**
