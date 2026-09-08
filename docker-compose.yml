@@ -1,12 +1,12 @@
-version: "3"
 services:
-  www:
-    volumes:
-      - /opt/app/server-data:/opt/app/server-data
-    ports:
-      - "80:80"
+  wbo:
+    read_only: true
     build:
-      context: .
+      context:  .
+    ports:
+      - "127.0.0.1:80:8000" # second is local container port
+    volumes:
+      - ./wbo-boards:/app/server-data
     restart: on-failure
     deploy:
       restart_policy:
@@ -14,3 +14,7 @@ services:
         delay: 5s
         max_attempts: 5
         window: 60s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
