@@ -1,12 +1,12 @@
 const BOARD_NAME_INVALID_RUN = /[^\p{L}\p{N}_~()-]+/gu;
 const BOARD_NAME_REPEATED_DASHES = /-+/g;
 const BOARD_NAME_TRIMMED_DASHES = /^-+|-+$/g;
-const BOARD_FILENAME_MAX_BYTES = 255;
-const BOARD_SVG_FILENAME_PREFIX = "board-";
-const BOARD_SVG_FILENAME_SUFFIX = ".svg";
-const BOARD_SVG_BACKUP_SUFFIX = ".bak";
-const BOARD_QUARANTINE_SUFFIX = ".quarantine";
-const BOARD_TEMP_SUFFIX = ".tmp";
+export const BOARD_FILENAME_MAX_BYTES = 255;
+export const BOARD_SVG_FILENAME_PREFIX = "board-";
+export const BOARD_SVG_FILENAME_SUFFIX = ".svg";
+export const BOARD_SVG_BACKUP_SUFFIX = ".bak";
+export const BOARD_QUARANTINE_SUFFIX = ".quarantine";
+export const BOARD_TEMP_SUFFIX = ".tmp";
 const MAX_SAFE_INTEGER_DECIMAL_DIGITS = String(Number.MAX_SAFE_INTEGER).length;
 const MAX_GENERATED_BOARD_FILENAME_SUFFIX_BYTES = Math.max(
   1 +
