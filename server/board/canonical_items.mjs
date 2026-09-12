@@ -1,5 +1,5 @@
 import MessageCommon from "../../client-data/js/message_common.js";
-import { TOOL_BY_ID } from "../../client-data/tools/index.js";
+import { TOOL_CONTRACT_BY_ID as TOOL_BY_ID } from "../../client-data/tools/contracts.js";
 import { summarizeStoredSvgItem } from "../persistence/stored_svg_item_codec.mjs";
 
 /**

@@ -28,11 +28,11 @@ import { createBoardHtmlOverlay } from "../../js/board_html_overlay.js";
 import { logFrontendEvent } from "../../js/frontend_logging.js";
 import {
   clampSize,
-  getLocalGeometryBounds,
   resolveMaxBoardSize,
   truncateText,
 } from "../../js/message_common.js";
 import { MutationType } from "../../js/mutation_type.js";
+import { TextContract } from "../contracts.js";
 import { TOOL_CODE_BY_ID } from "../tool-order.js";
 
 /** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
@@ -141,109 +141,7 @@ function isTextMessage(data) {
   );
 }
 
-/** @type {import("../shape_contract.js").ToolContract} */
-const contract = {
-  toolId,
-  toolCode,
-  payloadKind: "text",
-  storedTagName: "text",
-  updatableFields: /** @type {const} */ (["txt"]),
-  liveMessageFields: /** @type {const} */ ({
-    [MutationType.CREATE]: {
-      id: "id",
-      color: "color",
-      size: "size",
-      opacity: "opacity?",
-      x: "coord",
-      y: "coord",
-    },
-    [MutationType.UPDATE]: {
-      id: "id",
-      txt: "text",
-    },
-  }),
-  summarizeStoredSvgItem(entry, paintOrder, helpers) {
-    const x = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "x"));
-    const y = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "y"));
-    const size = helpers.parseNumber(
-      helpers.readStoredSvgAttribute(entry, "font-size"),
-    );
-    if (x === undefined || y === undefined || size === undefined) {
-      return null;
-    }
-    const textLength = helpers.decodedTextLength(entry.content || "");
-    return {
-      id: helpers.id,
-      tool: contract.toolId,
-      paintOrder,
-      data: helpers.decorateStoredItemData(
-        {
-          x,
-          y,
-          size,
-          color: helpers.readStoredSvgAttribute(entry, "fill") || "#000000",
-        },
-        helpers.opacity,
-        helpers.transform,
-      ),
-      textLength,
-      localBounds: getLocalGeometryBounds({
-        tool: toolId,
-        x,
-        y,
-        size,
-        textLength,
-      }),
-    };
-  },
-  parseStoredSvgItem(summary, entry, helpers) {
-    return {
-      id: summary.id,
-      tool: contract.toolId,
-      ...summary.data,
-      txt: helpers.unescapeHtml(entry.content || ""),
-    };
-  },
-  serializeStoredSvgItem(item, helpers) {
-    const transform = helpers.renderTransformAttribute(item.transform);
-    const id = typeof item.id === "string" ? helpers.escapeHtml(item.id) : "";
-    const color = helpers.escapeHtml(item.color || "#000000");
-    const opacity =
-      typeof item.opacity === "number" ? ` opacity="${item.opacity}"` : "";
-    const textValue = String(item.txt || "");
-    return (
-      `<text id="${id}" x="${helpers.numberOrZero(item.x)}" y="${helpers.numberOrZero(item.y)}"` +
-      ` font-size="${helpers.numberOrZero(item.size) | 0}" fill="${color}"${opacity}${transform}>` +
-      `${helpers.escapeHtml(textValue)}</text>`
-    );
-  },
-  renderBoardSvg(text, helpers) {
-    const x = helpers.numberOrZero(text.x);
-    const y = helpers.numberOrZero(text.y);
-    return (
-      "<text " +
-      'id="' +
-      helpers.htmlspecialchars(text.id || "t") +
-      '" ' +
-      'x="' +
-      (x | 0) +
-      '" ' +
-      'y="' +
-      (y | 0) +
-      '" ' +
-      'font-size="' +
-      (helpers.numberOrZero(text.size) | 0) +
-      '" ' +
-      'fill="' +
-      helpers.htmlspecialchars(text.color || "#000") +
-      '" ' +
-      helpers.renderTranslate(text) +
-      ">" +
-      helpers.htmlspecialchars(text.txt || "") +
-      "</text>"
-    );
-  },
-};
+const contract = TextContract;
 
 export { contract };
 export const shortcut = "t";
