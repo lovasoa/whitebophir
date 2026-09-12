@@ -4,7 +4,7 @@ services:
     build:
       context:  .
     ports:
-      - "127.0.0.1:80:8000" # second is local container port
+      - "127.0.0.1:80:80"
     volumes:
       - ./wbo-boards:/app/server-data
     restart: on-failure
