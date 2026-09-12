@@ -1974,10 +1974,10 @@ test("BoardData.save serializes concurrent saves and releases after failure", as
   assert.ok(secondResolvedIndex > okIndex);
 });
 
-test("BoardData.save serializes concurrent saves across boards", async () => {
+test("BoardData.save runs concurrently across boards but stays serialized per board", async () => {
   const BoardData = getBoardDataClass();
-  const firstBoard = createBoard(BoardData, "global-save-queue-first");
-  const secondBoard = createBoard(BoardData, "global-save-queue-second");
+  const firstBoard = createBoard(BoardData, "per-board-save-queue-first");
+  const secondBoard = createBoard(BoardData, "per-board-save-queue-second");
   /** @type {string[]} */
   const calls = [];
   /** @type {(value?: void) => void} */
@@ -1998,23 +1998,47 @@ test("BoardData.save serializes concurrent saves across boards", async () => {
     return { status: "saved" };
   };
 
-  const firstSave = firstBoard.save().then(() => {
-    calls.push("first:resolved");
-  });
-  const secondSave = secondBoard.save().then(() => {
-    calls.push("second:resolved");
-  });
-
-  await Promise.resolve();
-  assert.deepEqual(calls, ["first:start"]);
+  // First board is mid-save (blocked on the gate). A save on the second,
+  // unrelated board must not wait behind it.
+  const firstSave = firstBoard.save();
+  const secondSave = secondBoard.save();
+  assert.deepEqual(await secondSave, { status: "saved" });
+  assert.deepEqual(calls, ["first:start", "second:start", "second:end"]);
 
   releaseFirstSave();
-  await Promise.all([firstSave, secondSave]);
+  assert.deepEqual(await firstSave, { status: "saved" });
+  assert.deepEqual(calls, [
+    "first:start",
+    "second:start",
+    "second:end",
+    "first:end",
+  ]);
 
-  assert.equal(calls[0], "first:start");
-  assert.equal(calls[1], "first:end");
-  assert.equal(calls[2], "second:start");
-  assert.equal(calls[3], "second:end");
-  assert.equal(calls.includes("first:resolved"), true);
-  assert.equal(calls[calls.length - 1], "second:resolved");
+  // Two saves of the SAME board are still serialized: the second waits for the
+  // first to finish before it starts.
+  calls.length = 0;
+  /** @type {(value?: void) => void} */
+  let releaseSecond = () => {};
+  const secondGate = new Promise((resolve) => {
+    releaseSecond = resolve;
+  });
+  let started = false;
+  firstBoard._unsafe_save = async () => {
+    if (!started) {
+      started = true;
+      calls.push("a:start");
+      await secondGate;
+      calls.push("a:end");
+      return { status: "saved" };
+    }
+    calls.push("b:start");
+    return { status: "saved" };
+  };
+  const saveA = firstBoard.save();
+  const saveB = firstBoard.save();
+  await Promise.resolve();
+  assert.deepEqual(calls, ["a:start"]);
+  releaseSecond();
+  await Promise.all([saveA, saveB]);
+  assert.deepEqual(calls, ["a:start", "a:end", "b:start"]);
 });
