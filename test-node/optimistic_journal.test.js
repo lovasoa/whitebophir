@@ -343,6 +343,70 @@ test("optimistic journal prunes entries invalidated by authoritative deletes", (
   );
 });
 
+test("authoritative prune plan surfaces hand batch child deletes and clears", () => {
+  assert.deepEqual(
+    optimisticPrunePlanForAuthoritativeMessage({
+      tool: Hand.id,
+      _children: [
+        { type: MutationType.DELETE, id: "shape-1" },
+        {
+          type: MutationType.UPDATE,
+          id: "shape-2",
+          transform: IDENTITY_TRANSFORM,
+        },
+        { type: MutationType.DELETE, id: "shape-3" },
+      ],
+    }),
+    { reset: false, invalidatedIds: ["shape-1", "shape-3"] },
+  );
+
+  assert.deepEqual(
+    optimisticPrunePlanForAuthoritativeMessage({
+      tool: Hand.id,
+      _children: [
+        { type: MutationType.DELETE, id: "shape-1" },
+        { type: MutationType.CLEAR },
+      ],
+    }),
+    { reset: true, invalidatedIds: ["shape-1"] },
+  );
+});
+
+test("optimistic journal prunes entries invalidated by hand batch child deletes", () => {
+  const journal = createOptimisticJournal();
+  appendOptimisticEntry(journal, {
+    clientMutationId: "c1",
+    affectedIds: new Set(["shape-1"]),
+    dependsOn: new Set(),
+    dependencyItemIds: new Set(["shape-1"]),
+    rollback: { kind: "items", snapshots: [] },
+    message: rectUpdate("shape-1"),
+  });
+  appendOptimisticEntry(journal, {
+    clientMutationId: "c2",
+    affectedIds: new Set(["shape-2"]),
+    dependsOn: new Set(),
+    dependencyItemIds: new Set(["shape-2"]),
+    rollback: { kind: "items", snapshots: [] },
+    message: rectUpdate("shape-2"),
+  });
+
+  const plan = optimisticPrunePlanForAuthoritativeMessage({
+    tool: Hand.id,
+    _children: [{ type: MutationType.DELETE, id: "shape-1" }],
+  });
+  assert.deepEqual(
+    journal
+      .rejectByInvalidatedIds(plan.invalidatedIds)
+      .map((entry) => entry.clientMutationId),
+    ["c1"],
+  );
+  assert.deepEqual(
+    journal.list().map((entry) => entry.clientMutationId),
+    ["c2"],
+  );
+});
+
 test("optimistic journal uses authoritative prune plans with dependency-driven entries", () => {
   const journal = createOptimisticJournal();
 
