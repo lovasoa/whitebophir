@@ -8,6 +8,7 @@ const {
   BOARD_DATA_PATH,
   CONFIG_PATH,
   createConfig,
+  createSocket,
   loadBoardData,
   withBoardHistoryDir,
   withEnv,
@@ -1023,6 +1024,41 @@ test("BoardData trims overflow by paint order instead of recency", () => {
   );
 });
 
+test("BoardData.load rejects unreadable boards instead of publishing empty state", async () => {
+  await withBoardHistoryDir("wbo-unreadable-", async ({ historyDir }) => {
+    const BoardData = getBoardDataClass();
+    const config = createConfig({ HISTORY_DIR: historyDir });
+    const file = path.join(historyDir, "board-broken.svg");
+    const primary = buildStoredSvg().replace(/<\/g>.*$/, "");
+    const { __test: sockets } = require("../server/socket/index.mjs");
+    const socket = /** @type {any} */ (
+      createSocket({ query: { board: "broken" } }).socket
+    );
+    await fs.writeFile(file, primary);
+    await assert.rejects(BoardData.load("broken", config), /drawingArea/);
+    await assert.rejects(BoardData.load("broken", config), /quarantined/);
+    await fs.writeFile(`${file}.bak`, primary);
+    await assert.rejects(BoardData.load("broken", config), /drawingArea/);
+    assert.equal(
+      (await sockets.prepareConnectionReplay(socket, config)).ok,
+      false,
+    );
+    assert.equal(sockets.getLoadedBoard("broken"), undefined);
+    await fs.rm(`${file}.bak`);
+    await fs.mkdir(`${file}.bak`);
+    await assert.rejects(BoardData.load("broken", config), { code: "EISDIR" });
+    await fs.writeFile(file, buildStoredSvg({ seq: 0 }));
+    assert.equal(
+      (await sockets.prepareConnectionReplay(socket, config)).ok,
+      true,
+    );
+    sockets.resetRateLimitMaps();
+    const empty = await loadBoard(BoardData, "new", config);
+    assert.equal(empty.loadSource, "empty");
+    assert.equal(empty.authoritativeItemCount(), 0);
+  });
+});
+
 test("BoardData.load normalizes stored board items from disk", async () => {
   await withBoardHistoryDir("wbo-board-data-load-", async ({ historyDir }) => {
     const BoardData = getBoardDataClass();
@@ -1688,6 +1724,7 @@ test("BoardData.save promotes a staged backup svg into the active file", async (
       const config = createConfig({ HISTORY_DIR: historyDir });
       const boardName = "cold-backup";
       const svgPath = path.join(historyDir, "board-cold-backup.svg");
+      await fs.writeFile(svgPath, buildStoredSvg().replace(/<\/g>.*$/, ""));
       await fs.writeFile(
         `${svgPath}.bak`,
         `<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="777" height="888" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="7" data-wbo-readonly="false"><defs id="defs"></defs><g id="drawingArea"><path id="line-1" d="M 1 2 l 2 2" stroke="#654321" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></g><g id="cursors"></g></svg>`,
@@ -1704,6 +1741,16 @@ test("BoardData.save promotes a staged backup svg into the active file", async (
       assert.equal(reloaded.loadSource, "svg");
       assert.deepEqual(Object.keys(reloaded.board), ["line-1"]);
       await assert.rejects(fs.stat(`${svgPath}.bak`), { code: "ENOENT" });
+      for (let seq = 8; seq <= 9; seq++) {
+        await applyPersistentMutation(reloaded, clearMessage(), seq);
+        assert.deepEqual(await reloaded.save(), { status: "saved" });
+      }
+      const empty = await loadBoard(BoardData, boardName, config);
+      assert.equal(empty.authoritativeItemCount(), 0);
+      assert.equal(empty.getSeq(), 9);
+      assert.ok(
+        (await fs.readdir(historyDir)).some((p) => p.endsWith(".quarantine")),
+      );
     },
   );
 });

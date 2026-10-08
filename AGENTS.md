@@ -442,7 +442,7 @@ Important files:
   boards are migration inputs, not the steady-state format.
 - Stored SVG structural scan, summary decode, and full materialization are
   separate. Bad recognized items may be skipped; broken SVG structure is an
-  error. Do not turn structural failures into silent repairs.
+  error. Failed loads reject; quarantine history preserves empty authoritative SVGs.
 - Board pages stream stored SVG baselines through the HTML shell. The board chrome
   and boot payloads must remain before the streamed board markup.
 - All user-visible strings MUST be localized via `Tools.i18n`. All [translation keys](server/http/translations.json) MUST have a carefully designed, natural sounding, context-aware version in ALL supported languages.

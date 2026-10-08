@@ -139,14 +139,6 @@ async function fileExists(file) {
 }
 
 /**
- * @param {string} file
- * @returns {boolean}
- */
-function isPrimaryStoredSvgFile(file) {
-  return file.endsWith(".svg");
-}
-
-/**
  * @param {string} boardName
  * @param {string | undefined} historyDir
  * @returns {Promise<boolean>}
@@ -185,26 +177,24 @@ async function readStoredSvgWithFallback(
     { file: boardSvgPath(boardName, historyDir), source: "svg" },
     { file: boardSvgBackupPath(boardName, historyDir), source: "svg_backup" },
   ];
+  let readError;
   for (const candidate of candidates) {
+    let exists = false;
     try {
       const fileStat = await stat(candidate.file);
-      /** @type {{file: string, byteLength: number, source: "svg" | "svg_backup"}} */
-      const readableSvg = {
-        file: candidate.file,
+      exists = true;
+      const result = await readReadableSvg({
+        ...candidate,
         byteLength: fileStat.size,
-        source: candidate.source,
-      };
-      const result = await readReadableSvg(readableSvg);
-      if (
-        candidate.source === "svg_backup" &&
-        candidate.file !== boardSvgPath(boardName, historyDir)
-      ) {
+      });
+      if (candidate.source === "svg_backup") {
         await rename(candidate.file, boardSvgPath(boardName, historyDir));
       }
       return result;
     } catch (error) {
-      if (errorCode(error) === "ENOENT") continue;
-      if (isPrimaryStoredSvgFile(candidate.file)) {
+      if (!exists && errorCode(error) === "ENOENT") continue;
+      if (candidate.source === "svg") {
+        readError = error;
         try {
           await quarantineUnreadableSvg(candidate.file);
         } catch (quarantineError) {
@@ -225,6 +215,10 @@ async function readStoredSvgWithFallback(
       }
       throw error;
     }
+  }
+  if (readError) throw readError;
+  if (await hasQuarantinedSvg(boardName, historyDir)) {
+    throw new Error(`Stored SVG for board ${boardName} is quarantined`);
   }
   return null;
 }
@@ -422,14 +416,14 @@ function renderServedBaselineSvg(board, metadata, seq) {
  */
 async function readCanonicalBoardState(boardName, options) {
   const historyDir = options?.historyDir;
-  const itemsById = new Map();
-  /** @type {string[]} */
-  const paintOrder = [];
-  const svgExtent = createDefaultSvgExtent();
   const state = await readStoredSvgWithFallback(
     boardName,
     historyDir,
     async (readableSvg) => {
+      const itemsById = new Map();
+      /** @type {string[]} */
+      const paintOrder = [];
+      const svgExtent = createDefaultSvgExtent();
       const stream = fs.createReadStream(readableSvg.file, {
         encoding: "utf8",
       });
@@ -495,13 +489,13 @@ async function readCanonicalBoardState(boardName, options) {
   }
 
   return {
-    itemsById,
-    paintOrder,
+    itemsById: new Map(),
+    paintOrder: [],
     metadata: defaultBoardMetadata(),
     seq: 0,
     source: "empty",
     byteLength: 0,
-    svgExtent,
+    svgExtent: createDefaultSvgExtent(),
   };
 }
 
@@ -539,7 +533,10 @@ async function writeBoardState(boardName, board, metadata, seq, options) {
     "wbo.svg.item_count": Object.keys(board).length,
     "wbo.svg.seq": seq,
   });
-  if (Object.keys(board).length === 0) {
+  if (
+    Object.keys(board).length === 0 &&
+    !(await hasQuarantinedSvg(boardName, historyDir))
+  ) {
     for (const emptyPath of [
       file,
       backupFile,

@@ -661,13 +661,22 @@ test("readCanonicalBoardState quarantines an unreadable primary svg before falli
     '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="640" height="480" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="7" data-wbo-readonly="true"><defs id="defs"></defs><g id="drawingArea"><rect id="rect-1" x="1" y="2" width="29" height="38" stroke="#123456" stroke-width="4" fill="none"></rect></g><g id="cursors"></g></svg>';
 
   await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
-    await fs.writeFile(svgFile, "not valid svg", "utf8");
+    await fs.writeFile(
+      svgFile,
+      stagedSvg
+        .replace('id="rect-1"', 'id="primary-only"')
+        .replace(/<\/g>.*$/, ""),
+      "utf8",
+    );
     await fs.writeFile(`${svgFile}.bak`, stagedSvg, "utf8");
 
     const state = await readCanonicalBoardState(boardName, historyDir);
 
     assert.equal(state.source, "svg_backup");
     assert.deepEqual(state.paintOrder, ["rect-1"]);
+    assert.deepEqual([...state.itemsById.keys()], ["rect-1"]);
+    assert.equal(state.seq, 7);
+    assert.equal(state.metadata.readonly, true);
     /** @type {any} */
     const config = { HISTORY_DIR: historyDir };
     assert.equal(await svgBoardStore.boardExists(boardName, config), true);
