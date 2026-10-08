@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
+const fsSync = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
@@ -1171,53 +1172,49 @@ test("rewriteStoredSvgFromCanonical reuses raw persisted pencil paths for copied
   });
 });
 
-test("rewriteStoredSvg rejects stored svg base-seq mismatches", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-svg-store-rewrite-seq-mismatch-"),
-  );
-
-  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
-    await writeBoardState(
-      "rewrite-seq-mismatch",
-      {
-        "rect-1": {
-          id: "rect-1",
-          tool: "rectangle",
-          type: "rect",
-          x: 0,
-          y: 0,
-          x2: 10,
-          y2: 10,
-          color: "#123456",
-          size: 4,
-        },
-      },
-      { readonly: false },
-      1,
-      historyDir,
+for (const operation of ["sequence", "open", "write"]) {
+  test(`rewriteStoredSvg rejects ${operation} failures and removes staging`, async (t) => {
+    const historyDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), "wbo-rewrite-error-"),
     );
-
-    const state = await readCanonicalBoardState(
-      "rewrite-seq-mismatch",
-      historyDir,
-    );
-    const persistedItemIds = new Set(state.itemsById.keys());
-
+    t.after(() => fs.rm(historyDir, { recursive: true, force: true }));
+    const file = svgPath("failure", historyDir);
+    const original = '<svg data-wbo-seq="1"><g id="drawingArea"></g></svg>';
+    await fs.writeFile(file, original);
+    const failure = new Error(`injected ${operation} failure`);
+    if (operation !== "sequence") {
+      const createWriteStream = fsSync.createWriteStream;
+      t.mock.method(
+        fsSync,
+        "createWriteStream",
+        /** @type {typeof createWriteStream} */ (file, options) =>
+          createWriteStream(file, {
+            ...(typeof options === "object" ? options : { encoding: options }),
+            fs: {
+              ...fsSync,
+              [operation]: /** @param {...any} args */ (...args) =>
+                args[args.length - 1](failure),
+            },
+          }),
+      );
+    }
     await assert.rejects(
       rewriteStoredSvgFromCanonical(
-        "rewrite-seq-mismatch",
-        state.itemsById,
-        state.paintOrder,
-        state.metadata,
-        persistedItemIds,
-        0,
+        "failure",
+        new Map(),
+        [],
+        { readonly: false },
+        new Set(),
+        operation === "sequence" ? 0 : 1,
         2,
         historyDir,
       ),
-      /stored svg seq mismatch/i,
+      operation === "sequence" ? /stored svg seq mismatch/i : failure,
     );
+    assert.equal(await fs.readFile(file, "utf8"), original);
+    assert.deepEqual(await fs.readdir(historyDir), [path.basename(file)]);
   });
-});
+}
 
 test("writeBoardState removes stale svg and legacy json when board becomes empty", async () => {
   const historyDir = await fs.mkdtemp(
