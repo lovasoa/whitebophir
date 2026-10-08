@@ -128,124 +128,6 @@ function collectHydrationIds(board, message) {
   return ids;
 }
 
-/**
- * @param {BoardData} board
- * @param {import("../../types/server-runtime.d.ts").NormalizedMessageData} message
- * @returns {Promise<{ok: true, mutation: import("../../types/server-runtime.d.ts").NormalizedMessageData} | {ok: false, reason: string}>}
- */
-async function preparePersistentMutation(board, message) {
-  if (hasMessageChildren(message)) {
-    return { ok: true, mutation: message };
-  }
-  switch (getMutationType(message)) {
-    case MutationType.COPY:
-      if (!hasMessageId(message) || !getCanonicalItem(board, message.id)) {
-        return { ok: false, reason: "copied object does not exist" };
-      }
-      return { ok: true, mutation: message };
-    case MutationType.APPEND:
-      if (
-        !("parent" in message) ||
-        typeof message.parent !== "string" ||
-        !getCanonicalItem(board, message.parent)
-      ) {
-        return { ok: false, reason: "invalid parent for child" };
-      }
-      return board.canAddChild(message.parent, message)
-        ? { ok: true, mutation: message }
-        : { ok: false, reason: "shape too large" };
-    case MutationType.UPDATE:
-      if (!hasMessageId(message) || !getCanonicalItem(board, message.id)) {
-        return { ok: false, reason: "object not found" };
-      }
-      if (
-        board.canUpdate(message.id, getUpdatableFields(message.tool, message))
-      ) {
-        return { ok: true, mutation: message };
-      }
-      if (board.shouldDeferSeedDropRejectionToMutationEngine(message)) {
-        return { ok: true, mutation: message };
-      }
-      return { ok: false, reason: "shape too large" };
-    default:
-      return { ok: true, mutation: message };
-  }
-}
-
-/**
- * @param {BoardData} board
- * @param {string} id
- * @param {any} data
- * @returns {boolean}
- */
-function canStore(board, id, data) {
-  return board.validateStoredCandidate(id, data).ok;
-}
-
-/**
- * @param {BoardData} board
- * @param {string} id
- * @param {any} updateData
- * @returns {boolean}
- */
-function canUpdate(board, id, updateData) {
-  const obj = getCanonicalItem(board, id);
-  if (typeof obj !== "object") return false;
-
-  const candidate = board.makeUpdateCandidate(id, obj, updateData);
-  if (!candidate) return false;
-
-  return !board.isUpdateCandidateTooLarge(obj, updateData, candidate);
-}
-
-/**
- * @param {BoardData} board
- * @param {string} parentId
- * @param {any} child
- * @returns {boolean}
- */
-function canAddChild(board, parentId, child) {
-  return board.makeAppendCandidate(parentId, child).ok;
-}
-
-/**
- * @param {BoardData} board
- * @param {string} id
- * @param {any} data
- * @returns {boolean}
- */
-function canCopy(board, id, data) {
-  const obj = getCanonicalItem(board, id);
-  if (!obj) return false;
-  return board.makeCopyCandidate(data.newid, obj).ok;
-}
-
-/**
- * @param {BoardData} board
- * @param {BoardMessage} message
- * @returns {boolean}
- */
-function canProcessMessage(board, message) {
-  const id = hasMessageId(message) ? message.id : "";
-  switch (getMutationType(message)) {
-    case MutationType.DELETE:
-    case MutationType.CLEAR:
-      return true;
-    case MutationType.UPDATE:
-      return id
-        ? canUpdate(board, id, getUpdatableFields(message.tool, message))
-        : false;
-    case MutationType.COPY:
-      return id ? canCopy(board, id, message) : false;
-    case MutationType.APPEND:
-      return "parent" in message && typeof message.parent === "string"
-        ? canAddChild(board, message.parent, message)
-        : false;
-    default:
-      return id ? canStore(board, id, message) : false;
-  }
-}
-
 /** Process a batch of messages
  * @param {BoardData} board
  * @param {(BoardMessage | ToolOwnedChildMessage)[]} children array of messages to be delegated to the other methods
@@ -458,15 +340,9 @@ function processMessage(board, message) {
 }
 
 export {
-  canAddChild,
-  canCopy,
-  canProcessMessage,
-  canStore,
-  canUpdate,
   collectHydrationIds,
   collectReferencedMutationIds,
   commitMutation,
-  preparePersistentMutation,
   processMessage,
   processMessageBatch,
   trimOverflowItems,

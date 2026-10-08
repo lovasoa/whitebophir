@@ -1,12 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
-const {
-  Eraser,
-  Pencil,
-  Rectangle,
-  Text,
-} = require("../client-data/tools/index.js");
+const { Eraser, Pencil, Rectangle } = require("../client-data/tools/index.js");
 const path = require("node:path");
 
 const BOARD_SESSION_PATH = path.join(
@@ -24,30 +19,13 @@ async function loadBoardSession() {
   return require(BOARD_SESSION_PATH);
 }
 
-function createGate() {
-  /** @type {(value?: void) => void} */
-  let resolve = () => {};
-  const promise = new Promise((nextResolve) => {
-    resolve = nextResolve;
-  });
-  return { promise, resolve };
-}
-
 test("board session serializes persistent mutation acceptance per board", async () => {
   const { createBoardSession } = await loadBoardSession();
-  const gate = createGate();
   /** @type {string[]} */
   const steps = [];
   let seq = 0;
   const board = {
     name: "session-serialization",
-    async preparePersistentMutation(/** @type {any} */ message) {
-      steps.push(`prepare:${message.id}`);
-      if (message.id === "first") {
-        await gate.promise;
-      }
-      return { ok: true, mutation: message };
-    },
     processMessage(/** @type {any} */ message) {
       steps.push(`process:${message.id}`);
       return { ok: true };
@@ -73,18 +51,14 @@ test("board session serializes persistent mutation acceptance per board", async 
   );
 
   await Promise.resolve();
-  assert.deepEqual(steps, ["prepare:first"]);
-
-  gate.resolve();
+  assert.deepEqual(steps, ["process:first", "record:first"]);
 
   const [firstResult, secondResult] = await Promise.all([first, second]);
   assert.equal(firstResult.ok, true);
   assert.equal(secondResult.ok, true);
   assert.deepEqual(steps, [
-    "prepare:first",
     "process:first",
     "record:first",
-    "prepare:second",
     "process:second",
     "record:second",
   ]);
@@ -92,70 +66,11 @@ test("board session serializes persistent mutation acceptance per board", async 
   assert.equal(secondResult.entry.seq, 2);
 });
 
-test("board session records the prepared mutation payload", async () => {
+test("board session does not mutate or replace the accepted mutation", async () => {
   const { createBoardSession } = await loadBoardSession();
   /** @type {any[]} */
   const processed = [];
-  /** @type {any[]} */
-  const recorded = [];
-  const board = {
-    name: "session-prepared-mutation",
-    preparePersistentMutation(/** @type {any} */ message) {
-      return {
-        ok: true,
-        mutation: { ...message, txt: "prepared text" },
-      };
-    },
-    processMessage(/** @type {any} */ message) {
-      processed.push(message);
-      return { ok: true };
-    },
-    recordPersistentMutation(
-      /** @type {any} */ message,
-      /** @type {any} */ acceptedAtMs,
-    ) {
-      recorded.push({ message, acceptedAtMs });
-      return { seq: 5, acceptedAtMs, mutation: message };
-    },
-  };
-
-  const result = await createBoardSession(board).acceptPersistentMutation(
-    {
-      tool: Text.id,
-      type: MutationType.UPDATE,
-      id: "text-1",
-      txt: "draft",
-    },
-    99,
-  );
-
-  assert.equal(result.ok, true);
-  assert.deepEqual(processed, [
-    {
-      tool: Text.id,
-      type: MutationType.UPDATE,
-      id: "text-1",
-      txt: "prepared text",
-    },
-  ]);
-  assert.deepEqual(recorded, [
-    {
-      message: {
-        tool: Text.id,
-        type: MutationType.UPDATE,
-        id: "text-1",
-        txt: "prepared text",
-      },
-      acceptedAtMs: 99,
-    },
-  ]);
-});
-
-test("board session does not mutate or replace the accepted mutation when preparation is a pass-through", async () => {
-  const { createBoardSession } = await loadBoardSession();
-  /** @type {any[]} */
-  const processed = [];
-  const mutation = {
+  const mutation = Object.freeze({
     tool: Rectangle.id,
     type: MutationType.CREATE,
     id: "rect-1",
@@ -165,13 +80,9 @@ test("board session does not mutate or replace the accepted mutation when prepar
     y: 0,
     x2: 10,
     y2: 10,
-  };
+  });
   const board = {
     name: "session-pass-through-mutation",
-    preparePersistentMutation(/** @type {any} */ message) {
-      assert.strictEqual(message, mutation);
-      return { ok: true, mutation: message };
-    },
     processMessage(/** @type {any} */ message) {
       processed.push(message);
       return { ok: true };
