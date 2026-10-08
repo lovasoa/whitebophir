@@ -4,7 +4,6 @@ import { SerialTaskQueue } from "./serial_task_queue.mjs";
 /** @typedef {import("../../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
 /** @typedef {{mutation: NormalizedMessageData}} MutationEffect */
 /** @typedef {{ok: true} | {ok: false, reason: string}} BoardMutationResult */
-/** @typedef {{ok: true, mutation?: NormalizedMessageData} | {ok: false, reason: string}} PreparedMutationResult */
 /**
  * @typedef {{
  *   name: string,
@@ -12,7 +11,6 @@ import { SerialTaskQueue } from "./serial_task_queue.mjs";
  *   recordPersistentMutation: (message: NormalizedMessageData, acceptedAtMs?: number) => MutationLogEntry,
  *   consumePendingRejectedMutationEffects?: () => MutationEffect[],
  *   consumePendingAcceptedMutationEffects?: () => MutationEffect[],
- *   preparePersistentMutation?: (message: NormalizedMessageData) => Promise<PreparedMutationResult> | PreparedMutationResult,
  * }} BoardSessionBoard
  */
 /**
@@ -49,7 +47,7 @@ export function createBoardSession(board) {
   return {
     board,
     async acceptPersistentMutation(mutation, nowMs = Date.now()) {
-      return queue.runExclusive(async () => {
+      return queue.runExclusive(() => {
         consumePendingMutationEffects(
           board,
           board.consumePendingRejectedMutationEffects,
@@ -58,18 +56,7 @@ export function createBoardSession(board) {
           board,
           board.consumePendingAcceptedMutationEffects,
         );
-        let acceptedMutation = mutation;
-        if (typeof board.preparePersistentMutation === "function") {
-          const prepared =
-            await board.preparePersistentMutation(acceptedMutation);
-          if (prepared.ok === false) {
-            return prepared;
-          }
-          if (prepared.mutation) {
-            acceptedMutation = prepared.mutation;
-          }
-        }
-        const result = board.processMessage(acceptedMutation);
+        const result = board.processMessage(mutation);
         if (result.ok === false) {
           const followup = consumePendingMutationEffects(
             board,
@@ -79,7 +66,7 @@ export function createBoardSession(board) {
           );
           return followup.length > 0 ? { ...result, followup } : result;
         }
-        const entry = board.recordPersistentMutation(acceptedMutation, nowMs);
+        const entry = board.recordPersistentMutation(mutation, nowMs);
         const followup = consumePendingMutationEffects(
           board,
           board.consumePendingAcceptedMutationEffects,
@@ -88,7 +75,7 @@ export function createBoardSession(board) {
         );
         return {
           ok: true,
-          value: acceptedMutation,
+          value: mutation,
           entry,
           ...(followup.length > 0 ? { followup } : {}),
         };

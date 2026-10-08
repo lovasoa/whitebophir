@@ -166,7 +166,8 @@ Client `broadcast` messages enter
 7. For persistent mutations, serialize acceptance through the per-board
    queue in [session.mjs](./server/board/session.mjs), apply the mutation to
    [data.mjs](./server/board/data.mjs) through
-   [message_processing.mjs](./server/board/message_processing.mjs), record it in
+   [message_processing.mjs](./server/board/message_processing.mjs) with one
+   validation/application pass, record it in
    [mutation_log.mjs](./server/board/mutation_log.mjs), and emit sequenced
    `broadcast` frames to synced clients and the sender.
 
@@ -232,7 +233,8 @@ numeric `tool` codes from [client-data/tools/manifest.js](./client-data/tools/ma
 and numeric mutation `type` codes from [client-data/js/mutation_type.js](./client-data/js/mutation_type.js):
 `1` create, `2` update, `3` delete, `4` append, `5` batch, `6` clear, `7` copy.
 The server validates client messages, rejects malformed writes with
-`mutation_rejected`, and rebroadcasts accepted persistent writes as sequenced
+`mutation_rejected` using the mutation engine’s rejection reason, and
+rebroadcasts accepted persistent writes as sequenced
 `broadcast` frames.
 
 User reports are sent by clients on the `report_user` event with a payload of

@@ -105,8 +105,6 @@ function normalizeBoardSnapshot(board) {
  * @returns {Promise<void>}
  */
 async function applyPersistentMutation(board, mutation, acceptedAtMs) {
-  const prepared = await board.preparePersistentMutation(mutation);
-  assert.deepEqual(prepared, { ok: true, mutation });
   assert.equal(board.processMessage(mutation).ok, true);
   board.recordPersistentMutation(mutation, acceptedAtMs);
 }
@@ -893,7 +891,7 @@ test("BoardData drops zero-size seed shapes after an oversized update is rejecte
   assert.equal(board.get("rect-1"), undefined);
 });
 
-test("BoardData.preparePersistentMutation preserves seed-drop followups and stays in sync after them", async () => {
+test("BoardData.processMessage preserves seed-drop followups and rejects copies after them", () => {
   const BoardData = getBoardDataClass();
   const board = disableSaves(
     createBoard(BoardData, "prepare-seed-followup-board"),
@@ -903,6 +901,19 @@ test("BoardData.preparePersistentMutation preserves seed-drop followups and stay
     rectangleMessage("rect-1", "#112233", 4, 10, 10, 10, 10),
   ]);
 
+  const seed = board.get("rect-1");
+  assert.equal(
+    board.processMessage({
+      tool: Hand.id,
+      type: MutationType.UPDATE,
+      id: "rect-1",
+      transform: { a: 1, b: 0, c: 0, d: 1, e: 1e9, f: 0 },
+    }).ok,
+    false,
+  );
+  assert.deepEqual(board.get("rect-1"), seed);
+  assert.deepEqual(board.consumePendingRejectedMutationEffects(), []);
+
   const oversizedUpdate = rectangleUpdate("rect-1", {
     x: 10,
     y: 10,
@@ -910,10 +921,6 @@ test("BoardData.preparePersistentMutation preserves seed-drop followups and stay
     y2: 30,
   });
 
-  assert.deepEqual(await board.preparePersistentMutation(oversizedUpdate), {
-    ok: true,
-    mutation: oversizedUpdate,
-  });
   assert.equal(board.processMessage(oversizedUpdate).ok, false);
   assert.equal(board.get("rect-1"), undefined);
   assert.deepEqual(board.consumePendingRejectedMutationEffects(), [
@@ -926,13 +933,10 @@ test("BoardData.preparePersistentMutation preserves seed-drop followups and stay
     },
   ]);
 
-  assert.deepEqual(
-    await board.preparePersistentMutation(handCopy("rect-1", "rect-2")),
-    {
-      ok: false,
-      reason: "copied object does not exist",
-    },
-  );
+  assert.deepEqual(board.processMessage(handCopy("rect-1", "rect-2")), {
+    ok: false,
+    reason: "copied object does not exist",
+  });
 });
 
 test("BoardData rejects hand batches atomically when one transform is oversized", () => {

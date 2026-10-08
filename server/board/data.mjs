@@ -26,7 +26,6 @@
  */
 
 import MessageCommon from "../../client-data/js/message_common.js";
-import { hasMessageId } from "../../client-data/js/message_shape.js";
 import {
   getMutationType,
   getTool,
@@ -69,15 +68,9 @@ import {
   unsafeSaveBoard,
 } from "./data_persistence.mjs";
 import {
-  canAddChild as canBoardAddChild,
-  canCopy as canBoardCopy,
-  canProcessMessage as canBoardProcessMessage,
-  canStore as canBoardStore,
-  canUpdate as canBoardUpdate,
   collectHydrationIds as collectBoardHydrationIds,
   collectReferencedMutationIds as collectBoardReferencedMutationIds,
   commitMutation as commitBoardMutation,
-  preparePersistentMutation as prepareBoardPersistentMutation,
   processMessage as processBoardMessage,
   processMessageBatch as processBoardMessageBatch,
   trimOverflowItems as trimBoardOverflowItems,
@@ -486,19 +479,6 @@ class BoardData {
   }
 
   /**
-   * @param {any} summary
-   * @returns {boolean}
-   */
-  hasZeroSummaryExtent(summary) {
-    const bounds = summary?.bounds;
-    return !!(
-      bounds &&
-      bounds.minX === bounds.maxX &&
-      bounds.minY === bounds.maxY
-    );
-  }
-
-  /**
    * @param {string | undefined} tool
    * @param {BoardElem} item
    * @param {string} id
@@ -511,26 +491,6 @@ class BoardData {
       getTool(item.tool)?.id === getTool(tool)?.id &&
       this.hasZeroLocalExtent(item, id) &&
       item.transform === undefined
-    );
-  }
-
-  /**
-   * @param {BoardMessage} message
-   * @returns {boolean}
-   */
-  shouldDeferSeedDropRejectionToMutationEngine(message) {
-    if (
-      getMutationType(message) !== MutationType.UPDATE ||
-      !hasMessageId(message)
-    ) {
-      return false;
-    }
-    const summary = getCanonicalItem(this, message.id);
-    return (
-      isShapeTool(message.tool) &&
-      getTool(summary?.tool)?.id === getTool(message.tool)?.id &&
-      this.hasZeroSummaryExtent(summary) &&
-      summary.transform === undefined
     );
   }
 
@@ -548,22 +508,6 @@ class BoardData {
    */
   collectHydrationIds(message) {
     return collectBoardHydrationIds(this, message);
-  }
-
-  /**
-   * @param {NormalizedMessageData} message
-   * @returns {Promise<{ok: true, mutation: NormalizedMessageData} | {ok: false, reason: string}>}
-   */
-  async preparePersistentMutation(message) {
-    return prepareBoardPersistentMutation(this, message);
-  }
-
-  canStore(/** @type {string} */ id, /** @type {BoardElem} */ data) {
-    return canBoardStore(this, id, data);
-  }
-
-  canUpdate(/** @type {string} */ id, /** @type {BoardElem} */ updateData) {
-    return canBoardUpdate(this, id, updateData);
   }
 
   /**
@@ -636,26 +580,11 @@ class BoardData {
       next.payload.modifiedText = updateData.txt;
       next.textLength = updateData.txt.length;
     }
-    const boundsItem = publicItemFromCanonicalItem(next);
-    const text = currentText(next);
-    if (boundsItem && text !== undefined) boundsItem.txt = text;
-    next.bounds = cloneBounds(
-      this.isTransformOnlyUpdate(updateData)
-        ? localBounds
-        : MessageCommon.getLocalGeometryBounds(boundsItem),
-    );
+    next.bounds = cloneBounds(localBounds);
     next.dirty = true;
     next.time = Date.now();
     next.attrs.time = next.time;
     return next;
-  }
-
-  canAddChild(/** @type {string} */ parentId, /** @type {BoardElem} */ child) {
-    return canBoardAddChild(this, parentId, child);
-  }
-
-  canCopy(/** @type {string} */ id, /** @type {BoardElem} */ data) {
-    return canBoardCopy(this, id, data);
   }
 
   /**
@@ -708,10 +637,6 @@ class BoardData {
       canonical: copied,
       localBounds: cloneBounds(copied.bounds),
     };
-  }
-
-  canProcessMessage(/** @type {BoardMessage} */ message) {
-    return canBoardProcessMessage(this, message);
   }
 
   /** Adds data to the board
@@ -797,8 +722,12 @@ class BoardData {
     const obj = getCanonicalItem(this, id);
     if (typeof obj !== "object")
       return { ok: false, reason: "object not found" };
-    if (!this.canUpdate(id, updateData)) {
-      if (this.shouldDropSeedShapeOnRejectedUpdate(obj.tool, obj, id)) {
+    const candidate = this.makeUpdateCandidate(id, obj, updateData);
+    if (
+      !candidate ||
+      this.isUpdateCandidateTooLarge(obj, updateData, candidate)
+    ) {
+      if (this.shouldDropSeedShapeOnRejectedUpdate(tool, obj, id)) {
         const deleteResult = this.delete(id);
         if (deleteResult.ok)
           this.pendingRejectedMutationEffects.push({
@@ -810,7 +739,7 @@ class BoardData {
     const next = this.applyUpdateToCanonicalItem(
       obj,
       updateData,
-      this.makeUpdateCandidate(id, obj, updateData)?.localBounds,
+      candidate.localBounds,
     );
     this.upsertItem(next);
     this.delaySave();
