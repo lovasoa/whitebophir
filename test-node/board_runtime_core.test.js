@@ -1,6 +1,13 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
+test("IDs remain distinct across tools within one millisecond", (t) => {
+  const mod = require("../client-data/js/board_full_runtime_modules.js");
+  const uid = new mod.IdModule().generateUID;
+  t.mock.method(Date, "now", () => 1);
+  assert.equal(new Set(Array.from({ length: 100 }, () => uid())).size, 100);
+});
+
 test("I18nModule resolves hyphenated tool ids through underscore translation keys", async () => {
   const { I18nModule } = await import(
     "../client-data/js/board_runtime_core.js"

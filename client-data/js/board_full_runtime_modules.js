@@ -82,16 +82,8 @@ export class InteractionModule {
 }
 
 export class IdModule {
-  /**
-   * @param {string} [prefix]
-   * @param {string} [suffix]
-   */
-  generateUID(prefix, suffix) {
-    let uid = Date.now().toString(36);
-    uid += Math.round(Math.random() * 36).toString(36);
-    if (prefix) uid = prefix + uid;
-    if (suffix) uid = uid + suffix;
-    return uid;
+  generateUID(prefix = "") {
+    return prefix + crypto.getRandomValues(new Uint32Array(4)).join("-");
   }
 }
 
