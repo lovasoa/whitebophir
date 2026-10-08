@@ -183,13 +183,10 @@ async function readStoredSvgWithFallback(
     try {
       const fileStat = await stat(candidate.file);
       exists = true;
-      /** @type {{file: string, byteLength: number, source: "svg" | "svg_backup"}} */
-      const readableSvg = {
-        file: candidate.file,
+      const result = await readReadableSvg({
+        ...candidate,
         byteLength: fileStat.size,
-        source: candidate.source,
-      };
-      const result = await readReadableSvg(readableSvg);
+      });
       if (candidate.source === "svg_backup") {
         await rename(candidate.file, boardSvgPath(boardName, historyDir));
       }
@@ -536,7 +533,10 @@ async function writeBoardState(boardName, board, metadata, seq, options) {
     "wbo.svg.item_count": Object.keys(board).length,
     "wbo.svg.seq": seq,
   });
-  if (Object.keys(board).length === 0) {
+  if (
+    Object.keys(board).length === 0 &&
+    !(await hasQuarantinedSvg(boardName, historyDir))
+  ) {
     for (const emptyPath of [
       file,
       backupFile,
