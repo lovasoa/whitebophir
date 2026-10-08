@@ -433,8 +433,9 @@ Important files:
   session, board mutation application, mutation-log recording, and sequenced
   broadcasts. Cursor messages are ephemeral and are not persisted or replayed.
 - Connection replay starts from the SVG baseline sequence attached to the page.
-  Reconnects refresh the authoritative SVG baseline before opening a new socket
-  when replay is not possible.
+  Reconnects refresh the authoritative SVG baseline before opening a fresh
+  socket. Connection generations cancel obsolete startup, baseline, replay,
+  and pending lazy-tool messages during resync.
 - Canonical board items store scalar fields in `attrs`, `transform` once at the
   item top level, and payload-specific state under `payload`.
 - Stored SVG is authoritative. `.svg.bak` is a transient save staging file, and

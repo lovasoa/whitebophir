@@ -459,37 +459,29 @@ window.turnstile = {
   }
 
   async waitForDisconnectThenReconnect() {
-    return this.page.evaluate(async () => {
+    const initialId = await this.page.evaluate(async () => {
       const socket = window.WBOApp.connection.socket;
       if (!socket) throw new Error("Missing socket");
-      if (!socket.once) throw new Error("Socket does not support once()");
-      const socketOnce = socket.once.bind(socket);
       const initialId = socket.id ?? null;
-      return new Promise<{ initialId: string | null; nextId: string | null }>(
-        (resolve, reject) => {
-          let sawDisconnect = false;
-          const timeout = setTimeout(
-            () =>
-              reject(
-                new Error("Timed out waiting for disconnect/reconnect cycle"),
-              ),
-            5_000,
-          );
-
-          socketOnce("disconnect", () => {
-            sawDisconnect = true;
-          });
-          socketOnce("connect", () => {
-            if (!sawDisconnect) return;
-            clearTimeout(timeout);
-            resolve({
-              initialId,
-              nextId: window.WBOApp.connection.socket?.id ?? null,
-            });
-          });
-        },
+      await new Promise<void>((resolve) =>
+        socket.once("disconnect", () => resolve()),
       );
+      return initialId;
     });
+    await expect
+      .poll(() =>
+        this.page.evaluate((initialId) => {
+          const socket = window.WBOApp.connection.socket;
+          return socket?.connected === true && socket.id !== initialId;
+        }, initialId),
+      )
+      .toBe(true);
+    return {
+      initialId,
+      nextId: await this.page.evaluate(
+        () => window.WBOApp.connection.socket?.id ?? null,
+      ),
+    };
   }
 
   async drawPencilPaths(paths: PencilPath[]) {
@@ -1038,37 +1030,16 @@ window.turnstile = {
   }
 
   async reconnectAndReadState(): Promise<ReconnectState> {
-    return this.page.evaluate(async () => {
-      const reconnect = await new Promise<{
-        connected: boolean;
-        validated: boolean;
-      }>((resolve, reject) => {
-        let settled = false;
-        const timeout = setTimeout(
-          () => reject(new Error("Timed out waiting for reconnect")),
-          5_000,
-        );
-
-        const finish = () => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timeout);
-          requestAnimationFrame(() =>
-            resolve({
-              connected: window.WBOApp.connection.socket?.connected === true,
-              validated: window.WBOApp.turnstile.isValidated(),
-            }),
-          );
-        };
-
-        window.WBOApp.connection.socket?.once?.("reconnect", finish);
-        window.WBOApp.connection.socket?.once?.("connect", finish);
-
-        window.WBOApp.connection.socket?.io?.engine?.close();
-      });
-
-      return reconnect;
-    });
+    const reconnect = this.waitForDisconnectThenReconnect();
+    await this.page.evaluate(() =>
+      window.WBOApp.connection.socket?.io?.engine?.close(),
+    );
+    await reconnect;
+    await this.trackBroadcasts();
+    return this.page.evaluate(() => ({
+      connected: window.WBOApp.connection.socket?.connected === true,
+      validated: window.WBOApp.turnstile.isValidated(),
+    }));
   }
 
   async readWriteStatus(): Promise<WriteStatusState> {

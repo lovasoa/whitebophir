@@ -48,11 +48,6 @@ function whenSocketIoReady() {
   return socketIoReady;
 }
 
-/** @param {AppToolsState} Tools */
-function getAttachedBoardDom(Tools) {
-  return Tools.dom.status === "attached" ? Tools.dom : null;
-}
-
 /**
  * @param {unknown} payload
  * @returns {ModerationDisconnectPayload}
@@ -174,6 +169,9 @@ export class ConnectionModule {
     this.getTools = getTools;
     this.logBoardEvent = logBoardEvent;
     this.socket = null;
+    this.generation = 0;
+    this.starting = /** @type {Promise<void> | null} */ (null);
+    this.reconnectTimerId = 0;
     this.state = /** @type {BoardConnectionState} */ ("idle");
     this.hasConnectedOnce = false;
     this.socketIOExtraHeaders = /** @type {SocketHeaders | null} */ (null);
@@ -208,8 +206,11 @@ export class ConnectionModule {
 
   /** @param {number} [delayMs] */
   scheduleSocketReconnect(delayMs = 250) {
-    const Tools = this.getTools();
-    window.setTimeout(() => Tools.connection.start(), Math.max(0, delayMs));
+    window.clearTimeout(this.reconnectTimerId);
+    this.reconnectTimerId = window.setTimeout(
+      () => this.start(),
+      Math.max(0, delayMs),
+    );
   }
 
   /** @param {PendingModerationDisconnect} notice */
@@ -221,27 +222,32 @@ export class ConnectionModule {
   }
 
   start() {
+    if (this.starting) return this.starting;
+    window.clearTimeout(this.reconnectTimerId);
     const Tools = this.getTools();
-    const reusableSocket =
-      this.socket && !this.socket.connected ? this.socket : null;
-    if (this.socket && !reusableSocket) {
-      BoardConnection.closeSocket(this.socket);
-      this.socket = null;
-    }
+    if (this.socket)
+      Tools.replay.beginAuthoritativeResync({
+        preserveBufferedWrites: Tools.writes.isWritePaused(),
+      });
+    const generation = ++this.generation;
+    BoardConnection.closeSocket(this.socket);
+    this.socket = null;
     this.state = "connecting";
     Tools.replay.awaitingSnapshot = true;
     Tools.presence.clearConnectedUsers();
 
-    void (async () => {
-      if (!getAttachedBoardDom(Tools)) {
+    this.starting = (async () => {
+      if (Tools.dom.status !== "attached") {
         this.scheduleSocketReconnect();
         return;
       }
       if (Tools.replay.refreshBaselineBeforeConnect) {
         try {
           await Tools.replay.refreshAuthoritativeBaseline();
+          if (generation !== this.generation) return;
           Tools.replay.refreshBaselineBeforeConnect = false;
         } catch (error) {
+          if (generation !== this.generation) return;
           const nextReconnectDelayMs = 1000;
           this.logBoardEvent("warn", "replay.baseline_refresh_failed", {
             errorName: error instanceof Error ? error.name : typeof error,
@@ -274,23 +280,14 @@ export class ConnectionModule {
         },
       );
 
-      if (reusableSocket) {
-        if (reusableSocket.io) {
-          reusableSocket.io.opts = {
-            ...(reusableSocket.io.opts || {}),
-            query: socketParams.query || "",
-          };
-        }
-        reusableSocket.connect();
-        return;
-      }
-
       const ioClient = await whenSocketIoReady();
+      if (generation !== this.generation) return;
       const socket = ioClient.connect("", socketParams);
       this.socket = socket;
 
       // Receive draw instructions from the server.
       socket.on(SocketEvents.CONNECT, () => {
+        if (generation !== this.generation) return;
         const hadConnectedBefore = Tools.connection.hasConnectedOnce;
         Tools.connection.state = "connected";
         this.logBoardEvent(
@@ -311,9 +308,11 @@ export class ConnectionModule {
         Tools.status.syncWriteStatusIndicator();
       });
       socket.on(SocketEvents.BROADCAST, (msg) => {
+        if (generation !== this.generation) return;
         Tools.replay.enqueueIncomingBroadcast(msg);
       });
       socket.on(SocketEvents.BOARDSTATE, (boardState) => {
+        if (generation !== this.generation) return;
         Tools.access.applyBoardState(normalizeBoardState(boardState));
       });
       socket.on(
@@ -462,6 +461,10 @@ export class ConnectionModule {
         this.scheduleSocketReconnect();
       });
       socket.connect();
-    })();
+    })().finally(() => {
+      this.starting = null;
+      if (generation !== this.generation) void this.start();
+    });
+    return this.starting;
   }
 }

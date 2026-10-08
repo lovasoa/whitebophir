@@ -10,17 +10,6 @@ export function normalizeSeq(value) {
 }
 
 /**
- * @param {number} messageSeq
- * @param {number} authoritativeSeq
- * @returns {"stale" | "next" | "gap"}
- */
-export function classifySequencedMutationSeq(messageSeq, authoritativeSeq) {
-  if (messageSeq <= authoritativeSeq) return "stale";
-  if (messageSeq === authoritativeSeq + 1) return "next";
-  return "gap";
-}
-
-/**
  * @param {IncomingBroadcast} message
  * @param {boolean} awaitingBoardSnapshot
  * @returns {boolean}
