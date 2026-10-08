@@ -4,12 +4,7 @@ import {
   parseServedBaselineSvgText,
 } from "./board_svg_baseline.js";
 
-/** @import { AppToolsState, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardMessage, IncomingBroadcast } from "../../types/app-runtime" */
-
-/** @param {AppToolsState} Tools */
-function getAttachedBoardDom(Tools) {
-  return Tools.dom.status === "attached" ? Tools.dom : null;
-}
+/** @import { AppToolsState, AuthoritativeBaseline, IncomingBroadcast } from "../../types/app-runtime" */
 
 /**
  * @param {number | undefined} [cacheBust]
@@ -40,14 +35,14 @@ export class ReplayModule {
     this.authoritativeSeq = 0;
     this.preSnapshotMessages = /** @type {IncomingBroadcast[]} */ ([]);
     this.incomingBroadcastQueue = /** @type {IncomingBroadcast[]} */ ([]);
-    this.processingIncomingBroadcast = false;
+    this.processingIncomingBroadcast = /** @type {number | null} */ (null);
   }
 
   /** @param {AuthoritativeBaseline} baseline */
   applyAuthoritativeBaseline(baseline) {
     const Tools = this.getTools();
-    const dom = getAttachedBoardDom(Tools);
-    if (!dom) return;
+    if (Tools.dom.status !== "attached") return;
+    const dom = Tools.dom;
     this.hasAuthoritativeSnapshot = true;
     this.authoritativeSeq = baseline.seq;
     Tools.optimistic.journal.reset();
@@ -61,6 +56,8 @@ export class ReplayModule {
   }
 
   async refreshAuthoritativeBaseline() {
+    const connection = this.getTools().connection;
+    const generation = connection.generation;
     const response = await fetch(getAuthoritativeBaselineUrl(Date.now()), {
       cache: "no-store",
       credentials: "same-origin",
@@ -69,22 +66,23 @@ export class ReplayModule {
     if (!response.ok) {
       throw new Error(`Baseline fetch failed with HTTP ${response.status}`);
     }
-    const baseline = parseServedBaselineSvgText(
-      await response.text(),
-      new DOMParser(),
+    const text = await response.text();
+    if (generation !== connection.generation) return;
+    this.applyAuthoritativeBaseline(
+      parseServedBaselineSvgText(text, new DOMParser()),
     );
-    this.applyAuthoritativeBaseline(baseline);
   }
 
   /** @param {{preserveBufferedWrites?: boolean}} [options] */
   beginAuthoritativeResync(options) {
     const Tools = this.getTools();
+    Tools.connection.generation++;
     this.awaitingSnapshot = true;
     this.refreshBaselineBeforeConnect = true;
     Tools.optimistic.journal.reset();
     this.preSnapshotMessages = [];
     this.incomingBroadcastQueue = [];
-    this.processingIncomingBroadcast = false;
+    Tools.toolRegistry.pendingMessages = {};
     if (!options?.preserveBufferedWrites) {
       Tools.writes.discardBufferedWrites();
     }
@@ -100,155 +98,105 @@ export class ReplayModule {
     Tools.status.syncWriteStatusIndicator();
   }
 
-  /**
-   * @param {BoardMessage} message
-   * @returns {Promise<void>}
-   */
-  async handleMessage(message) {
+  /** @param {IncomingBroadcast} msg @returns {Promise<boolean>} */
+  async processIncomingBroadcast(msg) {
     const Tools = this.getTools();
-    if (message.clientMutationId) {
-      Tools.writes.resolveBufferedWrite(message.clientMutationId);
-    }
-    Tools.writes.pruneBufferedWritesForInvalidatingMessage(message);
-    await Tools.messages.messageForTool(message);
-  }
-
-  /**
-   * @param {IncomingBroadcast} msg
-   * @param {boolean} processed
-   * @returns {void}
-   */
-  finalizeIncomingBroadcast(msg, processed) {
-    const Tools = this.getTools();
-    if (processed && !BoardMessageReplay.isAuthoritativeReplayBatch(msg)) {
-      const activityMessage =
-        BoardMessageReplay.unwrapSequencedMutationBroadcast(msg);
-      Tools.presence.updateConnectedUsersFromActivity(
-        activityMessage.userId,
-        activityMessage,
-      );
-    }
-    Tools.status.syncWriteStatusIndicator();
-  }
-
-  /**
-   * @param {number} replayedToSeq
-   * @returns {void}
-   */
-  completeAuthoritativeReplay(replayedToSeq) {
-    const Tools = this.getTools();
-    this.hasAuthoritativeSnapshot = true;
-    this.authoritativeSeq = replayedToSeq;
-    this.awaitingSnapshot = false;
-    this.refreshBaselineBeforeConnect = false;
-    Tools.writes.pumpBufferedWrites();
-    this.incomingBroadcastQueue =
-      BoardMessageReplay.filterBufferedMessagesAfterSeqReplay(
-        this.preSnapshotMessages,
-        this.authoritativeSeq,
-      ).concat(this.incomingBroadcastQueue);
-    this.preSnapshotMessages = [];
-    Tools.status.syncWriteStatusIndicator();
-  }
-
-  /**
-   * @param {AuthoritativeReplayBatch} batch
-   * @returns {Promise<boolean>}
-   */
-  async processAuthoritativeReplayBatch({ fromSeq, seq, _children }) {
-    const Tools = this.getTools();
+    const generation = Tools.connection.generation;
+    const replay = BoardMessageReplay.isAuthoritativeReplayBatch(msg);
+    const sequenced = BoardMessageReplay.isSequencedMutationBroadcast(msg);
+    if (sequenced && msg.seq <= this.authoritativeSeq) return false;
+    const fromSeq = replay ? msg.fromSeq : this.authoritativeSeq;
+    const seq = replay || sequenced ? msg.seq : fromSeq;
+    const children = replay
+      ? msg._children
+      : [BoardMessageReplay.unwrapSequencedMutationBroadcast(msg)];
     if (
-      fromSeq !== this.authoritativeSeq ||
-      seq < fromSeq ||
-      _children.length !== seq - fromSeq
+      (replay || sequenced) &&
+      (fromSeq !== this.authoritativeSeq ||
+        seq < fromSeq ||
+        children.length !== seq - fromSeq)
     ) {
-      this.logBoardEvent("warn", "replay.batch_gap", {
-        authoritativeSeq: this.authoritativeSeq,
-        fromSeq,
-        toSeq: seq,
-        childCount: _children.length,
-      });
+      this.logBoardEvent(
+        "warn",
+        replay ? "replay.batch_gap" : "replay.gap",
+        replay
+          ? {
+              authoritativeSeq: this.authoritativeSeq,
+              fromSeq,
+              toSeq: seq,
+              childCount: children.length,
+            }
+          : { authoritativeSeq: this.authoritativeSeq, incomingSeq: seq },
+      );
       this.beginAuthoritativeResync();
       Tools.connection.start();
       return false;
     }
-
-    for (const [index, child] of _children.entries()) {
-      await this.handleMessage(child);
-      this.authoritativeSeq = fromSeq + index + 1;
-    }
-    this.completeAuthoritativeReplay(seq);
-    return true;
-  }
-
-  /**
-   * @param {IncomingBroadcast} msg
-   * @returns {Promise<boolean>}
-   */
-  async processIncomingBroadcast(msg) {
-    const Tools = this.getTools();
-    if (BoardMessageReplay.isAuthoritativeReplayBatch(msg)) {
-      return this.processAuthoritativeReplayBatch(msg);
-    }
-    const isSequencedBroadcast =
-      BoardMessageReplay.isSequencedMutationBroadcast(msg);
-    if (isSequencedBroadcast) {
-      const seqDisposition = BoardMessageReplay.classifySequencedMutationSeq(
-        msg.seq,
-        this.authoritativeSeq,
-      );
-      if (seqDisposition === "stale") {
-        return false;
-      }
-      if (seqDisposition !== "next") {
-        this.logBoardEvent("warn", "replay.gap", {
-          authoritativeSeq: this.authoritativeSeq,
-          incomingSeq: msg.seq,
-        });
-        this.beginAuthoritativeResync();
-        Tools.connection.start();
-        return false;
-      }
-    }
     if (
+      !replay &&
       BoardMessageReplay.shouldBufferLiveMessage(msg, this.awaitingSnapshot)
     ) {
       this.preSnapshotMessages.push(msg);
       return false;
     }
-    const replayMessage =
-      BoardMessageReplay.unwrapSequencedMutationBroadcast(msg);
-    const isOwnSequencedBroadcast =
-      isSequencedBroadcast &&
-      replayMessage.socket === Tools.connection.socket?.id;
-    if (isOwnSequencedBroadcast && replayMessage.clientMutationId) {
-      Tools.optimistic.promoteMutation(replayMessage.clientMutationId);
-      Tools.writes.resolveBufferedWrite(replayMessage.clientMutationId);
+    for (const [index, message] of children.entries()) {
+      const own = sequenced && message.socket === Tools.connection.socket?.id;
+      if (own && message.clientMutationId) {
+        Tools.optimistic.promoteMutation(message.clientMutationId);
+        Tools.writes.resolveBufferedWrite(message.clientMutationId);
+      }
+      if (sequenced && !own)
+        Tools.optimistic.pruneForAuthoritativeMessage(message);
+      if (!own) {
+        if (message.clientMutationId)
+          Tools.writes.resolveBufferedWrite(message.clientMutationId);
+        Tools.writes.pruneBufferedWritesForInvalidatingMessage(message);
+        await Tools.messages.messageForTool(message);
+      }
+      if (generation !== Tools.connection.generation) return false;
+      if (replay || sequenced) this.authoritativeSeq = fromSeq + index + 1;
     }
-    if (isSequencedBroadcast && !isOwnSequencedBroadcast) {
-      Tools.optimistic.pruneForAuthoritativeMessage(replayMessage);
-    }
-    if (!isOwnSequencedBroadcast) {
-      await this.handleMessage(replayMessage);
-    }
-    if (isSequencedBroadcast) {
-      this.authoritativeSeq = msg.seq;
+    if (replay) {
+      this.hasAuthoritativeSnapshot = true;
+      this.authoritativeSeq = seq;
+      this.awaitingSnapshot = false;
+      this.refreshBaselineBeforeConnect = false;
+      Tools.writes.pumpBufferedWrites();
+      this.incomingBroadcastQueue =
+        BoardMessageReplay.filterBufferedMessagesAfterSeqReplay(
+          this.preSnapshotMessages,
+          this.authoritativeSeq,
+        ).concat(this.incomingBroadcastQueue);
+      this.preSnapshotMessages = [];
+      Tools.status.syncWriteStatusIndicator();
     }
     return true;
   }
 
   async drainIncomingBroadcastQueue() {
-    if (this.processingIncomingBroadcast) return;
-    this.processingIncomingBroadcast = true;
+    const generation = this.getTools().connection.generation;
+    if (this.processingIncomingBroadcast === generation) return;
+    this.processingIncomingBroadcast = generation;
     try {
-      while (true) {
+      while (generation === this.getTools().connection.generation) {
         const msg = this.incomingBroadcastQueue.shift();
         if (!msg) return;
         const processed = await this.processIncomingBroadcast(msg);
-        this.finalizeIncomingBroadcast(msg, processed);
+        if (generation !== this.getTools().connection.generation) return;
+        const Tools = this.getTools();
+        if (processed && !BoardMessageReplay.isAuthoritativeReplayBatch(msg)) {
+          const message =
+            BoardMessageReplay.unwrapSequencedMutationBroadcast(msg);
+          Tools.presence.updateConnectedUsersFromActivity(
+            message.userId,
+            message,
+          );
+        }
+        Tools.status.syncWriteStatusIndicator();
       }
     } finally {
-      this.processingIncomingBroadcast = false;
+      if (this.processingIncomingBroadcast === generation)
+        this.processingIncomingBroadcast = null;
       if (this.incomingBroadcastQueue.length > 0) {
         void this.drainIncomingBroadcastQueue();
       }
