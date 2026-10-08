@@ -437,16 +437,22 @@ function getBoard(name, config) {
     }
     return loadedBoard;
   } else {
-    const board = BoardData.load(name, config).then((loaded) => {
-      /**
-       * @param {{actualFileSeq?: number, durationMs?: number, saveTargetSeq?: number}} details
-       * @returns {Promise<void>}
-       */
-      loaded.onStaleSave = function onStaleSave(details) {
-        return handleStaleBoardSave(loaded, details);
-      };
-      return loaded;
-    });
+    const board = BoardData.load(name, config)
+      .then((loaded) => {
+        /**
+         * @param {{actualFileSeq?: number, durationMs?: number, saveTargetSeq?: number}} details
+         * @returns {Promise<void>}
+         */
+        loaded.onStaleSave = function onStaleSave(details) {
+          return handleStaleBoardSave(loaded, details);
+        };
+        return loaded;
+      })
+      .catch((error) => {
+        if (getLoadedBoard(name) === board) deleteLoadedBoard(name);
+        updateLoadedBoardsGauge();
+        throw error;
+      });
     setLoadedBoard(name, board);
     updateLoadedBoardsGauge();
     if (logger.isEnabled("debug")) {

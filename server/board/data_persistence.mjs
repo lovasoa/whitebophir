@@ -14,7 +14,6 @@ import {
 import { createMutationLog } from "./mutation_log.mjs";
 import { getMinPinnedReplayBaselineSeq } from "./registry.mjs";
 import { SerialTaskQueue } from "./serial_task_queue.mjs";
-import { createDefaultSvgExtent } from "./svg_extent.mjs";
 
 const { logger, metrics, tracing } = observability;
 
@@ -604,26 +603,10 @@ async function loadBoardData(BoardDataClass, name, config) {
         );
         boardData.itemsById = storedBoard.itemsById;
         boardData.paintOrder = storedBoard.paintOrder;
-        boardData.nextPaintOrder = storedBoard.paintOrder.reduce(
-          /**
-           * @param {number} max
-           * @param {string} id
-           */
-          (max, id) => {
-            const item = storedBoard.itemsById.get(id);
-            return item ? Math.max(max, item.paintOrder + 1) : max;
-          },
-          0,
-        );
+        boardData.nextPaintOrder = storedBoard.paintOrder.length;
         rebuildLiveItemCount(boardData);
-        boardData.trimPaintOrderIndex = 0;
         boardData.persistedItemIds = new Set(storedBoard.itemsById.keys());
         boardData.svgExtent = storedBoard.svgExtent;
-        boardData.dirtyFromMs = null;
-        boardData.lastWriteAtMs = null;
-        boardData.dirtyDuringSaveFromMs = null;
-        boardData.saveStartedAtMs = null;
-        boardData.saveTargetSeq = null;
         boardData.loadSource = storedBoard.source;
         boardData.metadata = storedBoard.metadata;
         boardData.mutationLog = createMutationLog(storedBoard.seq);
@@ -656,68 +639,24 @@ async function loadBoardData(BoardDataClass, name, config) {
         );
         metrics.recordBoardOperationDuration("load", name, durationMs / 1000);
       } catch (e) {
-        // If the file doesn't exist, this is not an error
-        if (errorCode(e) === "ENOENT") {
-          if (logger.isEnabled("debug")) {
-            logger.debug(
-              "board.load_empty",
-              boardLogFields(boardData, {
-                "wbo.board.load_source": "empty",
-              }),
-            );
-          }
-          const durationMs = Date.now() - startedAt;
-          logger.info(
-            "board.loaded",
-            boardLogFields(boardData, {
-              duration_ms: durationMs,
-              "wbo.board.load_source": "empty",
-              "wbo.board.result": "empty",
-              items: 0,
-            }),
-          );
-          tracing.setActiveSpanAttributes(
-            boardTraceAttributes(name, "load", {
-              "wbo.board.result": "empty",
-            }),
-          );
-          metrics.recordBoardOperationDuration(
-            "load",
-            name,
-            durationMs / 1000,
-            "empty",
-          );
-        } else {
-          const durationMs = Date.now() - startedAt;
-          tracing.recordActiveSpanError(e, {
-            "wbo.board.result": "error",
-          });
-          logger.error(
-            "board.load_failed",
-            boardLogFields(boardData, {
-              duration_ms: durationMs,
-              error: e,
-            }),
-          );
-          metrics.recordBoardOperationDuration(
-            "load",
-            name,
-            durationMs / 1000,
-            e,
-          );
-        }
-        boardData.itemsById = new Map();
-        boardData.paintOrder = [];
-        boardData.nextPaintOrder = 0;
-        boardData.persistedItemIds = new Set();
-        boardData.dirtyFromMs = null;
-        boardData.lastWriteAtMs = null;
-        boardData.dirtyDuringSaveFromMs = null;
-        boardData.saveStartedAtMs = null;
-        boardData.saveTargetSeq = null;
-        boardData.liveItemCount = 0;
-        boardData.trimPaintOrderIndex = 0;
-        boardData.svgExtent = createDefaultSvgExtent();
+        const durationMs = Date.now() - startedAt;
+        tracing.recordActiveSpanError(e, {
+          "wbo.board.result": "error",
+        });
+        logger.error(
+          "board.load_failed",
+          boardLogFields(boardData, {
+            duration_ms: durationMs,
+            error: e,
+          }),
+        );
+        metrics.recordBoardOperationDuration(
+          "load",
+          name,
+          durationMs / 1000,
+          e,
+        );
+        throw e;
       }
       return boardData;
     },

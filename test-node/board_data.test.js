@@ -8,6 +8,7 @@ const {
   BOARD_DATA_PATH,
   CONFIG_PATH,
   createConfig,
+  createSocket,
   loadBoardData,
   withBoardHistoryDir,
   withEnv,
@@ -1021,6 +1022,41 @@ test("BoardData trims overflow by paint order instead of recency", () => {
       },
     ],
   );
+});
+
+test("BoardData.load rejects unreadable boards instead of publishing empty state", async () => {
+  await withBoardHistoryDir("wbo-unreadable-", async ({ historyDir }) => {
+    const BoardData = getBoardDataClass();
+    const config = createConfig({ HISTORY_DIR: historyDir });
+    const file = path.join(historyDir, "board-broken.svg");
+    const primary = buildStoredSvg().replace(/<\/g>.*$/, "");
+    const { __test: sockets } = require("../server/socket/index.mjs");
+    const socket = /** @type {any} */ (
+      createSocket({ query: { board: "broken" } }).socket
+    );
+    await fs.writeFile(file, primary);
+    await assert.rejects(BoardData.load("broken", config), /drawingArea/);
+    await assert.rejects(BoardData.load("broken", config), /quarantined/);
+    await fs.writeFile(`${file}.bak`, primary);
+    await assert.rejects(BoardData.load("broken", config), /drawingArea/);
+    assert.equal(
+      (await sockets.prepareConnectionReplay(socket, config)).ok,
+      false,
+    );
+    assert.equal(sockets.getLoadedBoard("broken"), undefined);
+    await fs.rm(`${file}.bak`);
+    await fs.mkdir(`${file}.bak`);
+    await assert.rejects(BoardData.load("broken", config), { code: "EISDIR" });
+    await fs.writeFile(file, buildStoredSvg({ seq: 0 }));
+    assert.equal(
+      (await sockets.prepareConnectionReplay(socket, config)).ok,
+      true,
+    );
+    sockets.resetRateLimitMaps();
+    const empty = await loadBoard(BoardData, "new", config);
+    assert.equal(empty.loadSource, "empty");
+    assert.equal(empty.authoritativeItemCount(), 0);
+  });
 });
 
 test("BoardData.load normalizes stored board items from disk", async () => {
