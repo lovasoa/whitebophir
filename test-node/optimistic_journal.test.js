@@ -161,6 +161,13 @@ test("optimistic journal appends and promotes entries in order", () => {
     journal.list().map((entry) => entry.clientMutationId),
     ["c1", "c2"],
   );
+  const first = journal.list()[0];
+  assert.ok(first);
+  journal.append(first);
+  assert.deepEqual(
+    journal.list().map((entry) => entry.clientMutationId),
+    ["c2", "c1"],
+  );
   assert.deepEqual(
     journal.promote("c1").map((entry) => entry.clientMutationId),
     ["c1"],
