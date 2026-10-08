@@ -181,7 +181,8 @@ On the browser side, socket `broadcast` frames are queued by the connection
 module and consumed by the replay module. Replay enforces sequence order,
 applies replay batches, refreshes the authoritative SVG baseline when replay is
 not possible, and then passes messages to the message module. The message module
-updates hooks and calls the owning tool's `draw` method; unknown tool messages
+updates hooks and calls the owning tool's `draw` method. Hand applies batch
+transforms and copies synchronously in child order; unknown tool messages
 are held until that tool is booted.
 
 ### board state and persistence
