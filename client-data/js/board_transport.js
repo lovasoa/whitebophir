@@ -1,6 +1,5 @@
 /** @import { BoardMessage, PendingMessages, SocketHeaders, SocketParams } from "../../types/app-runtime" */
 /** @typedef {{[name: string]: string}} SocketQueryParams */
-const BATCH_SIZE = 1024;
 
 /**
  * @param {unknown} value
@@ -71,33 +70,6 @@ function closeSocket(socket) {
 }
 
 /**
- * @returns {Promise<void>}
- */
-function nextAnimationFrame() {
-  return new Promise((resolve) => {
-    requestAnimationFrame(() => resolve());
-  });
-}
-
-/**
- * @template T
- * @param {(value: T) => void | Promise<void>} fn
- * @param {T[]} args
- * @param {number} [index]
- * @returns {Promise<void>}
- */
-async function batchCall(fn, args, index) {
-  for (
-    let offset = (index || 0) | 0;
-    offset < args.length;
-    offset += BATCH_SIZE
-  ) {
-    await Promise.all(args.slice(offset, offset + BATCH_SIZE).map(fn));
-    if (offset + BATCH_SIZE < args.length) await nextAnimationFrame();
-  }
-}
-
-/**
  * @param {PendingMessages} pendingMessages
  * @param {string} toolName
  * @param {BoardMessage} message
@@ -116,6 +88,5 @@ export const connection = {
 };
 
 export const messages = {
-  batchCall: batchCall,
   queuePendingMessage: queuePendingMessage,
 };

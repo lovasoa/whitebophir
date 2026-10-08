@@ -14,6 +14,7 @@ const { TOOL_CODE_BY_ID } = require("../client-data/tools/tool-order.js");
 const {
   installBrowserHarnessForTest,
 } = require("./helpers/browser_harness.js");
+const { MessageModule } = require("../client-data/js/board_message_module.js");
 const PencilTool = require("../client-data/tools/pencil/index.js");
 const RectangleTool = require("../client-data/tools/rectangle/index.js");
 const ShapeTool = require("../client-data/tools/shape_tool.js");
@@ -2343,7 +2344,7 @@ test("Hand selector sends a final transform on quick release", async () => {
   });
 });
 
-test("Hand replay expands viewport extent for transform-only updates", async () => {
+test("large Hand replay completes transforms before the next message", async () => {
   const harness = createHarness();
   const handTool = await harness.loadTool("hand");
 
@@ -2355,35 +2356,43 @@ test("Hand replay expands viewport extent for transform-only updates", async () 
   rect.height.baseVal.value = 40;
   globalAny.Tools.drawingArea.appendChild(rect);
 
-  handTool.draw(
-    {
-      tool: TOOL_CODE_BY_ID.hand,
-      _children: [
-        {
-          type: MessageToolMetadata.MutationType.UPDATE,
-          id: "remote-rect",
-          transform: {
-            a: 1,
-            b: 0,
-            c: 0,
-            d: 1,
-            e: 400,
-            f: 250,
-          },
-        },
-      ],
-    },
-    false,
+  const messages = new MessageModule(
+    /** @type {any} */ ({ mounted: { hand: handTool } }),
+    globalAny.Tools.identity,
   );
+  await messages.messageForTool({
+    tool: TOOL_CODE_BY_ID.hand,
+    _children: Array.from({ length: 1025 }, (_, index) => ({
+      type: MessageToolMetadata.MutationType.UPDATE,
+      id: "remote-rect",
+      transform: {
+        a: 1,
+        b: 0,
+        c: 0,
+        d: 1,
+        e: 400 + index,
+        f: 250,
+      },
+    })),
+  });
 
-  assert.deepEqual(globalAny.Tools.viewportState.controller.ensuredBounds, [
-    {
-      minX: 500,
-      minY: 350,
-      maxX: 560,
-      maxY: 390,
-    },
-  ]);
+  const ensuredBounds = globalAny.Tools.viewportState.controller.ensuredBounds;
+  assert.equal(ensuredBounds.length, 1025);
+  assert.deepEqual(ensuredBounds.at(-1), {
+    minX: 1524,
+    minY: 350,
+    maxX: 1584,
+    maxY: 390,
+  });
+  await messages.messageForTool({
+    tool: TOOL_CODE_BY_ID.hand,
+    type: MutationType.UPDATE,
+    id: rect.id,
+    transform: { a: 1, b: 0, c: 0, d: 1, e: 2000, f: 0 },
+  });
+  harness.time.flushUntilIdle();
+  await Promise.resolve();
+  assert.equal(rect.transform.baseVal[0].matrix.e, 2000);
 });
 
 test("Hand selector stops at the last valid transform", async () => {
