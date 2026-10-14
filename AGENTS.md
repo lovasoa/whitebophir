@@ -272,9 +272,10 @@ IP. Active moderators are protected targets based on authoritative live
 capabilities, including when the reporter is a temporary moderator.
 
 Permanent moderators use `set_temporary_moderator { socketId, durationMs }` to
-grant up to one week or revoke with `0`. Grants are board-scoped, process-local,
-secret-keyed across tabs, lost on restart, and cannot be delegated by temporary
-moderators. Changes refresh board state and presence for every matching socket.
+grant 15 minutes, 30 minutes, 24 hours, or one week, or revoke with `0`.
+Grants are board-scoped, process-local, secret-keyed across tabs, lost on restart,
+and cannot be delegated by temporary moderators. Changes refresh board state and
+presence for every matching socket.
 
 Client write messages normally have top-level `tool` and `type` fields.
 Tool-owned batches have top-level `tool` plus `_children`; each child carries its
