@@ -67,7 +67,7 @@ import { handleTurnstileTokenMessage } from "./turnstile.mjs";
 const { Server } = socketIO;
 const { logger, metrics, tracing } = observability;
 
-/** @import { AppSocket, MessageData, NormalizedMessageData, ReportUserPayload, ServerConfig, SetTemporaryModeratorPayload, TurnstileAckCallback } from "../../types/server-runtime.d.ts" */
+/** @import { AppSocket, MessageData, NormalizedMessageData, ServerConfig, SetTemporaryModeratorPayload, TurnstileAckCallback } from "../../types/server-runtime.d.ts" */
 /** @typedef {{type: number, fromSeq: number, seq: number, _children: NormalizedMessageData[]}} ConnectionReplayBatch */
 /** @typedef {{ok: true, boardName: string, board: BoardData, baselineSeq: number, latestSeq: number, minReplayableSeq: number, replayBatch: ConnectionReplayBatch, outcome: "empty" | "replayed"} | {ok: false, reason: string, boardName?: string, baselineSeq?: number, latestSeq?: number, minReplayableSeq?: number, error?: unknown}} ConnectionReplayBootstrap */
 /** @type {Map<string, AppSocket>} */
@@ -720,9 +720,7 @@ async function handleSocketConnection(socket, config) {
   onSocketEvent(
     socket,
     "report_user",
-    function onReportUser(
-      /** @type {ReportUserPayload | undefined} */ message,
-    ) {
+    function onReportUser(/** @type {unknown} */ message) {
       const normalizedName = boardName;
       return tracing.withActiveSpan(
         "socket.report_user",

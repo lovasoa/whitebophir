@@ -1,5 +1,5 @@
 /**
- * The shared moderation rule order and presentation metadata.
+ * The shared moderation rules, action durations, and presentation metadata.
  * Keep this list deliberately small: rule copy stays in translations and
  * icons stay as ordinary static SVG assets.
  */
@@ -52,3 +52,35 @@ export const MODERATION_RULE_IDS = new Set(
 export function getModerationRule(id) {
   return MODERATION_RULES.find((rule) => rule.id === id);
 }
+
+/** @type {({durationMs: 0, labelKey: "warn", variant: "secondary"} | {durationMs: number, count: number, unit: "minute" | "hour" | "day", variant: "secondary" | "warning" | "danger"})[]} */
+export const MODERATION_DURATION_OPTIONS = [
+  {
+    durationMs: 0,
+    labelKey: "warn",
+    variant: "secondary",
+  },
+  {
+    durationMs: 15 * 60 * 1000,
+    count: 15,
+    unit: "minute",
+    variant: "secondary",
+  },
+  {
+    durationMs: 24 * 60 * 60 * 1000,
+    count: 24,
+    unit: "hour",
+    variant: "warning",
+  },
+  {
+    durationMs: 7 * 24 * 60 * 60 * 1000,
+    count: 7,
+    unit: "day",
+    variant: "danger",
+  },
+];
+
+// Socket admission and the dialog use the same duration choices.
+export const MODERATION_DURATIONS = new Set(
+  MODERATION_DURATION_OPTIONS.map((option) => option.durationMs),
+);

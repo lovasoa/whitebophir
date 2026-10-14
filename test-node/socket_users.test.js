@@ -646,7 +646,14 @@ test("a banned user reconnects read-only in their own boardstate and in presence
         query: { board: "ban-readonly-board", tool: "hand" },
       });
 
-      handler(moderator, "report_user")({ socketId: "socket-ban-target" });
+      handler(
+        moderator,
+        "report_user",
+      )({
+        socketId: "socket-ban-target",
+        banDurationMs: 900_000,
+        moderationRule: "harassment",
+      });
 
       // The banned user reconnects (same secret + ip): now read-only everywhere.
       const reconnected = await connect({
@@ -2461,7 +2468,14 @@ test("moderator report bans reported secret and ip without disconnecting moderat
         query: { board: "board-report-ban", tool: "hand" },
       });
 
-      handler(moderator, "report_user")({ socketId: "socket-target-report" });
+      handler(
+        moderator,
+        "report_user",
+      )({
+        socketId: "socket-target-report",
+        banDurationMs: 900_000,
+        moderationRule: "harassment",
+      });
 
       assert.equal(target.socket.client.conn.closeCalls.length, 1);
       assert.equal(moderator.socket.client.conn.closeCalls.length, 0);
@@ -2471,6 +2485,7 @@ test("moderator report bans reported secret and ip without disconnecting moderat
           payload: {
             banDurationMs: 15 * 60 * 1000,
             source: "moderator",
+            moderationRule: "harassment",
           },
         },
       ]);
@@ -2656,6 +2671,7 @@ test("moderator report with zero duration warns reported user without banning", 
       )({
         socketId: "socket-target-report-warn",
         banDurationMs: 0,
+        moderationRule: "harassment",
       });
 
       assert.equal(target.socket.client.conn.closeCalls.length, 1);
@@ -2663,7 +2679,11 @@ test("moderator report with zero duration warns reported user without banning", 
       assert.deepEqual(moderationDisconnectEvents(target), [
         {
           event: "moderation_disconnect",
-          payload: { banDurationMs: 0, source: "moderator" },
+          payload: {
+            banDurationMs: 0,
+            source: "moderator",
+            moderationRule: "harassment",
+          },
         },
       ]);
 
@@ -2700,7 +2720,7 @@ test("moderator report uses requested ban duration", async () => {
   const targetSecret = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbd";
   const boardName = "board-report-duration";
   const now = 1000;
-  const banDurationMs = 2 * 60 * 60 * 1000;
+  const banDurationMs = 24 * 60 * 60 * 1000;
   const reports = require(
     path.join(__dirname, "..", "server", "socket", "reports.mjs"),
   );
@@ -2803,7 +2823,14 @@ test("moderator report ignores self targets without banning", async () => {
         query: { board: "board-report-self-ban", tool: "hand" },
       });
 
-      handler(moderator, "report_user")({ socketId: "socket-mod-self-report" });
+      handler(
+        moderator,
+        "report_user",
+      )({
+        socketId: "socket-mod-self-report",
+        banDurationMs: 900_000,
+        moderationRule: "harassment",
+      });
 
       assert.equal(moderator.socket.client.conn.closeCalls.length, 0);
 
@@ -3040,14 +3067,15 @@ test("active ban list updates at expiry without polling or a new connection", as
       );
       await invoke(moderator, "report_user", {
         socketId: target.socket.id,
-        banDurationMs: 1000,
+        banDurationMs: 900_000,
+        moderationRule: "harassment",
       });
       assert.equal(
         moderator.emitted.filter((event) => event.event === "active_bans").pop()
           ?.payload.length,
         1,
       );
-      now += 999;
+      now += 899_999;
       assert.equal(
         moderator.emitted.filter((event) => event.event === "active_bans").pop()
           ?.payload.length,
@@ -3055,7 +3083,7 @@ test("active ban list updates at expiry without polling or a new connection", as
       );
       assert.equal(scheduled.length, 1);
       const expiry = getRequiredValue(scheduled[0]);
-      assert.equal(expiry.delay, 1000);
+      assert.equal(expiry.delay, 900_000);
       now += 1;
       expiry.callback();
       assert.deepEqual(

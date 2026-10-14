@@ -1,58 +1,64 @@
 import observability from "../observability/index.mjs";
-import { MODERATION_RULE_IDS } from "../../client-data/js/moderation_rules.js";
+import {
+  MODERATION_DURATIONS,
+  MODERATION_RULE_IDS,
+} from "../../client-data/js/moderation_rules.js";
 import {
   ModerationDisconnectSources,
   SocketEvents,
 } from "../../client-data/js/socket_events.js";
-import { banBoardUser, normalizeBanTtlMs } from "./bans.mjs";
+import { banBoardUser } from "./bans.mjs";
 import { getBoardUser, getBoardUserMap } from "./presence.mjs";
 import { canBanOnBoard, canReportOnBoard } from "./policy.mjs";
 
 const { logger, tracing } = observability;
 const MODERATION_DISCONNECT_CLOSE_TIMEOUT_MS = 150;
 
-/** @import { AppSocket, ModerationDisconnectPayload, ModerationDisconnectSource, ReportUserPayload, ServerConfig } from "../../types/server-runtime.d.ts" */
+/** @import { AppSocket, ModerationDisconnectPayload, ModerationDisconnectSource, ModeratorReportUserPayload, ReportUserPayload, ServerConfig } from "../../types/server-runtime.d.ts" */
 /** @typedef {{socketId: string, userId: string, name: string, ip: string, userSecret: string, userAgent: string, language: string}} BoardUser */
 /** @typedef {{board: string, reporter_socket: string, reported_socket: string, reporter_ip: string, reported_ip: string, reporter_user_agent: string, reported_user_agent: string, reporter_language: string, reported_language: string, reporter_name: string, reported_name: string, banned: boolean}} UserReportLog */
 /** @typedef {(socketId: string) => AppSocket | undefined} GetActiveSocket */
 /** @typedef {(socket: AppSocket, eventName: string, infos: {[key: string]: any}) => void} CloseSocket */
-/** @typedef {{socket: AppSocket, boardName: string, message: ReportUserPayload | undefined, config: ServerConfig, now: number, getActiveSocket: GetActiveSocket, closeSocket: CloseSocket, onBansChanged?: () => void}} ReportUserContext */
+/** @typedef {{socket: AppSocket, boardName: string, message: unknown, config: ServerConfig, now: number, getActiveSocket: GetActiveSocket, closeSocket: CloseSocket, onBansChanged?: () => void}} ReportUserContext */
 /** @typedef {{reporter: BoardUser, reported: BoardUser}} ReportUsers */
 
 /** @type {UserReportLog | null} */
 let lastUserReportLog = null;
 
 /**
- * @param {ReportUserPayload | undefined} message
- * @returns {string}
+ * Reject shapes and values the current role's UI cannot send.
+ * @param {unknown} message
+ * @param {boolean} canModerate
+ * @returns {ReportUserPayload | null}
  */
-function getReportedSocketId(message) {
-  return typeof message?.socketId === "string" ? message.socketId : "";
-}
-
-/**
- * @param {ReportUserPayload | undefined} message
- * @returns {string | undefined}
- */
-function getModeratorRule(message) {
-  return typeof message?.moderationRule === "string" &&
-    MODERATION_RULE_IDS.has(message.moderationRule)
-    ? message.moderationRule
-    : undefined;
-}
-
-/**
- * @param {ReportUserPayload | undefined} message
- * @returns {number}
- */
-function getModeratorBanDurationMs(message) {
+function validateReportUserPayload(message, canModerate) {
+  if (!message || typeof message !== "object" || Array.isArray(message))
+    return null;
+  const payload = /** @type {Record<string, unknown>} */ (message);
   if (
-    typeof message?.banDurationMs === "number" &&
-    message.banDurationMs === 0
-  ) {
-    return 0;
-  }
-  return normalizeBanTtlMs(message?.banDurationMs);
+    !Object.prototype.hasOwnProperty.call(payload, "socketId") ||
+    typeof payload.socketId !== "string" ||
+    !payload.socketId
+  )
+    return null;
+  const keyCount = Object.keys(payload).length;
+  if (!canModerate)
+    return keyCount === 1 ? { socketId: payload.socketId } : null;
+  if (
+    keyCount !== 3 ||
+    !Object.prototype.hasOwnProperty.call(payload, "banDurationMs") ||
+    typeof payload.banDurationMs !== "number" ||
+    !MODERATION_DURATIONS.has(payload.banDurationMs) ||
+    !Object.prototype.hasOwnProperty.call(payload, "moderationRule") ||
+    typeof payload.moderationRule !== "string" ||
+    !MODERATION_RULE_IDS.has(payload.moderationRule)
+  )
+    return null;
+  return {
+    socketId: payload.socketId,
+    banDurationMs: payload.banDurationMs,
+    moderationRule: payload.moderationRule,
+  };
 }
 
 /**
@@ -199,7 +205,7 @@ function hasSameUserIdentity(first, second) {
  * @param {ReportUserContext} context
  * @param {{reporter: BoardUser, reported: BoardUser}} users
  * @param {number} banDurationMs
- * @param {string | undefined} moderationRule
+ * @param {string} moderationRule
  * @returns {void}
  */
 function handleReportByModerator(
@@ -247,7 +253,7 @@ function handleReportByModerator(
     {
       banDurationMs,
       source: ModerationDisconnectSources.MODERATOR,
-      ...(moderationRule === undefined ? {} : { moderationRule }),
+      moderationRule,
     },
   );
 }
@@ -289,19 +295,8 @@ function disconnectReported(context, reported) {
  * @returns {void}
  */
 function handleReportUserMessage(context) {
-  const { message, boardName, socket, config } = context;
-  const targetSocketId = getReportedSocketId(message);
-  if (!targetSocketId || !socket.rooms.has(boardName)) {
-    ignoreReportedUser();
-    return;
-  }
-
-  const resolvedUsers = resolveReportedUsers(
-    boardName,
-    socket.id,
-    targetSocketId,
-  );
-  if (!resolvedUsers) {
+  const { boardName, socket, config } = context;
+  if (!socket.rooms.has(boardName)) {
     ignoreReportedUser();
     return;
   }
@@ -309,6 +304,20 @@ function handleReportUserMessage(context) {
   const canModerate = canBanOnBoard(config, boardName, socket);
   if (!canReportOnBoard(config, boardName, socket)) {
     ignoreReportedUser("blocked_reporter_ignored");
+    return;
+  }
+  const message = validateReportUserPayload(context.message, canModerate);
+  if (!message) {
+    ignoreReportedUser("invalid_report_ignored");
+    return;
+  }
+  const resolvedUsers = resolveReportedUsers(
+    boardName,
+    socket.id,
+    message.socketId,
+  );
+  if (!resolvedUsers) {
+    ignoreReportedUser();
     return;
   }
 
@@ -334,8 +343,8 @@ function handleReportUserMessage(context) {
   }
 
   if (canModerate) {
-    const banDurationMs = getModeratorBanDurationMs(message);
-    const moderationRule = getModeratorRule(message);
+    const { banDurationMs, moderationRule } =
+      /** @type {ModeratorReportUserPayload} */ (message);
     const reportLog = buildUserReportLog(
       boardName,
       resolvedUsers,

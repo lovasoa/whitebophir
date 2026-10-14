@@ -422,11 +422,15 @@ export type ActiveBan = {
   moderationRule?: string;
 };
 
-export type ReportUserPayload = {
-  socketId?: string;
-  banDurationMs?: number;
-  moderationRule?: string;
+export type ModeratorReportUserPayload = {
+  socketId: string;
+  banDurationMs: number;
+  moderationRule: string;
 };
+
+export type ReportUserPayload =
+  | { socketId: string; banDurationMs?: never; moderationRule?: never }
+  | ModeratorReportUserPayload;
 
 export type SetTemporaryModeratorPayload = {
   socketId?: string;

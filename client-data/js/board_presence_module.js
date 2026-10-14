@@ -6,7 +6,11 @@ import { getMessageActivityPoint } from "./message_activity_point.js";
 import MessageCommon from "./message_common.js";
 import { LIMITS } from "./message_limits.js";
 import { MutationType } from "./message_tool_metadata.js";
-import { getModerationRule, MODERATION_RULES } from "./moderation_rules.js";
+import {
+  getModerationRule,
+  MODERATION_DURATION_OPTIONS,
+  MODERATION_RULES,
+} from "./moderation_rules.js";
 import { SocketEvents } from "./socket_events.js";
 import { createToolIconBadge, updateToolIconBadge } from "./tool_icon_badge.js";
 
@@ -502,36 +506,9 @@ const DURATION_UNIT_MS = {
   hour: 60 * 60 * 1000,
   day: 24 * 60 * 60 * 1000,
 };
-/** @type {({durationMs: 0, labelKey: "warn", variant: "secondary"} | {durationMs: number, count: number, unit: ConnectedUserDurationUnit, variant: "secondary" | "warning" | "danger"})[]} */
-const BAN_DURATION_OPTIONS = [
-  {
-    durationMs: 0,
-    labelKey: "warn",
-    variant: "secondary",
-  },
-  {
-    durationMs: 15 * DURATION_UNIT_MS.minute,
-    count: 15,
-    unit: "minute",
-    variant: "secondary",
-  },
-  {
-    durationMs: 24 * DURATION_UNIT_MS.hour,
-    count: 24,
-    unit: "hour",
-    variant: "warning",
-  },
-  {
-    durationMs: 7 * DURATION_UNIT_MS.day,
-    count: 7,
-    unit: "day",
-    variant: "danger",
-  },
-];
-
 /** @param {AppToolsState} Tools */
 function getModerationDurationOptions(Tools) {
-  return BAN_DURATION_OPTIONS.map((option) => ({
+  return MODERATION_DURATION_OPTIONS.map((option) => ({
     label:
       "labelKey" in option
         ? Tools.i18n.t(option.labelKey)
@@ -1236,11 +1213,10 @@ function createConnectedUserRow(getTools, user, presence) {
         typeof banDurationMs === "number" && banDurationMs > 0;
       updateConnectedUserRow(getTools, row, connectedUser);
       /** @type {import("../../types/app-runtime").ReportUserPayload} */
-      const payload = {
-        socketId: connectedUser.socketId,
-      };
-      if (banDurationMs !== undefined) payload.banDurationMs = banDurationMs;
-      if (moderationRule !== undefined) payload.moderationRule = moderationRule;
+      const payload =
+        banDurationMs !== undefined && moderationRule !== undefined
+          ? { socketId: connectedUser.socketId, banDurationMs, moderationRule }
+          : { socketId: connectedUser.socketId };
       socket.emit(SocketEvents.REPORT_USER, payload);
     };
     if (Tools.access.canBan === true) {

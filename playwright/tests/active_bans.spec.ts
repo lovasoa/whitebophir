@@ -44,6 +44,26 @@ moderationTest(
       const targetName = await targetRow
         .locator(".connected-user-name-text")
         .innerText();
+      // Hostile socket requests must leave the target available for a valid UI ban.
+      await page.evaluate((socketId) => {
+        const socket = window.WBOApp.connection.socket;
+        if (!socket) throw new Error("Missing socket");
+        const emit = socket.emit.bind(socket) as (
+          event: string,
+          payload: unknown,
+        ) => void;
+        emit("report_user", { socketId, banDurationMs: 900_000 });
+        emit("report_user", {
+          socketId,
+          banDurationMs: 900_000,
+          moderationRule: "unknown",
+        });
+        emit("report_user", {
+          socketId,
+          banDurationMs: 1000,
+          moderationRule: "harassment",
+        });
+      }, targetId);
       await targetRow.hover();
       await targetRow.locator(".connected-user-report").click();
       await page.getByRole("button", { name: "15m", exact: true }).click();
