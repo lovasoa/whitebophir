@@ -490,6 +490,9 @@ When touching hot paths:
   measure the whole board SVG from generic gesture or message handling.
 - Treat SVG-affecting CSS as board-load sensitive; style recalculation can make
   existing boot-time SVG reads such as `getPathData()` very expensive.
+- Keep `data-dd-privacy="hidden"` on the `#board` container. Datadog session
+  replay must exclude the drawing SVG and live overlays: recording dense SVG
+  mutations causes multi-second pauses. Board chrome remains recordable.
 - Scale-disabled draw tools remain selectable; interaction is blocked, the board
   cursor is `not-allowed`, and status explains that the user must zoom in.
 - Tool modules own tool-specific DOM behavior, stored-item summary/serialization,
