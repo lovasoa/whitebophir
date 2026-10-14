@@ -493,8 +493,10 @@ export type ExplicitBoardStatus = BoardStatusView | null;
 export type AuthoritativeBaseline = {
   seq: number;
   readonly: boolean;
-  drawingAreaMarkup: string;
-};
+} & (
+  | { drawingArea: Element; drawingAreaMarkup?: never }
+  | { drawingAreaMarkup: string; drawingArea?: never }
+);
 
 export type OptimisticItemSnapshot = {
   readonly id: string;

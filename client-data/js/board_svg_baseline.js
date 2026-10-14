@@ -30,7 +30,7 @@ export function buildBoardSvgBaselineUrl(pathname, search) {
 
 /**
  * @param {BaselineSvgDocument} doc
- * @returns {{seq: number, readonly: boolean, drawingAreaMarkup: string}}
+ * @returns {import("../../types/app-runtime").AuthoritativeBaseline}
  */
 function parseServedBaselineSvgDocument(doc) {
   const root = doc?.documentElement;
@@ -46,9 +46,15 @@ function parseServedBaselineSvgDocument(doc) {
   if (!drawingArea) {
     throw new Error("Missing drawing area");
   }
-  return {
+  const metadata = {
     seq: normalizeSeq(root.getAttribute("data-wbo-seq")),
     readonly: root.getAttribute("data-wbo-readonly") === "true",
+  };
+  if (typeof SVGElement !== "undefined" && drawingArea instanceof SVGElement) {
+    return { ...metadata, drawingArea };
+  }
+  return {
+    ...metadata,
     drawingAreaMarkup:
       typeof drawingArea.innerHTML === "string" ? drawingArea.innerHTML : "",
   };
@@ -57,7 +63,7 @@ function parseServedBaselineSvgDocument(doc) {
 /**
  * @param {string} svgMarkup
  * @param {{parseFromString(svg: string, mimeType: string): BaselineSvgDocument}} domParser
- * @returns {{seq: number, readonly: boolean, drawingAreaMarkup: string}}
+ * @returns {import("../../types/app-runtime").AuthoritativeBaseline}
  */
 export function parseServedBaselineSvgText(svgMarkup, domParser) {
   const doc = domParser.parseFromString(svgMarkup, "image/svg+xml");
