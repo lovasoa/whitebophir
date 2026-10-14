@@ -2,7 +2,7 @@ import { canGrantTemporaryModeratorOnBoard } from "./policy.mjs";
 import { getBoardUser } from "./presence.mjs";
 import { setTemporaryModerator } from "./temporary_moderators.mjs";
 
-const DURATIONS = [0, 900_000, 86_400_000, 604_800_000];
+const DURATIONS = [0, 900_000, 1_800_000, 86_400_000, 604_800_000];
 
 /** @import { AppSocket, ServerConfig, SetTemporaryModeratorPayload } from "../../types/server-runtime.d.ts" */
 /** @typedef {{socket: AppSocket, boardName: string, message: SetTemporaryModeratorPayload | undefined, config: ServerConfig, now: number, getActiveSocket: (socketId: string) => AppSocket | undefined, refreshUserAccess: (boardName: string, userSecret: string) => Promise<void>}} Context */
