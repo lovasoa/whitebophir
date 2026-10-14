@@ -241,12 +241,12 @@ User reports are sent by clients on the `report_user` event with a payload of
 `{ "socketId": "<reported socket id>" }`. Moderator warning/ban actions add
 both `banDurationMs` and a valid shared `moderationRule`. The server accepts
 only the dialog's numeric duration choices: `0` warns, `900000` bans for 15 minutes,
-`86400000` for 24 hours, and `604800000` for one week. Missing or invalid values,
+`1800000` for 30 minutes, `86400000` for 24 hours, and `604800000` for one week.
+Missing or invalid values,
 unknown rules, extra fields, arrays, and non-object payloads are ignored without
 banning or disconnecting anyone. Non-moderator reports contain only `socketId`;
 moderation fields from non-moderators are rejected. A user with an active edit ban
-receives
-`boardstate.canReport: false`; the client hides report controls, and the server
+receives `boardstate.canReport: false`; the client hides report controls, and the server
 also ignores any `report_user` event that user emits. Ban-aware board state also
 includes `accessRefreshAfterMs`, the server-derived delay until the last active
 secret/IP ban expires. The browser schedules one reconnect at that boundary so
@@ -287,9 +287,10 @@ access and presence. Bans and their display details are process-local and expire
 or disappear on restart.
 
 Permanent moderators use `set_temporary_moderator { socketId, durationMs }` to
-grant up to one week or revoke with `0`. Grants are board-scoped, process-local,
-secret-keyed across tabs, lost on restart, and cannot be delegated by temporary
-moderators. Changes refresh board state and presence for every matching socket.
+grant 15 minutes, 30 minutes, 24 hours, or one week, or revoke with `0`.
+Grants are board-scoped, process-local, secret-keyed across tabs, lost on restart,
+and cannot be delegated by temporary moderators. Changes refresh board state and
+presence for every matching socket.
 
 Client write messages normally have top-level `tool` and `type` fields.
 Tool-owned batches have top-level `tool` plus `_children`; each child carries its

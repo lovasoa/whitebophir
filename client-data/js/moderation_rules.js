@@ -67,6 +67,12 @@ export const MODERATION_DURATION_OPTIONS = [
     variant: "secondary",
   },
   {
+    durationMs: 30 * 60 * 1000,
+    count: 30,
+    unit: "minute",
+    variant: "secondary",
+  },
+  {
     durationMs: 24 * 60 * 60 * 1000,
     count: 24,
     unit: "hour",

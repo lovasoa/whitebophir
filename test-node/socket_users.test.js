@@ -515,7 +515,7 @@ test("permanent moderators grant and revoke every tab for a temporary moderator"
           durationMs,
         });
 
-      await setTemporaryModerator(moderator, 15 * 60 * 1000);
+      await setTemporaryModerator(moderator, 30 * 60 * 1000);
       /** @param {any} created */
       const latestState = (created) =>
         created.emitted.findLast(

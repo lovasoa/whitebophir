@@ -119,7 +119,7 @@ test("moderation accepts every dialog rule and duration with the reason intact",
       headers: { cookie: `wbo-user-secret-v1=${moderatorSecret}` },
       remoteAddress: "203.0.113.10",
     });
-    const durations = [0, 900_000, 86_400_000, 604_800_000];
+    const durations = [0, 900_000, 1_800_000, 86_400_000, 604_800_000];
     for (const [index, rule] of MODERATION_RULES.entries()) {
       const target = await connect({
         id: `valid-target-${index}`,

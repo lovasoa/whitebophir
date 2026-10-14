@@ -423,15 +423,15 @@ test.describe("collaboration and rate limiting", () => {
         ]);
 
         await expect(page.locator(".moderation-action-duration")).toContainText(
-          ["Warn", "15m", "24h", "7d"],
+          ["Warn", "15m", "30m", "24h", "7d"],
         );
 
-        await page.getByRole("button", { name: "7d" }).click();
+        await page.getByRole("button", { name: "30m", exact: true }).click();
         await page.getByRole("button", { name: /No harassment/ }).click();
         await expect
           .poll(() => page.evaluate(() => window.__reportedUsers?.[0]))
           .toMatchObject({
-            banDurationMs: 7 * 24 * 60 * 60 * 1000,
+            banDurationMs: 30 * 60 * 1000,
             moderationRule: "harassment",
           });
         if (!(await boardPage.connectedUsersPanel.isVisible())) {
@@ -493,8 +493,8 @@ test.describe("collaboration and rate limiting", () => {
           page.locator(
             ".moderation-action-segmented .moderation-action-choice",
           ),
-        ).toHaveText(["15m", "24h", "7d"]);
-        await page.getByRole("button", { name: "15m", exact: true }).click();
+        ).toHaveText(["15m", "30m", "24h", "7d"]);
+        await page.getByRole("button", { name: "30m", exact: true }).click();
 
         await expect(targetClear).toBeVisible();
         await expect
