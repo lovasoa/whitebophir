@@ -2044,8 +2044,6 @@ test("report_user ignores stale presence capabilities for active board members",
           size: "4",
         },
       });
-      const reporterEmitCountBeforeReport = reporter.emitted.length;
-
       const reported = await connect({
         id: "socket-reported",
         remoteAddress: "203.0.113.91",
@@ -2060,6 +2058,7 @@ test("report_user ignores stale presence capabilities for active board members",
           size: "7",
         },
       });
+      const reporterEmitCountBeforeReport = reporter.emitted.length;
       const reportedEmitCountBeforeReport = reported.emitted.length;
       // Authorization is live even if an expired grant left stale presentation state.
       test
@@ -3091,6 +3090,56 @@ test("active ban list updates at expiry without polling or a new connection", as
           ?.payload,
         [],
       );
+    },
+  );
+});
+
+test("a connection after expiry refreshes the ban list for existing sockets", async (t) => {
+  const boardName = "active-ban-connect-expiry";
+  const moderatorSecret = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeef";
+  await createSocketScenario(
+    {
+      boardName,
+      config: {
+        BOARD_MODERATORS: new Map([[boardName, new Set([moderatorSecret])]]),
+      },
+    },
+    async ({ connect, invoke }) => {
+      const moderator = await connect({
+        id: "connect-expiry-mod",
+        remoteAddress: "203.0.113.20",
+        headers: withUserSecretCookie(moderatorSecret),
+      });
+      const target = await connect({
+        id: "connect-expiry-target",
+        remoteAddress: "203.0.113.21",
+      });
+      const now = Date.now();
+      t.mock.timers.enable({ apis: ["Date", "setTimeout"], now });
+      await invoke(moderator, "report_user", {
+        socketId: target.socket.id,
+        banDurationMs: 900_000,
+        moderationRule: "harassment",
+      });
+      assert.equal(
+        moderator.emitted.filter((event) => event.event === "active_bans").pop()
+          ?.payload.length,
+        1,
+      );
+      // Move the clock past expiry while leaving its callback pending.
+      t.mock.timers.setTime(now + 900_001);
+      const newcomer = await connect({
+        id: "connect-expiry-newcomer",
+        remoteAddress: "203.0.113.22",
+      });
+      t.mock.timers.tick(0);
+      for (const created of [moderator, newcomer]) {
+        assert.deepEqual(
+          created.emitted.filter((event) => event.event === "active_bans").pop()
+            ?.payload,
+          [],
+        );
+      }
     },
   );
 });

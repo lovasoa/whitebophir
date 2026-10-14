@@ -282,22 +282,16 @@ function getActiveSocket(socketId) {
 /**
  * Publishes public ban details and schedules the next expiry without polling.
  * @param {string} boardName
- * @param {AppSocket} [recipient]
  * @returns {void}
  */
-function emitBoardBans(boardName, recipient) {
+function emitBoardBans(boardName) {
   clearBoardBanExpiryTimer(boardName);
   const now = Date.now();
   const bans = listActiveBans(boardName, now);
   let hasListeners = false;
   for (const user of getBoardUserMap(boardName).values()) {
     const socket = activeSockets.get(user.socketId);
-    if (
-      !socket ||
-      !socket.rooms.has(boardName) ||
-      (recipient && socket !== recipient)
-    )
-      continue;
+    if (!socket || !socket.rooms.has(boardName)) continue;
     hasListeners = true;
     socket.emit(SocketEvents.ACTIVE_BANS, bans);
   }
@@ -591,7 +585,8 @@ async function bootstrapSocketBoard(socket, replay, config) {
       syncedPersistentSockets.delete(socket.id);
       socket.emit(SocketEvents.BROADCAST, replay.replayBatch);
       syncedPersistentSockets.add(socket.id);
-      emitBoardBans(boardName, socket);
+      // Refresh every peer: a connection can arrive before a due expiry callback.
+      emitBoardBans(boardName);
       tracing.setActiveSpanAttributes({
         "wbo.socket.replay.outcome": replay.outcome,
         "wbo.socket.replay.count": replayCount,

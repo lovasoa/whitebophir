@@ -131,28 +131,16 @@ export class PresenceModule {
       return;
     this.renderedBans = this.bans;
     this.renderedCanBan = canBan;
-    const panel = getConnectedUsersPanel();
-    let section = panel.querySelector(".active-bans-section");
-    if (!(section instanceof HTMLDetailsElement)) {
-      if (this.bans.length === 0) return;
-      section = document.createElement("details");
-      section.className = "active-bans-section";
-      section.appendChild(document.createElement("summary"));
-      const list = document.createElement("ul");
-      list.className = "active-bans-list";
-      section.appendChild(list);
-      panel.appendChild(section);
-    }
-    const details = /** @type {HTMLDetailsElement} */ (section);
+    const details = /** @type {HTMLDetailsElement} */ (
+      getRequiredElement("activeBansSection")
+    );
     details.hidden = this.bans.length === 0;
     if (details.hidden) details.open = false;
-    const summary = details.querySelector("summary");
-    if (summary)
-      summary.textContent = Tools.i18n.format("active_bans_count", {
-        count: String(this.bans.length),
-      });
-    const list = details.querySelector("ul");
-    if (!list) return;
+    getRequiredElement("activeBansSummary").textContent = Tools.i18n.format(
+      "active_bans_count",
+      { count: String(this.bans.length) },
+    );
+    const list = getRequiredElement("activeBansList");
     list.replaceChildren();
     for (const ban of this.bans) {
       const row = document.createElement("li");

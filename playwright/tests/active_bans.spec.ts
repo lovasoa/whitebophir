@@ -118,6 +118,7 @@ moderationTest(
           })),
         )
         .toEqual({ canEdit: true, canReport: true });
+      await targetBoard.waitForToolBooted("rectangle");
       await targetBoard.drawRectangle(
         "#123456",
         { x: 400, y: 400 },
