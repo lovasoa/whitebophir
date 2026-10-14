@@ -271,6 +271,18 @@ disconnect the reported user, while ban actions also ban the reported secret and
 IP. Active moderators are protected targets based on authoritative live
 capabilities, including when the reporter is a temporary moderator.
 
+The server sends `active_bans` on connection and whenever a ban is added,
+removed, or expires. Its payload is an array of
+`{ id, name, bannedAt, expiresAt, moderationRule? }`, with timestamps in epoch
+milliseconds and opaque ban IDs. User secrets and IP addresses are never included.
+The users menu shows these bans in a section below the users, collapsed by default
+and hidden when empty; reasons use the shared localized moderation rules.
+Users with authoritative `canBan` may send `unban_user { banId }` to revoke a
+board-local ban. Revocation removes the secret and IP entries still owned by that
+ban, preserves newer overlapping bans, and refreshes matching connected users'
+access and presence. Bans and their display details are process-local and expire
+or disappear on restart.
+
 Permanent moderators use `set_temporary_moderator { socketId, durationMs }` to
 grant up to one week or revoke with `0`. Grants are board-scoped, process-local,
 secret-keyed across tabs, lost on restart, and cannot be delegated by temporary

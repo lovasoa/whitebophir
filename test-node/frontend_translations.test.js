@@ -20,6 +20,11 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
   const translations = JSON.parse(fs.readFileSync(TRANSLATIONS_PATH, "utf8"));
   const requiredKeys = [
     "board_name_placeholder",
+    "active_bans_count",
+    "banned_at",
+    "ban_reason_unspecified",
+    "unban",
+    "unban_user",
     "ban",
     "ban_user",
     "ban_user_confirmation",

@@ -6,11 +6,11 @@ import { getMessageActivityPoint } from "./message_activity_point.js";
 import MessageCommon from "./message_common.js";
 import { LIMITS } from "./message_limits.js";
 import { MutationType } from "./message_tool_metadata.js";
-import { MODERATION_RULES } from "./moderation_rules.js";
+import { getModerationRule, MODERATION_RULES } from "./moderation_rules.js";
 import { SocketEvents } from "./socket_events.js";
 import { createToolIconBadge, updateToolIconBadge } from "./tool_icon_badge.js";
 
-/** @import { AppToolsState, AttachedBoardDomModule, BoardMessage, ConnectedUser, ConnectedUserMap, HandChildMessage } from "../../types/app-runtime" */
+/** @import { ActiveBan, AppToolsState, AttachedBoardDomModule, BoardMessage, ConnectedUser, ConnectedUserMap, HandChildMessage } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 /** @typedef {"minute" | "hour" | "day"} ConnectedUserDurationUnit */
 /** @typedef {{kind: "now"} | {kind: "duration", count: number, unit: ConnectedUserDurationUnit, shortKey: string}} ConnectedUserRelativeTime */
@@ -22,6 +22,9 @@ export class PresenceModule {
     this.users = /** @type {ConnectedUserMap} */ (new Map());
     this.friendStore = new FriendStore();
     this.friendStorageBound = false;
+    this.bans = /** @type {ActiveBan[]} */ ([]);
+    this.renderedBans = /** @type {ActiveBan[] | null} */ (null);
+    this.renderedCanBan = false;
     this.panelOpen = false;
     this.renderScheduled = false;
     /** @type {number | null} */
@@ -29,6 +32,7 @@ export class PresenceModule {
   }
 
   clearConnectedUsers() {
+    this.bans = [];
     Array.from(this.users.values()).forEach((user) => {
       clearConnectedUserTimers(user);
     });
@@ -105,13 +109,101 @@ export class PresenceModule {
     ) {
       focusedListControl.focus({ preventScroll: true });
     }
+    this.renderActiveBans();
     syncConnectedUsersSummary(this, Tools);
     schedulePresenceStaleTick(this);
   }
 
+  /** @param {ActiveBan[]} bans */
+  setActiveBans(bans) {
+    this.bans = bans;
+    this.schedulePresenceRender();
+  }
+
+  renderActiveBans() {
+    const Tools = this.getTools();
+    const canBan = Tools.access.canBan === true;
+    if (this.renderedBans === this.bans && this.renderedCanBan === canBan)
+      return;
+    this.renderedBans = this.bans;
+    this.renderedCanBan = canBan;
+    const panel = getConnectedUsersPanel();
+    let section = panel.querySelector(".active-bans-section");
+    if (!(section instanceof HTMLDetailsElement)) {
+      if (this.bans.length === 0) return;
+      section = document.createElement("details");
+      section.className = "active-bans-section";
+      section.appendChild(document.createElement("summary"));
+      const list = document.createElement("ul");
+      list.className = "active-bans-list";
+      section.appendChild(list);
+      panel.appendChild(section);
+    }
+    const details = /** @type {HTMLDetailsElement} */ (section);
+    details.hidden = this.bans.length === 0;
+    if (details.hidden) details.open = false;
+    const summary = details.querySelector("summary");
+    if (summary)
+      summary.textContent = Tools.i18n.format("active_bans_count", {
+        count: String(this.bans.length),
+      });
+    const list = details.querySelector("ul");
+    if (!list) return;
+    list.replaceChildren();
+    for (const ban of this.bans) {
+      const row = document.createElement("li");
+      row.className = "active-ban-row";
+      const main = document.createElement("div");
+      const name = document.createElement("bdi");
+      name.className = "active-ban-name";
+      name.dir = "auto";
+      name.textContent = ban.name;
+      main.appendChild(name);
+      const time = document.createElement("time");
+      time.className = "active-ban-meta";
+      const date = new Date(ban.bannedAt);
+      time.dateTime = date.toISOString();
+      time.textContent = Tools.i18n.format("banned_at", {
+        time: date.toLocaleString(document.documentElement.lang || undefined, {
+          dateStyle: "short",
+          timeStyle: "short",
+        }),
+      });
+      main.appendChild(time);
+      const reason = document.createElement("span");
+      reason.className = "active-ban-meta";
+      const rule = getModerationRule(ban.moderationRule);
+      reason.textContent = Tools.i18n.t(
+        rule ? rule.titleKey : "ban_reason_unspecified",
+      );
+      main.appendChild(reason);
+      row.appendChild(main);
+      if (canBan) {
+        const unban = document.createElement("button");
+        unban.type = "button";
+        unban.className = "active-ban-unban";
+        unban.textContent = Tools.i18n.t("unban");
+        unban.setAttribute(
+          "aria-label",
+          Tools.i18n.format("unban_user", { name: ban.name }),
+        );
+        unban.addEventListener("click", () => {
+          const currentTools = this.getTools();
+          if (currentTools.access.canBan !== true) return;
+          currentTools.connection.socket?.emit(SocketEvents.UNBAN_USER, {
+            banId: ban.id,
+          });
+        });
+        row.appendChild(unban);
+      }
+      list.appendChild(row);
+    }
+  }
+
   /** @param {boolean} open */
   setConnectedUsersPanelOpen(open) {
-    const shouldOpen = open && getConnectedUsersCount(this.users) > 0;
+    const shouldOpen =
+      open && (getConnectedUsersCount(this.users) > 0 || this.bans.length > 0);
     const panel = getConnectedUsersPanel();
     const toggle = getConnectedUsersToggle();
     this.panelOpen = shouldOpen;
@@ -363,8 +455,9 @@ function syncConnectedUsersSummary(presence, Tools = presence.getTools()) {
   const panel = getConnectedUsersPanel();
   const users = presence.users;
   const userCount = getConnectedUsersCount(users);
-  panel.dataset.empty = userCount === 0 ? "true" : "false";
-  if (userCount === 0 && presence.panelOpen) {
+  const empty = userCount === 0 && presence.bans.length === 0;
+  panel.dataset.empty = empty ? "true" : "false";
+  if (empty && presence.panelOpen) {
     presence.setConnectedUsersPanelOpen(false);
   }
   syncConnectedUsersToggleLabel(Tools, users);

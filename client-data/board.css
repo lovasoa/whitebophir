@@ -783,6 +783,61 @@ select {
   padding: 2px 0;
 }
 
+.active-bans-section {
+  border-top: 1px solid var(--board-control-border);
+  font-size: 12px;
+}
+
+.active-bans-section > summary {
+  padding: 8px;
+  cursor: pointer;
+  color: #4b5563;
+}
+
+.active-bans-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 8px;
+}
+
+.active-ban-row {
+  display: flex;
+  align-items: start;
+  gap: 6px;
+  padding: 6px 0;
+  border-top: 1px solid #f3f4f6;
+}
+
+.active-ban-row > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.active-ban-name,
+.active-ban-meta {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.active-ban-name {
+  font-size: 13px;
+}
+
+.active-ban-meta {
+  margin-top: 3px;
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.active-ban-unban {
+  padding: 3px 5px;
+  background: #ffffff;
+  border: 1px solid var(--board-control-border);
+  border-radius: 2px;
+  font: inherit;
+  cursor: pointer;
+}
+
 .connected-user-row {
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr) 49px;

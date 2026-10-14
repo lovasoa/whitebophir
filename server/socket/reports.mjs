@@ -16,7 +16,7 @@ const MODERATION_DISCONNECT_CLOSE_TIMEOUT_MS = 150;
 /** @typedef {{board: string, reporter_socket: string, reported_socket: string, reporter_ip: string, reported_ip: string, reporter_user_agent: string, reported_user_agent: string, reporter_language: string, reported_language: string, reporter_name: string, reported_name: string, banned: boolean}} UserReportLog */
 /** @typedef {(socketId: string) => AppSocket | undefined} GetActiveSocket */
 /** @typedef {(socket: AppSocket, eventName: string, infos: {[key: string]: any}) => void} CloseSocket */
-/** @typedef {{socket: AppSocket, boardName: string, message: ReportUserPayload | undefined, config: ServerConfig, now: number, getActiveSocket: GetActiveSocket, closeSocket: CloseSocket}} ReportUserContext */
+/** @typedef {{socket: AppSocket, boardName: string, message: ReportUserPayload | undefined, config: ServerConfig, now: number, getActiveSocket: GetActiveSocket, closeSocket: CloseSocket, onBansChanged?: () => void}} ReportUserContext */
 /** @typedef {{reporter: BoardUser, reported: BoardUser}} ReportUsers */
 
 /** @type {UserReportLog | null} */
@@ -230,7 +230,9 @@ function handleReportByModerator(
       reported.ip,
       context.now,
       banDurationMs,
+      { name: reported.name, moderationRule },
     );
+    context.onBansChanged?.();
   }
 
   const reportedSocket = context.getActiveSocket(reported.socketId);
