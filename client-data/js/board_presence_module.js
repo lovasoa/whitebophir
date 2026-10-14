@@ -423,6 +423,12 @@ const BAN_DURATION_OPTIONS = [
     variant: "secondary",
   },
   {
+    durationMs: 30 * DURATION_UNIT_MS.minute,
+    count: 30,
+    unit: "minute",
+    variant: "secondary",
+  },
+  {
     durationMs: 24 * DURATION_UNIT_MS.hour,
     count: 24,
     unit: "hour",
