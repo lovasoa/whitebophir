@@ -238,6 +238,24 @@ npm start
 
 If no OTLP endpoint is configured, WBO still emits canonical server log lines to stdout/stderr but does not attempt remote export.
 
+### Optional Datadog browser monitoring
+
+Copy [the Datadog head snippet](./examples/datadog-head.html), fill in your
+application ID and public browser client token, and set
+`WBO_HTML_HEAD_SNIPPET_PATH` to that file before starting WBO. Use it in place of
+any existing Datadog browser injection so the SDK is initialized once.
+
+The example keeps ordinary RUM at 20%. It samples recordings for 0.1% of eligible
+RUM sessions on devices reporting at least 8 logical processors and 8 GB RAM;
+missing hardware information disables recording. Recording starts after the
+board is ready and stops after 60 seconds per page. The canvas remains included.
+
+That averages one recording per 1,000 eligible RUM sessions, not a daily quota.
+Adjust `sessionReplaySampleRate` to match traffic. Hardware values are only
+capability hints; even a selected device may still experience recorder pauses.
+See [Datadog sampling](https://docs.datadoghq.com/real_user_monitoring/guide/sampling-browser-plans/)
+and [manual recording](https://docs.datadoghq.com/session_replay/setup_and_configuration/).
+
 ## Download SVG preview
 
 To download a preview of a board in SVG format you can got to `/preview/{boardName}`, e.g. change https://wbo.ophir.dev/board/anonymous to https://wbo.ophir.dev/preview/anonymous. The renderer is not 100% faithful, but it's often good enough.

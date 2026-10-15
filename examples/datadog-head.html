@@ -1,0 +1,38 @@
+<!-- Replace the application ID and public client token before deploying. -->
+<script>
+  (function (h, o, u, n, d) {
+    h = h[n] = h[n] || { q: [], onReady: function (c) { h.q.push(c); } };
+    d = o.createElement(u);
+    d.async = true;
+    d.src = "https://www.datadoghq-browser-agent.com/eu1/v6/datadog-rum.js";
+    d.crossOrigin = "";
+    o.getElementsByTagName(u)[0].parentNode.insertBefore(d, o.getElementsByTagName(u)[0]);
+  })(window, document, "script", "DD_RUM");
+
+  window.DD_RUM.onReady(function () {
+    const capable = navigator.hardwareConcurrency >= 8 && navigator.deviceMemory >= 8;
+    window.DD_RUM.init({
+      applicationId: "<DATADOG_APPLICATION_ID>",
+      clientToken: "<DATADOG_PUBLIC_CLIENT_TOKEN>",
+      site: "datadoghq.eu",
+      service: "wbo",
+      sessionSampleRate: 20,
+      sessionReplaySampleRate: capable ? 0.1 : 0,
+      startSessionReplayRecordingManually: true,
+      defaultPrivacyLevel: "allow",
+    });
+    if (!capable) return;
+
+    function recordWhenReady() {
+      if (document.documentElement.dataset.boardPhase !== "ready") return;
+      document.removeEventListener("wbo:board-phase", recordWhenReady);
+      // Let Datadog's session sampler decide; do not force recording.
+      window.DD_RUM.startSessionReplayRecording();
+      window.setTimeout(function () {
+        window.DD_RUM.stopSessionReplayRecording();
+      }, 60_000);
+    }
+    document.addEventListener("wbo:board-phase", recordWhenReady);
+    recordWhenReady();
+  });
+</script>

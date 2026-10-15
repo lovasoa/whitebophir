@@ -1175,23 +1175,23 @@ test("board pages inline the authoritative svg baseline before client boot", asy
     assert.equal(response.headers["content-length"], undefined);
     assert.ok(
       response.body.indexOf('id="boardStatusIndicator"') <
-        response.body.indexOf('<div id="board" data-dd-privacy="hidden">'),
+        response.body.indexOf('<div id="board">'),
     );
     assert.ok(
       response.body.indexOf('id="menu"') <
-        response.body.indexOf('<div id="board" data-dd-privacy="hidden">'),
+        response.body.indexOf('<div id="board">'),
     );
     assert.ok(
       response.body.indexOf("window.__wboEarlyChrome") <
-        response.body.indexOf('<div id="board" data-dd-privacy="hidden">'),
+        response.body.indexOf('<div id="board">'),
     );
     assert.match(
       response.body,
-      /<div id="board" data-dd-privacy="hidden">\s*<svg id="canvas"[\s\S]*data-wbo-seq="7"[\s\S]*<rect id="rect-1"/,
+      /<div id="board">\s*<svg id="canvas"[\s\S]*data-wbo-seq="7"[\s\S]*<rect id="rect-1"/,
     );
     assert.doesNotMatch(
       response.body,
-      /<div id="board" data-dd-privacy="hidden">\s*<svg id="canvas" width="4000" height="4000" version="1\.1" xmlns="http:\/\/www\.w3\.org\/2000\/svg">\s*<defs id="defs"><\/defs>\s*<g id="drawingArea"><\/g>\s*<g id="cursors"><\/g>\s*<\/svg>/,
+      /<div id="board">\s*<svg id="canvas" width="4000" height="4000" version="1\.1" xmlns="http:\/\/www\.w3\.org\/2000\/svg">\s*<defs id="defs"><\/defs>\s*<g id="drawingArea"><\/g>\s*<g id="cursors"><\/g>\s*<\/svg>/,
     );
   } finally {
     await closeServer(app);
@@ -1239,7 +1239,7 @@ test("board pages fall back to legacy json metadata and inline baseline renderin
     assert.match(response.body, /id="toolID-pencil"[^>]*hidden/);
     assert.match(
       response.body,
-      /<div id="board" data-dd-privacy="hidden">\s*<svg id="canvas"[\s\S]*data-wbo-readonly="true"[\s\S]*<rect id="rect-1"/,
+      /<div id="board">\s*<svg id="canvas"[\s\S]*data-wbo-readonly="true"[\s\S]*<rect id="rect-1"/,
     );
   } finally {
     await closeServer(app);
