@@ -10,7 +10,7 @@ import {
   isShapeTool,
   MutationType,
 } from "../../client-data/js/message_tool_metadata.js";
-import { Eraser } from "../../client-data/tools/index.js";
+import { TOOL_CODE_BY_ID } from "../../client-data/tools/manifest.js";
 import observability from "../observability/index.mjs";
 import { getCanonicalItem, removeCanonicalItem } from "./canonical_index.mjs";
 import {
@@ -40,7 +40,7 @@ function readItem(state, id) {
 
 /** @param {string} id */
 function eraserDeleteMutation(id) {
-  return { tool: Eraser.id, type: MutationType.DELETE, id };
+  return { tool: TOOL_CODE_BY_ID.eraser, type: MutationType.DELETE, id };
 }
 
 /**

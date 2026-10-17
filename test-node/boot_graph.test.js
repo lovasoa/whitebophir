@@ -5,7 +5,7 @@ const test = require("node:test");
 
 const ROOT = path.resolve(__dirname, "..");
 const STATIC_IMPORT_PATTERN =
-  /^\s*import\s+(?:[^"'()]+?\s+from\s+)?["']([^"']+)["']|^\s*export\s+[^"']*?from\s+["']([^"']+)["']/gm;
+  /^\s*import\s+(?!type\b)(?:[^"'();]+?\s+from\s+)?["']([^"']+)["']|^\s*export\s+(?:\*|\{[^}]*\})\s+from\s+["']([^"']+)["']/gm;
 
 /**
  * @param {string} specifier
@@ -86,6 +86,26 @@ test("pan-ready boot graph excludes full app and tool implementations", () => {
     ),
     false,
   );
+});
+
+test("server tool contracts stay independent from tool interaction modules", () => {
+  for (const entry of [
+    "client-data/tools/contracts.js",
+    "server/server.mjs",
+    "server/socket/message_validation.mjs",
+    "server/persistence/stored_svg_item_codec.mjs",
+    "server/board/canonical_items.mjs",
+  ]) {
+    const closure = staticImportClosure(entry);
+    assertClosureExcludes(closure, ["client-data/tools/index.js"]);
+    assert.equal(
+      Array.from(closure).some((file) =>
+        /^client-data\/tools\/[^/]+\/index\.js$/.test(file),
+      ),
+      false,
+      entry,
+    );
+  }
 });
 
 test("client tool metadata stays independent from tool implementations", () => {

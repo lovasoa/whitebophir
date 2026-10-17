@@ -8,7 +8,7 @@ import {
   appendPersistedPencilPath,
   renderPencilPath,
   serializeStoredPencilPath,
-} from "../../client-data/tools/pencil/index.js";
+} from "../../client-data/tools/pencil/pencil_path.js";
 import {
   canonicalItemFromStoredSvgEntry,
   currentText,

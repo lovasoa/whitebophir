@@ -4,7 +4,11 @@ import {
   getMutationType,
   MutationType,
 } from "../../client-data/js/message_tool_metadata.js";
-import { Cursor, TOOLS } from "../../client-data/tools/index.js";
+import { TOOL_CONTRACTS as TOOLS } from "../../client-data/tools/contracts.js";
+import {
+  TOOL_CODE_BY_ID,
+  TOOL_ID_BY_CODE,
+} from "../../client-data/tools/manifest.js";
 
 /** @typedef {{[key: string]: unknown}} RawRecord */
 /** @typedef {Pick<import("../../types/server-runtime.d.ts").ServerConfig, "MAX_BOARD_SIZE" | "MAX_CHILDREN">} MessageValidationConfig */
@@ -38,7 +42,6 @@ import { Cursor, TOOLS } from "../../client-data/tools/index.js";
 /** @typedef {import("../../client-data/tools/shape_contract.js").ToolContract} ToolContract */
 /** @typedef {"id" | "coord" | "color" | "size" | "opacity" | "text" | "transform" | "time" | "toolId"} SchemaFieldType */
 
-const MAX_TOOL_CODE = TOOLS.length;
 const SHAPE_CONTRACTS = TOOLS.filter((tool) => tool.shapeTool === true);
 const SHAPE_CREATE_FIELDS = {
   id: "id",
@@ -116,8 +119,7 @@ function literal(expected) {
 function normalizeLiveToolCode(value) {
   return typeof value === "number" &&
     Number.isSafeInteger(value) &&
-    value >= 1 &&
-    value <= MAX_TOOL_CODE
+    Object.prototype.hasOwnProperty.call(TOOL_ID_BY_CODE, value)
     ? accepted(/** @type {ToolCode} */ (value))
     : rejected("invalid tool");
 }
@@ -388,15 +390,19 @@ const CONTRACT_LIVE_MESSAGE_SCHEMAS = Object.fromEntries(
 /** @type {LiveToolSchemas} */
 const LIVE_MESSAGE_SCHEMAS = Object.fromEntries(
   Object.entries({
-    [Cursor.id]: {
-      [MutationType.UPDATE]: buildLiveSchema(Cursor.id, MutationType.UPDATE, {
-        color: "color",
-        size: "size",
-        opacity: "opacity?",
-        activeTool: "toolId?",
-        x: "coord",
-        y: "coord",
-      }),
+    [TOOL_CODE_BY_ID.cursor]: {
+      [MutationType.UPDATE]: buildLiveSchema(
+        TOOL_CODE_BY_ID.cursor,
+        MutationType.UPDATE,
+        {
+          color: "color",
+          size: "size",
+          opacity: "opacity?",
+          activeTool: "toolId?",
+          x: "coord",
+          y: "coord",
+        },
+      ),
     },
     ...CONTRACT_LIVE_MESSAGE_SCHEMAS,
     ...LIVE_SHAPE_SCHEMAS,
@@ -500,7 +506,7 @@ function normalizeIncomingMessage(config, raw, capabilities) {
     return rejected("shape too large");
   }
   if (
-    toolCode.value !== Cursor.id &&
+    toolCode.value !== TOOL_CODE_BY_ID.cursor &&
     Object.prototype.hasOwnProperty.call(raw, "clientMutationId")
   ) {
     const clientMutationId = normalizeClientMutationId(raw.clientMutationId);

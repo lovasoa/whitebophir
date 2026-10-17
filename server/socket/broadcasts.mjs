@@ -5,7 +5,7 @@ import {
   getToolId,
 } from "../../client-data/js/message_tool_metadata.js";
 import { SocketEvents } from "../../client-data/js/socket_events.js";
-import { Cursor } from "../../client-data/tools/index.js";
+import { TOOL_CODE_BY_ID } from "../../client-data/tools/manifest.js";
 import { getBoardSession } from "../board/session.mjs";
 import observability from "../observability/index.mjs";
 import {
@@ -68,7 +68,7 @@ function boardMutationTraceAttributes(boardName, userName, message) {
  * @returns {boolean}
  */
 function shouldTraceBroadcast(data) {
-  return !data || data.tool !== Cursor.id;
+  return !data || data.tool !== TOOL_CODE_BY_ID.cursor;
 }
 
 /**
@@ -350,7 +350,7 @@ async function persistBoardBroadcast(
     rejectBlockedBoardWrite(socket, board, boardName, data, clientIp, userName);
     return;
   }
-  if (data.tool === Cursor.id) {
+  if (data.tool === TOOL_CODE_BY_ID.cursor) {
     finishSuccessfulEphemeralBoardWrite(socket, boardName, data, now, userName);
     return;
   }
