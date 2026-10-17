@@ -1152,6 +1152,7 @@ export function normalizeServerRenderedElement(state, line) {
  * @returns {boolean}
  */
 function messageDeletesActiveStroke(message, activeId) {
+  if (!activeId) return false;
   if (message.type === MutationType.DELETE && message.id === activeId) {
     return true;
   }
