@@ -19,10 +19,8 @@ function createEntry(entry) {
 export function createOptimisticJournal() {
   /** @type {Map<string, OptimisticJournalEntry>} */
   const entries = new Map();
-  /** @type {Map<string, string[]>} */
-  const latestMutationIdsByItemId = new Map();
-  /** @type {string[]} */
-  let order = [];
+  /** @type {Map<string, string>} */
+  const latestMutationIdByItemId = new Map();
 
   /**
    * @param {OptimisticJournalEntry} entry
@@ -30,29 +28,29 @@ export function createOptimisticJournal() {
    */
   function addEntryToIndexes(entry) {
     for (const itemId of entry.affectedIds) {
-      const mutationIds = latestMutationIdsByItemId.get(itemId) || [];
-      mutationIds.push(entry.clientMutationId);
-      latestMutationIdsByItemId.set(itemId, mutationIds);
+      latestMutationIdByItemId.set(itemId, entry.clientMutationId);
     }
   }
 
-  /**
-   * @param {OptimisticJournalEntry} entry
-   * @returns {void}
-   */
-  function removeEntryFromIndexes(entry) {
+  /** @param {OptimisticJournalEntry} entry */
+  function removeEntry(entry) {
+    entries.delete(entry.clientMutationId);
+    const orphanedIds = new Set();
     for (const itemId of entry.affectedIds) {
-      const mutationIds = latestMutationIdsByItemId.get(itemId);
-      if (!mutationIds) continue;
-      const nextMutationIds = mutationIds.filter(
-        (clientMutationId) => clientMutationId !== entry.clientMutationId,
-      );
-      if (nextMutationIds.length === 0) {
-        latestMutationIdsByItemId.delete(itemId);
-        continue;
+      if (latestMutationIdByItemId.get(itemId) === entry.clientMutationId) {
+        latestMutationIdByItemId.delete(itemId);
+        orphanedIds.add(itemId);
       }
-      latestMutationIdsByItemId.set(itemId, nextMutationIds);
     }
+    if (orphanedIds.size === 0) return entry;
+    for (const pending of entries.values()) {
+      for (const itemId of pending.affectedIds) {
+        if (orphanedIds.has(itemId)) {
+          latestMutationIdByItemId.set(itemId, pending.clientMutationId);
+        }
+      }
+    }
+    return entry;
   }
 
   /**
@@ -63,9 +61,9 @@ export function createOptimisticJournal() {
     let changed = true;
     while (changed) {
       changed = false;
-      for (const id of order) {
-        const entry = entries.get(id);
-        if (!entry || rejectedIds.has(id)) continue;
+      for (const entry of entries.values()) {
+        const id = entry.clientMutationId;
+        if (rejectedIds.has(id)) continue;
         for (const dependencyId of entry.dependsOn) {
           if (rejectedIds.has(dependencyId)) {
             rejectedIds.add(id);
@@ -82,28 +80,24 @@ export function createOptimisticJournal() {
    * @returns {OptimisticJournalEntry[]}
    */
   function removeEntries(entryIds) {
-    if (entryIds.size === 0) return [];
     /** @type {OptimisticJournalEntry[]} */
     const removedEntries = [];
-    order = order.filter((id) => {
-      if (!entryIds.has(id)) return true;
-      const entry = entries.get(id);
-      if (entry) {
+    for (const entry of entries.values()) {
+      if (entryIds.has(entry.clientMutationId)) {
+        entries.delete(entry.clientMutationId);
         removedEntries.push(entry);
-        removeEntryFromIndexes(entry);
       }
-      entries.delete(id);
-      return false;
-    });
+    }
+    if (removedEntries.length > 0) {
+      latestMutationIdByItemId.clear();
+      for (const entry of entries.values()) addEntryToIndexes(entry);
+    }
     return removedEntries;
   }
 
   /** @returns {OptimisticJournalEntry[]} */
   function list() {
-    return order.flatMap((clientMutationId) => {
-      const entry = entries.get(clientMutationId);
-      return entry ? [entry] : [];
-    });
+    return [...entries.values()];
   }
 
   return {
@@ -116,10 +110,8 @@ export function createOptimisticJournal() {
     append(entry) {
       const nextEntry = createEntry(entry);
       const existing = entries.get(nextEntry.clientMutationId);
-      if (existing) removeEntryFromIndexes(existing);
+      if (existing) removeEntry(existing);
       entries.set(nextEntry.clientMutationId, nextEntry);
-      order = order.filter((id) => id !== nextEntry.clientMutationId);
-      order.push(nextEntry.clientMutationId);
       addEntryToIndexes(nextEntry);
       return nextEntry;
     },
@@ -128,9 +120,8 @@ export function createOptimisticJournal() {
      * @returns {OptimisticJournalEntry[]}
      */
     promote(clientMutationId) {
-      return entries.has(clientMutationId)
-        ? removeEntries(new Set([clientMutationId]))
-        : [];
+      const entry = entries.get(clientMutationId);
+      return entry ? [removeEntry(entry)] : [];
     },
     /**
      * @param {string} clientMutationId
@@ -150,9 +141,8 @@ export function createOptimisticJournal() {
       const invalidatedIdSet = new Set(invalidatedIds);
       if (invalidatedIdSet.size === 0) return [];
       const rejectedIds = new Set();
-      for (const id of order) {
-        const entry = entries.get(id);
-        if (!entry) continue;
+      for (const entry of entries.values()) {
+        const id = entry.clientMutationId;
         for (const affectedId of entry.affectedIds) {
           if (invalidatedIdSet.has(affectedId)) {
             rejectedIds.add(id);
@@ -177,11 +167,7 @@ export function createOptimisticJournal() {
     dependencyMutationIdsForItemIds(itemIds) {
       const dependencyMutationIds = new Set();
       for (const itemId of itemIds) {
-        const mutationIds = latestMutationIdsByItemId.get(itemId);
-        const clientMutationId =
-          mutationIds === undefined
-            ? undefined
-            : mutationIds[mutationIds.length - 1];
+        const clientMutationId = latestMutationIdByItemId.get(itemId);
         if (clientMutationId !== undefined) {
           dependencyMutationIds.add(clientMutationId);
         }
@@ -191,13 +177,12 @@ export function createOptimisticJournal() {
     reset() {
       const pending = list();
       entries.clear();
-      latestMutationIdsByItemId.clear();
-      order = [];
+      latestMutationIdByItemId.clear();
       return pending;
     },
     list,
     size() {
-      return order.length;
+      return entries.size;
     },
   };
 }
