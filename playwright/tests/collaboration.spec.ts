@@ -1,6 +1,7 @@
 // biome-ignore-all lint/suspicious/noExplicitAny: Playwright tests frequently access global state on the window object.
 import { setTimeout as delay } from "node:timers/promises";
 import { FRIEND_LAST_NAMES_STORAGE_KEY } from "../../client-data/js/board_friend_store.js";
+import { MODERATION_RULES } from "../../client-data/js/moderation_rules.js";
 import { MutationType } from "../../client-data/js/mutation_type.js";
 import {
   Cursor,
@@ -9,6 +10,7 @@ import {
   Pencil,
   Rectangle,
 } from "../../client-data/tools/index.js";
+import translations from "../../server/http/translations.json";
 import { createBoardPage, expect, test } from "../fixtures/test";
 import { DEFAULT_FORWARDED_IP, TOKENS } from "../helpers/tokens";
 
@@ -413,21 +415,24 @@ test.describe("collaboration and rate limiting", () => {
 
         await boardPage.reportFirstRemoteUser();
         await expect(page.locator(".moderation-action-dialog")).toBeVisible();
-        await expect(page.locator(".moderation-action-rule-label")).toHaveText([
-          "No harassment or personal attacks",
-          "No violence or hate speech",
-          "No pornography or naked children",
-          "No illegal content",
-          "Respect other people's drawings",
-          "Respect moderation decisions",
-        ]);
+        await expect(page.locator(".moderation-action-rule-label")).toHaveText(
+          MODERATION_RULES.map(
+            (rule) =>
+              translations.en[rule.titleKey as keyof typeof translations.en],
+          ),
+        );
 
         await expect(page.locator(".moderation-action-duration")).toContainText(
           ["Warn", "15m", "30m", "24h", "7d"],
         );
 
         await page.getByRole("button", { name: "30m", exact: true }).click();
-        await page.getByRole("button", { name: /No harassment/ }).click();
+        await page
+          .getByRole("button", {
+            name: translations.en.rules_harassment_title,
+            exact: true,
+          })
+          .click();
         await expect
           .poll(() => page.evaluate(() => window.__reportedUsers?.[0]))
           .toMatchObject({
@@ -555,7 +560,10 @@ test.describe("collaboration and rate limiting", () => {
           boardPage.page.locator(".moderation-action-dialog"),
         ).toBeVisible();
         await boardPage.page
-          .getByRole("button", { name: /No harassment/ })
+          .getByRole("button", {
+            name: translations.en.rules_harassment_title,
+            exact: true,
+          })
           .click();
 
         await expect
@@ -626,7 +634,10 @@ test.describe("collaboration and rate limiting", () => {
         ).toBeVisible();
         await boardPage.page.getByRole("button", { name: "15m" }).click();
         await boardPage.page
-          .getByRole("button", { name: /No harassment/ })
+          .getByRole("button", {
+            name: translations.en.rules_harassment_title,
+            exact: true,
+          })
           .click();
 
         await expect

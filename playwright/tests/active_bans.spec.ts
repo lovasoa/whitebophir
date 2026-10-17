@@ -1,3 +1,4 @@
+import translations from "../../server/http/translations.json";
 import { createBoardPage, expect, test } from "../fixtures/test";
 import { TOKENS } from "../helpers/tokens";
 
@@ -67,7 +68,12 @@ moderationTest(
       await targetRow.hover();
       await targetRow.locator(".connected-user-report").click();
       await page.getByRole("button", { name: "15m", exact: true }).click();
-      await page.getByRole("button", { name: /No harassment/ }).click();
+      await page
+        .getByRole("button", {
+          name: translations.en.rules_harassment_title,
+          exact: true,
+        })
+        .click();
       if (!(await boardPage.connectedUsersPanel.isVisible()))
         await boardPage.connectedUsersToggle.click();
       await expect(section).toBeVisible();
@@ -81,7 +87,9 @@ moderationTest(
         "datetime",
         /^\d{4}-\d\d-\d\dT/,
       );
-      await expect(section).toContainText("No harassment or personal attacks");
+      await expect(section).toContainText(
+        translations.en.rules_harassment_title,
+      );
       await expect(
         page.getByRole("button", { name: `Unban ${targetName}`, exact: true }),
       ).toBeVisible();
