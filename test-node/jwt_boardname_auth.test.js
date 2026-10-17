@@ -36,3 +36,46 @@ test("roleInBoard allows board-scoped reader access without editor privileges", 
     );
   });
 });
+
+test("malformed JWT role claims are denied without throwing during resolution", () => {
+  const { roleInBoard, checkBoardnameInToken } = require(
+    JWT_BOARDNAME_AUTH_PATH,
+  );
+  const config = createConfig({ AUTH_SECRET_KEY: "test" });
+  const malformedRoles = [
+    null,
+    false,
+    0,
+    "",
+    "moderator:team",
+    {},
+    { role: "editor:team" },
+    [null],
+    [42],
+    ["editor:team", {}],
+  ];
+
+  for (const roles of malformedRoles) {
+    const token = jsonwebtoken.sign({ roles }, config.AUTH_SECRET_KEY);
+    assert.equal(roleInBoard(config, token, "team"), "forbidden");
+    assert.equal(roleInBoard(config, token, null), "forbidden");
+    assert.throws(
+      () =>
+        checkBoardnameInToken(
+          config,
+          new URL(`http://wbo.test/boards/team?token=${token}`),
+          "team",
+        ),
+      { message: "access_forbidden" },
+    );
+  }
+});
+
+test("JWTs with absent or empty roles retain default editor access", () => {
+  const { roleInBoard } = require(JWT_BOARDNAME_AUTH_PATH);
+  const config = createConfig({ AUTH_SECRET_KEY: "test" });
+  for (const payload of [{ sub: "editor" }, { roles: [] }]) {
+    const token = jsonwebtoken.sign(payload, config.AUTH_SECRET_KEY);
+    assert.equal(roleInBoard(config, token, "team"), "editor");
+  }
+});

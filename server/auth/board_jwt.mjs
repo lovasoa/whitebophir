@@ -129,13 +129,15 @@ export function roleInBoard(config, token, board) {
   if (config.AUTH_SECRET_KEY === "") return "editor";
 
   const roles = verifyTokenRoles(token, config.AUTH_SECRET_KEY);
-  if (roles === null) return "forbidden";
-  if (!roles) return "editor";
+  if (roles === undefined) return "editor";
+  if (
+    !Array.isArray(roles) ||
+    !roles.every((role) => typeof role === "string")
+  ) {
+    return "forbidden";
+  }
 
-  const summary = summarizeBoardRoles(
-    /** @type {Iterable<string>} */ (roles),
-    board,
-  );
+  const summary = summarizeBoardRoles(roles, board);
   if (summary.matchingRole !== null) return summary.matchingRole;
   if ((!board && summary.hasModerator) || !summary.hasBoardName) {
     return summary.hasModerator ? "moderator" : "editor";
