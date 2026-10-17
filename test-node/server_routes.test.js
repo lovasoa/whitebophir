@@ -645,38 +645,40 @@ test("board pages preserve a valid incoming user secret cookie and do not rotate
   ]);
 });
 
-test("board pages mark the user secret cookie secure on https requests", async () => {
+test("board pages trust forwarded https for cookies only behind a configured proxy", async () => {
   const dirs = await createServerDirs();
-
-  await withEnv({
-    HOST: "127.0.0.1",
-    PORT: "0",
-    AUTH_SECRET_KEY: "",
-    WBO_HISTORY_DIR: dirs.historyDir,
-    WBO_WEBROOT: dirs.webroot,
-    WBO_SILENT: "true",
-  }, async () => {
-    const app = await createTestServer();
+  for (const ipSource of [
+    "remoteAddress",
+    "X-Forwarded-For",
+    "Forwarded",
+    "CF-Connecting-IP",
+  ]) {
+    const app = await createTestServer(
+      createServerConfig(dirs, { IP_SOURCE: ipSource }),
+    );
     try {
-      const response = await request(app, "/boards/demo", {
-        "x-forwarded-proto": "https",
-      });
-      const setCookie = getSingleSetCookie(response.headers);
-
-      assert.equal(response.statusCode, 200);
-      assert.match(setCookie, /;\s*Secure(?:;|$)/);
+      /** @type {{[key: string]: string}[]} */
+      const protocolHeaderCases = [
+        { "x-forwarded-proto": "https" },
+        { forwarded: "for=203.0.113.1;proto=https" },
+      ];
+      for (const protocolHeaders of protocolHeaderCases) {
+        const response = await request(app, "/boards/demo", {
+          "x-forwarded-for": "203.0.113.1",
+          "cf-connecting-ip": "203.0.113.1",
+          ...protocolHeaders,
+        });
+        assert.equal(response.statusCode, 200);
+        assert.equal(
+          /;\s*Secure(?:;|$)/.test(getSingleSetCookie(response.headers)),
+          ipSource !== "remoteAddress",
+          `${ipSource}: ${JSON.stringify(protocolHeaders)}`,
+        );
+      }
     } finally {
       await closeServer(app);
     }
-  }, [
-    SERVER_PATH,
-    TEMPLATING_PATH,
-    CONFIGURATION_PATH,
-    CREATE_SVG_PATH,
-    CHECK_OUTPUT_DIRECTORY_PATH,
-    CLIENT_CONFIGURATION_PATH,
-    JWTAUTH_PATH,
-  ]);
+  }
 });
 
 test("server preserves an incoming request id header", async () => {

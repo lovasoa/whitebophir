@@ -128,7 +128,7 @@ Common settings:
 - `WBO_MAX_EMIT_COUNT` : the general per-IP socket write limit profile. Use compact entries such as `*:250/5s anonymous:125/5s`. Increase this if you want smoother drawings, at the expense of making denial-of-service bursts cheaper for clients. The default is `*:250/5s`.
 - `WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP` : the constructive per-IP write limit profile. Use compact entries such as `*:40/10s anonymous:20/10s`.
 - `WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP` : the destructive per-IP write limit profile. Use compact entries such as `*:190/60s anonymous:95/60s`.
-- `WBO_IP_SOURCE` : which request attribute to trust for client IP based limits and logs. Supports `remoteAddress`, `X-Forwarded-For`, `Forwarded`, or a custom header such as `CF-Connecting-IP`. The default is `remoteAddress`.
+- `WBO_IP_SOURCE` : `remoteAddress` (default) ignores forwarded headers. Behind a trusted proxy, set `X-Forwarded-For`, `Forwarded`, or a custom header such as `CF-Connecting-IP` to trust forwarded client IP, host, and protocol.
 - `AUTH_SECRET_KEY` : If you would like to authenticate your boards using jwt, this declares the secret key.
 
 ## Monitoring
