@@ -2420,9 +2420,22 @@ test("large Hand replay completes transforms before the next message", async () 
   assert.equal(rect.transform.baseVal[0].matrix.e, 2000);
 });
 
-test("Hand batch delete removes the element synchronously without re-entering messageForTool", async () => {
+test("Hand batch deletes complete synchronously and preserve the SVG shell", async () => {
   const harness = createHarness();
   const handTool = await harness.loadTool("hand");
+  const svg = globalAny.Tools.dom.svg;
+  svg.id = "board-svg";
+  globalAny.Tools.drawingArea.id = "drawingArea";
+  svg.appendChild(globalAny.Tools.drawingArea);
+  const defs = globalAny.Tools.dom.createSVGElement("defs");
+  defs.id = "defs";
+  svg.appendChild(defs);
+  const cursors = globalAny.Tools.dom.createSVGElement("g");
+  cursors.id = "cursors";
+  svg.appendChild(cursors);
+  const nested = globalAny.Tools.dom.createSVGElement("path");
+  nested.id = "nested-path";
+  defs.appendChild(nested);
 
   const rect = globalAny.Tools.dom.createSVGElement("rect");
   rect.id = "doomed-rect";
@@ -2443,11 +2456,15 @@ test("Hand batch delete removes the element synchronously without re-entering me
       {
         tool: TOOL_CODE_BY_ID.hand,
         _children: [
-          {
-            type: MessageToolMetadata.MutationType.DELETE,
-            id: "doomed-rect",
-          },
-        ],
+          "board-svg",
+          "drawingArea",
+          "defs",
+          "cursors",
+          "nested-path",
+          "missing-target",
+          "doomed-rect",
+          "doomed-rect",
+        ].map((id) => ({ type: MutationType.DELETE, id })),
       },
       false,
     );
@@ -2455,7 +2472,19 @@ test("Hand batch delete removes the element synchronously without re-entering me
     // draw() returned and the element is already gone: applied synchronously
     // before any sequence-advancing await could resolve.
     assert.equal(result instanceof Promise, false);
-    assert.ok(!globalAny.Tools.dom.svg.getElementById("doomed-rect"));
+    assert.ok(!svg.getElementById("doomed-rect"));
+    assert.equal(svg.getElementById("board-svg"), svg);
+    assert.equal(
+      svg.getElementById("drawingArea"),
+      globalAny.Tools.drawingArea,
+    );
+    assert.equal(svg.getElementById("defs"), defs);
+    assert.equal(svg.getElementById("cursors"), cursors);
+    assert.equal(svg.getElementById("nested-path"), nested);
+    assert.equal(globalAny.Tools.drawingArea.parentNode, svg);
+    assert.equal(defs.parentNode, svg);
+    assert.equal(cursors.parentNode, svg);
+    assert.equal(nested.parentNode, defs);
     assert.equal(messageForToolCalls, 0);
   } finally {
     globalAny.Tools.messages.messageForTool = originalMessageForTool;

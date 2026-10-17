@@ -157,15 +157,15 @@ export function draw(state, data) {
 }
 
 /**
- * Synchronously remove an element from the board by id.
+ * Synchronously remove a direct drawing-area child by id.
  * Shared so other tools (e.g. hand) can apply a delete without
  * re-entering the async board message pipeline.
- * @param {{ svg: { getElementById(id: string): Element | null }, drawingArea: { removeChild(node: Element): unknown } }} board
+ * @param {{ svg: { getElementById(id: string): Element | null }, drawingArea: Element }} board
  * @param {string} id
  */
 export function deleteBoardElementById(board, id) {
   const elem = board.svg.getElementById(id);
-  if (elem === null) {
+  if (elem === null || elem.parentNode !== board.drawingArea) {
     logFrontendEvent("warn", "tool.eraser.delete_missing_target", { id });
   } else {
     board.drawingArea.removeChild(elem);
