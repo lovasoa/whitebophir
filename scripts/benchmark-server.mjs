@@ -410,13 +410,14 @@ try {
       "./benchmark-peer-visible-erase.mjs"
     );
     await maybeWriteProfiles(async () => {
-      const samples = await Promise.all(
-        Array.from({ length: sampleCount }, () =>
-          measureSample(() =>
+      const samples = [];
+      for (let sample = 0; sample < sampleCount; sample += 1) {
+        samples.push(
+          await measureSample(() =>
             runPeerVisibleEraseBenchmark(config.MAX_CHILDREN),
           ),
-        ),
-      );
+        );
+      }
       printResult(
         "e2e",
         "open large board to peer-visible erase",
