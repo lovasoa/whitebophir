@@ -2,6 +2,8 @@ import type {
   BoardMessage,
   ConnectedUser,
   ModerationDisconnectPayload,
+  ModeratorReportUserPayload,
+  ReportUserPayload,
   SequencedMutationBroadcast,
   SetTemporaryModeratorPayload,
 } from "./app-runtime";
@@ -144,13 +146,9 @@ export type TurnstileSiteverifyResult = {
   "error-codes"?: unknown;
 };
 
-export type ReportUserPayload = {
-  socketId?: string;
-  banDurationMs?: number;
-  moderationRule?: string;
-};
-
 export type {
+  ModeratorReportUserPayload,
+  ReportUserPayload,
   ModerationDisconnectPayload,
   ModerationDisconnectSource,
   SetTemporaryModeratorPayload,

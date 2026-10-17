@@ -1,4 +1,6 @@
 export const SocketEvents = Object.freeze({
+  ACTIVE_BANS: "active_bans",
+  UNBAN_USER: "unban_user",
   BOARDSTATE: "boardstate",
   BROADCAST: "broadcast",
   CONNECT: "connect",

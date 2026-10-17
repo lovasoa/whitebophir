@@ -12,7 +12,7 @@ import {
   setLoadedBoard,
 } from "../board/registry.mjs";
 import observability from "../observability/index.mjs";
-import { resetBans } from "./bans.mjs";
+import { listActiveBans, resetBans, unbanBoardUser } from "./bans.mjs";
 import {
   boardMutationTraceAttributes,
   handleBroadcastWriteMessage,
@@ -20,6 +20,7 @@ import {
 } from "./broadcasts.mjs";
 import {
   boardStateForSocket,
+  canBanOnBoard,
   clientIpFallback,
   getClientIp,
   normalizeBroadcastData,
@@ -66,13 +67,15 @@ import { handleTurnstileTokenMessage } from "./turnstile.mjs";
 const { Server } = socketIO;
 const { logger, metrics, tracing } = observability;
 
-/** @import { AppSocket, MessageData, NormalizedMessageData, ReportUserPayload, ServerConfig, SetTemporaryModeratorPayload, TurnstileAckCallback } from "../../types/server-runtime.d.ts" */
+/** @import { AppSocket, MessageData, NormalizedMessageData, ServerConfig, SetTemporaryModeratorPayload, TurnstileAckCallback } from "../../types/server-runtime.d.ts" */
 /** @typedef {{type: number, fromSeq: number, seq: number, _children: NormalizedMessageData[]}} ConnectionReplayBatch */
 /** @typedef {{ok: true, boardName: string, board: BoardData, baselineSeq: number, latestSeq: number, minReplayableSeq: number, replayBatch: ConnectionReplayBatch, outcome: "empty" | "replayed"} | {ok: false, reason: string, boardName?: string, baselineSeq?: number, latestSeq?: number, minReplayableSeq?: number, error?: unknown}} ConnectionReplayBootstrap */
 /** @type {Map<string, AppSocket>} */
 const activeSockets = new Map();
 /** @type {Set<string>} */
 const syncedPersistentSockets = new Set();
+/** @type {Map<string, ReturnType<typeof setTimeout>>} */
+const banExpiryTimers = new Map();
 let connectedUsersTotal = 0;
 let invalidIpSourceLogged = false;
 /** @type {import("socket.io").Server | undefined} */
@@ -172,6 +175,7 @@ function detachBoardSockets(board) {
     updateConnectedUsersGauge();
   }
   clearBoardUsers(board.name);
+  clearBoardBanExpiryTimer(board.name);
   /** @type {AppSocket[]} */
   const sockets = [];
   for (const socketId of socketIds) {
@@ -276,20 +280,63 @@ function getActiveSocket(socketId) {
 }
 
 /**
+ * Publishes public ban details and schedules the next expiry without polling.
+ * @param {string} boardName
+ * @returns {void}
+ */
+function emitBoardBans(boardName) {
+  clearBoardBanExpiryTimer(boardName);
+  const now = Date.now();
+  const bans = listActiveBans(boardName, now);
+  let hasListeners = false;
+  for (const user of getBoardUserMap(boardName).values()) {
+    const socket = activeSockets.get(user.socketId);
+    if (!socket || !socket.rooms.has(boardName)) continue;
+    hasListeners = true;
+    socket.emit(SocketEvents.ACTIVE_BANS, bans);
+  }
+  if (!hasListeners || bans.length === 0) return;
+  const nextExpiry = Math.min(...bans.map((ban) => ban.expiresAt));
+  const timer = setTimeout(
+    () => emitBoardBans(boardName),
+    Math.max(1, nextExpiry - now),
+  );
+  timer.unref?.();
+  banExpiryTimers.set(boardName, timer);
+}
+
+/** @param {string} boardName */
+function clearBoardBanExpiryTimer(boardName) {
+  const timer = banExpiryTimers.get(boardName);
+  if (timer) clearTimeout(timer);
+  banExpiryTimers.delete(boardName);
+}
+
+function clearBanExpiryTimers() {
+  for (const timer of banExpiryTimers.values()) clearTimeout(timer);
+  banExpiryTimers.clear();
+}
+
+/**
  * Re-emits authoritative access and presence for every tab sharing an identity.
  * @param {string} boardName
  * @param {string} userSecret
  * @param {ServerConfig} config
+ * @param {string} [ip]
  * @returns {Promise<void>}
  */
-async function refreshUserAccess(boardName, userSecret, config) {
-  if (!userSecret) return;
+async function refreshUserAccess(boardName, userSecret, config, ip) {
+  if (!userSecret && !ip) return;
   const boardPromise = getLoadedBoard(boardName);
   if (!boardPromise) return;
   const board = await boardPromise;
   const users = getBoardUserMap(boardName);
   for (const user of users.values()) {
-    if (user.userSecret !== userSecret) continue;
+    if (
+      !(userSecret && user.userSecret === userSecret) &&
+      !(ip && user.ip === ip)
+    )
+      continue;
     const targetSocket = activeSockets.get(user.socketId);
     if (!targetSocket || !targetSocket.rooms.has(boardName)) continue;
     const boardState = boardStateForSocket(config, board, targetSocket);
@@ -538,6 +585,8 @@ async function bootstrapSocketBoard(socket, replay, config) {
       syncedPersistentSockets.delete(socket.id);
       socket.emit(SocketEvents.BROADCAST, replay.replayBatch);
       syncedPersistentSockets.add(socket.id);
+      // Refresh every peer: a connection can arrive before a due expiry callback.
+      emitBoardBans(boardName);
       tracing.setActiveSpanAttributes({
         "wbo.socket.replay.outcome": replay.outcome,
         "wbo.socket.replay.count": replayCount,
@@ -666,9 +715,7 @@ async function handleSocketConnection(socket, config) {
   onSocketEvent(
     socket,
     "report_user",
-    function onReportUser(
-      /** @type {ReportUserPayload | undefined} */ message,
-    ) {
+    function onReportUser(/** @type {unknown} */ message) {
       const normalizedName = boardName;
       return tracing.withActiveSpan(
         "socket.report_user",
@@ -687,8 +734,36 @@ async function handleSocketConnection(socket, config) {
             now: Date.now(),
             getActiveSocket,
             closeSocket,
+            onBansChanged: () => emitBoardBans(boardName),
           });
         },
+      );
+    },
+  );
+
+  onSocketEvent(
+    socket,
+    SocketEvents.UNBAN_USER,
+    async function onUnbanUser(/** @type {unknown} */ message) {
+      if (
+        !message ||
+        typeof message !== "object" ||
+        Array.isArray(message) ||
+        !("banId" in message) ||
+        typeof message.banId !== "string" ||
+        message.banId.length !== 36 ||
+        !socket.rooms.has(boardName) ||
+        !canBanOnBoard(config, boardName, socket)
+      )
+        return;
+      const removed = unbanBoardUser(boardName, message.banId, Date.now());
+      if (!removed) return;
+      emitBoardBans(boardName);
+      await refreshUserAccess(
+        boardName,
+        removed.userSecret,
+        config,
+        removed.ip,
       );
     },
   );
@@ -748,7 +823,10 @@ async function handleSocketConnection(socket, config) {
                 }),
               );
             }
-            if (userCount === 0 && !shuttingDown) unloadBoard(room);
+            if (userCount === 0) {
+              clearBoardBanExpiryTimer(room);
+              if (!shuttingDown) unloadBoard(room);
+            }
           }
         },
       );
@@ -876,6 +954,7 @@ async function unloadBoard(boardName) {
 async function shutdownBoards() {
   const currentIo = io;
   shuttingDown = true;
+  clearBanExpiryTimers();
   io = undefined;
   if (currentIo) {
     currentIo.disconnectSockets(true);
@@ -955,6 +1034,7 @@ export const __test = {
   },
   resetRateLimitMaps: function resetRateLimitMaps() {
     resetSocketRateLimitMaps();
+    clearBanExpiryTimers();
     resetBans();
     resetTemporaryModerators();
     resetBoardUserMaps();

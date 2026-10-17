@@ -360,6 +360,10 @@ export class ConnectionModule {
         }
         this.scheduleSocketReconnect();
       });
+      socket.on(SocketEvents.ACTIVE_BANS, (bans) => {
+        if (socket !== Tools.connection.socket) return;
+        Tools.presence.setActiveBans(bans);
+      });
       socket.on(SocketEvents.USER_JOINED, function onUserJoined(user) {
         Tools.presence.upsertConnectedUser(user);
       });

@@ -646,7 +646,14 @@ test("a banned user reconnects read-only in their own boardstate and in presence
         query: { board: "ban-readonly-board", tool: "hand" },
       });
 
-      handler(moderator, "report_user")({ socketId: "socket-ban-target" });
+      handler(
+        moderator,
+        "report_user",
+      )({
+        socketId: "socket-ban-target",
+        banDurationMs: 900_000,
+        moderationRule: "harassment",
+      });
 
       // The banned user reconnects (same secret + ip): now read-only everywhere.
       const reconnected = await connect({
@@ -2037,8 +2044,6 @@ test("report_user ignores stale presence capabilities for active board members",
           size: "4",
         },
       });
-      const reporterEmitCountBeforeReport = reporter.emitted.length;
-
       const reported = await connect({
         id: "socket-reported",
         remoteAddress: "203.0.113.91",
@@ -2053,6 +2058,7 @@ test("report_user ignores stale presence capabilities for active board members",
           size: "7",
         },
       });
+      const reporterEmitCountBeforeReport = reporter.emitted.length;
       const reportedEmitCountBeforeReport = reported.emitted.length;
       // Authorization is live even if an expired grant left stale presentation state.
       test
@@ -2461,7 +2467,14 @@ test("moderator report bans reported secret and ip without disconnecting moderat
         query: { board: "board-report-ban", tool: "hand" },
       });
 
-      handler(moderator, "report_user")({ socketId: "socket-target-report" });
+      handler(
+        moderator,
+        "report_user",
+      )({
+        socketId: "socket-target-report",
+        banDurationMs: 900_000,
+        moderationRule: "harassment",
+      });
 
       assert.equal(target.socket.client.conn.closeCalls.length, 1);
       assert.equal(moderator.socket.client.conn.closeCalls.length, 0);
@@ -2471,6 +2484,7 @@ test("moderator report bans reported secret and ip without disconnecting moderat
           payload: {
             banDurationMs: 15 * 60 * 1000,
             source: "moderator",
+            moderationRule: "harassment",
           },
         },
       ]);
@@ -2656,6 +2670,7 @@ test("moderator report with zero duration warns reported user without banning", 
       )({
         socketId: "socket-target-report-warn",
         banDurationMs: 0,
+        moderationRule: "harassment",
       });
 
       assert.equal(target.socket.client.conn.closeCalls.length, 1);
@@ -2663,7 +2678,11 @@ test("moderator report with zero duration warns reported user without banning", 
       assert.deepEqual(moderationDisconnectEvents(target), [
         {
           event: "moderation_disconnect",
-          payload: { banDurationMs: 0, source: "moderator" },
+          payload: {
+            banDurationMs: 0,
+            source: "moderator",
+            moderationRule: "harassment",
+          },
         },
       ]);
 
@@ -2700,7 +2719,7 @@ test("moderator report uses requested ban duration", async () => {
   const targetSecret = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbd";
   const boardName = "board-report-duration";
   const now = 1000;
-  const banDurationMs = 2 * 60 * 60 * 1000;
+  const banDurationMs = 24 * 60 * 60 * 1000;
   const reports = require(
     path.join(__dirname, "..", "server", "socket", "reports.mjs"),
   );
@@ -2803,7 +2822,14 @@ test("moderator report ignores self targets without banning", async () => {
         query: { board: "board-report-self-ban", tool: "hand" },
       });
 
-      handler(moderator, "report_user")({ socketId: "socket-mod-self-report" });
+      handler(
+        moderator,
+        "report_user",
+      )({
+        socketId: "socket-mod-self-report",
+        banDurationMs: 900_000,
+        moderationRule: "harassment",
+      });
 
       assert.equal(moderator.socket.client.conn.closeCalls.length, 0);
 
@@ -2882,6 +2908,238 @@ test("non-moderator report disconnects both users without banning", async () => 
         fresh.emitted.some((event) => event.event === "mutation_rejected"),
         false,
       );
+    },
+  );
+});
+
+test("active ban details sync on connect and only board moderators can unban", async () => {
+  const boardName = "active-ban-users";
+  const moderatorSecret = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaf";
+  const targetSecret = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbf";
+  await createSocketScenario(
+    {
+      boardName,
+      config: {
+        BOARD_MODERATORS: new Map([[boardName, new Set([moderatorSecret])]]),
+      },
+    },
+    async ({ connect, invoke, test: socketTest }) => {
+      const moderator = await connect({
+        id: "ban-mod",
+        remoteAddress: "203.0.113.1",
+        headers: withUserSecretCookie(moderatorSecret),
+      });
+      const viewer = await connect({
+        id: "ban-viewer",
+        remoteAddress: "203.0.113.2",
+      });
+      const target = await connect({
+        id: "ban-target",
+        remoteAddress: "203.0.113.3",
+        headers: withUserSecretCookie(targetSecret),
+      });
+      const targetName = socketTest
+        .getBoardUserMap(boardName)
+        .get(target.socket.id)?.name;
+      await invoke(moderator, "report_user", {
+        socketId: target.socket.id,
+        banDurationMs: 900_000,
+        moderationRule: "harassment",
+      });
+      const bans = getRequiredValue(
+        viewer.emitted.filter((event) => event.event === "active_bans").pop(),
+      ).payload;
+      assert.equal(bans.length, 1);
+      assert.equal(bans[0].name, targetName);
+      assert.equal(bans[0].moderationRule, "harassment");
+      assert.deepEqual(Object.keys(bans[0]).sort(), [
+        "bannedAt",
+        "expiresAt",
+        "id",
+        "moderationRule",
+        "name",
+      ]);
+      assert.equal(bans[0].expiresAt - bans[0].bannedAt, 900_000);
+      const banId = bans[0].id;
+      const secretPeer = await connect({
+        id: "ban-secret-peer",
+        remoteAddress: "203.0.113.4",
+        headers: withUserSecretCookie(targetSecret),
+      });
+      const ipPeer = await connect({
+        id: "ban-ip-peer",
+        remoteAddress: "203.0.113.3",
+        headers: withUserSecretCookie("cccccccccccccccccccccccccccccccf"),
+      });
+      const lastState = (/** @type {typeof target} */ created) =>
+        getRequiredValue(
+          created.emitted.filter((event) => event.event === "boardstate").pop(),
+        ).payload;
+      assert.equal(lastState(secretPeer).canEdit, false);
+      assert.equal(lastState(ipPeer).canEdit, false);
+      assert.deepEqual(
+        secretPeer.emitted
+          .filter((event) => event.event === "active_bans")
+          .pop()?.payload,
+        bans,
+      );
+      // A stale client/presence capability cannot authorize an unban.
+      const viewerUser = socketTest
+        .getBoardUserMap(boardName)
+        .get(viewer.socket.id);
+      assert.ok(viewerUser);
+      viewerUser.canBan = true;
+      await invoke(viewer, "unban_user", { banId });
+      for (const message of [
+        undefined,
+        null,
+        42,
+        "bad",
+        [],
+        { banId: 1 },
+        { banId: "unknown" },
+        { banId: "0".repeat(36) },
+        [{ banId }],
+      ]) {
+        await invoke(moderator, "unban_user", message);
+      }
+      moderator.socket.rooms.delete(boardName);
+      await invoke(moderator, "unban_user", { banId });
+      moderator.socket.rooms.add(boardName);
+      assert.deepEqual(
+        viewer.emitted.filter((event) => event.event === "active_bans").pop()
+          ?.payload,
+        bans,
+      );
+      await invoke(moderator, "unban_user", { banId });
+      for (const created of [viewer, moderator, secretPeer, ipPeer]) {
+        assert.deepEqual(
+          created.emitted.filter((event) => event.event === "active_bans").pop()
+            ?.payload,
+          [],
+        );
+      }
+      for (const created of [secretPeer, ipPeer]) {
+        assert.equal(lastState(created).canEdit, true);
+        assert.equal(lastState(created).canReport, true);
+        assert.equal(lastState(created).accessRefreshAfterMs, undefined);
+        assert.equal(
+          socketTest.getBoardUserMap(boardName).get(created.socket.id)?.canEdit,
+          true,
+        );
+      }
+    },
+  );
+});
+
+test("active ban list updates at expiry without polling or a new connection", async (t) => {
+  const boardName = "active-ban-expiry";
+  const moderatorSecret = "dddddddddddddddddddddddddddddddf";
+  await createSocketScenario(
+    {
+      boardName,
+      config: {
+        BOARD_MODERATORS: new Map([[boardName, new Set([moderatorSecret])]]),
+      },
+    },
+    async ({ connect, invoke }) => {
+      const moderator = await connect({
+        id: "expiry-mod",
+        remoteAddress: "203.0.113.10",
+        headers: withUserSecretCookie(moderatorSecret),
+      });
+      const target = await connect({
+        id: "expiry-target",
+        remoteAddress: "203.0.113.11",
+      });
+      let now = Date.now();
+      /** @type {{callback: () => void, delay: number}[]} */
+      const scheduled = [];
+      t.mock.method(Date, "now", () => now);
+      t.mock.method(
+        globalThis,
+        "setTimeout",
+        (/** @type {() => void} */ callback, /** @type {number} */ delay) => {
+          scheduled.push({ callback, delay });
+          return { unref() {} };
+        },
+      );
+      await invoke(moderator, "report_user", {
+        socketId: target.socket.id,
+        banDurationMs: 900_000,
+        moderationRule: "harassment",
+      });
+      assert.equal(
+        moderator.emitted.filter((event) => event.event === "active_bans").pop()
+          ?.payload.length,
+        1,
+      );
+      now += 899_999;
+      assert.equal(
+        moderator.emitted.filter((event) => event.event === "active_bans").pop()
+          ?.payload.length,
+        1,
+      );
+      assert.equal(scheduled.length, 1);
+      const expiry = getRequiredValue(scheduled[0]);
+      assert.equal(expiry.delay, 900_000);
+      now += 1;
+      expiry.callback();
+      assert.deepEqual(
+        moderator.emitted.filter((event) => event.event === "active_bans").pop()
+          ?.payload,
+        [],
+      );
+    },
+  );
+});
+
+test("a connection after expiry refreshes the ban list for existing sockets", async (t) => {
+  const boardName = "active-ban-connect-expiry";
+  const moderatorSecret = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeef";
+  await createSocketScenario(
+    {
+      boardName,
+      config: {
+        BOARD_MODERATORS: new Map([[boardName, new Set([moderatorSecret])]]),
+      },
+    },
+    async ({ connect, invoke }) => {
+      const moderator = await connect({
+        id: "connect-expiry-mod",
+        remoteAddress: "203.0.113.20",
+        headers: withUserSecretCookie(moderatorSecret),
+      });
+      const target = await connect({
+        id: "connect-expiry-target",
+        remoteAddress: "203.0.113.21",
+      });
+      const now = Date.now();
+      t.mock.timers.enable({ apis: ["Date", "setTimeout"], now });
+      await invoke(moderator, "report_user", {
+        socketId: target.socket.id,
+        banDurationMs: 900_000,
+        moderationRule: "harassment",
+      });
+      assert.equal(
+        moderator.emitted.filter((event) => event.event === "active_bans").pop()
+          ?.payload.length,
+        1,
+      );
+      // Move the clock past expiry while leaving its callback pending.
+      t.mock.timers.setTime(now + 900_001);
+      const newcomer = await connect({
+        id: "connect-expiry-newcomer",
+        remoteAddress: "203.0.113.22",
+      });
+      t.mock.timers.tick(0);
+      for (const created of [moderator, newcomer]) {
+        assert.deepEqual(
+          created.emitted.filter((event) => event.event === "active_bans").pop()
+            ?.payload,
+          [],
+        );
+      }
     },
   );
 });

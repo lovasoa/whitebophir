@@ -6,11 +6,15 @@ import { getMessageActivityPoint } from "./message_activity_point.js";
 import MessageCommon from "./message_common.js";
 import { LIMITS } from "./message_limits.js";
 import { MutationType } from "./message_tool_metadata.js";
-import { MODERATION_RULES } from "./moderation_rules.js";
+import {
+  getModerationRule,
+  MODERATION_DURATION_OPTIONS,
+  MODERATION_RULES,
+} from "./moderation_rules.js";
 import { SocketEvents } from "./socket_events.js";
 import { createToolIconBadge, updateToolIconBadge } from "./tool_icon_badge.js";
 
-/** @import { AppToolsState, AttachedBoardDomModule, BoardMessage, ConnectedUser, ConnectedUserMap, HandChildMessage } from "../../types/app-runtime" */
+/** @import { ActiveBan, AppToolsState, AttachedBoardDomModule, BoardMessage, ConnectedUser, ConnectedUserMap, HandChildMessage } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 /** @typedef {"minute" | "hour" | "day"} ConnectedUserDurationUnit */
 /** @typedef {{kind: "now"} | {kind: "duration", count: number, unit: ConnectedUserDurationUnit, shortKey: string}} ConnectedUserRelativeTime */
@@ -22,6 +26,9 @@ export class PresenceModule {
     this.users = /** @type {ConnectedUserMap} */ (new Map());
     this.friendStore = new FriendStore();
     this.friendStorageBound = false;
+    this.bans = /** @type {ActiveBan[]} */ ([]);
+    this.renderedBans = /** @type {ActiveBan[] | null} */ (null);
+    this.renderedCanBan = false;
     this.panelOpen = false;
     this.renderScheduled = false;
     /** @type {number | null} */
@@ -29,6 +36,7 @@ export class PresenceModule {
   }
 
   clearConnectedUsers() {
+    this.bans = [];
     Array.from(this.users.values()).forEach((user) => {
       clearConnectedUserTimers(user);
     });
@@ -105,13 +113,89 @@ export class PresenceModule {
     ) {
       focusedListControl.focus({ preventScroll: true });
     }
+    this.renderActiveBans();
     syncConnectedUsersSummary(this, Tools);
     schedulePresenceStaleTick(this);
   }
 
+  /** @param {ActiveBan[]} bans */
+  setActiveBans(bans) {
+    this.bans = bans;
+    this.schedulePresenceRender();
+  }
+
+  renderActiveBans() {
+    const Tools = this.getTools();
+    const canBan = Tools.access.canBan === true;
+    if (this.renderedBans === this.bans && this.renderedCanBan === canBan)
+      return;
+    this.renderedBans = this.bans;
+    this.renderedCanBan = canBan;
+    const details = /** @type {HTMLDetailsElement} */ (
+      getRequiredElement("activeBansSection")
+    );
+    details.hidden = this.bans.length === 0;
+    if (details.hidden) details.open = false;
+    getRequiredElement("activeBansSummary").textContent = Tools.i18n.format(
+      "active_bans_count",
+      { count: String(this.bans.length) },
+    );
+    const list = getRequiredElement("activeBansList");
+    list.replaceChildren();
+    for (const ban of this.bans) {
+      const row = document.createElement("li");
+      row.className = "active-ban-row";
+      const main = document.createElement("div");
+      const name = document.createElement("bdi");
+      name.className = "active-ban-name";
+      name.dir = "auto";
+      name.textContent = ban.name;
+      main.appendChild(name);
+      const time = document.createElement("time");
+      time.className = "active-ban-meta";
+      const date = new Date(ban.bannedAt);
+      time.dateTime = date.toISOString();
+      time.textContent = Tools.i18n.format("banned_at", {
+        time: date.toLocaleString(document.documentElement.lang || undefined, {
+          dateStyle: "short",
+          timeStyle: "short",
+        }),
+      });
+      main.appendChild(time);
+      const reason = document.createElement("span");
+      reason.className = "active-ban-meta";
+      const rule = getModerationRule(ban.moderationRule);
+      reason.textContent = Tools.i18n.t(
+        rule ? rule.titleKey : "ban_reason_unspecified",
+      );
+      main.appendChild(reason);
+      row.appendChild(main);
+      if (canBan) {
+        const unban = document.createElement("button");
+        unban.type = "button";
+        unban.className = "active-ban-unban";
+        unban.textContent = Tools.i18n.t("unban");
+        unban.setAttribute(
+          "aria-label",
+          Tools.i18n.format("unban_user", { name: ban.name }),
+        );
+        unban.addEventListener("click", () => {
+          const currentTools = this.getTools();
+          if (currentTools.access.canBan !== true) return;
+          currentTools.connection.socket?.emit(SocketEvents.UNBAN_USER, {
+            banId: ban.id,
+          });
+        });
+        row.appendChild(unban);
+      }
+      list.appendChild(row);
+    }
+  }
+
   /** @param {boolean} open */
   setConnectedUsersPanelOpen(open) {
-    const shouldOpen = open && getConnectedUsersCount(this.users) > 0;
+    const shouldOpen =
+      open && (getConnectedUsersCount(this.users) > 0 || this.bans.length > 0);
     const panel = getConnectedUsersPanel();
     const toggle = getConnectedUsersToggle();
     this.panelOpen = shouldOpen;
@@ -363,8 +447,9 @@ function syncConnectedUsersSummary(presence, Tools = presence.getTools()) {
   const panel = getConnectedUsersPanel();
   const users = presence.users;
   const userCount = getConnectedUsersCount(users);
-  panel.dataset.empty = userCount === 0 ? "true" : "false";
-  if (userCount === 0 && presence.panelOpen) {
+  const empty = userCount === 0 && presence.bans.length === 0;
+  panel.dataset.empty = empty ? "true" : "false";
+  if (empty && presence.panelOpen) {
     presence.setConnectedUsersPanelOpen(false);
   }
   syncConnectedUsersToggleLabel(Tools, users);
@@ -409,42 +494,9 @@ const DURATION_UNIT_MS = {
   hour: 60 * 60 * 1000,
   day: 24 * 60 * 60 * 1000,
 };
-/** @type {({durationMs: 0, labelKey: "warn", variant: "secondary"} | {durationMs: number, count: number, unit: ConnectedUserDurationUnit, variant: "secondary" | "warning" | "danger"})[]} */
-const BAN_DURATION_OPTIONS = [
-  {
-    durationMs: 0,
-    labelKey: "warn",
-    variant: "secondary",
-  },
-  {
-    durationMs: 15 * DURATION_UNIT_MS.minute,
-    count: 15,
-    unit: "minute",
-    variant: "secondary",
-  },
-  {
-    durationMs: 30 * DURATION_UNIT_MS.minute,
-    count: 30,
-    unit: "minute",
-    variant: "secondary",
-  },
-  {
-    durationMs: 24 * DURATION_UNIT_MS.hour,
-    count: 24,
-    unit: "hour",
-    variant: "warning",
-  },
-  {
-    durationMs: 7 * DURATION_UNIT_MS.day,
-    count: 7,
-    unit: "day",
-    variant: "danger",
-  },
-];
-
 /** @param {AppToolsState} Tools */
 function getModerationDurationOptions(Tools) {
-  return BAN_DURATION_OPTIONS.map((option) => ({
+  return MODERATION_DURATION_OPTIONS.map((option) => ({
     label:
       "labelKey" in option
         ? Tools.i18n.t(option.labelKey)
@@ -1149,11 +1201,10 @@ function createConnectedUserRow(getTools, user, presence) {
         typeof banDurationMs === "number" && banDurationMs > 0;
       updateConnectedUserRow(getTools, row, connectedUser);
       /** @type {import("../../types/app-runtime").ReportUserPayload} */
-      const payload = {
-        socketId: connectedUser.socketId,
-      };
-      if (banDurationMs !== undefined) payload.banDurationMs = banDurationMs;
-      if (moderationRule !== undefined) payload.moderationRule = moderationRule;
+      const payload =
+        banDurationMs !== undefined && moderationRule !== undefined
+          ? { socketId: connectedUser.socketId, banDurationMs, moderationRule }
+          : { socketId: connectedUser.socketId };
       socket.emit(SocketEvents.REPORT_USER, payload);
     };
     if (Tools.access.canBan === true) {

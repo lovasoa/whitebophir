@@ -239,11 +239,14 @@ rebroadcasts accepted persistent writes as sequenced
 
 User reports are sent by clients on the `report_user` event with a payload of
 `{ "socketId": "<reported socket id>" }`. Moderator warning/ban actions add
-`banDurationMs` and may add `moderationRule`. A `banDurationMs` of `0` warns
-without banning, a positive number bans for that duration, and an omitted or
-invalid value preserves the legacy default 15-minute ban. Ban durations are
-clamped to at most one week. A user with an active edit ban receives
-`boardstate.canReport: false`; the client hides report controls, and the server
+both `banDurationMs` and a valid shared `moderationRule`. The server accepts
+only the dialog's numeric duration choices: `0` warns, `900000` bans for 15 minutes,
+`1800000` for 30 minutes, `86400000` for 24 hours, and `604800000` for one week.
+Missing or invalid values,
+unknown rules, extra fields, arrays, and non-object payloads are ignored without
+banning or disconnecting anyone. Non-moderator reports contain only `socketId`;
+moderation fields from non-moderators are rejected. A user with an active edit ban
+receives `boardstate.canReport: false`; the client hides report controls, and the server
 also ignores any `report_user` event that user emits. Ban-aware board state also
 includes `accessRefreshAfterMs`, the server-derived delay until the last active
 secret/IP ban expires. The browser schedules one reconnect at that boundary so
@@ -270,6 +273,18 @@ Moderator warning/ban actions do not emit `user_reported`; warning actions only
 disconnect the reported user, while ban actions also ban the reported secret and
 IP. Active moderators are protected targets based on authoritative live
 capabilities, including when the reporter is a temporary moderator.
+
+The server broadcasts `active_bans` to all board sockets on connection and whenever
+a ban is added, removed, or expires. Its payload is an array of
+`{ id, name, bannedAt, expiresAt, moderationRule? }`, with timestamps in epoch
+milliseconds and opaque ban IDs. User secrets and IP addresses are never included.
+The users menu shows these bans in a section of the HTML shell below the users,
+collapsed by default and hidden when empty; reasons use the shared localized moderation rules.
+Users with authoritative `canBan` may send `unban_user { banId }` to revoke a
+board-local ban. Revocation removes the secret and IP entries still owned by that
+ban, preserves newer overlapping bans, and refreshes matching connected users'
+access and presence. Bans and their display details are process-local and expire
+or disappear on restart.
 
 Permanent moderators use `set_temporary_moderator { socketId, durationMs }` to
 grant 15 minutes, 30 minutes, 24 hours, or one week, or revoke with `0`.
@@ -449,7 +464,9 @@ Important files:
 - Board pages stream stored SVG baselines through the HTML shell. The board chrome
   and boot payloads must remain before the streamed board markup.
 - All user-visible strings MUST be localized via `Tools.i18n`. All [translation keys](server/http/translations.json) MUST have a carefully designed, natural sounding, context-aware version in ALL supported languages.
-- The shared moderation rule list lives in [client-data/js/moderation_rules.js](./client-data/js/moderation_rules.js). It defines rule identity, icon files, translation key references, and the moderation-appeal URL. Rule SVG icons live in [client-data/rules/](./client-data/rules/). The `/rules` page, the moderation-action dialog, and the banned disconnect notice all read metadata from this single source.
+- The shared moderation rule list lives in [client-data/js/moderation_rules.js](./client-data/js/moderation_rules.js). It defines rule identity, icon files, translation key references,
+  the moderation-appeal URL, and duration options shared by the dialog and server
+  admission. Rule SVG icons live in [client-data/rules/](./client-data/rules/). The `/rules` page, the moderation-action dialog, and the banned disconnect notice all read metadata from this single source.
 
 ## hot paths
 

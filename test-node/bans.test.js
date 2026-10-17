@@ -127,3 +127,56 @@ test("empty secrets are never banned but their ip is banned", () => {
     true,
   );
 });
+
+test("active bans expose public details once and disappear on expiry", () => {
+  const { banBoardUser, listActiveBans, resetBans } = require(BANS_PATH);
+  resetBans();
+  banBoardUser("Public", "secret", "203.0.113.1", 1000, 500, {
+    name: "User One",
+    moderationRule: "drawings",
+  });
+  const [ban] = listActiveBans("public", 1000);
+  assert.ok(ban);
+  assert.equal(listActiveBans("public", 1000).length, 1);
+  assert.match(ban.id, /^[a-f0-9-]{36}$/);
+  assert.deepEqual(ban, {
+    id: ban.id,
+    name: "User One",
+    bannedAt: 1000,
+    expiresAt: 1500,
+    moderationRule: "drawings",
+  });
+  assert.deepEqual(listActiveBans("another-board", 1000), []);
+  assert.deepEqual(listActiveBans("public", 1500), []);
+  resetBans();
+});
+
+test("unbanning removes both keys but preserves newer overlapping bans", () => {
+  const {
+    banBoardUser,
+    listActiveBans,
+    unbanBoardUser,
+    isEditBanned,
+    resetBans,
+  } = require(BANS_PATH);
+  resetBans();
+  banBoardUser("overlap", "first", "shared-ip", 1000, 5000, { name: "First" });
+  const [first] = listActiveBans("overlap", 1000);
+  banBoardUser("overlap", "second", "shared-ip", 2000, 5000, {
+    name: "Second",
+  });
+  const [second] = listActiveBans("overlap", 2000);
+  assert.ok(first);
+  assert.ok(second);
+  assert.equal(unbanBoardUser("different", first.id, 2000), null);
+  assert.equal(unbanBoardUser("overlap", "unknown", 2000), null);
+  assert.ok(unbanBoardUser("overlap", first.id, 2000));
+  assert.equal(isEditBanned("overlap", "first", "other-ip", 2000), false);
+  assert.equal(isEditBanned("overlap", "first", "shared-ip", 2000), true);
+  assert.deepEqual(listActiveBans("overlap", 2000), [second]);
+  assert.ok(unbanBoardUser("overlap", second.id, 2000));
+  assert.equal(isEditBanned("overlap", "second", "shared-ip", 2000), false);
+  assert.deepEqual(listActiveBans("overlap", 2000), []);
+  assert.equal(unbanBoardUser("overlap", second.id, 2000), null);
+  resetBans();
+});

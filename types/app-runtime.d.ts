@@ -408,16 +408,29 @@ export type ClientSocketIncomingEventMap = {
     periodMs: number;
     retryAfterMs: number;
   };
+  [SocketEvents.ACTIVE_BANS]: ActiveBan[];
   [SocketEvents.USER_REPORTED]: UserReportedPayload;
   [SocketEvents.USER_JOINED]: ConnectedUser;
   [SocketEvents.USER_LEFT]: UserLeftPayload;
 };
 
-export type ReportUserPayload = {
-  socketId?: string;
-  banDurationMs?: number;
+export type ActiveBan = {
+  id: string;
+  name: string;
+  bannedAt: number;
+  expiresAt: number;
   moderationRule?: string;
 };
+
+export type ModeratorReportUserPayload = {
+  socketId: string;
+  banDurationMs: number;
+  moderationRule: string;
+};
+
+export type ReportUserPayload =
+  | { socketId: string; banDurationMs?: never; moderationRule?: never }
+  | ModeratorReportUserPayload;
 
 export type SetTemporaryModeratorPayload = {
   socketId?: string;
@@ -439,6 +452,7 @@ export type TurnstileAck = TurnstileSuccessAck | TurnstileFailureAck;
 export type ClientSocketOutgoingEventArgs = {
   [SocketEvents.BROADCAST]: [message: LiveBoardMessage];
   [SocketEvents.REPORT_USER]: [payload: ReportUserPayload];
+  [SocketEvents.UNBAN_USER]: [payload: { banId: string }];
   [SocketEvents.SET_TEMPORARY_MODERATOR]: [
     payload: SetTemporaryModeratorPayload,
   ];
