@@ -4,8 +4,9 @@ const fs = require("node:fs/promises");
 const fsSync = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const { Session } = require("node:inspector/promises");
 
-const { withEnv } = require("./test_helpers.js");
+const { executionCount, withEnv } = require("./test_helpers.js");
 
 const svgEnvelope = require("../server/persistence/svg_envelope.mjs");
 const svgBoardStore = require("../server/persistence/svg_board_store.mjs");
@@ -52,10 +53,27 @@ function readServedBaseline(boardName, historyDir) {
 /**
  * @param {string} boardName
  * @param {string} historyDir
- * @returns {Promise<any>}
  */
-function readBoardDocumentState(boardName, historyDir) {
-  return svgBoardStore.readBoardDocumentState(boardName, { historyDir });
+async function readBoardDocumentState(boardName, historyDir) {
+  const session = new Session();
+  session.connect();
+  try {
+    await session.post("Profiler.enable");
+    await session.post("Profiler.startPreciseCoverage", {
+      callCount: true,
+      detailed: true,
+    });
+    const state = await svgBoardStore.readBoardDocumentState(boardName, {
+      historyDir,
+    });
+    const { result } = await session.post("Profiler.takePreciseCoverage");
+    const work = executionCount(result);
+    // Baseline ~1,800, including Node bookkeeping; allow ample headroom.
+    assert.ok(work < 5_000, `${work} backend JS executions (limit 5,000)`);
+    return state;
+  } finally {
+    session.disconnect();
+  }
 }
 
 /**
@@ -752,15 +770,17 @@ test("readBoardDocumentState returns metadata and streaming source details for s
   });
 });
 
-test("readBoardDocumentState falls back to legacy json metadata and generated inline rendering", async () => {
+test("readBoardDocumentState falls back to legacy json metadata and generated inline rendering", async (t) => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-document-state-json-"),
   );
   const boardName = "document-state-json";
+  const source = jsonPath(boardName, historyDir);
+  t.after(() => fs.rm(historyDir, { recursive: true, force: true }));
 
   await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
     await fs.writeFile(
-      jsonPath(boardName, historyDir),
+      source,
       JSON.stringify({
         __wbo_meta__: { readonly: true },
         "rect-1": {
@@ -777,6 +797,13 @@ test("readBoardDocumentState falls back to legacy json metadata and generated in
       "utf8",
     );
 
+    for (let i = 0; i < 10_000; i++) {
+      await fs.link(source, jsonPath(`unused-${i}`, historyDir));
+    }
+    assert.equal(
+      (await readBoardDocumentState("new-board", historyDir)).source,
+      "generated",
+    );
     const state = await readBoardDocumentState(boardName, historyDir);
 
     assert.deepEqual(state.metadata, { readonly: true, seq: 0 });

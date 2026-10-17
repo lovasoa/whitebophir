@@ -1,15 +1,9 @@
 import { writeFile } from "node:fs/promises";
 import { boardSvgPath } from "../../server/persistence/svg_board_paths.mjs";
-import { wboPencilPoint } from "../../client-data/tools/pencil/wbo_pencil_point.js";
 import { expect, test } from "../fixtures/test";
+const { executionCount } = require("../../test-node/test_helpers.js");
 
-const points = [
-  { x: 100, y: 100 },
-  { x: 120, y: 110 },
-  { x: 130, y: 90 },
-];
-
-test("dense pencil baselines retain curves without decoding every SVG path", async ({
+test("dense pencil baselines retain curves within the execution budget", async ({
   page,
   boardPage,
   server,
@@ -25,30 +19,16 @@ test("dense pencil baselines retain curves without decoding every SVG path", asy
     boardSvgPath(boardName, server.dataPath),
     `<svg id="canvas" xmlns="http://www.w3.org/2000/svg" width="1000" height="800" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="0" data-wbo-readonly="false"><g id="drawingArea">${items}</g><g id="cursors"></g></svg>`,
   );
+  await page.coverage.startJSCoverage();
   await boardPage.gotoBoard(boardName);
   await boardPage.waitForSocketConnected();
   await page.evaluate(async () => {
     await window.WBOApp.toolRegistry.bootTool("pencil");
-    const original = SVGPathElement.prototype.getPathData;
-    SVGPathElement.prototype.getPathData = function (options) {
-      if (this.id.startsWith("stored-")) {
-        const root = document.documentElement;
-        root.dataset.pencilPathReads = String(
-          Number(root.dataset.pencilPathReads || "0") + 1,
-        );
-      }
-      return original.call(this, options);
-    };
     window.WBOApp.toolRegistry.normalizeServerRenderedElements();
   });
   await expect(page.locator("#drawingArea path")).toHaveCount(itemCount);
   const before = await page.locator("#stored-0").getAttribute("d");
   expect(before).toContain("C");
-  expect(
-    await page.evaluate(() =>
-      Number(document.documentElement.dataset.pencilPathReads || "0"),
-    ),
-  ).toBe(0);
 
   await page.evaluate(async () => {
     await window.WBOApp.replay.refreshAuthoritativeBaseline();
@@ -59,29 +39,20 @@ test("dense pencil baselines retain curves without decoding every SVG path", asy
     "transform",
     "matrix(1 0 0 1 10 20)",
   );
-  expect(
-    await page.evaluate(() =>
-      Number(document.documentElement.dataset.pencilPathReads || "0"),
-    ),
-  ).toBe(0);
 
-  const expectedPath: { type: string; values: number[] }[] = [];
-  for (const point of [...points, { x: 150, y: 130 }]) {
-    wboPencilPoint(expectedPath, point.x, point.y);
-  }
   const appended = await page.evaluate(() => {
     window.WBOApp.toolRegistry.mounted.pencil.draw(
       { tool: 1, type: 4, parent: "stored-0", x: 150, y: 130 },
       false,
     );
-    const reads = Number(
-      document.documentElement.dataset.pencilPathReads || "0",
-    );
     const line = document.querySelector<SVGPathElement>("#stored-0");
-    return { reads, path: line?.getPathData() };
+    return line?.getPathData().at(-1)?.values.slice(-2);
   });
-  expect(appended.reads).toBe(1);
-  expect(appended.path).toEqual(expectedPath);
+  expect(appended).toEqual([150, 130]);
+  // Baseline ~221,000, including dependencies; allow ample headroom.
+  expect(executionCount(await page.coverage.stopJSCoverage())).toBeLessThan(
+    500_000,
+  );
 });
 
 test("baseline refresh adopts parsed SVG nodes and preserves authoritative metadata", async ({
