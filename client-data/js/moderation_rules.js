@@ -39,8 +39,6 @@ export const MODERATION_RULES = Object.freeze([
     iconFile: "respect-moderation-decisions.svg",
     titleKey: "rules_moderation_decisions_title",
     bodyKeys: ["rules_moderation_decisions_body"],
-    appealUrl: "https://github.com/lovasoa/whitebophir/discussions",
-    appealLabelKey: "rules_moderation_appeal_link",
   },
 ]);
 

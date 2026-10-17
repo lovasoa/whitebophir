@@ -555,13 +555,6 @@ class RulesTemplate extends Template {
       iconPath: `rules/${rule.iconFile}`,
       title: params.translations[rule.titleKey] || rule.titleKey,
       paragraphs: rule.bodyKeys.map((key) => params.translations[key] || key),
-      ...(rule.appealUrl
-        ? {
-            appealUrl: rule.appealUrl,
-            appealLabel:
-              params.translations[rule.appealLabelKey] || rule.appealLabelKey,
-          }
-        : {}),
     }));
     return params;
   }

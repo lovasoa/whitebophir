@@ -31,16 +31,6 @@ test("MODERATION_RULES defines six rules in order with required metadata", async
     assert.ok(Array.isArray(rule.bodyKeys) && rule.bodyKeys.length > 0);
     rule.bodyKeys.forEach((key) => assert.ok(typeof key === "string"));
   }
-
-  const decisionsRule = MODERATION_RULES.find(
-    (rule) => rule.id === "moderation_decisions",
-  );
-  assert.ok(decisionsRule);
-  assert.equal(
-    decisionsRule.appealUrl,
-    "https://github.com/lovasoa/whitebophir/discussions",
-  );
-  assert.equal(decisionsRule.appealLabelKey, "rules_moderation_appeal_link");
 });
 
 test("MODERATION_RULE_IDS contains all six rule IDs", async () => {

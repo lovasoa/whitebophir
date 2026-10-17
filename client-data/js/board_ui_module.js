@@ -97,8 +97,6 @@
  *   ruleTitle?: string,
  *   ruleBody?: string,
  *   ruleIconUrl?: string,
- *   ruleAppealUrl?: string,
- *   ruleAppealLabel?: string,
  * }} ModerationDisconnectNoticeOptions
  */
 
@@ -762,15 +760,6 @@ export function showModerationDisconnectNotice(options) {
         ruleBody.className = "moderation-disconnect-rule-body";
         ruleBody.textContent = options.ruleBody;
         ruleCallout.appendChild(ruleBody);
-      }
-      if (options.ruleAppealUrl && options.ruleAppealLabel) {
-        const appeal = document.createElement("a");
-        appeal.className = "moderation-disconnect-rule-appeal";
-        appeal.href = options.ruleAppealUrl;
-        appeal.target = "_blank";
-        appeal.rel = "noopener";
-        appeal.textContent = options.ruleAppealLabel;
-        ruleCallout.appendChild(appeal);
       }
     }
 

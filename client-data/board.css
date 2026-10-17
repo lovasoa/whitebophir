@@ -196,15 +196,6 @@ html[data-ui-direction="rtl"]
   text-decoration: none;
 }
 
-.moderation-disconnect-rule-appeal {
-  grid-column: 2;
-  display: inline-block;
-  margin-top: 8px;
-  color: #25636a;
-  font-size: 12px;
-  text-underline-offset: 3px;
-}
-
 /* Moderation action dialog (single-modal for moderator actions) */
 
 .wbo-dialog.moderation-action-dialog {

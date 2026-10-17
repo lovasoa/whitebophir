@@ -418,10 +418,6 @@ export class ConnectionModule {
               ruleTitle: rule ? Tools.i18n.t(rule.titleKey) : undefined,
               ruleBody: rule ? Tools.i18n.t(rule.bodyKeys[0] || "") : undefined,
               ruleIconUrl: rule ? `../rules/${rule.iconFile}` : undefined,
-              ruleAppealUrl: rule?.appealUrl,
-              ruleAppealLabel: rule?.appealLabelKey
-                ? Tools.i18n.t(rule.appealLabelKey)
-                : undefined,
             })
             .then(() => {
               notice.acknowledged = true;
