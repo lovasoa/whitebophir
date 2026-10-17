@@ -153,13 +153,22 @@ export function draw(state, data) {
     });
     return;
   }
-  const elem = state.board.svg.getElementById(data.id);
-  if (elem === null) {
-    logFrontendEvent("warn", "tool.eraser.delete_missing_target", {
-      id: data.id,
-    });
+  deleteBoardElementById(state.board, data.id);
+}
+
+/**
+ * Synchronously remove a direct drawing-area child by id.
+ * Shared so other tools (e.g. hand) can apply a delete without
+ * re-entering the async board message pipeline.
+ * @param {{ svg: { getElementById(id: string): Element | null }, drawingArea: Element }} board
+ * @param {string} id
+ */
+export function deleteBoardElementById(board, id) {
+  const elem = board.svg.getElementById(id);
+  if (elem === null || elem.parentNode !== board.drawingArea) {
+    logFrontendEvent("warn", "tool.eraser.delete_missing_target", { id });
   } else {
-    state.board.drawingArea.removeChild(elem);
+    board.drawingArea.removeChild(elem);
   }
 }
 

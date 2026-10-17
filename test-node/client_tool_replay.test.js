@@ -1346,6 +1346,31 @@ test("Pencil input sends an initial child point without DOM setup", () => {
   });
 });
 
+test("Pencil onMessage discards the active stroke deleted inside a hand batch", () => {
+  const tools = createInputTools();
+  const state = PencilTool.boot(
+    createToolBootContext(
+      createInputToolRuntime(tools),
+      (assetFile) => assetFile,
+    ),
+  );
+  state.curLineId = "l-7";
+
+  PencilTool.onMessage(state, {
+    _children: [
+      { type: MutationType.DELETE, id: "l-other" },
+      { type: MutationType.DELETE, id: "l-7" },
+    ],
+  });
+  assert.equal(state.curLineId, "");
+
+  state.curLineId = "l-8";
+  PencilTool.onMessage(state, {
+    _children: [{ type: MutationType.DELETE, id: "l-other" }],
+  });
+  assert.equal(state.curLineId, "l-8");
+});
+
 test("Pencil move logic sends the first point and throttles follow-ups", () => {
   const tools = createInputTools();
   const state = PencilTool.boot(
@@ -2393,6 +2418,77 @@ test("large Hand replay completes transforms before the next message", async () 
   harness.time.flushUntilIdle();
   await Promise.resolve();
   assert.equal(rect.transform.baseVal[0].matrix.e, 2000);
+});
+
+test("Hand batch deletes complete synchronously and preserve the SVG shell", async () => {
+  const harness = createHarness();
+  const handTool = await harness.loadTool("hand");
+  const svg = globalAny.Tools.dom.svg;
+  svg.id = "board-svg";
+  globalAny.Tools.drawingArea.id = "drawingArea";
+  svg.appendChild(globalAny.Tools.drawingArea);
+  const defs = globalAny.Tools.dom.createSVGElement("defs");
+  defs.id = "defs";
+  svg.appendChild(defs);
+  const cursors = globalAny.Tools.dom.createSVGElement("g");
+  cursors.id = "cursors";
+  svg.appendChild(cursors);
+  const nested = globalAny.Tools.dom.createSVGElement("path");
+  nested.id = "nested-path";
+  defs.appendChild(nested);
+
+  const rect = globalAny.Tools.dom.createSVGElement("rect");
+  rect.id = "doomed-rect";
+  globalAny.Tools.drawingArea.appendChild(rect);
+  assert.ok(globalAny.Tools.dom.svg.getElementById("doomed-rect"));
+
+  // Spy on the generic async message pipeline. A hand child delete must not
+  // re-enter it (no derived child op, no duplicate generic side effects).
+  let messageForToolCalls = 0;
+  const originalMessageForTool = globalAny.Tools.messages.messageForTool;
+  globalAny.Tools.messages.messageForTool = (/** @type {any} */ data) => {
+    messageForToolCalls += 1;
+    return originalMessageForTool(data);
+  };
+
+  try {
+    const result = handTool.draw(
+      {
+        tool: TOOL_CODE_BY_ID.hand,
+        _children: [
+          "board-svg",
+          "drawingArea",
+          "defs",
+          "cursors",
+          "nested-path",
+          "missing-target",
+          "doomed-rect",
+          "doomed-rect",
+        ].map((id) => ({ type: MutationType.DELETE, id })),
+      },
+      false,
+    );
+
+    // draw() returned and the element is already gone: applied synchronously
+    // before any sequence-advancing await could resolve.
+    assert.equal(result instanceof Promise, false);
+    assert.ok(!svg.getElementById("doomed-rect"));
+    assert.equal(svg.getElementById("board-svg"), svg);
+    assert.equal(
+      svg.getElementById("drawingArea"),
+      globalAny.Tools.drawingArea,
+    );
+    assert.equal(svg.getElementById("defs"), defs);
+    assert.equal(svg.getElementById("cursors"), cursors);
+    assert.equal(svg.getElementById("nested-path"), nested);
+    assert.equal(globalAny.Tools.drawingArea.parentNode, svg);
+    assert.equal(defs.parentNode, svg);
+    assert.equal(cursors.parentNode, svg);
+    assert.equal(nested.parentNode, defs);
+    assert.equal(messageForToolCalls, 0);
+  } finally {
+    globalAny.Tools.messages.messageForTool = originalMessageForTool;
+  }
 });
 
 test("Hand selector stops at the last valid transform", async () => {
