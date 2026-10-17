@@ -68,8 +68,6 @@ import {
   unsafeSaveBoard,
 } from "./data_persistence.mjs";
 import {
-  collectHydrationIds as collectBoardHydrationIds,
-  collectReferencedMutationIds as collectBoardReferencedMutationIds,
   commitMutation as commitBoardMutation,
   processMessage as processBoardMessage,
   processMessageBatch as processBoardMessageBatch,
@@ -492,22 +490,6 @@ class BoardData {
       this.hasZeroLocalExtent(item, id) &&
       item.transform === undefined
     );
-  }
-
-  /**
-   * @param {BoardMessage | ToolOwnedChildMessage} message
-   * @returns {Set<string>}
-   */
-  collectReferencedMutationIds(message) {
-    return collectBoardReferencedMutationIds(this, message);
-  }
-
-  /**
-   * @param {BoardMessage | ToolOwnedChildMessage} message
-   * @returns {Set<string>}
-   */
-  collectHydrationIds(message) {
-    return collectBoardHydrationIds(this, message);
   }
 
   /**

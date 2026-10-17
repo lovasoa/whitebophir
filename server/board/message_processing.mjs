@@ -77,57 +77,6 @@ function commitMutation(board) {
   return { ok: true };
 }
 
-/**
- * @param {BoardData} board
- * @param {BoardMessage | ToolOwnedChildMessage} message
- * @returns {Set<string>}
- */
-function collectReferencedMutationIds(board, message) {
-  const ids = new Set();
-  if (!message || typeof message !== "object") return ids;
-  if (hasMessageChildren(message)) {
-    message._children.forEach((child) => {
-      collectReferencedMutationIds(board, child).forEach((id) => ids.add(id));
-    });
-    return ids;
-  }
-  if (hasMessageId(message)) {
-    ids.add(message.id);
-  }
-  if ("parent" in message && typeof message.parent === "string") {
-    ids.add(message.parent);
-  }
-  return ids;
-}
-
-/**
- * @param {BoardData} board
- * @param {BoardMessage | ToolOwnedChildMessage} message
- * @returns {Set<string>}
- */
-function collectHydrationIds(board, message) {
-  const ids = new Set();
-  if (!message || typeof message !== "object") return ids;
-  if (hasMessageChildren(message)) {
-    message._children.forEach((child) => {
-      collectHydrationIds(board, child).forEach((id) => ids.add(id));
-    });
-    return ids;
-  }
-  switch (getMutationType(message)) {
-    case MutationType.UPDATE:
-    case MutationType.COPY:
-      if (hasMessageId(message)) ids.add(message.id);
-      break;
-    case MutationType.APPEND:
-      if ("parent" in message && typeof message.parent === "string") {
-        ids.add(message.parent);
-      }
-      break;
-  }
-  return ids;
-}
-
 /** Process a batch of messages
  * @param {BoardData} board
  * @param {(BoardMessage | ToolOwnedChildMessage)[]} children array of messages to be delegated to the other methods
@@ -340,8 +289,6 @@ function processMessage(board, message) {
 }
 
 export {
-  collectHydrationIds,
-  collectReferencedMutationIds,
   commitMutation,
   processMessage,
   processMessageBatch,
