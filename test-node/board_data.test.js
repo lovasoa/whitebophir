@@ -382,6 +382,59 @@ test("BoardData processMessageBatch and per-message processing stay in sync", ()
     normalizeBoardSnapshot(single),
     normalizeBoardSnapshot(batch),
   );
+  assert.deepEqual(batch.paintOrder, single.paintOrder);
+  for (const id of single.paintOrder) {
+    assert.equal(
+      batch.itemsById.get(id).paintOrder,
+      single.itemsById.get(id).paintOrder,
+    );
+  }
+  assert.equal(batch.nextPaintOrder, single.nextPaintOrder);
+});
+
+test("appends require a live parent in the current transaction", () => {
+  const BoardData = getBoardDataClass();
+  for (const removal of [
+    { tool: Eraser.id, type: MutationType.DELETE, id: "line-1" },
+    { tool: Clear.id, type: MutationType.CLEAR },
+  ]) {
+    const board = disableSaves(
+      createBoard(BoardData, `removed-parent-${removal.type}`),
+    );
+    assert.equal(
+      board.processMessage({
+        tool: Pencil.id,
+        type: MutationType.CREATE,
+        id: "line-1",
+        color: "#123456",
+        size: 4,
+      }).ok,
+      true,
+    );
+    const before = normalizeBoardSnapshot(board);
+    assert.deepEqual(
+      board.processMessage({
+        tool: Pencil.id,
+        type: MutationType.APPEND,
+        id: "line-1",
+        x: 10,
+        y: 20,
+      }),
+      { ok: false, reason: "invalid parent for child" },
+    );
+    assert.deepEqual(
+      board.processMessage({
+        tool: Pencil.id,
+        _children: [
+          removal,
+          { type: MutationType.APPEND, parent: "line-1", x: 10, y: 20 },
+        ],
+      }),
+      { ok: false, reason: "invalid parent for child" },
+    );
+    assert.deepEqual(normalizeBoardSnapshot(board), before);
+    assert.equal(board.authoritativeItemCount(), 1);
+  }
 });
 
 test("computeScheduledSaveDelayMs respects idle and max-delay deadlines", () => {
@@ -629,7 +682,7 @@ test("scheduleSaveTimeout does not queue an autosave while a save is in progress
   assert.equal(board.saveTimeoutId, undefined);
 });
 
-test("BoardData.makeCopyCandidate derives copySource from persisted board membership", async () => {
+test("BoardData copies retain their persisted source without hydrating text", async () => {
   await withBoardHistoryDir(
     "wbo-copy-source-membership-",
     async ({ historyDir }) => {
@@ -642,14 +695,13 @@ test("BoardData.makeCopyCandidate derives copySource from persisted board member
         }),
       });
 
-      const source = board.itemsById.get("text-1");
-      const copied = board.makeCopyCandidate("text-2", source);
+      assert.equal(board.processMessage(handCopy("text-1", "text-2")).ok, true);
+      const copied = board.itemsById.get("text-2");
 
-      assert.equal(copied.ok, true);
-      assert.deepEqual(copied.value.copySource, {
+      assert.deepEqual(copied.copySource, {
         sourceId: "text-1",
       });
-      assert.equal(copied.value.payload.modifiedText, undefined);
+      assert.equal(copied.payload.modifiedText, undefined);
     },
   );
 });
@@ -775,21 +827,39 @@ test("BoardData copy keeps pencil child arrays isolated", () => {
   assert.notStrictEqual(board.get("p-1")._children, board.get("p-2")._children);
 });
 
-test("BoardData.addChild enforces MAX_CHILDREN on stored strokes", () => {
+test("BoardData enforces MAX_CHILDREN on stored strokes", () => {
   const BoardData = getBoardDataClass();
   const config = createConfig({ MAX_CHILDREN: 1 });
   const board = disableSaves(createBoard(BoardData, "child-cap-board", config));
 
-  board.set("line-1", {
-    tool: "pencil",
-    type: "path",
+  board.processMessage({
+    tool: Pencil.id,
+    type: MutationType.CREATE,
     id: "line-1",
     color: "#123456",
     size: 4,
   });
 
-  assert.equal(board.addChild("line-1", { x: 1, y: 2 }).ok, true);
-  assert.equal(board.addChild("line-1", { x: 3, y: 4 }).ok, false);
+  assert.equal(
+    board.processMessage({
+      tool: Pencil.id,
+      type: MutationType.APPEND,
+      parent: "line-1",
+      x: 1,
+      y: 2,
+    }).ok,
+    true,
+  );
+  assert.equal(
+    board.processMessage({
+      tool: Pencil.id,
+      type: MutationType.APPEND,
+      parent: "line-1",
+      x: 3,
+      y: 4,
+    }).ok,
+    false,
+  );
   assert.deepEqual(board.get("line-1")._children, [{ x: 1, y: 2 }]);
 });
 
@@ -798,9 +868,9 @@ test("BoardData rejects the first pencil child that makes a stroke oversized", (
   const board = disableSaves(createBoard(BoardData, "oversized-pencil-board"));
 
   assert.equal(
-    board.set("line-1", {
-      tool: "pencil",
-      type: "path",
+    board.processMessage({
+      tool: Pencil.id,
+      type: MutationType.CREATE,
       id: "line-1",
       color: "#123456",
       size: 4,
@@ -808,9 +878,36 @@ test("BoardData rejects the first pencil child that makes a stroke oversized", (
     true,
   );
 
-  assert.equal(board.addChild("line-1", { x: 0, y: 0 }).ok, true);
-  assert.equal(board.addChild("line-1", { x: 31999, y: 0 }).ok, true);
-  assert.equal(board.addChild("line-1", { x: 32001, y: 0 }).ok, false);
+  assert.equal(
+    board.processMessage({
+      tool: Pencil.id,
+      type: MutationType.APPEND,
+      parent: "line-1",
+      x: 0,
+      y: 0,
+    }).ok,
+    true,
+  );
+  assert.equal(
+    board.processMessage({
+      tool: Pencil.id,
+      type: MutationType.APPEND,
+      parent: "line-1",
+      x: 31999,
+      y: 0,
+    }).ok,
+    true,
+  );
+  assert.equal(
+    board.processMessage({
+      tool: Pencil.id,
+      type: MutationType.APPEND,
+      parent: "line-1",
+      x: 32001,
+      y: 0,
+    }).ok,
+    false,
+  );
   assert.deepEqual(board.get("line-1")._children, [
     { x: 0, y: 0 },
     { x: 31999, y: 0 },

@@ -25,31 +25,15 @@
  * @module boardData
  */
 
-import MessageCommon from "../../client-data/js/message_common.js";
-import {
-  getMutationType,
-  getTool,
-  getUpdatableFields,
-  isShapeTool,
-  MutationType,
-} from "../../client-data/js/message_tool_metadata.js";
-import { Eraser } from "../../client-data/tools/index.js";
-import observability from "../observability/index.mjs";
 import { boardSvgPath } from "../persistence/svg_board_paths.mjs";
 import {
   authoritativeItemCount,
-  cloneBounds,
   getCanonicalItem,
   rebuildLiveItemCount,
-  removeCanonicalItem,
   upsertCanonicalItem,
 } from "./canonical_index.mjs";
 import {
   canonicalItemFromItem,
-  cloneCanonicalItem,
-  copyCanonicalItem,
-  currentText,
-  effectiveChildCount,
   publicItemFromCanonicalItem,
 } from "./canonical_items.mjs";
 import {
@@ -68,10 +52,8 @@ import {
   unsafeSaveBoard,
 } from "./data_persistence.mjs";
 import {
-  commitMutation as commitBoardMutation,
   processMessage as processBoardMessage,
   processMessageBatch as processBoardMessageBatch,
-  trimOverflowItems as trimBoardOverflowItems,
 } from "./message_processing.mjs";
 import { createMutationLog } from "./mutation_log.mjs";
 import {
@@ -79,7 +61,6 @@ import {
   extendSvgExtentForItem,
 } from "./svg_extent.mjs";
 
-const { logger } = observability;
 /** @returns {BoardMetadata} */
 function defaultBoardMetadata() {
   return {
@@ -93,7 +74,6 @@ let boardInstanceSequence = 0;
 /** @typedef {{ok: false, reason: string}} ValidationFailure */
 /** @typedef {{ok: true}} ValidationSuccess */
 /** @typedef {ValidationSuccess | ValidationFailure} BoardMutationResult */
-/** @typedef {{ok: true, value: BoardElem, canonical: CanonicalBoardItem, localBounds: Bounds | null}} ValidatedStoredCandidate */
 /** @typedef {import("../../types/app-runtime.d.ts").BoardMessage} BoardMessage */
 /** @typedef {import("../../types/app-runtime.d.ts").ToolOwnedChildMessage} ToolOwnedChildMessage */
 /** @typedef {import("../../types/app-runtime.d.ts").Transform} Transform */
@@ -102,8 +82,6 @@ let boardInstanceSequence = 0;
 /** @typedef {{x: number, y: number}} ChildPoint */
 /** @typedef {import("./svg_extent.mjs").SvgExtent} SvgExtent */
 /** @typedef {{kind: "inline"} | {kind: "text", modifiedText?: string} | {kind: "children", persistedChildCount: number, appendedChildren: ChildPoint[]}} CanonicalPayload */
-/** @typedef {"saved" | "skipped" | "stale" | "failed"} BoardSaveStatus */
-/** @typedef {{status: BoardSaveStatus}} BoardSaveResult */
 /** @typedef {{actualFileSeq?: number, durationMs?: number, saveTargetSeq?: number}} StaleSaveDetails */
 /** @typedef {(details: StaleSaveDetails) => void | Promise<void>} StaleSaveHandler */
 /**
@@ -135,29 +113,6 @@ let boardInstanceSequence = 0;
  *   | "SEQ_REPLAY_RETENTION_MS"
  * >} BoardConfig
  */
-
-/** @param {string} id */
-function eraserDeleteMutation(id) {
-  return { tool: Eraser.id, type: MutationType.DELETE, id };
-}
-
-/**
- * @param {unknown} raw
- * @param {number} maxBoardSize
- * @returns {{ok: true, value: ChildPoint} | ValidationFailure}
- */
-function validateChildPoint(raw, maxBoardSize) {
-  if (!raw || typeof raw !== "object") {
-    return { ok: false, reason: "expected object" };
-  }
-  const point = /** @type {{x?: unknown, y?: unknown}} */ (raw);
-  const x = MessageCommon.normalizeBoardCoord(point.x, maxBoardSize);
-  const y = MessageCommon.normalizeBoardCoord(point.y, maxBoardSize);
-  if (x === null || y === null) {
-    return { ok: false, reason: "invalid coord" };
-  }
-  return { ok: true, value: { x, y } };
-}
 
 /**
  * Represents a board.
@@ -339,13 +294,6 @@ class BoardData {
   }
 
   /**
-   * @returns {{ok: true}}
-   */
-  commitMutation() {
-    return commitBoardMutation(this);
-  }
-
-  /**
    * @returns {number}
    */
   authoritativeItemCount() {
@@ -361,442 +309,10 @@ class BoardData {
     extendSvgExtentForItem(this.svgExtent, item);
   }
 
-  /**
-   * @returns {PendingMutationEffect[]}
-   */
-  trimOverflowItems() {
-    return trimBoardOverflowItems(this);
-  }
-
-  /**
-   * @param {string} id
-   * @param {any} [item]
-   * @returns {Bounds | null}
-   */
-  getLocalBounds(id, item) {
-    const target = item || getCanonicalItem(this, id);
-    return cloneBounds(target?.bounds);
-  }
-
-  /**
-   * @param {string} id
-   * @param {BoardElem} data
-   * @returns {ValidatedStoredCandidate | ValidationFailure}
-   */
-  validateStoredCandidate(id, data) {
-    const candidate = this.asStoredCandidateInput(data);
-    const canonical = canonicalItemFromItem(candidate, this.nextPaintOrder, {
-      persisted: false,
-    });
-    if (!canonical) return { ok: false, reason: "invalid message" };
-    if (canonical.id !== id) return { ok: false, reason: "invalid id" };
-    if (this.isCandidateTooLarge(candidate, canonical.bounds)) {
-      return { ok: false, reason: "shape too large" };
-    }
-    /** @type {ValidatedStoredCandidate} */
-    return {
-      ok: true,
-      value: candidate,
-      canonical,
-      localBounds: canonical.bounds,
-    };
-  }
-
-  /**
-   * Live create messages use numeric mutation codes, but canonical board items
-   * still store SVG tag names because persistence stays SVG-native.
-   *
-   * @param {BoardElem} data
-   * @returns {BoardElem}
-   */
-  asStoredCandidateInput(data) {
-    if (getMutationType(data) !== MutationType.CREATE) return data;
-    const contract = getTool(data?.tool);
-    if (!contract?.storedTagName) return data;
-    return {
-      ...data,
-      tool: contract.toolId,
-      type: contract.storedTagName,
-    };
-  }
-
-  /**
-   * @param {BoardElem} candidate
-   * @param {Bounds | null | undefined} localBounds
-   * @returns {boolean}
-   */
-  isCandidateTooLarge(candidate, localBounds) {
-    const effectiveBounds = MessageCommon.applyTransformToBounds(
-      localBounds,
-      candidate?.transform,
-    );
-    return MessageCommon.isBoundsInvalid(effectiveBounds, this.maxBoardSize);
-  }
-
-  /**
-   * @param {BoardElem} base
-   * @param {BoardElem} updateData
-   * @returns {boolean}
-   */
-  isTextContentOnlyUpdate(base, updateData) {
-    return !!(
-      base?.payload?.kind === "text" &&
-      updateData &&
-      typeof updateData === "object" &&
-      typeof updateData.txt === "string" &&
-      Object.keys(updateData).every((key) => key === "txt")
-    );
-  }
-
-  /**
-   * @param {BoardElem} base
-   * @param {BoardElem} updateData
-   * @param {{value: BoardElem, localBounds: Bounds | null}} candidate
-   * @returns {boolean}
-   */
-  isUpdateCandidateTooLarge(base, updateData, candidate) {
-    const effectiveBounds = MessageCommon.applyTransformToBounds(
-      candidate.localBounds,
-      candidate.value?.transform,
-    );
-    if (this.isTextContentOnlyUpdate(base, updateData)) {
-      return MessageCommon.isBoundsTooLarge(effectiveBounds);
-    }
-    return MessageCommon.isBoundsInvalid(effectiveBounds, this.maxBoardSize);
-  }
-
-  /**
-   * @param {BoardElem} item
-   * @param {string} id
-   * @returns {boolean}
-   */
-  hasZeroLocalExtent(item, id) {
-    const bounds = this.getLocalBounds(id, item);
-    if (!bounds) return false;
-    return bounds.minX === bounds.maxX && bounds.minY === bounds.maxY;
-  }
-
-  /**
-   * @param {string | undefined} tool
-   * @param {BoardElem} item
-   * @param {string} id
-   * @returns {boolean}
-   */
-  shouldDropSeedShapeOnRejectedUpdate(tool, item, id) {
-    return (
-      isShapeTool(tool) &&
-      item &&
-      getTool(item.tool)?.id === getTool(tool)?.id &&
-      this.hasZeroLocalExtent(item, id) &&
-      item.transform === undefined
-    );
-  }
-
-  /**
-   * @param {string} id
-   * @param {BoardElem} base
-   * @param {BoardElem} updateData
-   * @returns {{value: BoardElem, localBounds: Bounds | null} | null}
-   */
-  makeUpdateCandidate(id, base, updateData) {
-    if (typeof base !== "object") return null;
-    if (this.isTransformOnlyUpdate(updateData)) {
-      return {
-        value: {
-          id,
-          tool: base.tool,
-          transform: structuredClone(updateData.transform),
-        },
-        localBounds: this.getLocalBounds(id, base),
-      };
-    }
-    const candidate = publicItemFromCanonicalItem(base);
-    if (!candidate) return null;
-    Object.assign(candidate, updateData);
-    const localBounds =
-      base.payload?.kind === "children" && updateData.transform !== undefined
-        ? cloneBounds(base.bounds)
-        : MessageCommon.getLocalGeometryBounds(candidate);
-    return { value: candidate, localBounds };
-  }
-
-  /**
-   * @param {BoardElem} updateData
-   * @returns {boolean}
-   */
-  isTransformOnlyUpdate(updateData) {
-    return !!(
-      updateData &&
-      typeof updateData === "object" &&
-      updateData.transform !== undefined &&
-      Object.keys(updateData).every((key) => key === "transform")
-    );
-  }
-
-  /**
-   * @param {any} item
-   * @param {BoardElem} updateData
-   * @param {Bounds | null | undefined} localBounds
-   * @returns {any}
-   */
-  applyUpdateToCanonicalItem(item, updateData, localBounds) {
-    const next = this.isTransformOnlyUpdate(updateData)
-      ? {
-          ...item,
-          attrs: {
-            ...item.attrs,
-          },
-          bounds: cloneBounds(localBounds),
-        }
-      : cloneCanonicalItem(item);
-    for (const key in updateData) {
-      if (updateData[key] !== undefined) {
-        if (key === "transform") {
-          next.transform = structuredClone(updateData[key]);
-        } else {
-          next.attrs[key] = updateData[key];
-        }
-      }
-    }
-    if (next.payload?.kind === "text" && typeof updateData.txt === "string") {
-      next.payload.modifiedText = updateData.txt;
-      next.textLength = updateData.txt.length;
-    }
-    next.bounds = cloneBounds(localBounds);
-    next.dirty = true;
-    next.time = Date.now();
-    next.attrs.time = next.time;
-    return next;
-  }
-
-  /**
-   * @param {any} item
-   * @returns {string | undefined}
-   */
-  baselineSourceIdForItem(item) {
-    const sourceId = item?.copySource?.sourceId;
-    if (typeof sourceId === "string") return sourceId;
-    if (typeof item?.id === "string" && this.persistedItemIds.has(item.id)) {
-      return item.id;
-    }
-    return undefined;
-  }
-
-  /**
-   * Copies a stored item to a new id without re-running full stored-item
-   * normalization. Board state is already normalized, so only the new id and
-   * mutable containers need isolation.
-   *
-   * @param {string} newId
-   * @param {BoardElem} item
-   * @returns {ValidatedStoredCandidate | ValidationFailure}
-   */
-  makeCopyCandidate(newId, item) {
-    const normalizedId = MessageCommon.normalizeId(newId);
-    if (normalizedId === null) return { ok: false, reason: "invalid id" };
-    if (typeof item !== "object") {
-      return { ok: false, reason: "copied object does not exist" };
-    }
-    const existing = this.itemsById.get(normalizedId);
-    const copied = copyCanonicalItem(
-      item,
-      normalizedId,
-      existing?.paintOrder ?? this.nextPaintOrder,
-    );
-    const baselineSourceId = this.baselineSourceIdForItem(item);
-    if (copied.payload?.kind === "children" && baselineSourceId) {
-      copied.copySource = { sourceId: baselineSourceId };
-    } else if (
-      copied.payload?.kind === "text" &&
-      currentText(copied) === undefined &&
-      baselineSourceId
-    ) {
-      copied.copySource = { sourceId: baselineSourceId };
-    }
-    return {
-      ok: true,
-      value: copied,
-      canonical: copied,
-      localBounds: cloneBounds(copied.bounds),
-    };
-  }
-
-  /** Adds data to the board
-   * @param {string} id
-   * @param {BoardElem} data
-   * @returns {BoardMutationResult | ValidationFailure}
-   */
-  set(id, data) {
-    const validated = this.validateStoredCandidate(id, {
-      ...data,
-      time: Date.now(),
-    });
-    if (!validated.ok) return validated;
-    const existing = this.itemsById.get(id);
-    const canonical = {
-      ...validated.canonical,
-      paintOrder: existing?.paintOrder ?? this.nextPaintOrder,
-    };
-    this.upsertItem(canonical);
-    this.delaySave();
-    return this.commitMutation();
-  }
-
-  /** Adds a child to an element that is already in the board
-   * @param {string} parentId - Identifier of the parent element.
-   * @param {BoardElem} child - Object containing the the values to update.
-   * @returns {BoardMutationResult | ValidationFailure} - True if the child was added, else false
-   */
-  addChild(parentId, child) {
-    const next = this.makeAppendCandidate(parentId, child);
-    if (!next.ok) return next;
-    this.upsertItem(next.value);
-    this.delaySave();
-    return this.commitMutation();
-  }
-
-  /**
-   * @param {string} parentId
-   * @param {BoardElem} child
-   * @param {any} [item]
-   * @returns {{ok: true, value: any} | ValidationFailure}
-   */
-  makeAppendCandidate(parentId, child, item) {
-    const current = item || getCanonicalItem(this, parentId);
-    if (typeof current !== "object" || current.payload?.kind !== "children") {
-      return { ok: false, reason: "invalid parent for child" };
-    }
-    const normalizedChild = validateChildPoint(child, this.maxBoardSize);
-    if (!normalizedChild.ok) return normalizedChild;
-    if (effectiveChildCount(current) >= this.maxChildren) {
-      return { ok: false, reason: "too many children" };
-    }
-    const nextBounds = MessageCommon.extendBoundsWithPoint(
-      current.bounds,
-      normalizedChild.value.x,
-      normalizedChild.value.y,
-    );
-    if (this.isCandidateTooLarge(current, nextBounds)) {
-      return { ok: false, reason: "shape too large" };
-    }
-    const next = cloneCanonicalItem(current);
-    next.payload.appendedChildren = (
-      next.payload.appendedChildren || []
-    ).concat(normalizedChild.value);
-    next.bounds = cloneBounds(nextBounds);
-    next.dirty = true;
-    next.time = Date.now();
-    next.attrs.time = next.time;
-    return { ok: true, value: next };
-  }
-
-  /** Update the data in the board
-   * @param {string} id - Identifier of the data to update.
-   * @param {BoardElem} data - Object containing the values to update.
-   * @param {boolean} [create] - True if the object should be created if it's not currently in the DB.
-   * @returns {BoardMutationResult}
-   */
-  update(id, data, create = false) {
-    void create;
-    const tool = data.tool;
-    const updateData = getUpdatableFields(tool, data);
-
-    const obj = getCanonicalItem(this, id);
-    if (typeof obj !== "object")
-      return { ok: false, reason: "object not found" };
-    const candidate = this.makeUpdateCandidate(id, obj, updateData);
-    if (
-      !candidate ||
-      this.isUpdateCandidateTooLarge(obj, updateData, candidate)
-    ) {
-      if (this.shouldDropSeedShapeOnRejectedUpdate(tool, obj, id)) {
-        const deleteResult = this.delete(id);
-        if (deleteResult.ok)
-          this.pendingRejectedMutationEffects.push({
-            mutation: eraserDeleteMutation(id),
-          });
-      }
-      return { ok: false, reason: "update rejected: shape too large" };
-    }
-    const next = this.applyUpdateToCanonicalItem(
-      obj,
-      updateData,
-      candidate.localBounds,
-    );
-    this.upsertItem(next);
-    this.delaySave();
-    return this.commitMutation();
-  }
-
-  /**
-   * @param {string} id
-   * @param {BoardElem} item
-   * @param {Bounds | null | undefined} localBounds
-   * @returns {void}
-   */
-  replaceItem(id, item, localBounds) {
-    const next = cloneCanonicalItem(item);
-    next.id = id;
-    next.bounds = cloneBounds(localBounds);
-    this.upsertItem(next);
-  }
-
-  /** Copy elements in the board
-   * @param {string} id - Identifier of the data to copy.
-   * @param {BoardElem} data - Object containing the id of the new copied element.
-   * @returns {BoardMutationResult | ValidationFailure}
-   */
-  copy(id, data) {
-    const obj = getCanonicalItem(this, id);
-    const newid = data.newid;
-    if (obj) {
-      const validated = this.makeCopyCandidate(newid, obj);
-      if (!validated.ok) return validated;
-      this.upsertItem(validated.canonical);
-    } else {
-      logger.warn("board.copy_missing_source", {
-        board: this.name,
-        object: id,
-      });
-      return { ok: false, reason: "copied object does not exist" };
-    }
-    this.delaySave();
-    return this.commitMutation();
-  }
-
-  /** Clear the board of all data
-   * @returns {ValidationSuccess}
-   */
-  clear() {
-    for (const [id, item] of this.itemsById.entries()) {
-      this.itemsById.set(id, {
-        ...item,
-        deleted: true,
-        dirty: true,
-      });
-    }
-    this.liveItemCount = 0;
-    this.trimPaintOrderIndex = this.paintOrder.length;
-    this.svgExtent = createDefaultSvgExtent();
-    this.delaySave();
-    return this.commitMutation();
-  }
-
-  /** Removes data from the board
-   * @param {string} id - Identifier of the data to delete.
-   * @returns {ValidationSuccess}
-   */
-  delete(id) {
-    //KISS
-    removeCanonicalItem(this, id);
-    this.delaySave();
-    return this.commitMutation();
-  }
-
   /** Process a batch of messages
    * @param {(BoardMessage | ToolOwnedChildMessage)[]} children array of messages to be delegated to the other methods
    * @param {BoardMessage} [parentMessage]
-   * @returns {BoardMutationResult | ValidationFailure}
+   * @returns {BoardMutationResult}
    */
   processMessageBatch(children, parentMessage) {
     return processBoardMessageBatch(this, children, parentMessage);
@@ -804,7 +320,7 @@ class BoardData {
 
   /** Process a single message
    * @param {BoardMessage} message instruction to apply to the board
-   * @returns {BoardMutationResult | ValidationFailure}
+   * @returns {BoardMutationResult}
    */
   processMessage(message) {
     return processBoardMessage(this, message);
