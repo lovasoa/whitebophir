@@ -94,7 +94,7 @@ export type SocketRequest = {
 };
 
 export type BoardPermissionResolver = ReturnType<
-  typeof import("../server/auth/board_capabilities.mjs").BoardPermissions.forBoard
+  typeof import("../server/auth/board_capabilities.mjs").forBoard
 >;
 
 export type SocketBoardPermissionContext = {

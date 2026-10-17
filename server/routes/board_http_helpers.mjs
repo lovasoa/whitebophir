@@ -4,7 +4,7 @@ import {
   decodeBoardName,
   isValidBoardName,
 } from "../../client-data/js/board_name.js";
-import { BoardPermissions } from "../auth/board_capabilities.mjs";
+import { forBoard } from "../auth/board_capabilities.mjs";
 import {
   appendSetCookieHeader,
   generateUserSecret,
@@ -190,12 +190,12 @@ function ensureBoardUserSecretCookie(request, response, parsedUrl) {
  *
  * @param {import("../../types/server-runtime.d.ts").HttpRouteContext} ctx
  * @param {string} boardName
- * @returns {ReturnType<typeof BoardPermissions.forBoard>}
+ * @returns {ReturnType<typeof forBoard>}
  */
 function boardPermissionsForRequest(ctx, boardName) {
   const config = ctx.runtime.config;
   const userSecret = getUserSecretFromCookieHeader(ctx.request.headers.cookie);
-  return BoardPermissions.forBoard({
+  return forBoard({
     config,
     boardName,
     userInfo: { token: ctx.url.searchParams.get("token"), userSecret },

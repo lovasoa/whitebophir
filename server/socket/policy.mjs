@@ -4,7 +4,7 @@ import {
   getToolId,
 } from "../../client-data/js/message_tool_metadata.js";
 import RateLimitCommon from "../../client-data/js/rate_limit_common.js";
-import { BoardPermissions } from "../auth/board_capabilities.mjs";
+import { forBoard } from "../auth/board_capabilities.mjs";
 import observability from "../observability/index.mjs";
 import { getEditBanExpiresAt } from "./bans.mjs";
 import { normalizeIncomingMessage } from "./message_validation.mjs";
@@ -32,7 +32,7 @@ const { logger, metrics, tracing } = observability;
  *   BOARD_MODERATORS?: Map<string, Set<string>>,
  * }} SocketPolicyConfig
  */
-/** @typedef {ReturnType<typeof BoardPermissions.forBoard>} SocketBoardPermissions */
+/** @typedef {ReturnType<typeof forBoard>} SocketBoardPermissions */
 
 /**
  * @param {string | string[] | undefined} value
@@ -381,7 +381,7 @@ function boardPermissionsForSocket(config, boardName, socket) {
   if (current?.boardName === boardName) return current.permissions;
 
   const userSecret = getSocketUserSecret(socket);
-  const permissions = BoardPermissions.forBoard({
+  const permissions = forBoard({
     config,
     boardName,
     userInfo: { token: getSocketToken(socket), userSecret },

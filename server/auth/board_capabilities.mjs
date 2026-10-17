@@ -281,36 +281,7 @@ function canApplyBoardMessageWithCapabilities(capabilities, message) {
   return capabilitiesGrant(capabilities, BOARD_CAPABILITY.EDIT);
 }
 
-const BoardPermissions = Object.freeze({
-  forBoard,
-  resolveCapabilities,
-  boardStateForCapabilities,
-  canApplyBoardMessageWithCapabilities,
-  /**
-   * @param {{config: BoardCapabilityConfig, board: BoardCapabilityBoard, userInfo?: BoardCapabilityUserInfo}} input
-   * @returns {boolean}
-   */
-  canOpen(input) {
-    return resolveCapabilities(input).canOpen;
-  },
-  /**
-   * @param {{config: BoardCapabilityConfig, board: BoardCapabilityBoard, userInfo?: BoardCapabilityUserInfo}} input
-   * @returns {boolean}
-   */
-  canEdit(input) {
-    return resolveCapabilities(input).canEdit;
-  },
-  /**
-   * @param {{config: BoardCapabilityConfig, board: BoardCapabilityBoard, userInfo?: BoardCapabilityUserInfo}} input
-   * @returns {boolean}
-   */
-  canClear(input) {
-    return resolveCapabilities(input).canClear;
-  },
-});
-
 export {
-  BoardPermissions,
   boardStateForCapabilities,
   canApplyBoardMessageWithCapabilities,
   forBoard,
