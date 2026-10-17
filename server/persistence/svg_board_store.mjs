@@ -2,6 +2,7 @@ import { once } from "node:events";
 import fs from "node:fs";
 import { readFile, rename, stat, writeFile } from "node:fs/promises";
 import { Readable } from "node:stream";
+import { finished } from "node:stream/promises";
 import MessageCommon from "../../client-data/js/message_common.js";
 import {
   appendPersistedPencilPath,
@@ -886,11 +887,8 @@ async function rewriteStoredSvgFromCanonical(
   const bufferedTextContents = new Map();
   const bufferedPencilPaths = new Map();
   const persistedIds = new Set();
-  const closeOutput = () =>
-    new Promise((resolve, reject) => {
-      output.on("error", reject);
-      output.end(resolve);
-    });
+  const outputDone = finished(output);
+  outputDone.catch((error) => input.destroy(error));
 
   try {
     for await (const event of streamStoredSvgStructure(input, {
@@ -1007,10 +1005,12 @@ async function rewriteStoredSvgFromCanonical(
         await once(output, "drain");
       }
     }
-    await closeOutput();
+    output.end();
+    await outputDone;
   } catch (error) {
     input.destroy();
     output.destroy();
+    await finished(output, { error: false }).catch(() => {});
     await fs.promises.rm(tmpFile, { force: true });
     throw error;
   }
