@@ -5,17 +5,8 @@ const CONTRACTS_PATH = "../client-data/tools/contracts.js";
 const MANIFEST_PATH = "../client-data/tools/manifest.js";
 const INDEX_PATH = "../client-data/tools/index.js";
 
-/**
- * @template T
- * @param {Promise<T>} value
- * @returns {Promise<T>}
- */
-function load(value) {
-  return value;
-}
-
 test("wire tool codes match the documented protocol", async () => {
-  const { TOOL_CODE_BY_ID } = await load(import(MANIFEST_PATH));
+  const { TOOL_CODE_BY_ID } = await import(MANIFEST_PATH);
   assert.deepEqual(TOOL_CODE_BY_ID, {
     pencil: 1,
     "straight-line": 2,
@@ -33,9 +24,7 @@ test("wire tool codes match the documented protocol", async () => {
 });
 
 test("mutation type codes match the documented protocol", async () => {
-  const { MutationType } = await load(
-    import("../client-data/js/mutation_type.js"),
-  );
+  const { MutationType } = await import("../client-data/js/mutation_type.js");
   assert.deepEqual(
     {
       CREATE: MutationType.CREATE,
@@ -59,9 +48,7 @@ test("mutation type codes match the documented protocol", async () => {
 });
 
 test("code-to-tool maps round trip through the explicit maps", async () => {
-  const { TOOL_CODE_BY_ID, TOOL_ID_BY_CODE } = await load(
-    import(MANIFEST_PATH),
-  );
+  const { TOOL_CODE_BY_ID, TOOL_ID_BY_CODE } = await import(MANIFEST_PATH);
   for (const [toolId, code] of Object.entries(TOOL_CODE_BY_ID)) {
     assert.equal(TOOL_ID_BY_CODE[code], toolId, `code ${code} -> ${toolId}`);
   }
@@ -75,8 +62,8 @@ test("code-to-tool maps round trip through the explicit maps", async () => {
 });
 
 test("server-safe contracts agree with the manifest for every tool", async () => {
-  const { TOOL_CONTRACT_BY_ID } = await load(import(CONTRACTS_PATH));
-  const { TOOL_BY_ID } = await load(import(MANIFEST_PATH));
+  const { TOOL_CONTRACT_BY_ID } = await import(CONTRACTS_PATH);
+  const { TOOL_BY_ID } = await import(MANIFEST_PATH);
   for (const [toolId, manifestEntry] of Object.entries(TOOL_BY_ID)) {
     const contract = TOOL_CONTRACT_BY_ID[toolId];
     assert.ok(contract, `missing contract for ${toolId}`);
@@ -107,7 +94,7 @@ test("server-safe contracts agree with the manifest for every tool", async () =>
 
 test("storage contracts expose serialize/summarize for every stored tool", async () => {
   const { STORAGE_CONTRACT_BY_ID, TOOL_CONTRACT_BY_STORED_TAG_NAME } =
-    await load(import(CONTRACTS_PATH));
+    await import(CONTRACTS_PATH);
   for (const [toolId, contract] of Object.entries(STORAGE_CONTRACT_BY_ID)) {
     assert.equal(typeof contract.summarizeStoredSvgItem, "function", toolId);
     assert.equal(typeof contract.serializeStoredSvgItem, "function", toolId);
@@ -124,8 +111,8 @@ test("storage contracts expose serialize/summarize for every stored tool", async
 });
 
 test("the runtime browser registry and the server contracts share metadata", async () => {
-  const { TOOL_BY_ID: RUNTIME_BY_ID } = await load(import(INDEX_PATH));
-  const { TOOL_CONTRACT_BY_ID } = await load(import(CONTRACTS_PATH));
+  const { TOOL_BY_ID: RUNTIME_BY_ID } = await import(INDEX_PATH);
+  const { TOOL_CONTRACT_BY_ID } = await import(CONTRACTS_PATH);
   for (const [toolId, contract] of Object.entries(TOOL_CONTRACT_BY_ID)) {
     const runtime = RUNTIME_BY_ID[toolId];
     assert.ok(runtime, `runtime missing ${toolId}`);

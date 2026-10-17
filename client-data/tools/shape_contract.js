@@ -72,15 +72,3 @@ export function serializeStoredShapeTag(tagName, attrs, item, helpers) {
     `${opacity}${transform}></${tagName}>`
   );
 }
-
-/**
- * @template {ToolContract & {storedTagName: string}} T
- * @param {T} contract
- * @returns {T & {shapeTool: true}}
- */
-export function defineShapeContract(contract) {
-  return {
-    ...contract,
-    shapeTool: true,
-  };
-}

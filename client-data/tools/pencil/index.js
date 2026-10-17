@@ -29,12 +29,6 @@ import { LIMITS } from "../../js/message_common.js";
 import { MutationType } from "../../js/mutation_type.js";
 import { PencilContract } from "../contracts.js";
 import { TOOL_CODE_BY_ID } from "../tool-order.js";
-import {
-  appendPersistedPencilPath,
-  renderPencilPath,
-  scanPathSummary,
-  serializeStoredPencilPath,
-} from "./pencil_path.js";
 import { wboPencilPoint } from "./wbo_pencil_point.js";
 
 /** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
@@ -42,9 +36,6 @@ import { wboPencilPoint } from "./wbo_pencil_point.js";
 /** @typedef {ReturnType<typeof createPointMessage>} PencilAppendMessage */
 /** @typedef {PencilCreateMessage | PencilAppendMessage} PencilMessage */
 /** @typedef {{type: number, id: string, color?: string, size?: number, opacity?: number}} PencilLineData */
-/** @typedef {import("../shape_contract.js").SvgTransform} StoredPencilTransform */
-/** @typedef {{id?: string, color?: string, size?: number, opacity?: number, transform?: StoredPencilTransform}} StoredPencilPathItem */
-/** @typedef {{escapeHtml: (value: string) => string, numberOrZero: (value: unknown) => number, renderTransformAttribute: (transform: StoredPencilTransform | undefined) => string}} StoredPencilPathSerializeHelpers */
 
 /**
  * @param {unknown} data
@@ -68,13 +59,6 @@ function isPencilMessage(data) {
     typeof message.y === "number"
   );
 }
-
-export {
-  appendPersistedPencilPath,
-  renderPencilPath,
-  scanPathSummary,
-  serializeStoredPencilPath,
-};
 
 export const toolId = "pencil";
 const toolCode = TOOL_CODE_BY_ID[toolId];

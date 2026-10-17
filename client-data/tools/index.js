@@ -113,7 +113,6 @@ export const TOOLS = TOOL_IDS.map((toolId) =>
   defineTool(TOOL_MODULES_BY_ID[toolId], TOOL_CODE_BY_ID[toolId]),
 );
 
-export const TOOL_BY_CODE = TOOLS;
 export const DRAW_TOOLS = TOOLS.filter((tool) => tool.drawsOnBoard === true);
 export const TOOL_BY_ID = /** @type {ToolDefinitionsById} */ (
   Object.fromEntries(TOOLS.map((tool) => [tool.toolId, tool]))
@@ -135,10 +134,4 @@ export const TOOLBAR_TOOLS = /** @type {ReadonlyArray<ToolDefinition>} */ (
   TOOLBAR_TOOL_IDS.map(
     (toolId) => /** @type {ToolDefinition} */ (TOOL_BY_ID[toolId]),
   )
-);
-export const TOOL_BY_STORED_TAG_NAME = Object.fromEntries(
-  TOOLS.filter((tool) => typeof tool.storedTagName === "string").map((tool) => [
-    tool.storedTagName,
-    tool,
-  ]),
 );

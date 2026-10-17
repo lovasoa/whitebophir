@@ -2,7 +2,7 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 
 import MessageCommon from "../../client-data/js/message_common.js";
-import { TOOL_BY_ID } from "../../client-data/tools/index.js";
+import { TOOL_CONTRACT_BY_ID as TOOL_BY_ID } from "../../client-data/tools/contracts.js";
 import observability from "../observability/index.mjs";
 import { parseLegacyStoredBoard } from "./legacy_json_board_source.mjs";
 

@@ -1,4 +1,4 @@
-import { TOOL_BY_STORED_TAG_NAME } from "../../client-data/tools/index.js";
+import { TOOL_CONTRACT_BY_STORED_TAG_NAME as TOOL_BY_STORED_TAG_NAME } from "../../client-data/tools/contracts.js";
 import {
   readRawAttribute,
   readRawAttributeFromRange,

@@ -14,7 +14,7 @@ browser renders SVG and applies local edits optimistically.
 | Board state | [data.mjs](./server/board/data.mjs) owns the canonical item index. `session.mjs` orders accepted writes; `message_processing.mjs` applies mutations; `data_persistence.mjs` schedules saves. |
 | Storage | [svg_board_store.mjs](./server/persistence/svg_board_store.mjs) loads and writes authoritative SVG files. Scanning and item codecs isolate document structure from tool content. |
 | Browser runtime | [board_main.js](./client-data/js/board_main.js) starts staged boot. `app_tools.js` assembles runtime modules; viewport, connection/replay, writes, and presence have separate owners. |
-| Drawing tools | [manifest.js](./client-data/tools/manifest.js) defines shared tool contracts. Each `client-data/tools/<tool-id>/index.js` owns interaction, rendering, and stored-item behavior. |
+| Drawing tools | [manifest.js](./client-data/tools/manifest.js) owns metadata; [contracts.js](./client-data/tools/contracts.js) owns storage and rendering. Per-tool `index.js` modules own interaction. |
 
 ## Opening and editing a board
 

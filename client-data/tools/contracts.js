@@ -7,14 +7,13 @@
  */
 
 import { getLocalGeometryBounds } from "../js/message_common.js";
-import { TOOL_CODE_BY_ID, TOOL_ID_BY_CODE, TOOL_MANIFEST } from "./manifest.js";
+import { TOOL_BY_ID, TOOL_CODE_BY_ID, TOOL_MANIFEST } from "./manifest.js";
 import {
   renderPencilPath,
   scanPathSummary,
   serializeStoredPencilPath,
 } from "./pencil/pencil_path.js";
 import {
-  defineShapeContract,
   normalizeRectBounds,
   serializeStoredShapeTag,
   summarizeStoredShape,
@@ -22,12 +21,22 @@ import {
 
 /** @typedef {import("./shape_contract.js").ToolContract} ToolContract */
 
-/** @type {ToolContract} */
-const pencilContract = {
-  toolId: "pencil",
-  toolCode: TOOL_CODE_BY_ID.pencil,
-  payloadKind: "children",
-  storedTagName: "path",
+/**
+ * Keep protocol metadata in the manifest while storage methods remain shared
+ * by the server and tool runtime.
+ * @template {keyof typeof TOOL_CODE_BY_ID} T
+ * @param {T} toolId
+ * @param {Pick<ToolContract, "summarizeStoredSvgItem" | "serializeStoredSvgItem"> & Partial<Pick<ToolContract, "parseStoredSvgItem" | "renderBoardSvg">>} methods
+ */
+function defineStoredToolContract(toolId, methods) {
+  const metadata =
+    /** @type {import("./manifest.js").ToolManifestEntry & {storedTagName: string}} */ (
+      TOOL_BY_ID[toolId]
+    );
+  return { ...metadata, toolCode: TOOL_CODE_BY_ID[toolId], ...methods };
+}
+
+const pencilContract = defineStoredToolContract("pencil", {
   summarizeStoredSvgItem(entry, paintOrder, helpers) {
     const size = helpers.parseNumber(
       helpers.readStoredSvgAttribute(entry, "stroke-width"),
@@ -59,13 +68,9 @@ const pencilContract = {
     const pathstring = renderPencilPath(pencil._children || []);
     return helpers.renderPath(pencil, pathstring);
   },
-};
+});
 
-const rectangleContract = defineShapeContract({
-  toolId: "rectangle",
-  toolCode: TOOL_CODE_BY_ID.rectangle,
-  storedTagName: "rect",
-  updatableFields: /** @type {const} */ (["x", "y", "x2", "y2"]),
+const rectangleContract = defineStoredToolContract("rectangle", {
   summarizeStoredSvgItem(entry, paintOrder, helpers) {
     const x = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "x"));
     const y = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "y"));
@@ -144,11 +149,7 @@ const rectangleContract = defineShapeContract({
   },
 });
 
-const ellipseContract = defineShapeContract({
-  toolId: "ellipse",
-  toolCode: TOOL_CODE_BY_ID.ellipse,
-  storedTagName: "ellipse",
-  updatableFields: /** @type {const} */ (["x", "y", "x2", "y2"]),
+const ellipseContract = defineStoredToolContract("ellipse", {
   summarizeStoredSvgItem(entry, paintOrder, helpers) {
     const cx = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "cx"));
     const cy = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "cy"));
@@ -219,11 +220,7 @@ const ellipseContract = defineShapeContract({
   },
 });
 
-const straightLineContract = defineShapeContract({
-  toolId: "straight-line",
-  toolCode: TOOL_CODE_BY_ID["straight-line"],
-  storedTagName: "line",
-  updatableFields: /** @type {const} */ (["x2", "y2"]),
+const straightLineContract = defineStoredToolContract("straight-line", {
   summarizeStoredSvgItem(entry, paintOrder, helpers) {
     const x1 = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "x1"));
     const y1 = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "y1"));
@@ -283,13 +280,7 @@ const straightLineContract = defineShapeContract({
   },
 });
 
-/** @type {ToolContract} */
-const textContract = {
-  toolId: "text",
-  toolCode: TOOL_CODE_BY_ID.text,
-  payloadKind: "text",
-  storedTagName: "text",
-  updatableFields: /** @type {const} */ (["txt"]),
+const textContract = defineStoredToolContract("text", {
   summarizeStoredSvgItem(entry, paintOrder, helpers) {
     const x = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "x"));
     const y = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "y"));
@@ -371,7 +362,7 @@ const textContract = {
       "</text>"
     );
   },
-};
+});
 
 /**
  * Storage contracts keyed by tool id. The single source for the contract
@@ -411,8 +402,6 @@ export const TOOL_CONTRACT_BY_ID = Object.freeze(
   Object.fromEntries(TOOL_CONTRACTS.map((tool) => [tool.toolId, tool])),
 );
 
-export const TOOL_CONTRACT_BY_CODE = TOOL_CONTRACTS;
-
 export const TOOL_CONTRACT_BY_STORED_TAG_NAME = Object.freeze(
   Object.fromEntries(
     TOOL_CONTRACTS.filter((tool) => typeof tool.storedTagName === "string").map(
@@ -420,11 +409,3 @@ export const TOOL_CONTRACT_BY_STORED_TAG_NAME = Object.freeze(
     ),
   ),
 );
-
-export const Cursor =
-  /** @type {Readonly<import("./manifest.js").ToolManifestEntry & Partial<ToolContract>>} */ (
-    TOOL_CONTRACT_BY_ID.cursor
-  );
-
-export { TOOL_ID_BY_CODE };
-export { renderPencilPath, scanPathSummary } from "./pencil/pencil_path.js";

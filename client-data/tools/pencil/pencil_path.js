@@ -56,7 +56,7 @@ const EMPTY_PERSISTED_PENCIL_SCAN = {
  *   lastPoint: {x: number, y: number} | null,
  * }}
  */
-export function scanPersistedPencilPath(d) {
+function scanPersistedPencilPath(d) {
   if (typeof d !== "string" || d === "") return EMPTY_PERSISTED_PENCIL_SCAN;
   const length = d.length;
   if (length < 5 || d.charCodeAt(0) !== 77 || d.charCodeAt(1) !== 32)

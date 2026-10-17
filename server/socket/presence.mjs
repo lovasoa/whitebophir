@@ -6,7 +6,7 @@ import {
 } from "../../client-data/js/message_shape.js";
 import { getToolId } from "../../client-data/js/message_tool_metadata.js";
 import { SocketEvents } from "../../client-data/js/socket_events.js";
-import { Cursor } from "../../client-data/tools/index.js";
+import { TOOL_CODE_BY_ID } from "../../client-data/tools/manifest.js";
 import { buildPronounceableName } from "../shared/pronounceable_name.mjs";
 import {
   getSocketHeaderValue,
@@ -261,10 +261,10 @@ function updateBoardUserFromMessage(socket, boardName, data, now) {
   const size = extractMessageSize(data);
   if (size) user.size = size;
   const toolId =
-    data.tool === Cursor.id && "activeTool" in data
+    data.tool === TOOL_CODE_BY_ID.cursor && "activeTool" in data
       ? getToolId(data.activeTool)
       : getToolId(data.tool);
-  if (toolId && (data.tool !== Cursor.id || toolId !== "cursor")) {
+  if (toolId && (data.tool !== TOOL_CODE_BY_ID.cursor || toolId !== "cursor")) {
     user.lastTool = toolId;
   }
   const position = extractMessagePosition(data);
