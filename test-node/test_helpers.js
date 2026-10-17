@@ -524,6 +524,15 @@ async function withMockedNow(value, fn) {
   }
 }
 
+/** @param {import("node:inspector").Profiler.ScriptCoverage[]} coverage */
+function executionCount(coverage) {
+  const count = coverage
+    .flatMap(({ functions }) => functions.flatMap(({ ranges }) => ranges))
+    .reduce((sum, { count }) => sum + count, 0);
+  if (!count) throw new Error("Missing application execution counts");
+  return count;
+}
+
 module.exports = {
   BOARD_DATA_PATH,
   BOARD_CAPABILITIES_PATH,
@@ -538,6 +547,7 @@ module.exports = {
   createConfig,
   createSocketScenario,
   createSocket,
+  executionCount,
   getRequiredHandler,
   getTcpAddress,
   loadBoardData,
