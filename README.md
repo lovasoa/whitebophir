@@ -1,9 +1,11 @@
 # WBO
 
 WBO is an online collaborative whiteboard that allows many users to draw simultaneously on a large virtual board.
-The board is updated in real time for all connected users, and its state is always persisted. It can be used for many different purposes, including art, entertainment, design, teaching.
+Connected users see edits in real time; the server saves boards as SVG files.
+Use it for drawing, design, teaching, or collaborative diagrams.
 
-A demonstration server is available at [wbo.ophir.dev](https://wbo.ophir.dev)
+Try [wbo.ophir.dev](https://wbo.ophir.dev). For contributors, see the short
+[architecture guide](./ARCHITECTURE.md) and [engineering policies](./AGENTS.md).
 
 ## Screenshots
 
@@ -23,12 +25,9 @@ A demonstration server is available at [wbo.ophir.dev](https://wbo.ophir.dev)
 
 ## Running your own instance of WBO
 
-If you have your own web server, and want to run a private instance of WBO on it, you can. It should be very easy to get it running on your own server.
+### Docker
 
-### Running the code in a container (safer)
-
-If you use the [docker](https://www.docker.com/) containerization service, you can easily run WBO as a container.
-An official docker image for WBO is hosted on dockerhub as [`lovasoa/wbo`](https://hub.docker.com/r/lovasoa/wbo): [![WBO 1M docker pulls](https://img.shields.io/docker/pulls/lovasoa/wbo?style=flat)](https://hub.docker.com/repository/docker/lovasoa/wbo).
+The Docker image is available as [`lovasoa/wbo`](https://hub.docker.com/r/lovasoa/wbo).
 
 You can run the following bash command to launch WBO on port 5001, while persisting the boards outside of docker:
 
@@ -42,37 +41,19 @@ You can then access WBO at `http://localhost:5001`.
 
 The official Docker image does not force an IP source. By default the application uses `WBO_IP_SOURCE=remoteAddress`. If you run the container behind a trusted proxy or CDN, set `-e WBO_IP_SOURCE=...` explicitly, for example `X-Forwarded-For`, `Forwarded`, or `CF-Connecting-IP`.
 
-### Running the code without a container
+### Node.js
 
-Alternatively, you can run the code with [node.js](https://nodejs.org/) directly, without docker.
+Install Node.js 22 or later, then:
 
-First, download the sources:
-
-```
+```sh
 git clone https://github.com/lovasoa/whitebophir.git
 cd whitebophir
-```
-
-Then [install node.js](https://nodejs.org/en/download/) (v22 or superior)
-if you don't have it already, then install WBO's dependencies:
-
-```
-npm install --production
-```
-
-Finally, you can start the server:
-
-```
+npm ci --omit=dev
 PORT=5001 npm start
 ```
 
-This will run WBO directly on your machine, on port 5001, without any isolation from the other services. You can also use an invokation like
-
-```
-PORT=5001 HOST=127.0.0.1 npm start
-```
-
-to make whitebophir only listen on the loopback device. This is useful if you want to put whitebophir behind a reverse proxy.
+Set `HOST=127.0.0.1` to listen only on loopback when using a reverse proxy.
+For development, use `npm ci` to include test and lint dependencies.
 
 ### Running WBO on a subfolder
 
@@ -88,94 +69,58 @@ If you feel like contributing to this collaborative project, you can [translate 
 
 ## Authentication
 
-WBO supports authentication using [Json Web Tokens](https://jwt.io/introduction). Pass the token as a `token` query parameter, for example `http://myboard.com/boards/test?token={token}`.
+Set `AUTH_SECRET_KEY` to require a signed JSON Web Token. Pass it in the
+`token` query parameter, such as `/boards/team?token=...`. With JWT authentication
+disabled, anyone with a valid board URL can open it and edit writable boards.
 
-The `AUTH_SECRET_KEY` variable in [`configuration.mjs`](./server/configuration.mjs) should be filled with the secret key for the JWT.
-
-### Board Capabilities
-
-WBO evaluates board access as three capabilities:
-
-- `canOpen`: the user may load or connect to the board.
-- `canEdit`: the user may send normal board changes.
-- `canClear`: the user may use the Clear tool, which wipes all content from the board.
-
-JWT role strings can define these capabilities. They are declared in the JWT payload:
+Tokens may contain global roles or board-scoped roles:
 
 ```json
 {
-  "iat": 1516239022,
-  "exp": 1516298489,
-  "roles": ["editor"]
+  "roles": ["editor:team", "moderator:planning", "reader:archive"]
 }
 ```
 
-### Board Visibility / Access
+When any role names a board, the token can open only the named boards. Use
+standard JWT expiry claims to limit token lifetime.
 
-If `AUTH_SECRET_KEY` is not set, any valid board URL has `canOpen`.
+| Access | Writable board | Read-only board | Clear and moderation |
+| --- | --- | --- | --- |
+| Public visitor, JWT disabled | Edit | View | No |
+| Board-scoped reader | Edit | View | No |
+| Editor | Edit | Edit | No |
+| Moderator | Edit | Edit | Yes |
 
-If `AUTH_SECRET_KEY` is set, `canOpen` requires a valid token. You can restrict which board names a token may open by adding `:<boardName>` to a claim:
+A reader role only enforces viewing on a board that is itself read-only.
+Permission resolution is defined in
+[board_capabilities.mjs](./server/auth/board_capabilities.mjs).
 
-```json
-{
-  "roles": ["editor:board-a", "moderator:board-b", "reader:board-c"]
-}
-```
+### Moderators
 
-- `reader:<boardName>` grants `canOpen` for that board.
-- `editor:<boardName>` grants `canOpen` for that board and is edit-capable on read-only boards.
-- `moderator:<boardName>` grants `canOpen` for that board, is edit-capable on read-only boards, and grants `canClear`.
+`WBO_BOARD_MODERATORS` grants moderator access through the user's
+`wbo-user-secret-v1` cookie, including on instances without JWT authentication.
+Configure space-separated groups in the form `team:<secret1>,<secret2>` using
+the actual cookie values. Treat these values as credentials.
 
-For example, `http://myboard.com/boards/mySecretBoardName?token={token}` with:
+Permanent moderators can grant temporary moderator access from the users menu.
+Temporary grants and bans are local to the board and process and disappear on
+restart. Temporary moderators cannot delegate their role. Ordinary user reports
+disconnect the reporter and target without creating a ban; moderator actions
+can warn, ban, and revoke bans.
 
-```json
-{
-  "iat": 1516239022,
-  "exp": 1516298489,
-  "roles": ["moderator:mySecretBoardName"]
-}
-```
+### Read-only boards
 
-If a token contains any board-scoped claims, it can only open the boards named in those claims.
-
-Phase 1 of the capability refactor does not add new permission types, board owners, administrators, sharing controls, or permission management UI. Existing JWT claim syntax remains unchanged.
-
-### Board Editability / Read-Only
-
-Board visibility and board editability are separate.
-
-- On a read-only board, only `editor` and `moderator` claims still grant `canEdit`.
-- On instances without JWT authentication, a read-only board does not grant `canEdit` because there is no authenticated edit-capable claim.
-- Without JWT authentication, `canClear` is never granted.
-- With JWT authentication, only `moderator` claims grant `canClear`.
-
-Read-only state is stored on the persisted board SVG root as `data-wbo-readonly`:
-
-```xml
-<svg id="canvas" ... data-wbo-readonly="true">
-```
-
-Legacy `.json` board files may still use `__wbo_meta__.readonly`; when they are loaded, WBO migrates that metadata into the stored SVG format.
-
-### How To Change Board Visibility
-
-- Without JWT auth: visibility is controlled by sharing or not sharing the board URL.
-- With JWT auth: visibility is controlled by the token you issue. Add or remove board-scoped claims to decide which boards a token may open.
-- Use `editor` or `moderator` claims for users who should edit read-only boards.
-- Use `reader:<boardName>` for users who should only view a read-only board.
-
-### How To Change A Board Between Writable And Read-Only
-
-1. Find the board SVG file in `WBO_HISTORY_DIR`. The filename is `board-${boardName}.svg`.
-2. Add or update the root `data-wbo-readonly` attribute in that file.
-3. Reload the board after it is unloaded from memory, or restart the server, so the new state is picked up.
-4. Set the attribute to `false` to make the board writable.
+Stop the server before editing stored board files so an in-memory save cannot
+overwrite the change. Back up `board-<boardName>.svg` in `WBO_HISTORY_DIR`, set
+`data-wbo-readonly="true"` on its root `<svg>`, then restart the server. Set it to
+`false` to make the board writable again. Editors and moderators can still edit
+read-only boards. Legacy JSON boards are migrated to SVG when loaded.
 
 ## Configuration
 
 When you start a WBO server, it loads its configuration from several environment variables.
 You can see a list of these variables in [`configuration.mjs`](./server/configuration.mjs).
-Some important environment variables are :
+Common settings:
 
 - `WBO_HISTORY_DIR` : configures the directory where the boards are saved. Defaults to `./server-data/`.
 - `WBO_BASE_PATH` : optional external URL path prefix, such as `/wbo`, for deployments mounted under a reverse-proxy subfolder.
@@ -186,58 +131,34 @@ Some important environment variables are :
 - `WBO_IP_SOURCE` : which request attribute to trust for client IP based limits and logs. Supports `remoteAddress`, `X-Forwarded-For`, `Forwarded`, or a custom header such as `CF-Connecting-IP`. The default is `remoteAddress`.
 - `AUTH_SECRET_KEY` : If you would like to authenticate your boards using jwt, this declares the secret key.
 
-## Troubleshooting
-
-If a stored board SVG becomes unreadable, WBO quarantines the broken file and
-falls back to any readable board state it can still load.
-
-If you experience an issue or want to propose a new feature in WBO, please [open a github issue](https://github.com/lovasoa/whitebophir/issues/new).
-
 ## Monitoring
 
-If you are self-hosting a WBO instance, you may want to monitor its load,
-the number of connected users, request latency, and board lifecycle events.
-
-WBO now uses OpenTelemetry for metrics, logs, and traces on the server side.
-Configure a standard OTLP exporter with the usual `OTEL_*` environment variables.
-
-Example:
+Server logs go to stdout/stderr. Set `LOG_LEVEL` to `debug`, `info`, `warn`, or
+`error`. Metrics, logs, and traces support OpenTelemetry OTLP export:
 
 ```sh
-docker run \
-  -e OTEL_SERVICE_NAME=whitebophir-server \
-  -e OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318 \
-  lovasoa/wbo
-```
-
-Common settings:
-
-- `OTEL_SERVICE_NAME`
-- `OTEL_RESOURCE_ATTRIBUTES`
-- `OTEL_EXPORTER_OTLP_ENDPOINT`
-- `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`
-- `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`
-- `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`
-- `OTEL_EXPORTER_OTLP_HEADERS`
-
-Socket connection replay is reported with `wbo.socket.connection_replay` and
-`wbo.socket.connection_replay.gap`. The replay outcome attribute distinguishes
-empty replays, sent replay batches, stale baselines, future baselines, and
-internal errors.
-
-Traces default to a 5% parent-based sample rate when no standard
-`OTEL_TRACES_SAMPLER*` setting is provided. For short debugging sessions, force
-full trace capture explicitly:
-
-```sh
-OTEL_TRACES_SAMPLER=parentbased_traceidratio \
-OTEL_TRACES_SAMPLER_ARG=1.0 \
+OTEL_SERVICE_NAME=whitebophir-server \
 OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318 \
 npm start
 ```
 
-If no OTLP endpoint is configured, WBO still emits canonical server log lines to stdout/stderr but does not attempt remote export.
+Standard `OTEL_*` settings control resource attributes, per-signal endpoints,
+headers, and trace sampling. Without an exporter endpoint, WBO does not attempt
+remote export. Traces default to 5% sampling; for a debugging session, set
+`OTEL_TRACES_SAMPLER=parentbased_traceidratio` and
+`OTEL_TRACES_SAMPLER_ARG=1.0`.
 
-## Download SVG preview
+## Storage and recovery
 
-To download a preview of a board in SVG format you can got to `/preview/{boardName}`, e.g. change https://wbo.ophir.dev/board/anonymous to https://wbo.ophir.dev/preview/anonymous. The renderer is not 100% faithful, but it's often good enough.
+Back up `WBO_HISTORY_DIR`. Accepted edits are saved asynchronously, so a crash
+can lose changes since the last completed save. Run one server process per
+history directory; independent writers are not supported.
+
+Unreadable SVG files are quarantined before recovery is attempted. The
+`.svg.bak` file is temporary save staging, not a durable backup. See the
+[architecture guide](./ARCHITECTURE.md) for persistence and replay boundaries.
+
+## SVG preview
+
+Open `/preview/<boardName>` to download a standalone SVG preview, for example
+[the anonymous board preview](https://wbo.ophir.dev/preview/anonymous).

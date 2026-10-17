@@ -123,7 +123,7 @@ export const AUTO_FINGER_WHITEOUT = parseDisabledFlagEnv(
 );
 
 /** Board-scoped moderator user secrets, in the form: `boardname:usersecret1 boardname2:usersecret2`.
- * The user secret is their wbo secret cookie.
+ * The user secret is the value of their wbo-user-secret-v1 cookie.
  */
 export const BOARD_MODERATORS = parseBoardModeratorsEnv("WBO_BOARD_MODERATORS");
 
