@@ -73,7 +73,7 @@ let boardInstanceSequence = 0;
 /** @typedef {{readonly: boolean}} BoardMetadata */
 /** @typedef {{ok: false, reason: string}} ValidationFailure */
 /** @typedef {{ok: true}} ValidationSuccess */
-/** @typedef {ValidationSuccess | ValidationFailure} BoardMutationResult */
+/** @typedef {(ValidationSuccess | ValidationFailure) & {effects?: NormalizedMessageData[]}} BoardMutationResult */
 /** @typedef {import("../../types/app-runtime.d.ts").BoardMessage} BoardMessage */
 /** @typedef {import("../../types/app-runtime.d.ts").ToolOwnedChildMessage} ToolOwnedChildMessage */
 /** @typedef {import("../../types/app-runtime.d.ts").Transform} Transform */
@@ -100,7 +100,6 @@ let boardInstanceSequence = 0;
  *   copySource?: {sourceId: string},
  * }} CanonicalBoardItem
  */
-/** @typedef {{mutation: NormalizedMessageData}} PendingMutationEffect */
 /**
  * @typedef {Pick<
  *   typeof import("../configuration.mjs"),
@@ -152,10 +151,6 @@ class BoardData {
     this.saveTimeoutId = undefined;
     this.users = new Set();
     this.mutationLog = createMutationLog(0);
-    /** @type {PendingMutationEffect[]} */
-    this.pendingRejectedMutationEffects = [];
-    /** @type {PendingMutationEffect[]} */
-    this.pendingAcceptedMutationEffects = [];
     /** @type {Map<string, CanonicalBoardItem>} */
     this.itemsById = new Map();
     /** @type {string[]} */
@@ -273,24 +268,6 @@ class BoardData {
    */
   trimPersistedMutationLog(nowMs = Date.now()) {
     trimBoardPersistedMutationLog(this, nowMs);
-  }
-
-  /**
-   * @returns {PendingMutationEffect[]}
-   */
-  consumePendingRejectedMutationEffects() {
-    const effects = this.pendingRejectedMutationEffects;
-    this.pendingRejectedMutationEffects = [];
-    return effects;
-  }
-
-  /**
-   * @returns {PendingMutationEffect[]}
-   */
-  consumePendingAcceptedMutationEffects() {
-    const effects = this.pendingAcceptedMutationEffects;
-    this.pendingAcceptedMutationEffects = [];
-    return effects;
   }
 
   /**

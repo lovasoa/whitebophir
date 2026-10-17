@@ -153,18 +153,13 @@ test("board session appends sequenced followups generated during rejection", asy
   const board = {
     name: "session-rejected-followup",
     processMessage() {
-      return { ok: false, reason: "update rejected: shape too large" };
-    },
-    consumePendingRejectedMutationEffects() {
-      return [
-        {
-          mutation: {
-            tool: Eraser.id,
-            type: MutationType.DELETE,
-            id: "rect-seed",
-          },
-        },
-      ];
+      return {
+        ok: false,
+        reason: "update rejected: shape too large",
+        effects: [
+          { tool: Eraser.id, type: MutationType.DELETE, id: "rect-seed" },
+        ],
+      };
     },
     recordPersistentMutation(
       /** @type {any} */ message,
@@ -226,18 +221,10 @@ test("board session appends sequenced followups generated during successful acce
   const board = {
     name: "session-accepted-followup",
     processMessage() {
-      return { ok: true };
-    },
-    consumePendingAcceptedMutationEffects() {
-      return [
-        {
-          mutation: {
-            tool: Eraser.id,
-            type: MutationType.DELETE,
-            id: "rect-1",
-          },
-        },
-      ];
+      return {
+        ok: true,
+        effects: [{ tool: Eraser.id, type: MutationType.DELETE, id: "rect-1" }],
+      };
     },
     recordPersistentMutation(
       /** @type {any} */ message,

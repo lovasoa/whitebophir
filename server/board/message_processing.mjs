@@ -246,8 +246,12 @@ function clearItems(board) {
   board.svgExtent = createDefaultSvgExtent();
 }
 
-/** @param {BoardData} board */
+/** @param {BoardData} board
+ * @returns {BoardMutationResult}
+ */
 function commitMutation(board) {
+  /** @type {import("../../types/server-runtime.d.ts").NormalizedMessageData[] | undefined} */
+  let effects;
   while (
     board.liveItemCount > board.maxItemCount &&
     board.trimPaintOrderIndex < board.paintOrder.length
@@ -255,11 +259,10 @@ function commitMutation(board) {
     const id = board.paintOrder[board.trimPaintOrderIndex++];
     if (id === undefined || !getCanonicalItem(board, id)) continue;
     removeCanonicalItem(board, id);
-    board.pendingAcceptedMutationEffects.push({
-      mutation: eraserDeleteMutation(id),
-    });
+    effects ??= [];
+    effects.push(eraserDeleteMutation(id));
   }
-  return /** @type {const} */ ({ ok: true });
+  return effects ? { ok: true, effects } : { ok: true };
 }
 
 /**
@@ -334,8 +337,6 @@ export function processMessageBatch(board, children, parent) {
  * @returns {BoardMutationResult}
  */
 export function processMessage(board, message) {
-  board.pendingRejectedMutationEffects = [];
-  board.pendingAcceptedMutationEffects = [];
   if (hasMessageChildren(message))
     return processMessageBatch(board, message._children, message);
   const prepared = prepareMutation(board, message);
@@ -359,10 +360,12 @@ export function processMessage(board, message) {
         bounds.minY === bounds.maxY
       ) {
         removeCanonicalItem(board, message.id);
-        board.pendingRejectedMutationEffects.push({
-          mutation: eraserDeleteMutation(message.id),
-        });
         board.delaySave();
+        return {
+          ok: false,
+          reason: "update rejected: shape too large",
+          effects: [eraserDeleteMutation(message.id)],
+        };
       }
       return { ok: false, reason: "update rejected: shape too large" };
     }

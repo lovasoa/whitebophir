@@ -1010,7 +1010,6 @@ test("BoardData.processMessage preserves seed-drop followups and rejects copies 
     false,
   );
   assert.deepEqual(board.get("rect-1"), seed);
-  assert.deepEqual(board.consumePendingRejectedMutationEffects(), []);
 
   const oversizedUpdate = rectangleUpdate("rect-1", {
     x: 10,
@@ -1019,16 +1018,11 @@ test("BoardData.processMessage preserves seed-drop followups and rejects copies 
     y2: 30,
   });
 
-  assert.equal(board.processMessage(oversizedUpdate).ok, false);
+  const rejected = board.processMessage(oversizedUpdate);
+  assert.equal(rejected.ok, false);
   assert.equal(board.get("rect-1"), undefined);
-  assert.deepEqual(board.consumePendingRejectedMutationEffects(), [
-    {
-      mutation: {
-        tool: Eraser.id,
-        type: MutationType.DELETE,
-        id: "rect-1",
-      },
-    },
+  assert.deepEqual(rejected.effects, [
+    { tool: Eraser.id, type: MutationType.DELETE, id: "rect-1" },
   ]);
 
   assert.deepEqual(board.processMessage(handCopy("rect-1", "rect-2")), {
@@ -1095,34 +1089,27 @@ test("BoardData trims overflow by paint order instead of recency", () => {
     board.processMessage(textUpdate("first", "first updated")).ok,
     true,
   );
-  assert.equal(
-    board.processMessage(
-      textCreate({
-        id: "third",
-        x: 30,
-        y: 30,
-        color: "#333333",
-        size: 18,
-        txt: "third",
-      }),
-    ).ok,
-    true,
+  const accepted = board.processMessage(
+    textCreate({
+      id: "third",
+      x: 30,
+      y: 30,
+      color: "#333333",
+      size: 18,
+      txt: "third",
+    }),
   );
+  assert.equal(accepted.ok, true);
 
   assert.equal(board.get("first"), undefined);
   assert.deepEqual(Object.keys(board.board).sort(), ["second", "third"]);
-  assert.deepEqual(
-    board
-      .consumePendingAcceptedMutationEffects()
-      .map((/** @type {{mutation: any}} */ entry) => entry.mutation),
-    [
-      {
-        tool: Eraser.id,
-        type: MutationType.DELETE,
-        id: "first",
-      },
-    ],
-  );
+  assert.deepEqual(accepted.effects, [
+    {
+      tool: Eraser.id,
+      type: MutationType.DELETE,
+      id: "first",
+    },
+  ]);
 });
 
 test("BoardData.load rejects unreadable boards instead of publishing empty state", async () => {

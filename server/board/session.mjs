@@ -2,15 +2,12 @@ import { SerialTaskQueue } from "./serial_task_queue.mjs";
 
 /** @typedef {import("../../types/server-runtime.d.ts").MutationLogEntry} MutationLogEntry */
 /** @typedef {import("../../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
-/** @typedef {{mutation: NormalizedMessageData}} MutationEffect */
-/** @typedef {{ok: true} | {ok: false, reason: string}} BoardMutationResult */
+/** @typedef {import("./data.mjs").BoardMutationResult} BoardMutationResult */
 /**
  * @typedef {{
  *   name: string,
  *   processMessage: (message: NormalizedMessageData) => BoardMutationResult,
  *   recordPersistentMutation: (message: NormalizedMessageData, acceptedAtMs?: number) => MutationLogEntry,
- *   consumePendingRejectedMutationEffects?: () => MutationEffect[],
- *   consumePendingAcceptedMutationEffects?: () => MutationEffect[],
  * }} BoardSessionBoard
  */
 /**
@@ -26,15 +23,6 @@ import { SerialTaskQueue } from "./serial_task_queue.mjs";
  * }} BoardSession
  */
 
-/**
- * @param {BoardSessionBoard} board
- * @param {(() => MutationEffect[]) | undefined} consumeEffects
- * @returns {MutationEffect[]}
- */
-function consumePendingMutationEffects(board, consumeEffects) {
-  return typeof consumeEffects === "function" ? consumeEffects.call(board) : [];
-}
-
 /** @type {WeakMap<BoardSessionBoard, BoardSession>} */
 const BOARD_SESSIONS = new WeakMap();
 
@@ -48,36 +36,26 @@ export function createBoardSession(board) {
     board,
     async acceptPersistentMutation(mutation, nowMs = Date.now()) {
       return queue.runExclusive(() => {
-        consumePendingMutationEffects(
-          board,
-          board.consumePendingRejectedMutationEffects,
-        );
-        consumePendingMutationEffects(
-          board,
-          board.consumePendingAcceptedMutationEffects,
-        );
         const result = board.processMessage(mutation);
         if (result.ok === false) {
-          const followup = consumePendingMutationEffects(
-            board,
-            board.consumePendingRejectedMutationEffects,
-          ).map((effect) =>
-            board.recordPersistentMutation(effect.mutation, nowMs),
+          const followup = result.effects?.map((effect) =>
+            board.recordPersistentMutation(effect, nowMs),
           );
-          return followup.length > 0 ? { ...result, followup } : result;
+          return {
+            ok: false,
+            reason: result.reason,
+            ...(followup?.length ? { followup } : {}),
+          };
         }
         const entry = board.recordPersistentMutation(mutation, nowMs);
-        const followup = consumePendingMutationEffects(
-          board,
-          board.consumePendingAcceptedMutationEffects,
-        ).map((effect) =>
-          board.recordPersistentMutation(effect.mutation, nowMs),
+        const followup = result.effects?.map((effect) =>
+          board.recordPersistentMutation(effect, nowMs),
         );
         return {
           ok: true,
           value: mutation,
           entry,
-          ...(followup.length > 0 ? { followup } : {}),
+          ...(followup?.length ? { followup } : {}),
         };
       });
     },
