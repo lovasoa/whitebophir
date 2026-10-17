@@ -29,7 +29,6 @@ import {
   measureSvgElementBoundsAfterTransform,
 } from "../../js/board_extent.js";
 import { createBoardHtmlOverlay } from "../../js/board_html_overlay.js";
-import { messages as BoardMessages } from "../../js/board_transport.js";
 import { safePreventDefault } from "../../js/board_viewport.js";
 import { logFrontendEvent } from "../../js/frontend_logging.js";
 import MessageCommon from "../../js/message_common.js";
@@ -1155,7 +1154,7 @@ export function draw(state, data, isLocal = false) {
     return;
   }
   if (isBatchMessage(data)) {
-    BoardMessages.batchCall((msg) => draw(state, msg, isLocal), data._children);
+    for (const child of data._children) draw(state, child, isLocal);
     return;
   }
 
