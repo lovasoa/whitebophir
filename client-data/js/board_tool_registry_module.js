@@ -20,11 +20,6 @@ export { isTextEntryTarget };
 /** @typedef {{criticalToolNames: string[], pendingToolName: string}} InitialToolBootOptions */
 /** @typedef {{browserOwnsActiveTouchSequence: boolean, multiTouchOwnsActiveTouchSequence: boolean}} TouchDispatchState */
 
-/** @type {AppToolsState} */
-let Tools;
-/** @type {(level: "error" | "log" | "warn", event: string, fields?: {[key: string]: unknown}) => void} */
-let logBoardEvent = () => {};
-
 /**
  * @param {string} toolName
  * @returns {{button: HTMLElement, primaryIcon: HTMLImageElement, secondaryIcon: HTMLImageElement | null, label: HTMLElement}}
@@ -56,7 +51,8 @@ function blurActiveElement() {
   }
 }
 
-function getAttachedBoardDom() {
+/** @param {AppToolsState} Tools */
+function getAttachedBoardDom(Tools) {
   return Tools.dom.status === "attached" ? Tools.dom : null;
 }
 
@@ -95,8 +91,9 @@ export class ToolRegistryModule {
    * @param {(level: "error" | "log" | "warn", event: string, fields?: {[key: string]: unknown}) => void} logger
    */
   constructor(getTools, logger) {
-    Tools = getTools();
-    logBoardEvent = logger;
+    this.getTools = getTools;
+    this.logBoardEvent = logger;
+    this.keyboardBound = false;
     this.current =
       /** @type {import("../../types/app-runtime").MaybeMountedAppTool} */ (
         null
@@ -116,14 +113,20 @@ export class ToolRegistryModule {
    * @param {string} toolName
    */
   mountTool(toolModule, toolState, toolName) {
-    const mountedTool = createMountedTool(toolModule, toolState, toolName);
+    const Tools = this.getTools();
+    const mountedTool = createMountedTool(
+      Tools,
+      toolModule,
+      toolState,
+      toolName,
+    );
     if (mountedTool.stylesheet) {
-      addToolStylesheet(mountedTool.stylesheet);
+      addToolStylesheet(Tools, mountedTool.stylesheet);
     }
     if (this.isBlocked(mountedTool)) return null;
 
     if (toolName in this.mounted) {
-      logBoardEvent("warn", "tool.mount_replaced", {
+      this.logBoardEvent("warn", "tool.mount_replaced", {
         toolName,
       });
     }
@@ -142,7 +145,7 @@ export class ToolRegistryModule {
 
     const pending = drainPendingMessages(this.pendingMessages, toolName);
     if (pending.length > 0) {
-      logBoardEvent("log", "tool.pending_replayed", {
+      this.logBoardEvent("log", "tool.pending_replayed", {
         toolName,
         count: pending.length,
       });
@@ -151,7 +154,7 @@ export class ToolRegistryModule {
       });
     }
     if (this.shouldDisplayTool(toolName)) {
-      syncMountedToolButton(toolName);
+      syncMountedToolButton(Tools, toolName);
     }
     this.syncToolDisabledState(toolName);
     if (mountedTool.alwaysOn === true) {
@@ -163,12 +166,13 @@ export class ToolRegistryModule {
 
   /** @param {string} toolName */
   async bootTool(toolName) {
+    const Tools = this.getTools();
     const existingTool = this.mounted[toolName];
     if (existingTool) return existingTool;
     const inFlight = this.bootPromises[toolName];
     if (inFlight) return inFlight;
 
-    const promise = bootToolPromise(toolName);
+    const promise = bootToolPromise(Tools, toolName);
     this.bootPromises[toolName] = promise;
     try {
       return await promise;
@@ -179,6 +183,7 @@ export class ToolRegistryModule {
 
   /** @param {string} toolName */
   async activateTool(toolName) {
+    const Tools = this.getTools();
     if (!this.shouldDisplayTool(toolName)) return false;
     const tool = await this.bootTool(toolName);
     if (!tool || !this.shouldDisplayTool(toolName)) return false;
@@ -194,7 +199,8 @@ export class ToolRegistryModule {
 
   /** @param {MountedAppTool} tool */
   addToolListeners(tool) {
-    const dom = getAttachedBoardDom();
+    const Tools = this.getTools();
+    const dom = getAttachedBoardDom(Tools);
     if (!tool.compiledListeners) return;
     for (const event in tool.compiledListeners) {
       const listener = tool.compiledListeners[event];
@@ -213,7 +219,8 @@ export class ToolRegistryModule {
 
   /** @param {MountedAppTool} tool */
   removeToolListeners(tool) {
-    const dom = getAttachedBoardDom();
+    const Tools = this.getTools();
+    const dom = getAttachedBoardDom(Tools);
     if (!tool.compiledListeners) return;
     for (const event in tool.compiledListeners) {
       const listener = tool.compiledListeners[event];
@@ -225,6 +232,7 @@ export class ToolRegistryModule {
   }
 
   syncActiveToolInputPolicy() {
+    const Tools = this.getTools();
     Tools.viewportState.controller.setTouchPolicy(
       this.current?.getTouchPolicy?.() || "app-gesture",
     );
@@ -237,6 +245,7 @@ export class ToolRegistryModule {
 
   /** @param {string} toolName */
   shouldDisableTool(toolName) {
+    const Tools = this.getTools();
     return (
       MessageCommon.isDrawTool(toolName) &&
       !MessageCommon.isDrawToolAllowedAtScale(Tools.viewportState.scale)
@@ -245,6 +254,7 @@ export class ToolRegistryModule {
 
   /** @param {string} toolName */
   shouldDisplayTool(toolName) {
+    const Tools = this.getTools();
     if (getToolButton(toolName) === null) return false;
     // A tool is only shown when the current board state grants its capability,
     // mirroring the server-rendered initial visibility. This keeps read-only users (e.g.
@@ -263,8 +273,14 @@ export class ToolRegistryModule {
   }
 
   syncCurrentToolChrome() {
+    const Tools = this.getTools();
     if (!this.current) return;
-    updateCurrentToolChrome(this.current.name, this.current);
+    updateCurrentToolChrome(
+      Tools,
+      this.current.name,
+      this.current,
+      this.logBoardEvent,
+    );
   }
 
   /** @param {string} toolName */
@@ -295,6 +311,7 @@ export class ToolRegistryModule {
 
   /** @param {boolean} force */
   syncDrawToolAvailability(force) {
+    const Tools = this.getTools();
     const drawToolsAllowed = MessageCommon.isDrawToolAllowedAtScale(
       Tools.viewportState.scale,
     );
@@ -311,6 +328,7 @@ export class ToolRegistryModule {
 
   /** @param {MountedAppTool} tool */
   isBlocked(tool) {
+    const Tools = this.getTools();
     return isBlockedToolName(
       tool.name,
       Tools.config.serverConfig.BLOCKED_TOOLS || [],
@@ -319,17 +337,18 @@ export class ToolRegistryModule {
 
   /** @param {string} toolName */
   change(toolName) {
+    const Tools = this.getTools();
     const newTool = this.mounted[toolName];
     const oldTool = this.current;
     if (!newTool)
       throw new Error("Trying to select a tool that has never been added!");
     if (newTool === oldTool) {
-      toggleSecondaryTool(newTool);
+      toggleSecondaryTool(Tools, newTool);
       return;
     }
     if (!newTool.oneTouch) {
-      updateCurrentToolChrome(toolName, newTool);
-      replaceCurrentTool(newTool);
+      updateCurrentToolChrome(Tools, toolName, newTool, this.logBoardEvent);
+      replaceCurrentTool(Tools, newTool);
     }
 
     if (newTool.onstart) newTool.onstart(oldTool);
@@ -338,7 +357,12 @@ export class ToolRegistryModule {
   }
 
   bindRenderedToolButtons() {
-    bindRenderedToolButtons();
+    const Tools = this.getTools();
+    if (!this.keyboardBound) {
+      bindToolKeyboardControls(this.getTools());
+      this.keyboardBound = true;
+    }
+    bindRenderedToolButtons(Tools);
   }
 
   /**
@@ -427,7 +451,8 @@ export class ToolRegistryModule {
 
   /** @param {MountedAppTool} tool */
   normalizeServerRenderedElementsForTool(tool) {
-    const dom = getAttachedBoardDom();
+    const Tools = this.getTools();
+    const dom = getAttachedBoardDom(Tools);
     if (!dom) return;
     const selector = tool.serverRenderedElementSelector;
     const normalizeElement = tool.normalizeServerRenderedElement;
@@ -456,11 +481,12 @@ export class ToolRegistryModule {
 }
 
 /**
+ * @param {AppToolsState} Tools
  * @param {HTMLElement} button
  * @param {string} toolName
  * @returns {void}
  */
-function bindToolButton(button, toolName) {
+function bindToolButton(Tools, button, toolName) {
   if (button.dataset.toolBound === "true") return;
   button.dataset.toolId = toolName;
   button.dataset.toolBound = "true";
@@ -505,14 +531,15 @@ function renderToolButtonLabel(label, translatedName, shortcut) {
 }
 
 /**
+ * @param {AppToolsState} Tools
  * @param {string} toolName
  * @param {MountedAppTool} tool
  * @returns {void}
  */
-function syncToolButton(toolName, tool) {
+function syncToolButton(Tools, toolName, tool) {
   const button = getToolButton(toolName);
   if (!button) return;
-  bindToolButton(button, toolName);
+  bindToolButton(Tools, button, toolName);
   const parts = getRequiredToolButtonParts(toolName);
   const translatedToolName = Tools.i18n.t(toolName);
   renderToolButtonLabel(parts.label, translatedToolName, tool.shortcut);
@@ -534,14 +561,15 @@ function syncToolButton(toolName, tool) {
   }
 }
 
-function bindRenderedToolButtons() {
+/** @param {AppToolsState} Tools */
+function bindRenderedToolButtons(Tools) {
   document
     .querySelectorAll("#tools > .tool[data-tool-id]")
     .forEach((element) => {
       if (!(element instanceof HTMLElement)) return;
       const toolName = element.dataset.toolId;
       if (!toolName) return;
-      bindToolButton(element, toolName);
+      bindToolButton(Tools, element, toolName);
     });
 }
 
@@ -568,10 +596,11 @@ export function addToolShortcut(key, callback) {
 }
 
 /**
+ * @param {AppToolsState} Tools
  * @param {string} toolName
  * @returns {HTMLElement | null}
  */
-function syncMountedToolButton(toolName) {
+function syncMountedToolButton(Tools, toolName) {
   const tool = Tools.toolRegistry.mounted[toolName];
   if (!tool) {
     throw new Error(`Tool not registered before rendering: ${toolName}`);
@@ -582,7 +611,7 @@ function syncMountedToolButton(toolName) {
       blurActiveElement();
     });
   }
-  syncToolButton(toolName, tool);
+  syncToolButton(Tools, toolName, tool);
   Tools.toolRegistry.syncToolDisabledState(toolName);
   return getToolButton(toolName);
 }
@@ -606,11 +635,12 @@ function changeActiveToolButton(oldToolName, newToolName) {
 }
 
 /**
+ * @param {AppToolsState} Tools
  * @param {{ toolName: string, labelKey: string, icon: string, shortcut?: string }} params
  *   `labelKey` is the i18n id for the row label. `shortcut` is the primary key hint (same in secondary mode).
  * @returns {void}
  */
-function toggleToolButtonMode({ toolName, labelKey, icon, shortcut }) {
+function toggleToolButtonMode(Tools, { toolName, labelKey, icon, shortcut }) {
   const parts = getRequiredToolButtonParts(toolName);
   const secondaryIcon = parts.secondaryIcon;
   if (!secondaryIcon) {
@@ -624,10 +654,11 @@ function toggleToolButtonMode({ toolName, labelKey, icon, shortcut }) {
 }
 
 /**
+ * @param {AppToolsState} Tools
  * @param {string} href
  * @returns {HTMLLinkElement}
  */
-function addToolStylesheet(href) {
+function addToolStylesheet(Tools, href) {
   const resolvedHref = Tools.assets.resolveAssetPath(href);
   const existing = Array.from(
     document.querySelectorAll('link[rel="stylesheet"]'),
@@ -776,10 +807,11 @@ export function createToolRuntimeModules(mountedTools, ownerToolName = "") {
 }
 
 /**
+ * @param {AppToolsState} Tools
  * @param {string} toolName
  * @returns {ToolBootContext}
  */
-function createToolBootContext(toolName) {
+function createToolBootContext(Tools, toolName) {
   /** @type {MountedAppToolsState} */
   const mountedTools = (() => {
     if (Tools.dom.status !== "attached") {
@@ -796,12 +828,13 @@ function createToolBootContext(toolName) {
 }
 
 /**
+ * @param {AppToolsState} Tools
  * @param {ToolModule} toolModule
  * @param {ToolRuntimeState} toolState
  * @param {string} toolName
  * @returns {MountedAppTool}
  */
-function createMountedTool(toolModule, toolState, toolName) {
+function createMountedTool(Tools, toolModule, toolState, toolName) {
   const draw = toolModule.draw;
   const normalizeServerRenderedElement =
     toolModule.normalizeServerRenderedElement;
@@ -1038,40 +1071,44 @@ function createMountedTool(toolModule, toolState, toolName) {
 }
 
 /**
+ * @param {AppToolsState} Tools
  * @param {string} toolName
  * @returns {Promise<MountedAppTool | null>}
  */
-async function bootToolPromise(toolName) {
+async function bootToolPromise(Tools, toolName) {
   const toolModule = await loadToolModule(toolName);
   const toolState = /** @type {ToolRuntimeState} */ (
-    await toolModule.boot(createToolBootContext(toolName))
+    await toolModule.boot(createToolBootContext(Tools, toolName))
   );
   return Tools.toolRegistry.mountTool(toolModule, toolState, toolName);
 }
 
-/** @param {MountedAppTool} newTool */
-function toggleSecondaryTool(newTool) {
+/**
+ * @param {AppToolsState} Tools @param {MountedAppTool} newTool */
+function toggleSecondaryTool(Tools, newTool) {
   if (!newTool.secondary) return;
   newTool.secondary.active = !newTool.secondary.active;
   const props = newTool.secondary.active ? newTool.secondary : newTool;
-  toggleToolButtonMode({
+  toggleToolButtonMode(Tools, {
     toolName: newTool.name,
     labelKey: props.name,
     icon: props.icon,
     shortcut: newTool.shortcut,
   });
   if (newTool.secondary.switch) newTool.secondary.switch();
-  syncActiveToolState();
+  syncActiveToolState(Tools);
   Tools.toolRegistry.syncActiveToolInputPolicy();
 }
 
 /**
+ * @param {(level: "error" | "log" | "warn", event: string, fields?: {[key: string]: unknown}) => void} logger
+ * @param {AppToolsState} Tools
  * @param {string} toolName
  * @param {MountedAppTool} newTool
  * @returns {void}
  */
-function updateCurrentToolChrome(toolName, newTool) {
-  const dom = getAttachedBoardDom();
+function updateCurrentToolChrome(Tools, toolName, newTool, logger) {
+  const dom = getAttachedBoardDom(Tools);
   if (!dom) return;
   const curToolName = Tools.toolRegistry.current
     ? Tools.toolRegistry.current.name
@@ -1079,7 +1116,7 @@ function updateCurrentToolChrome(toolName, newTool) {
   try {
     changeActiveToolButton(curToolName, toolName);
   } catch (e) {
-    logBoardEvent("error", "tool.chrome_update_failed", {
+    logger("error", "tool.chrome_update_failed", {
       toolName,
       error: e instanceof Error ? e.message : String(e),
     });
@@ -1091,8 +1128,9 @@ function updateCurrentToolChrome(toolName, newTool) {
   Tools.status.syncWriteStatusIndicator();
 }
 
-/** @param {MountedAppTool} newTool */
-function replaceCurrentTool(newTool) {
+/**
+ * @param {AppToolsState} Tools @param {MountedAppTool} newTool */
+function replaceCurrentTool(Tools, newTool) {
   const currentTool = Tools.toolRegistry.current;
   if (currentTool !== null) {
     Tools.toolRegistry.removeToolListeners(currentTool);
@@ -1101,10 +1139,11 @@ function replaceCurrentTool(newTool) {
   }
   Tools.toolRegistry.addToolListeners(newTool);
   Tools.toolRegistry.current = newTool;
-  syncActiveToolState();
+  syncActiveToolState(Tools);
 }
 
-function syncActiveToolState() {
+/** @param {AppToolsState} Tools */
+function syncActiveToolState(Tools) {
   const currentTool = Tools.toolRegistry.current;
   if (!currentTool) {
     delete document.documentElement.dataset.activeTool;
@@ -1121,7 +1160,8 @@ function syncActiveToolState() {
     currentTool.secondary && currentTool.secondary.active ? "true" : "false";
 }
 
-(() => {
+/** @param {AppToolsState} Tools */
+function bindToolKeyboardControls(Tools) {
   /**
    * @param {boolean} active
    * @param {KeyboardEvent} evt
@@ -1138,4 +1178,4 @@ function syncActiveToolState() {
   }
   window.addEventListener("keydown", handleShift.bind(null, true));
   window.addEventListener("keyup", handleShift.bind(null, false));
-})();
+}
