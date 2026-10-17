@@ -220,6 +220,10 @@ profiling starts from
 [profile-benchmark-server.mjs](./scripts/profile-benchmark-server.mjs), and the
 peer-visible erase benchmark is
 [benchmark-peer-visible-erase.mjs](./scripts/benchmark-peer-visible-erase.mjs).
+Browser baseline refresh can be measured with
+`node scripts/benchmark-client-baseline.mjs <stored-board.svg> [cpu-throttle-rate]`.
+It serves a local copy, compares default and forced-polyfill SVG APIs, and uses
+4× CPU throttling by default. Keep production drawing data out of test fixtures.
 
 ## wire socket protocol
 
@@ -458,6 +462,10 @@ Important files:
 - Stored SVG is authoritative. `.svg.bak` is a transient save staging file, and
   unreadable primary SVGs are quarantined before fallback. Legacy `.json`
   boards are migration inputs, not the steady-state format.
+- Browser baseline refresh adopts the parsed drawing-area SVG nodes instead of
+  serializing and parsing them again. Pencil normalizes stored path coordinates
+  directly and decodes geometry into a retained JS cache only for live appends.
+  Keep normalization idempotent and preserve the existing smoothed curves.
 - Stored SVG structural scan, summary decode, and full materialization are
   separate. Bad recognized items may be skipped; broken SVG structure is an
   error. Do not turn structural failures into silent repairs.

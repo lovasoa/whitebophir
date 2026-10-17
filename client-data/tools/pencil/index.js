@@ -861,6 +861,35 @@ function normalizeServerRenderedPathData(state, pathData) {
 }
 
 /**
+ * Stored pencil paths use M followed by relative line segments. Read those
+ * coordinates directly instead of asking the SVG API to allocate an additional
+ * segment list for every stroke on board load.
+ * @param {string} d
+ * @returns {PencilPathData | null}
+ */
+function normalizePersistedPath(d) {
+  const parts = d.split(" ");
+  if (parts[0] !== "M" || parts.length % 3 !== 0) return null;
+  let x = Number(parts[1]);
+  let y = Number(parts[2]);
+  if (!parts[1] || !parts[2] || !Number.isFinite(x) || !Number.isFinite(y))
+    return null;
+  /** @type {PencilPathData} */
+  const pathData = [];
+  wboPencilPoint(pathData, x, y);
+  for (let i = 3; i < parts.length; i += 3) {
+    if (parts[i] !== "l" || !parts[i + 1] || !parts[i + 2]) return null;
+    const dx = Number(parts[i + 1]);
+    const dy = Number(parts[i + 2]);
+    if (!Number.isFinite(dx) || !Number.isFinite(dy)) return null;
+    x += dx;
+    y += dy;
+    wboPencilPoint(pathData, x, y);
+  }
+  return pathData;
+}
+
+/**
  * Creates or resets the canonical board SVG path for one pencil stroke.
  * Active local strokes call this only when they are committed at the end.
  * @param {PencilState} state
@@ -1099,24 +1128,22 @@ export function cancelTouchGesture(state) {
 export function normalizeServerRenderedElement(state, line) {
   if (!(line instanceof SVGPathElement)) return;
   delete state.pathDataCache[line.id];
-  const normalizedPathData = normalizeServerRenderedPathData(
-    state,
-    getPathData(state, line),
-  );
+  const d = line.getAttribute("d") || "";
+  // Live/replayed strokes already contain curves. Do not decode them again
+  // when another normalization pass runs over the same board.
+  if (d.includes("C") || d.includes("c")) return;
+  const normalizedPathData =
+    normalizePersistedPath(d) ||
+    normalizeServerRenderedPathData(state, line.getPathData());
   if (!normalizedPathData || normalizedPathData.length === 0) {
     logFrontendEvent("warn", "tool.pencil.path_normalization_failed", {
       id: line.id ?? "",
     });
-    const cachedPathData = getPathData(state, line);
-    if (cachedPathData && cachedPathData.length > 0) {
-      state.pathDataCache[line.id] = cachedPathData;
-    } else {
-      delete state.pathDataCache[line.id];
-    }
     return;
   }
   line.setPathData(normalizedPathData);
-  state.pathDataCache[line.id] = normalizedPathData;
+  // Completed stored strokes need no JS geometry cache. An append will decode
+  // just its parent on demand; otherwise large boards retain every point array.
 }
 
 /**

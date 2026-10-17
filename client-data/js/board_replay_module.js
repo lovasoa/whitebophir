@@ -56,7 +56,18 @@ export class ReplayModule {
       "data-wbo-readonly",
       baseline.readonly ? "true" : "false",
     );
-    dom.drawingArea.innerHTML = baseline.drawingAreaMarkup;
+    if (baseline.drawingArea) {
+      // Move the already parsed SVG nodes instead of serializing and parsing
+      // every item again. A fragment avoids an argument-count limit on dense
+      // boards and keeps the live drawing area replacement atomic.
+      const fragment = document.createDocumentFragment();
+      while (baseline.drawingArea.firstChild) {
+        fragment.appendChild(baseline.drawingArea.firstChild);
+      }
+      dom.drawingArea.replaceChildren(fragment);
+    } else {
+      dom.drawingArea.innerHTML = baseline.drawingAreaMarkup;
+    }
     Tools.toolRegistry.normalizeServerRenderedElements();
   }
 
