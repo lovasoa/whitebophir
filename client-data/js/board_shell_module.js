@@ -11,7 +11,7 @@ import {
   createInitialPreferences,
   DEFAULT_COLOR_PRESETS,
 } from "./board_preferences.js";
-import { addToolShortcut } from "./board_tool_registry_module.js";
+import { addToolShortcut } from "./board_tool_buttons.js";
 import { clampOpacity, LIMITS } from "./message_limits.js";
 import { isTextEntryTarget } from "./text_entry_target.js";
 
