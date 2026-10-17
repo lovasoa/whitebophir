@@ -1,11 +1,9 @@
-import { initializeCoreRuntime } from "./app_tools_core.js";
 import { AccessModule } from "./board_access_module.js";
 import { ConnectionModule } from "./board_connection_module.js";
 import {
   AssetModule,
   IdModule,
   InteractionModule,
-  normalizeBoardAssetPath,
   RateLimitModule,
 } from "./board_full_runtime_modules.js";
 import {
@@ -24,29 +22,16 @@ import { TurnstileModule } from "./board_turnstile.js";
 import { UiModule } from "./board_ui_module.js";
 import { WriteModule } from "./board_write_module.js";
 
-/** @import { AppInitialPreferences, ColorPreset, ServerConfig, SocketHeaders } from "../../types/app-runtime" */
-/** @typedef {{translations: {[key: string]: string}, serverConfig: ServerConfig, boardName: string, token: string | null, socketIOExtraHeaders: SocketHeaders | null, colorPresets: ColorPreset[], initialPreferences: AppInitialPreferences, logBoardEvent: (level: "error" | "log" | "warn", event: string, fields?: {[key: string]: unknown}) => void}} AppToolsOptions */
-
-export class AppTools {
-  /** @param {AppToolsOptions} options */
-  constructor(options) {
-    initializeCoreRuntime(this, options);
-    attachFullRuntimeModules(
-      /** @type {import("../../types/app-runtime").AppToolsState} */ (
-        /** @type {unknown} */ (this)
-      ),
-      options,
-    );
-  }
-}
+/** @import { AppToolsState, SocketHeaders } from "../../types/app-runtime" */
+/** @typedef {{socketIOExtraHeaders: SocketHeaders | null, logBoardEvent: (level: "error" | "log" | "warn", event: string, fields?: {[key: string]: unknown}) => void}} FullRuntimeOptions */
 
 /**
- * @param {import("../../types/app-runtime").AppToolsState} tools
- * @param {Pick<AppToolsOptions, "logBoardEvent" | "socketIOExtraHeaders">} options
- * @returns {import("../../types/app-runtime").AppToolsState}
+ * @param {AppToolsState} tools
+ * @param {FullRuntimeOptions} options
+ * @returns {AppToolsState}
  */
 export function attachFullRuntimeModules(tools, options) {
-  tools.assets = new AssetModule(normalizeBoardAssetPath);
+  tools.assets = new AssetModule();
   tools.ui = new UiModule();
   tools.interaction = new InteractionModule();
   tools.ids = new IdModule();

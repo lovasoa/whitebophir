@@ -1,23 +1,24 @@
 import { TOOL_ID_BY_CODE } from "../tools/tool-order.js";
 import { getContentMessageBounds } from "./board_extent.js";
-import { messages as BoardMessages } from "./board_transport.js";
+import { queuePendingMessage } from "./board_transport.js";
 import { getMutationType, MutationType } from "./message_tool_metadata.js";
 
-/** @import { BoardMessage, MessageHook, ViewportController } from "../../types/app-runtime" */
-/** @typedef {import("./board_runtime_core.js").IdentityModule} IdentityModule */
+/** @import { AppIdentityModule, BoardMessage, MessageHook, ViewportController } from "../../types/app-runtime" */
 /** @typedef {import("./board_tool_registry_module.js").ToolRegistryModule} ToolRegistryModule */
 
-const messageModuleState = new WeakMap();
-
 export class MessageModule {
+  #toolRegistry;
+  #identity;
+
   /**
    * @param {ToolRegistryModule} toolRegistry
-   * @param {IdentityModule} identity
+   * @param {AppIdentityModule} identity
    */
   constructor(toolRegistry, identity) {
     this.hooks = /** @type {MessageHook[]} */ ([]);
     this.unreadCount = 0;
-    messageModuleState.set(this, { toolRegistry, identity });
+    this.#toolRegistry = toolRegistry;
+    this.#identity = identity;
   }
 
   /**
@@ -36,40 +37,28 @@ export class MessageModule {
    * @returns {Promise<void>}
    */
   async messageForTool(message) {
-    const state =
-      /** @type {{toolRegistry: ToolRegistryModule, identity: IdentityModule}} */ (
-        messageModuleState.get(this)
-      );
     const name = TOOL_ID_BY_CODE[message.tool];
     if (!name) return;
-    const tool = state.toolRegistry.mounted[name];
+    const tool = this.#toolRegistry.mounted[name];
 
     this.applyHooks(this.hooks, message);
     if (tool) {
       tool.draw(message, false);
     } else {
-      BoardMessages.queuePendingMessage(
-        state.toolRegistry.pendingMessages,
-        name,
-        message,
-      );
-      await state.toolRegistry.bootTool(name);
+      queuePendingMessage(this.#toolRegistry.pendingMessages, name, message);
+      await this.#toolRegistry.bootTool(name);
     }
   }
 
   newUnreadMessage() {
-    const state =
-      /** @type {{toolRegistry: ToolRegistryModule, identity: IdentityModule}} */ (
-        messageModuleState.get(this)
-      );
     this.unreadCount++;
-    updateDocumentTitle(this, state.identity);
+    updateDocumentTitle(this, this.#identity);
   }
 }
 
 /**
  * @param {MessageModule} messages
- * @param {IdentityModule} identity
+ * @param {AppIdentityModule} identity
  */
 export function updateDocumentTitle(messages, identity) {
   document.title =

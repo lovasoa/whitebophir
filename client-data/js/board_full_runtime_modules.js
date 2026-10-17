@@ -1,35 +1,26 @@
 import { getToolRuntimeAssetPath } from "../tools/tool-defaults.js";
 import RateLimitCommon from "./rate_limit_common.js";
 
-/** @import { ConfigModule, IdentityModule } from "./board_runtime_core.js" */
-/** @import { LiveBoardMessage, RateLimitKind } from "../../types/app-runtime" */
+/** @import { AppConfigModule, AppIdentityModule, LiveBoardMessage, RateLimitKind } from "../../types/app-runtime" */
 
 const RATE_LIMIT_KINDS = /** @type {RateLimitKind[]} */ (
   RateLimitCommon.RATE_LIMIT_KINDS
 );
 
-/**
- * @param {string} assetPath
- * @returns {string}
- */
-export function normalizeBoardAssetPath(assetPath) {
-  if (
-    assetPath.startsWith("./") ||
-    assetPath.startsWith("../") ||
-    assetPath.startsWith("/") ||
-    assetPath.startsWith("data:") ||
-    assetPath.startsWith("http://") ||
-    assetPath.startsWith("https://")
-  ) {
-    return assetPath;
-  }
-  return `../${assetPath}`;
-}
-
 export class AssetModule {
-  /** @param {(assetPath: string) => string} resolveAssetPath */
-  constructor(resolveAssetPath) {
-    this.resolveAssetPath = resolveAssetPath;
+  /** @param {string} assetPath */
+  resolveAssetPath(assetPath) {
+    if (
+      assetPath.startsWith("./") ||
+      assetPath.startsWith("../") ||
+      assetPath.startsWith("/") ||
+      assetPath.startsWith("data:") ||
+      assetPath.startsWith("http://") ||
+      assetPath.startsWith("https://")
+    ) {
+      return assetPath;
+    }
+    return `../${assetPath}`;
   }
 
   /**
@@ -87,25 +78,23 @@ export class IdModule {
   }
 }
 
-const rateLimitModuleState = new WeakMap();
-
 export class RateLimitModule {
+  #config;
+  #identity;
+
   /**
-   * @param {ConfigModule} config
-   * @param {IdentityModule} identity
+   * @param {AppConfigModule} config
+   * @param {AppIdentityModule} identity
    */
   constructor(config, identity) {
-    rateLimitModuleState.set(this, { config, identity });
+    this.#config = config;
+    this.#identity = identity;
   }
 
   /** @param {RateLimitKind} kind */
   getRateLimitDefinition(kind) {
-    const state =
-      /** @type {{config: ConfigModule, identity: IdentityModule}} */ (
-        rateLimitModuleState.get(this)
-      );
-    const configured = state.config.serverConfig.RATE_LIMITS || {};
-    if (configured && configured[kind]) return configured[kind];
+    const configured = this.#config.serverConfig.RATE_LIMITS?.[kind];
+    if (configured) return configured;
 
     return {
       limit: 0,
@@ -116,13 +105,9 @@ export class RateLimitModule {
 
   /** @param {RateLimitKind} kind */
   getEffectiveRateLimit(kind) {
-    const state =
-      /** @type {{config: ConfigModule, identity: IdentityModule}} */ (
-        rateLimitModuleState.get(this)
-      );
     return RateLimitCommon.getEffectiveRateLimitDefinition(
       this.getRateLimitDefinition(kind),
-      state.identity.boardName,
+      this.#identity.boardName,
     );
   }
 

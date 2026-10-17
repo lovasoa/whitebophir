@@ -25,7 +25,6 @@
  */
 
 import { attachFullRuntimeModules } from "./app_tools.js";
-import { createBoardRuntimeShellFromPage } from "./board_bootstrap.js";
 import { readSocketIOExtraHeaders } from "./board_connection_module.js";
 import { logFrontendEvent as logBoardEvent } from "./frontend_logging.js";
 
@@ -45,11 +44,4 @@ export function hydrateBoardRuntimeFromPage(Tools) {
     Tools.toolRegistry.normalizeServerRenderedElements();
   }
   return Tools;
-}
-
-/**
- * @returns {AppToolsState}
- */
-export function createBoardRuntimeFromPage() {
-  return hydrateBoardRuntimeFromPage(createBoardRuntimeShellFromPage());
 }

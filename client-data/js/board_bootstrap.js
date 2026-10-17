@@ -1,4 +1,4 @@
-import { initializeCoreRuntime } from "./app_tools_core.js";
+import { createCoreRuntime } from "./app_tools_core.js";
 import { attachBoardDomToRuntime } from "./board_dom_bootstrap.js";
 import { parseEmbeddedJson, resolveBoardName } from "./board_page_state.js";
 import {
@@ -15,21 +15,18 @@ export function createBoardRuntimeShellFromPage() {
   const colorPresets = DEFAULT_COLOR_PRESETS;
   const tools = /** @type {AppToolsState} */ (
     /** @type {unknown} */ (
-      initializeCoreRuntime(
-        {},
-        {
-          translations: /** @type {{[key: string]: string}} */ (
-            parseEmbeddedJson("translations", {})
-          ),
-          serverConfig: /** @type {ServerConfig} */ (
-            parseEmbeddedJson("configuration", {})
-          ),
-          boardName: resolveBoardName(window.location.pathname),
-          token: new URL(window.location.href).searchParams.get("token"),
-          colorPresets,
-          initialPreferences: createInitialPreferences(colorPresets),
-        },
-      )
+      createCoreRuntime({
+        translations: /** @type {{[key: string]: string}} */ (
+          parseEmbeddedJson("translations", {})
+        ),
+        serverConfig: /** @type {ServerConfig} */ (
+          parseEmbeddedJson("configuration", {})
+        ),
+        boardName: resolveBoardName(window.location.pathname),
+        token: new URL(window.location.href).searchParams.get("token"),
+        colorPresets,
+        initialPreferences: createInitialPreferences(colorPresets),
+      })
     )
   );
   window.WBOApp = tools;

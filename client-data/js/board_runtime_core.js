@@ -2,7 +2,7 @@ import { saveStoredColorPreference } from "./board_preferences.js";
 import { DEFAULT_BOARD_SCALE } from "./board_viewport.js";
 import { clampCoord, clampOpacity, clampSize } from "./message_limits.js";
 
-/** @import { AppInitialPreferences, ColorPreset, ServerConfig } from "../../types/app-runtime" */
+/** @import { AppConfigModule, AppInitialPreferences, ColorPreset } from "../../types/app-runtime" */
 
 /** @typedef {{status: "attached", board: HTMLElement, svg: SVGSVGElement, drawingArea: SVGGElement}} AttachedBoardDomRuntimeThis */
 /** @typedef {{status: "detached"} | AttachedBoardDomRuntimeThis} BoardDomRuntimeThis */
@@ -84,23 +84,20 @@ export class AttachedBoardDomRuntimeModule extends BoardDomRuntimeActions {
   }
 }
 
-const i18nModuleTranslations = new WeakMap();
 const I18N_PLACEHOLDER_PATTERN = /\{([a-zA-Z0-9_]+)\}/g;
 
 export class I18nModule {
+  #translations;
+
   /** @param {{[key: string]: string}} translations */
   constructor(translations) {
-    i18nModuleTranslations.set(this, translations);
+    this.#translations = translations;
   }
 
   /** @param {string} s */
   t(s) {
     const key = s.toLowerCase().replace(/[ -]/g, "_");
-    return (
-      /** @type {{[key: string]: string}} */ (i18nModuleTranslations.get(this))[
-        key
-      ] || s
-    );
+    return this.#translations[key] || s;
   }
 
   /**
@@ -115,51 +112,27 @@ export class I18nModule {
   }
 }
 
-export class ConfigModule {
-  /** @param {ServerConfig} serverConfig */
-  constructor(serverConfig) {
-    this.serverConfig = serverConfig;
-  }
-}
-
-export class IdentityModule {
-  /**
-   * @param {string} boardName
-   * @param {string | null} token
-   */
-  constructor(boardName, token) {
-    this.boardName = boardName;
-    this.token = token;
-  }
-}
-
-const coordinateModuleState = new WeakMap();
-
 export class CoordinateModule {
+  #config;
+  #viewportState;
+
   /**
-   * @param {ConfigModule} config
+   * @param {AppConfigModule} config
    * @param {ViewportStateModule} viewportState
    */
   constructor(config, viewportState) {
-    coordinateModuleState.set(this, { config, viewportState });
+    this.#config = config;
+    this.#viewportState = viewportState;
   }
 
   /** @param {unknown} value */
   toBoardCoordinate(value) {
-    const state =
-      /** @type {{config: ConfigModule, viewportState: ViewportStateModule}} */ (
-        coordinateModuleState.get(this)
-      );
-    return clampCoord(value, state.config.serverConfig.MAX_BOARD_SIZE);
+    return clampCoord(value, this.#config.serverConfig.MAX_BOARD_SIZE);
   }
 
   /** @param {unknown} value */
   pageCoordinateToBoard(value) {
-    const state =
-      /** @type {{config: ConfigModule, viewportState: ViewportStateModule}} */ (
-        coordinateModuleState.get(this)
-      );
-    return state.viewportState.controller.pageCoordinateToBoard(value);
+    return this.#viewportState.controller.pageCoordinateToBoard(value);
   }
 }
 

@@ -739,12 +739,13 @@ export type BoardDomActions =
 export type BoardDomModule = DetachedBoardDomModule | AttachedBoardDomModule;
 
 /** Stable board identity parsed from the current board URL. */
-export type AppIdentityModule =
-  import("../client-data/js/board_runtime_core.js").IdentityModule;
+export type AppIdentityModule = {
+  boardName: string;
+  token: string | null;
+};
 
 /** Boot-time server configuration exposed through a single runtime module. */
-export type AppConfigModule =
-  import("../client-data/js/board_runtime_core.js").ConfigModule;
+export type AppConfigModule = { serverConfig: ServerConfig };
 
 /** Page chrome wiring and boot-time shell controls. */
 export type AppShellModule =
@@ -826,8 +827,10 @@ export type AppRateLimitModule =
   import("../client-data/js/board_full_runtime_modules.js").RateLimitModule;
 
 /** Board-space coordinate conversion. */
-export type AppCoordinateModule =
-  import("../client-data/js/board_runtime_core.js").CoordinateModule;
+export type AppCoordinateModule = Pick<
+  import("../client-data/js/board_runtime_core.js").CoordinateModule,
+  "toBoardCoordinate" | "pageCoordinateToBoard"
+>;
 
 /** Restricted runtime modules passed to tool boot. */
 export type ToolRuntimeModules = ReturnType<

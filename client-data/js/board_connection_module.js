@@ -1,7 +1,11 @@
 import * as BoardMessageReplay from "./board_message_replay.js";
 import { normalizeBoardState } from "./board_page_state.js";
 import { getAuthoritativeBaselineUrl } from "./board_replay_module.js";
-import { connection as BoardConnection } from "./board_transport.js";
+import {
+  buildSocketParams,
+  closeSocket,
+  normalizeSocketIOExtraHeaders,
+} from "./board_transport.js";
 import * as BoardTurnstile from "./board_turnstile.js";
 import { getModerationRule } from "./moderation_rules.js";
 import { ModerationDisconnectSources, SocketEvents } from "./socket_events.js";
@@ -137,14 +141,14 @@ export function normalizeAccessRefreshDelayMs(value) {
  * @returns {SocketHeaders | null}
  */
 export function readSocketIOExtraHeaders(logBoardEvent) {
-  let socketIOExtraHeaders = BoardConnection.normalizeSocketIOExtraHeaders(
+  let socketIOExtraHeaders = normalizeSocketIOExtraHeaders(
     window.socketio_extra_headers,
   );
   if (!socketIOExtraHeaders) {
     try {
       const storedHeaders = sessionStorage.getItem("socketio_extra_headers");
       if (storedHeaders) {
-        socketIOExtraHeaders = BoardConnection.normalizeSocketIOExtraHeaders(
+        socketIOExtraHeaders = normalizeSocketIOExtraHeaders(
           JSON.parse(storedHeaders),
         );
       }
@@ -230,7 +234,7 @@ export class ConnectionModule {
         preserveBufferedWrites: Tools.writes.isWritePaused(),
       });
     const generation = ++this.generation;
-    BoardConnection.closeSocket(this.socket);
+    closeSocket(this.socket);
     this.socket = null;
     this.state = "connecting";
     Tools.replay.awaitingSnapshot = true;
@@ -267,7 +271,7 @@ export class ConnectionModule {
         }
       }
 
-      const socketParams = BoardConnection.buildSocketParams(
+      const socketParams = buildSocketParams(
         window.location.pathname,
         this.socketIOExtraHeaders,
         Tools.identity.token,
@@ -354,7 +358,7 @@ export class ConnectionModule {
           Tools.replay.beginAuthoritativeResync();
           if (socket === Tools.connection.socket) {
             Tools.connection.socket = null;
-            BoardConnection.closeSocket(socket);
+            closeSocket(socket);
           }
         }
         this.scheduleSocketReconnect();

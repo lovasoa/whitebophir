@@ -5,7 +5,7 @@
  * @param {unknown} value
  * @returns {SocketHeaders | null}
  */
-function normalizeSocketIOExtraHeaders(value) {
+export function normalizeSocketIOExtraHeaders(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
   }
@@ -25,7 +25,7 @@ function normalizeSocketIOExtraHeaders(value) {
  * @param {SocketQueryParams | null} [extraQueryParams]
  * @returns {SocketParams}
  */
-function buildSocketParams(
+export function buildSocketParams(
   pathname,
   extraHeaders,
   token,
@@ -58,7 +58,7 @@ function buildSocketParams(
  * @param {unknown} socket
  * @returns {void}
  */
-function closeSocket(socket) {
+export function closeSocket(socket) {
   if (!socket || typeof socket !== "object") return;
   if ("disconnect" in socket && typeof socket.disconnect === "function") {
     socket.disconnect();
@@ -75,18 +75,8 @@ function closeSocket(socket) {
  * @param {BoardMessage} message
  * @returns {void}
  */
-function queuePendingMessage(pendingMessages, toolName, message) {
+export function queuePendingMessage(pendingMessages, toolName, message) {
   const toolMessages = pendingMessages[toolName];
   if (toolMessages) toolMessages.push(message);
   else pendingMessages[toolName] = [message];
 }
-
-export const connection = {
-  normalizeSocketIOExtraHeaders: normalizeSocketIOExtraHeaders,
-  buildSocketParams: buildSocketParams,
-  closeSocket: closeSocket,
-};
-
-export const messages = {
-  queuePendingMessage: queuePendingMessage,
-};
