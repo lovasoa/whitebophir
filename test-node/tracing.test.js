@@ -289,6 +289,9 @@ test("preview requests continue traceparent and create a child render span", asy
         const response = await request(app, "/preview/missing-board", {
           traceparent:
             "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
+          "x-forwarded-proto": "https",
+          "x-forwarded-host": "spoofed.example:443",
+          forwarded: "for=203.0.113.1;proto=https;host=spoofed.example:443",
         });
         await observability.tracing.flush();
         assertSpans(exporter, ["GET /preview/{board}", "preview.render"]);
