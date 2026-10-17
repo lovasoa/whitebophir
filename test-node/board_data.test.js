@@ -1124,7 +1124,7 @@ test("BoardData.load rejects unreadable boards instead of publishing empty state
     );
     await fs.writeFile(file, primary);
     await assert.rejects(BoardData.load("broken", config), /drawingArea/);
-    await assert.rejects(BoardData.load("broken", config), /quarantined/);
+    await assert.rejects(BoardData.load("broken", config), /drawingArea/);
     await fs.writeFile(`${file}.bak`, primary);
     await assert.rejects(BoardData.load("broken", config), /drawingArea/);
     assert.equal(
@@ -1593,7 +1593,7 @@ test("BoardData.save tolerates a missing file while only unreconstructible items
       );
 
       await board.save();
-      await assert.rejects(fs.stat(svgPath), { code: "ENOENT" });
+      assert.doesNotMatch(await fs.readFile(svgPath, "utf8"), /id="pencil-1"/);
 
       await applyPersistentMutations(
         board,

@@ -142,29 +142,6 @@ async function fileExists(file) {
 /**
  * @param {string} boardName
  * @param {string | undefined} historyDir
- * @returns {Promise<boolean>}
- */
-async function hasQuarantinedSvg(boardName, historyDir) {
-  const file = boardSvgPath(boardName, historyDir);
-  const directory = file.slice(0, file.lastIndexOf("/"));
-  const prefix = `${file.slice(file.lastIndexOf("/") + 1)}.`;
-  const entries = await fs.promises.readdir(directory);
-  return entries.some(
-    (entry) => entry.startsWith(prefix) && entry.endsWith(".quarantine"),
-  );
-}
-
-/**
- * @param {string} file
- * @returns {Promise<void>}
- */
-async function quarantineUnreadableSvg(file) {
-  await rename(file, createQuarantineSvgPath(file));
-}
-
-/**
- * @param {string} boardName
- * @param {string | undefined} historyDir
  * @param {(readableSvg: {file: string, byteLength: number, source: "svg" | "svg_backup"}) => Promise<any>} readReadableSvg
  * @returns {Promise<any>}
  */
@@ -173,9 +150,10 @@ async function readStoredSvgWithFallback(
   historyDir,
   readReadableSvg,
 ) {
+  const file = boardSvgPath(boardName, historyDir);
   /** @type {Array<{file: string, source: "svg" | "svg_backup"}>} */
   const candidates = [
-    { file: boardSvgPath(boardName, historyDir), source: "svg" },
+    { file, source: "svg" },
     { file: boardSvgBackupPath(boardName, historyDir), source: "svg_backup" },
   ];
   let readError;
@@ -189,38 +167,37 @@ async function readStoredSvgWithFallback(
         byteLength: fileStat.size,
       });
       if (candidate.source === "svg_backup") {
-        await rename(candidate.file, boardSvgPath(boardName, historyDir));
+        if (readError) {
+          try {
+            await rename(file, createQuarantineSvgPath(file));
+          } catch (quarantineError) {
+            const quarantineErrorCode = errorCode(quarantineError);
+            if (
+              quarantineErrorCode !== "ENOENT" &&
+              quarantineErrorCode !== "ENAMETOOLONG"
+            ) {
+              throw quarantineError;
+            }
+            logSvgStoreInfo("svg.quarantine_skipped", {
+              board: boardName,
+              "error.code": quarantineErrorCode,
+              "file.path": file,
+            });
+          }
+        }
+        await rename(candidate.file, file);
       }
       return result;
     } catch (error) {
       if (!exists && errorCode(error) === "ENOENT") continue;
       if (candidate.source === "svg") {
         readError = error;
-        try {
-          await quarantineUnreadableSvg(candidate.file);
-        } catch (quarantineError) {
-          const quarantineErrorCode = errorCode(quarantineError);
-          if (
-            quarantineErrorCode !== "ENOENT" &&
-            quarantineErrorCode !== "ENAMETOOLONG"
-          ) {
-            throw quarantineError;
-          }
-          logSvgStoreInfo("svg.quarantine_skipped", {
-            board: boardName,
-            "error.code": quarantineErrorCode,
-            "file.path": candidate.file,
-          });
-        }
         continue;
       }
       throw error;
     }
   }
   if (readError) throw readError;
-  if (await hasQuarantinedSvg(boardName, historyDir)) {
-    throw new Error(`Stored SVG for board ${boardName} is quarantined`);
-  }
   return null;
 }
 
@@ -510,7 +487,6 @@ async function boardExists(boardName, config) {
   return (
     (await fileExists(boardSvgPath(boardName, historyDir))) ||
     (await fileExists(boardSvgBackupPath(boardName, historyDir))) ||
-    (await hasQuarantinedSvg(boardName, historyDir)) ||
     (await fileExists(boardJsonPath(boardName, historyDir)))
   );
 }
@@ -534,25 +510,6 @@ async function writeBoardState(boardName, board, metadata, seq, options) {
     "wbo.svg.item_count": Object.keys(board).length,
     "wbo.svg.seq": seq,
   });
-  if (
-    Object.keys(board).length === 0 &&
-    !(await hasQuarantinedSvg(boardName, historyDir))
-  ) {
-    for (const emptyPath of [
-      file,
-      backupFile,
-      boardJsonPath(boardName, historyDir),
-    ]) {
-      try {
-        await fs.promises.unlink(emptyPath);
-      } catch (error) {
-        if (errorCode(error) !== "ENOENT") {
-          throw error;
-        }
-      }
-    }
-    return;
-  }
   /** @type {string} */
   let svg;
   try {

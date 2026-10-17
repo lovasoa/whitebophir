@@ -154,8 +154,8 @@ Back up `WBO_HISTORY_DIR`. Accepted edits are saved asynchronously, so a crash
 can lose changes since the last completed save. Run one server process per
 history directory; independent writers are not supported.
 
-Unreadable SVG files are quarantined before recovery is attempted. The
-`.svg.bak` file is temporary save staging, not a durable backup. See the
+Failed loads leave unreadable SVGs in place; a validated `.svg.bak` replaces
+them after quarantine. This staging file is not a durable backup. See the
 [architecture guide](./ARCHITECTURE.md) for persistence and replay boundaries.
 
 ## SVG preview

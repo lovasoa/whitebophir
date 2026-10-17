@@ -1225,7 +1225,7 @@ for (const operation of ["sequence", "open", "write"]) {
   });
 }
 
-test("writeBoardState removes stale svg and legacy json when board becomes empty", async () => {
+test("writeBoardState preserves an empty svg over legacy json", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-empty-delete-"),
   );
@@ -1261,7 +1261,8 @@ test("writeBoardState removes stale svg and legacy json when board becomes empty
       historyDir,
     );
 
-    await assert.rejects(fs.stat(svgPath("empty-board", historyDir)));
-    await assert.rejects(fs.stat(jsonPath("empty-board", historyDir)));
+    const state = await readCanonicalBoardState("empty-board", historyDir);
+    assert.equal(state.source, "svg");
+    assert.equal(state.itemsById.size, 0);
   });
 });
