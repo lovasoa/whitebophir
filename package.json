@@ -31,6 +31,7 @@
     "prepare": "node scripts/install-git-hooks.mjs",
     "start": "node ./server/server.mjs",
     "bench": "node --expose-gc ./scripts/benchmark-server.mjs",
+    "bench:drawing": "node ./scripts/benchmark-drawing.mjs",
     "bench:e2e": "npm run bench -- e2e",
     "bench:load": "npm run bench -- load",
     "bench:persist": "npm run bench -- persist",

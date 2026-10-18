@@ -9,6 +9,10 @@ import {
 
 export {
   cancelShapeToolTouchGesture as cancelTouchGesture,
+  quitShapeTool as onquit,
+  disconnectShapeTool as onSocketDisconnect,
+  rejectShapeMutation as onMutationRejected,
+  shapeToolMessage as onMessage,
   drawShapeTool as draw,
   moveShapeTool as move,
   pressShapeTool as press,
@@ -45,20 +49,30 @@ const config = {
     state.lastPos = { x, y };
     return makeSeedShapeCreateMessage(state, id, x, y);
   },
-  makeUpdateMessage: (state, x, y, evt) => {
+  constrainEndPosition: (state, x, y, evt) => {
     const start = state.currentShape;
-    if (!start) return null;
+    if (!start) return;
     const secondary = state.secondary;
     if (evt && secondary) {
       secondary.active = secondary.active || evt.shiftKey;
     }
-    state.lastPos = { x, y };
-    if (secondary?.active) {
-      const constrained = constrainEqualSpanToBoard(state, start, x, y);
-      x = constrained.x;
-      y = constrained.y;
+    if (evt) {
+      state.lastPos.x = x;
+      state.lastPos.y = y;
     }
-    return makeBoxShapeUpdateMessage(contract.toolCode, start.id, start, x, y);
+    if (secondary?.active) {
+      constrainEqualSpanToBoard(state, start, x, y);
+      x = state.endX;
+      y = state.endY;
+    }
+    state.endX = x;
+    state.endY = y;
+  },
+  makeUpdateMessage: (state, x, y) => {
+    const start = state.currentShape;
+    return start
+      ? makeBoxShapeUpdateMessage(contract.toolCode, start.id, start, x, y)
+      : null;
   },
   makeFallbackShape: (data) => ({
     id: data.id,

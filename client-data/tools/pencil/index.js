@@ -24,6 +24,7 @@
  * @licend
  */
 
+import { beginDrawingPerformance } from "../../js/drawing_performance.js";
 import { logFrontendEvent } from "../../js/frontend_logging.js";
 import { LIMITS } from "../../js/message_common.js";
 import { MutationType } from "../../js/mutation_type.js";
@@ -101,6 +102,8 @@ class PencilLiveOverlay {
     this.lineData = /** @type {PencilLineData | null} */ (null);
     this.animationFrame = 0;
     this.active = false;
+    this.measurement =
+      /** @type {ReturnType<typeof beginDrawingPerformance>} */ (null);
     this.refreshGeometry = () => this.syncGeometry();
   }
 
@@ -183,7 +186,10 @@ class PencilLiveOverlay {
     if (!this.overlay || !this.path || !this.lineData) return;
     syncOverlayTransform(this.overlay, this.viewport);
     copyOverlayStrokeAttributes(this.path, this.lineData);
-    if (this.pathData) this.path.setPathData(this.pathData);
+    if (this.pathData) {
+      this.path.setPathData(this.pathData);
+      this.measurement?.geometry(true);
+    }
   }
 
   /** Clears the active stroke while keeping Pencil's input surface installed. */
@@ -273,6 +279,10 @@ function createInitialState(ctx) {
       : Number.POSITIVE_INFINITY;
   return {
     board: runtime.board,
+    coordinates: runtime.coordinates,
+    measurement: /** @type {ReturnType<typeof beginDrawingPerformance>} */ (
+      null
+    ),
     viewport: runtime.viewport,
     preferences: runtime.preferences,
     writes: runtime.writes,
@@ -481,7 +491,18 @@ function acquireInteractionLease(state) {
 }
 
 /** @param {PencilState} state */
-function clearActiveStrokeState(state, keepPathData = false) {
+function clearActiveStrokeState(
+  state,
+  keepPathData = false,
+  reason = "cancel",
+) {
+  state.measurement?.finish(
+    reason,
+    reason !== "release" &&
+      reason !== "point-limit" &&
+      reason !== "tool-change",
+  );
+  state.measurement = state.liveOverlay.measurement = null;
   const lineId = state.curLineId;
   state.liveOverlay.clear();
   releaseInteractionLease(state);
@@ -508,6 +529,7 @@ function commitActiveStroke(state) {
   if (!pathData || pathData.length === 0) return;
   const line = createLine(state, state.activeLineData);
   line.setPathData(pathData);
+  state.measurement?.geometry();
   state.pathDataCache[lineId] = pathData;
 }
 
@@ -516,9 +538,9 @@ function commitActiveStroke(state) {
  * overlay/lease state.
  * @param {PencilState} state
  */
-function finishActiveStroke(state) {
+function finishActiveStroke(state, reason = "release") {
   commitActiveStroke(state);
-  clearActiveStrokeState(state, true);
+  clearActiveStrokeState(state, true, reason);
 }
 
 /**
@@ -718,7 +740,7 @@ function handleAutoWhiteOut(state, evt) {
 export function boot(ctx) {
   const state = createInitialState(ctx);
   state.secondary.switch = () => {
-    finishActiveStroke(state);
+    finishActiveStroke(state, "tool-change");
     toggleSize(state);
   };
   return state;
@@ -764,7 +786,9 @@ export function draw(state, data, isLocal = false) {
   if (isLocal && data.parent === state.curLineId && state.activeLineData) {
     const pathData = state.pathDataCache[data.parent] || [];
     state.pathDataCache[data.parent] = pathData;
+    const previousLength = pathData.length;
     wboPencilPoint(pathData, data.x, data.y);
+    if (pathData.length !== previousLength) state.measurement?.accept();
     state.liveOverlay.draw(state.activeLineData, pathData);
   } else {
     const line = getBoardLineForAppend(state, data.parent);
@@ -790,6 +814,22 @@ export function press(state, x, y, evt) {
   ) {
     handleAutoWhiteOut(state, evt);
   }
+  state.measurement?.finish("replaced", true);
+  state.measurement = beginDrawingPerformance(
+    toolId,
+    evt,
+    x,
+    y,
+    (pageX, pageY, time) => {
+      state.measurement?.input(
+        state.coordinates.pageCoordinateToBoard(pageX),
+        state.coordinates.pageCoordinateToBoard(pageY),
+        time,
+      );
+    },
+    state.minPencilIntervalMs,
+  );
+  state.liveOverlay.measurement = state.measurement;
   const effect = createPencilPressEffect(state);
   state.curLineId = effect.lineId;
   state.activeLineData = null;
@@ -811,16 +851,18 @@ export function press(state, x, y, evt) {
  * @param {MouseEvent | TouchEvent | undefined} evt
  */
 export function move(state, x, y, evt) {
-  const effect = createPencilMoveEffect(state, x, y, performance.now());
+  const now = performance.now();
+  state.measurement?.input(x, y, evt?.timeStamp ?? now);
+  const effect = createPencilMoveEffect(state, x, y, now);
   if (effect.stopBefore) {
-    finishActiveStroke(state);
+    finishActiveStroke(state, "point-limit");
   }
   if (effect.appendMessage) {
     state.writes.drawAndSend(effect.appendMessage);
     state.currentLineChildCount = effect.nextChildCount;
     state.hasSentPoint = effect.nextHasSentPoint;
     state.lastTime = effect.nextLastTime;
-    if (effect.stopAfter) finishActiveStroke(state);
+    if (effect.stopAfter) finishActiveStroke(state, "point-limit");
   }
   if (evt) evt.preventDefault();
 }
@@ -906,7 +948,11 @@ export function onMessage(state, message) {
     message.type === MutationType.CLEAR ||
     messageDeletesActiveStroke(message, state.curLineId)
   ) {
-    clearActiveStrokeState(state);
+    clearActiveStrokeState(
+      state,
+      false,
+      message.type === MutationType.CLEAR ? "clear" : "delete",
+    );
   }
 }
 
@@ -916,7 +962,7 @@ export function onMessage(state, message) {
  * @param {PencilState} state
  */
 export function onSocketDisconnect(state) {
-  clearActiveStrokeState(state);
+  clearActiveStrokeState(state, false, "disconnect");
 }
 
 /**
@@ -932,7 +978,7 @@ export function onMutationRejected(state, message) {
   const isAppend =
     message.type === MutationType.APPEND || typeof message.parent === "string";
   if (lineId === state.curLineId) {
-    clearActiveStrokeState(state);
+    clearActiveStrokeState(state, false, "rejected");
   } else {
     removeLocalLine(state, lineId);
   }
@@ -951,7 +997,7 @@ export function onstart(state) {
 
 /** @param {PencilState} state */
 export function onquit(state) {
-  finishActiveStroke(state);
+  finishActiveStroke(state, "tool-change");
   state.liveOverlay.deactivate();
   if (state.secondary.active) restoreDrawingSize(state);
 }

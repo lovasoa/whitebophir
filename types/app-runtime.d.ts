@@ -917,3 +917,20 @@ export type SocketParams = {
   extraHeaders?: SocketHeaders;
   query?: string;
 };
+
+/** One opt-in local stroke measurement; all durations are milliseconds. */
+export interface DrawingPerformanceSummary {
+  measurementVersion: number;
+  toolId: string;
+  inputType: string;
+  inputTiming: string;
+  maxFeedbackWaitMs: number;
+  meanFeedbackWaitMs?: number;
+  feedbackCount: number;
+  unfinishedWaitMs: number;
+  movingDurationMs: number;
+  strokeDurationMs: number;
+  renderFallbackCount: number;
+  terminationReason: string;
+  pointIntervalMs?: number;
+}
