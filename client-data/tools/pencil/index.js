@@ -172,6 +172,10 @@ class PencilLiveOverlay {
    */
   draw(lineData, pathData = null) {
     if (!this.active) this.activate();
+    // Style belongs to the stroke, not each point. Rewriting identical SVG
+    // attributes also wakes any deployment's DOM observers on every flush.
+    if (this.lineData !== lineData && this.path)
+      copyOverlayStrokeAttributes(this.path, lineData);
     this.lineData = lineData;
     this.pathData = pathData;
     if (this.animationFrame !== 0) return;
@@ -185,7 +189,6 @@ class PencilLiveOverlay {
   flush() {
     if (!this.overlay || !this.path || !this.lineData) return;
     syncOverlayTransform(this.overlay, this.viewport);
-    copyOverlayStrokeAttributes(this.path, this.lineData);
     if (this.pathData) {
       this.path.setPathData(this.pathData);
       this.measurement?.geometry(true);

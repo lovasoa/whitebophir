@@ -1003,6 +1003,32 @@ test("viewport owns svg extent growth and layout sync", async () => {
       viewport.ensureBoardExtentForBounds({ maxX: 10, maxY: 10 }),
       false,
     );
+
+    // Successive drawing points consume existing blank space without resizing
+    // the page. Explicit navigation still requests its full margin.
+    tools.config.serverConfig.MAX_BOARD_SIZE = 100000;
+    tools.svg.width.baseVal.value = 20000;
+    tools.svg.height.baseVal.value = 20000;
+    assert.equal(
+      viewport.ensureBoardExtentForBounds({ maxX: 500, maxY: 1000 }),
+      false,
+    );
+    assert.equal(
+      viewport.ensureBoardExtentForBounds({ maxX: 15000, maxY: 1000 }),
+      true,
+    );
+    assert.equal(tools.svg.width.baseVal.value, 35000);
+    assert.equal(tools.svg.height.baseVal.value, 20000);
+    assert.equal(
+      viewport.ensureBoardExtentForBounds({ maxX: 15100, maxY: 1000 }),
+      false,
+    );
+    assert.equal(viewport.ensureBoardExtentForPoint(15100, 1000), true);
+    assert.equal(tools.svg.width.baseVal.value, 35100);
+    assert.equal(
+      viewport.ensureBoardExtentForBounds({ maxX: NaN, maxY: 90000 }),
+      false,
+    );
   } finally {
     browser.restore();
   }
