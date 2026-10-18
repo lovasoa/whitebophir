@@ -3,12 +3,21 @@
 import { fork } from "node:child_process";
 import { once } from "node:events";
 import { mkdtemp, rm } from "node:fs/promises";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { chromium } from "@playwright/test";
 import { writeBoardState } from "../server/persistence/svg_board_store.mjs";
 
+// --collaborative reproduces local ink competing with seven remote drawers.
+const collaborative = process.argv.includes("--collaborative");
+const strokeDurationMs = collaborative ? 5000 : 1500;
+const peerIo = collaborative
+  ? createRequire(import.meta.url)(
+      "../node_modules/socket.io/client-dist/socket.io.js",
+    )
+  : null;
 const historyDir = await mkdtemp(path.join(os.tmpdir(), "wbo-drawing-bench-"));
 const env = /** @type {NodeJS.ProcessEnv} */ ({
   ...process.env,
@@ -35,6 +44,7 @@ try {
     { items: 6000, scale: 1 },
     { items: 32768, scale: 0.08 },
   ]) {
+    if (collaborative && items !== 32768) continue;
     const board = /** @type {Record<string, any>} */ ({});
     for (let i = 0; i < items; i++) {
       const x = (i * 13) % 8000,
@@ -69,19 +79,30 @@ try {
     }
     const name = `drawing-bench-${items}`;
     await writeBoardState(name, board, { readonly: false }, 0, { historyDir });
-    for (const cpuRate of [1, 6]) {
+    for (const cpuRate of collaborative ? [6] : [1, 6]) {
       for (
         let repeat = 0;
         repeat < Number(process.env.WBO_BENCH_REPEATS ?? 3);
         repeat++
       ) {
         // Alternate order to reduce warmup/thermal bias.
-        for (const enabled of repeat % 2 ? [true, false] : [false, true]) {
+        for (const enabled of collaborative
+          ? [true]
+          : repeat % 2
+            ? [true, false]
+            : [false, true]) {
           const page = await browser.newPage({
             viewport: { width: 1100, height: 760 },
           });
           const cdp = await page.context().newCDPSession(page);
+          const peers = /** @type {any[]} */ ([]);
+          const rejected = /** @type {unknown[]} */ ([]);
+          let peerTimer;
+          let peerPoint = 0;
           try {
+            // Throttle before boot, avoiding an artificial cold first frame
+            // caused by changing CPU speed after the board has already painted.
+            await cdp.send("Emulation.setCPUThrottlingRate", { rate: cpuRate });
             // Keep the production point interval while allowing repeated benchmark writes.
             await page.route("**/tools/pencil/index.js", async (route) => {
               const response = await route.fetch();
@@ -92,7 +113,7 @@ try {
               await route.fulfill({ response, body });
             });
             await page.goto(
-              `http://127.0.0.1:${started.port}/boards/${name}#0,0,${scale}`,
+              `http://127.0.0.1:${started.port}/boards/${name}#0,0,${collaborative ? 0.18 : scale}`,
             );
             await page.waitForFunction(
               () => document.documentElement.dataset.boardPhase === "ready",
@@ -154,7 +175,44 @@ try {
               }
               requestAnimationFrame(frame);
             }, enabled);
-            await cdp.send("Emulation.setCPUThrottlingRate", { rate: cpuRate });
+            if (collaborative) {
+              for (let i = 0; i < 7; i++) {
+                const peer = peerIo(`http://127.0.0.1:${started.port}`, {
+                  query: { board: name },
+                  transports: ["websocket"],
+                  forceNew: true,
+                });
+                peers.push(peer);
+                peer.on(
+                  "mutation_rejected",
+                  /** @param {unknown} reason */ (reason) =>
+                    rejected.push(reason),
+                );
+                await once(peer, "connect", {
+                  signal: AbortSignal.timeout(10000),
+                });
+                peer.emit("broadcast", {
+                  tool: 1,
+                  type: 1,
+                  id: `peer-${repeat}-${i}`,
+                  color: "#123456",
+                  size: 10,
+                });
+              }
+              peerTimer = setInterval(() => {
+                for (const [i, peer] of peers.entries())
+                  peer.emit("broadcast", {
+                    tool: 1,
+                    type: 4,
+                    parent: `peer-${repeat}-${i}`,
+                    x: 1500 + peerPoint * 7,
+                    y: Math.round(
+                      2000 + i * 100 + 30 * Math.sin(peerPoint / 5),
+                    ),
+                  });
+                peerPoint++;
+              }, 33);
+            }
             await cdp.send("Performance.enable");
             const before = await cdp.send("Performance.getMetrics");
             await page.mouse.move(100, 240);
@@ -164,12 +222,12 @@ try {
             await new Promise((resolve) => {
               const timer = setInterval(() => {
                 const elapsed = performance.now() - start;
-                if (elapsed >= 1500) {
+                if (elapsed >= strokeDurationMs) {
                   clearInterval(timer);
                   resolve(undefined);
                   return;
                 }
-                const progress = elapsed / 1500;
+                const progress = elapsed / strokeDurationMs;
                 pending.push(
                   cdp.send("Input.dispatchMouseEvent", {
                     type: "mouseMoved",
@@ -184,6 +242,28 @@ try {
             });
             await Promise.all(pending);
             await page.mouse.up();
+            clearInterval(peerTimer);
+            if (collaborative) {
+              if (rejected.length) throw new Error(JSON.stringify(rejected));
+              await page.waitForFunction(
+                ({ repeat, peerPoint }) => {
+                  for (let i = 0; i < 7; i++) {
+                    const line = /** @type {SVGPathElement | null} */ (
+                      document.getElementById(`peer-${repeat}-${i}`)
+                    );
+                    const data = line?.getPathData();
+                    const values = data?.[data.length - 1]?.values;
+                    if (
+                      !values ||
+                      values[values.length - 2] !== 1500 + (peerPoint - 1) * 7
+                    )
+                      return false;
+                  }
+                  return true;
+                },
+                { repeat, peerPoint },
+              );
+            }
             await page.waitForFunction((active) => {
               const w = /** @type {any} */ (window);
               return (
@@ -229,6 +309,7 @@ try {
                 cpuRate,
                 repeat,
                 enabled,
+                remoteDrawers: peers.length,
                 retainedCollector,
                 ...result,
                 scriptMs: (metrics.ScriptDuration ?? 0) * 1000,
@@ -236,6 +317,8 @@ try {
               }),
             );
           } finally {
+            clearInterval(peerTimer);
+            for (const peer of peers) peer.disconnect();
             await page.close();
           }
         }
