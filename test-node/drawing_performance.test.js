@@ -39,7 +39,7 @@ function harness(run) {
       /** @param {string} name @param {Function} fn */
       removeEventListener: (name, fn) => handlers.get(name)?.delete(fn),
     },
-    performance: { now: () => now },
+    performance: { now: () => now, timeOrigin: 1700000000000 },
     /** @param {() => void} fn */
     requestAnimationFrame: (fn) => {
       frames.set(++nextFrame, fn);
@@ -130,6 +130,8 @@ test("geometry retains newer throttled movement, including a stale final commit"
     assert.equal(e.summaries[0]?.meanFeedbackWaitMs, 20);
     assert.equal(e.summaries[0]?.unfinishedWaitMs, 20);
     assert.equal(e.summaries[0]?.maxFeedbackWaitMs, 20);
+    assert.equal(e.summaries[0]?.maxFeedbackWaitStartTimeMs, 1700000000010);
+    assert.equal(e.summaries[0]?.inputSampleCount, 3);
     assert.equal(e.frames.size, 0);
   }));
 
@@ -150,6 +152,8 @@ test("coalesced histories preserve queued movement and idle/resume boundaries", 
     s.finish("cancel", true);
     assert.equal(e.summaries[0]?.inputTiming, "coalesced");
     assert.equal(e.summaries[0]?.unfinishedWaitMs, 90);
+    assert.equal(e.summaries[0]?.maxFeedbackWaitStartTimeMs, 1700000000010);
+    assert.equal(e.summaries[0]?.inputSampleCount, samples.length);
     assert.equal(e.summaries[0]?.movingDurationMs, 110);
     assert.equal(e.summaries[0]?.feedbackCount, 0);
     assert.equal("meanFeedbackWaitMs" in (e.summaries[0] ?? {}), false);

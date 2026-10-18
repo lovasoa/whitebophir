@@ -30,24 +30,42 @@ try {
     signal: AbortSignal.timeout(30000),
   });
   browser = await chromium.launch();
-  for (const items of [0, 6000]) {
+  for (const { items, scale } of [
+    { items: 0, scale: 1 },
+    { items: 6000, scale: 1 },
+    { items: 32768, scale: 0.08 },
+  ]) {
     const board = /** @type {Record<string, any>} */ ({});
     for (let i = 0; i < items; i++) {
       const x = (i * 13) % 8000,
         y = Math.floor((i * 17) / 3) % 8000,
         id = `seed-${i}`;
-      board[id] = {
-        id,
-        tool: "rectangle",
-        type: "rect",
-        color: "#456789",
-        size: 2,
-        x,
-        y,
-        x2: x + 40,
-        y2: y + 28,
-        time: i,
-      };
+      board[id] =
+        items === 32768 && i % 6 === 0
+          ? {
+              id,
+              tool: "pencil",
+              type: "path",
+              color: "#123456",
+              size: 3,
+              _children: Array.from({ length: 120 }, (_, p) => ({
+                x: x + p,
+                y: y + ((p * 3) % 120),
+              })),
+              time: i,
+            }
+          : {
+              id,
+              tool: "rectangle",
+              type: "rect",
+              color: "#456789",
+              size: 2,
+              x,
+              y,
+              x2: x + 40,
+              y2: y + 28,
+              time: i,
+            };
     }
     const name = `drawing-bench-${items}`;
     await writeBoardState(name, board, { readonly: false }, 0, { historyDir });
@@ -74,7 +92,7 @@ try {
               await route.fulfill({ response, body });
             });
             await page.goto(
-              `http://127.0.0.1:${started.port}/boards/${name}#0,0,1`,
+              `http://127.0.0.1:${started.port}/boards/${name}#0,0,${scale}`,
             );
             await page.waitForFunction(
               () => document.documentElement.dataset.boardPhase === "ready",
@@ -207,6 +225,7 @@ try {
             console.log(
               JSON.stringify({
                 items,
+                scale,
                 cpuRate,
                 repeat,
                 enabled,

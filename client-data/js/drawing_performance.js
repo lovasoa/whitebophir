@@ -105,9 +105,11 @@ class DrawingPerformance {
     this.queued = NaN;
     this.waiting = NaN;
     this.max = 0;
+    this.maxSince = this.start;
     this.sum = 0;
     this.count = 0;
     this.unfinished = 0;
+    this.unfinishedSince = this.start;
     this.moving = 0;
     this.fallbacks = 0;
     this.frame = 0;
@@ -221,7 +223,10 @@ class DrawingPerformance {
     cancelAnimationFrame(this.frame);
     this.frame = 0;
     const wait = Math.max(0, performance.now() - this.waiting);
-    this.max = Math.max(this.max, wait);
+    if (wait > this.max) {
+      this.max = wait;
+      this.maxSince = this.waiting;
+    }
     this.sum += wait;
     this.count++;
     if (fallback) this.fallbacks++;
@@ -231,12 +236,13 @@ class DrawingPerformance {
     else if (this.reason) this.publish();
   }
 
-  recordUnfinished() {
-    if (!Number.isNaN(this.pending))
-      this.unfinished = Math.max(
-        this.unfinished,
-        this.lastInput - this.pending,
-      );
+  /** @param {number} [since] */
+  recordUnfinished(since = this.pending) {
+    const wait = this.lastInput - since;
+    if (wait > this.unfinished) {
+      this.unfinished = wait;
+      this.unfinishedSince = since;
+    }
   }
 
   /** Release waits for its final geometry's rendering opportunity. Interruptions
@@ -251,10 +257,8 @@ class DrawingPerformance {
     document.removeEventListener("pointercancel", this.pointerCancel, true);
     this.recordUnfinished();
     if (interrupt) {
-      for (const since of [this.queued, this.waiting]) {
-        if (!Number.isNaN(since))
-          this.unfinished = Math.max(this.unfinished, this.lastInput - since);
-      }
+      this.recordUnfinished(this.queued);
+      this.recordUnfinished(this.waiting);
     }
     if (interrupt || (!this.frame && !this.job)) this.publish();
   }
@@ -267,8 +271,13 @@ class DrawingPerformance {
       inputType: this.inputType,
       inputTiming: this.inputTiming,
       maxFeedbackWaitMs: Math.max(this.max, this.unfinished),
+      // Epoch milliseconds locate the worst interval beside browser long tasks.
+      maxFeedbackWaitStartTimeMs:
+        performance.timeOrigin +
+        (this.unfinished > this.max ? this.unfinishedSince : this.maxSince),
       ...(this.count ? { meanFeedbackWaitMs: this.sum / this.count } : {}),
       feedbackCount: this.count,
+      inputSampleCount: this.sequence,
       unfinishedWaitMs: this.unfinished,
       movingDurationMs: this.moving,
       strokeDurationMs: this.end - this.start,

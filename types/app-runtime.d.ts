@@ -925,8 +925,11 @@ export interface DrawingPerformanceSummary {
   inputType: string;
   inputTiming: string;
   maxFeedbackWaitMs: number;
+  /** Epoch milliseconds; pair with maxFeedbackWaitMs for the worst interval. */
+  maxFeedbackWaitStartTimeMs: number;
   meanFeedbackWaitMs?: number;
   feedbackCount: number;
+  inputSampleCount: number;
   unfinishedWaitMs: number;
   movingDurationMs: number;
   strokeDurationMs: number;
