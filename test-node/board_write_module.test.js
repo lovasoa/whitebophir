@@ -151,7 +151,7 @@ test("WriteModule keeps direct pumps inside the buffered-write safety window", (
     );
     assert.equal(runtime.writes.bufferedWrites.length, 1);
     assert.equal(timerHarness.scheduledTimers.length, 1);
-    assert.equal(getScheduledTimer(timerHarness, 0).delayMs, 2_000);
+    assert.equal(getScheduledTimer(timerHarness, 0).delayMs, 1_250);
 
     nowRef.now = 1_500;
     runtime.writes.pumpBufferedWrites();
@@ -161,9 +161,9 @@ test("WriteModule keeps direct pumps inside the buffered-write safety window", (
       ["first"],
     );
     assert.equal(timerHarness.scheduledTimers.length, 2);
-    assert.equal(getScheduledTimer(timerHarness, 1).delayMs, 1_500);
+    assert.equal(getScheduledTimer(timerHarness, 1).delayMs, 750);
 
-    nowRef.now = 2_500;
+    nowRef.now = 2_000;
     runLatestTimerCallback(timerHarness);
     assert.equal(runtime.writes.bufferedWrites.length, 1);
     assert.deepEqual(
@@ -171,9 +171,9 @@ test("WriteModule keeps direct pumps inside the buffered-write safety window", (
       ["first"],
     );
     assert.equal(timerHarness.scheduledTimers.length, 3);
-    assert.equal(getScheduledTimer(timerHarness, 2).delayMs, 500);
+    assert.equal(getScheduledTimer(timerHarness, 2).delayMs, 250);
 
-    nowRef.now = 3_000;
+    nowRef.now = 2_250;
     runLatestTimerCallback(timerHarness);
     assert.equal(runtime.writes.bufferedWrites.length, 0);
     assert.deepEqual(
@@ -203,6 +203,30 @@ test("WriteModule starts an allowance with its first emitted write", () => {
       ["first"],
     );
     assert.equal(runtime.writes.bufferedWrites.length, 1);
+  } finally {
+    timerHarness.restore();
+  }
+});
+
+test("WriteModule does not reset usage before a delayed server window expires", () => {
+  const nowRef = { now: 1_000 };
+  const timerHarness = installTimerHarness(nowRef);
+  try {
+    const runtime = createWriteRuntime();
+    runtime.writes.sendBufferedWrite({ tool: 3, id: "first" });
+    // Its first packet may arrive a millisecond later; the next one need not.
+    nowRef.now = 2_000;
+    runtime.writes.sendBufferedWrite({ tool: 3, id: "second" });
+    assert.deepEqual(
+      runtime.emittedMessages.map((message) => message.id),
+      ["first"],
+    );
+    nowRef.now = 2_250;
+    runLatestTimerCallback(timerHarness);
+    assert.deepEqual(
+      runtime.emittedMessages.map((message) => message.id),
+      ["first", "second"],
+    );
   } finally {
     timerHarness.restore();
   }

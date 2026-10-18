@@ -11,12 +11,8 @@ import { SocketEvents } from "./socket_events.js";
 /** @import { AppToolsState, BoardMessage, BufferedWrite, ClientTrackedMessage, LiveBoardMessage, RateLimitCosts, RateLimitKind } from "../../types/app-runtime" */
 /** @typedef {{tool: import("../tools/tool-order.js").ToolCode, type?: unknown, id?: unknown, parent?: string, txt?: unknown, _children?: unknown, clientMutationId?: string, socket?: string, userId?: string, color?: string, size?: number | string, opacity?: number, x?: number, y?: number, x2?: number, y2?: number, newid?: string, transform?: {a: number, b: number, c: number, d: number, e: number, f: number}}} RuntimeBoardMessage */
 
-// Keep a bounded safety margin between the client-side local budget and the
-// server's fixed window to absorb emit/receive skew. The buffer must be large
-// enough that a queued write does not reconnect-loop under load by landing just
-// before the server window resets.
-const RATE_LIMIT_FLUSH_SAFETY_MIN_MS = 250;
-const RATE_LIMIT_FLUSH_SAFETY_MAX_MS = 1500;
+// Keep usage inside every server-sized interval, with room for transport jitter.
+const RATE_LIMIT_WINDOW_SAFETY_MS = 250;
 const RATE_LIMIT_KINDS = /** @type {RateLimitKind[]} */ (
   RateLimitCommon.RATE_LIMIT_KINDS
 );
@@ -52,8 +48,7 @@ export class WriteModule {
     this.writeReadyWaiters = /** @type {Array<() => void>} */ ([]);
     this.serverRateLimitedUntil = 0;
     this.localRateLimitedUntil = 0;
-    // The server starts each allowance with traffic, not with page setup.
-    /** @type {Record<RateLimitKind, ReturnType<typeof RateLimitCommon.createRateLimitState> | null>} */
+    /** @type {Record<RateLimitKind, ReturnType<typeof RateLimitCommon.recordRateLimitUsage> | null>} */
     this.localRateLimitStates = {
       general: null,
       constructive: null,
@@ -106,13 +101,11 @@ export class WriteModule {
       if (!(cost > 0)) return;
       const definition = Tools.rateLimits.getEffectiveRateLimit(kind);
       if (!(definition.periodMs > 0)) return;
-      this.localRateLimitStates[kind] =
-        RateLimitCommon.consumeFixedWindowRateLimit(
-          this.localRateLimitStates[kind],
-          cost,
-          definition.periodMs,
-          now,
-        );
+      this.localRateLimitStates[kind] = RateLimitCommon.recordRateLimitUsage(
+        this.localRateLimitStates[kind],
+        cost,
+        now,
+      );
     });
   }
 
@@ -127,22 +120,13 @@ export class WriteModule {
       if (!(cost > 0)) return waitMs;
       const definition = Tools.rateLimits.getEffectiveRateLimit(kind);
       if (!(definition.periodMs > 0)) return waitMs;
-      if (
-        RateLimitCommon.canConsumeFixedWindowRateLimit(
+      return Math.max(
+        waitMs,
+        RateLimitCommon.getRateLimitHistoryWaitMs(
           this.localRateLimitStates[kind],
           cost,
           definition.limit,
-          definition.periodMs,
-          now,
-        )
-      ) {
-        return waitMs;
-      }
-      return Math.max(
-        waitMs,
-        RateLimitCommon.getRateLimitRemainingMs(
-          this.localRateLimitStates[kind],
-          definition.periodMs,
+          definition.periodMs + RATE_LIMIT_WINDOW_SAFETY_MS,
           now,
         ),
       );
@@ -157,10 +141,9 @@ export class WriteModule {
   deferBufferedWriteIfRateLimited(bufferedWrite, now) {
     const waitMs = this.getBufferedWriteBudgetWaitMs(bufferedWrite, now);
     if (!(waitMs > 0)) return false;
-    const deferMs = waitMs + this.getBufferedWriteFlushSafetyMs(waitMs);
     bufferedWrite.notBeforeMs = Math.max(
       bufferedWrite.notBeforeMs,
-      now + deferMs,
+      now + waitMs,
     );
     return true;
   }
@@ -183,14 +166,6 @@ export class WriteModule {
     this.localRateLimitedUntil = 0;
     this.clearBufferedWriteTimer();
     this.scheduleBufferedWriteFlush();
-  }
-
-  /** @param {number} waitMs */
-  getBufferedWriteFlushSafetyMs(waitMs) {
-    return Math.min(
-      RATE_LIMIT_FLUSH_SAFETY_MAX_MS,
-      Math.max(RATE_LIMIT_FLUSH_SAFETY_MIN_MS, Math.ceil(Math.max(0, waitMs))),
-    );
   }
 
   /** @returns {BufferedWrite | undefined} */
