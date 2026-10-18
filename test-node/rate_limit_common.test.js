@@ -25,26 +25,6 @@ test("fixed-window helpers are stateless and reset after the period", () => {
     lastSeen: 2_000,
   });
   assert.equal(
-    RateLimitCommon.canConsumeFixedWindowRateLimit(
-      consumed,
-      1,
-      3,
-      5_000,
-      2_500,
-    ),
-    true,
-  );
-  assert.equal(
-    RateLimitCommon.canConsumeFixedWindowRateLimit(
-      consumed,
-      2,
-      3,
-      5_000,
-      2_500,
-    ),
-    false,
-  );
-  assert.equal(
     RateLimitCommon.getRateLimitRemainingMs(consumed, 5_000, 2_500),
     3_500,
   );
@@ -56,6 +36,47 @@ test("fixed-window helpers are stateless and reset after the period", () => {
       lastSeen: 6_500,
     },
   );
+});
+
+test("emission history expires enough cost for an atomic batch", () => {
+  let history = RateLimitCommon.recordRateLimitUsage(null, 3, 0);
+  history = RateLimitCommon.recordRateLimitUsage(history, 2, 500);
+  history = RateLimitCommon.recordRateLimitUsage(history, 4, 900);
+  assert.equal(
+    RateLimitCommon.getRateLimitHistoryWaitMs(history, 2, 10, 1_000, 999),
+    1,
+  );
+  assert.equal(
+    RateLimitCommon.getRateLimitHistoryWaitMs(history, 2, 10, 1_000, 1_000),
+    0,
+  );
+  assert.equal(
+    RateLimitCommon.getRateLimitHistoryWaitMs(history, 5, 10, 1_000, 1_000),
+    500,
+  );
+  assert.equal(
+    RateLimitCommon.getRateLimitHistoryWaitMs(history, 1, 10, 1_000, 2_000),
+    0,
+  );
+  assert.equal(history.total, 0);
+  assert.equal(
+    RateLimitCommon.getRateLimitHistoryWaitMs(history, 11, 10, 1_000, 2_000),
+    0,
+  );
+});
+
+test("emission history stays bounded across many windows", () => {
+  let history = null;
+  for (let now = 0; now < 10_000; now++) {
+    assert.equal(
+      RateLimitCommon.getRateLimitHistoryWaitMs(history, 1, 1_000, 1_000, now),
+      0,
+    );
+    history = RateLimitCommon.recordRateLimitUsage(history, 1, now);
+    assert.ok(history.entries.length <= 4_004);
+  }
+  assert.ok(history);
+  assert.equal(history.total, 1_000);
 });
 
 test("effective rate-limit definitions honor board overrides", () => {
@@ -108,16 +129,6 @@ test("anonymous fixed-window limits reopen exactly after the remaining wait", ()
     periodMs: 1_000,
   });
   assert.equal(
-    RateLimitCommon.canConsumeFixedWindowRateLimit(
-      consumed,
-      1,
-      effective.limit,
-      effective.periodMs,
-      1_500,
-    ),
-    false,
-  );
-  assert.equal(
     RateLimitCommon.getRateLimitRemainingMs(
       consumed,
       effective.periodMs,
@@ -126,14 +137,9 @@ test("anonymous fixed-window limits reopen exactly after the remaining wait", ()
     500,
   );
   assert.equal(
-    RateLimitCommon.canConsumeFixedWindowRateLimit(
-      consumed,
-      1,
-      effective.limit,
-      effective.periodMs,
-      2_000,
-    ),
-    true,
+    RateLimitCommon.normalizeRateLimitState(consumed, effective.periodMs, 2_000)
+      .count,
+    0,
   );
 });
 
