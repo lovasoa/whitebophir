@@ -6,6 +6,11 @@ import {
   collectOptimisticDependencyIds,
 } from "./optimistic_mutation.js";
 import RateLimitCommon from "./rate_limit_common.js";
+// A distinct module URL keeps rolling budgets independent of cached fixed-window APIs.
+import {
+  recordRateLimitUsage,
+  getRateLimitHistoryWaitMs,
+} from "./rate_limit_history.js";
 import { SocketEvents } from "./socket_events.js";
 
 /** @import { AppToolsState, BoardMessage, BufferedWrite, ClientTrackedMessage, LiveBoardMessage, RateLimitCosts, RateLimitKind } from "../../types/app-runtime" */
@@ -48,7 +53,7 @@ export class WriteModule {
     this.writeReadyWaiters = /** @type {Array<() => void>} */ ([]);
     this.serverRateLimitedUntil = 0;
     this.localRateLimitedUntil = 0;
-    /** @type {Record<RateLimitKind, ReturnType<typeof RateLimitCommon.recordRateLimitUsage> | null>} */
+    /** @type {Record<RateLimitKind, ReturnType<typeof recordRateLimitUsage> | null>} */
     this.localRateLimitStates = {
       general: null,
       constructive: null,
@@ -101,7 +106,7 @@ export class WriteModule {
       if (!(cost > 0)) return;
       const definition = Tools.rateLimits.getEffectiveRateLimit(kind);
       if (!(definition.periodMs > 0)) return;
-      this.localRateLimitStates[kind] = RateLimitCommon.recordRateLimitUsage(
+      this.localRateLimitStates[kind] = recordRateLimitUsage(
         this.localRateLimitStates[kind],
         cost,
         now,
@@ -122,7 +127,7 @@ export class WriteModule {
       if (!(definition.periodMs > 0)) return waitMs;
       return Math.max(
         waitMs,
-        RateLimitCommon.getRateLimitHistoryWaitMs(
+        getRateLimitHistoryWaitMs(
           this.localRateLimitStates[kind],
           cost,
           definition.limit,
