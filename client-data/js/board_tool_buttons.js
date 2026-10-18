@@ -226,9 +226,9 @@ export function updateCurrentToolChrome(Tools, toolName, newTool, logger) {
       error: e instanceof Error ? e.message : String(e),
     });
   }
-  dom.svg.style.cursor = Tools.toolRegistry.shouldDisableTool(toolName)
-    ? "not-allowed"
-    : newTool.mouseCursor || "auto";
+  dom.svg.style.cursor = Tools.toolRegistry.canInteractWithTool(toolName)
+    ? newTool.mouseCursor || "auto"
+    : "not-allowed";
   dom.board.title = Tools.i18n.t(newTool.helpText || "");
   Tools.status.syncWriteStatusIndicator();
 }
