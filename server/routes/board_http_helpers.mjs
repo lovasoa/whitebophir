@@ -48,33 +48,35 @@ function matchesIfNoneMatch(ifNoneMatch, etag) {
 
 /**
  * @param {number | string} seq
+ * @param {string} [revision] HTML shell revision; raw SVG stays sequence-only.
  * @returns {string}
  */
-function boardPageETag(seq) {
-  return `W/"wbo-seq-${Number(seq) || 0}"`;
+function boardPageETag(seq, revision = "") {
+  return `W/"wbo-seq-${Number(seq) || 0}${revision ? `-${revision}` : ""}"`;
 }
 
 /**
  * @param {string} value
+ * @param {string} revision
  * @returns {number | null}
  */
-function parseBoardPageETag(value) {
-  const match =
-    /^W\/"wbo-seq-(\d+)"$/.exec(value) || /^"wbo-seq-(\d+)"$/.exec(value);
-  if (!match?.[1]) return null;
+function parseBoardPageETag(value, revision) {
+  const match = /^(?:W\/)?"wbo-seq-(\d+)-([a-f0-9]{16})"$/.exec(value);
+  if (!match?.[1] || match[2] !== revision) return null;
   const seq = Number(match[1]);
   return Number.isSafeInteger(seq) && seq >= 0 ? seq : null;
 }
 
 /**
- * Converts If-None-Match into board seq candidates for weak board-page ETags.
+ * Only current-shell validators can use the loaded board's sequence fast path.
  *
  * @param {string | string[] | undefined} value
+ * @param {string} revision
  * @returns {number[]}
  */
-function parseBoardPageETagCandidates(value) {
+function parseBoardPageETagCandidates(value, revision) {
   return parseIfNoneMatch(value)
-    .map(parseBoardPageETag)
+    .map((candidate) => parseBoardPageETag(candidate, revision))
     .filter((seq) => seq !== null);
 }
 

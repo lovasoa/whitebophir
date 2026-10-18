@@ -121,6 +121,7 @@ function resolveBoardPageRequest(ctx) {
     boardPermissions,
     cachedSeqs: parseBoardPageETagCandidates(
       ctx.request.headers["if-none-match"],
+      ctx.runtime.boardTemplate.cacheRevision,
     ),
   };
 }
@@ -195,7 +196,10 @@ function readBoardDocumentForPage(ctx, pageRequest) {
  * @returns {boolean}
  */
 function serveBoardDocumentCacheHit(ctx, pageRequest, document) {
-  const etag = boardPageETag(document.metadata.seq || 0);
+  const etag = boardPageETag(
+    document.metadata.seq || 0,
+    ctx.runtime.boardTemplate.cacheRevision,
+  );
   if (!matchesIfNoneMatch(ctx.request.headers["if-none-match"], etag)) {
     return false;
   }
@@ -231,7 +235,7 @@ function respondWithBoardPageNotModified(
   pinServedBoardBaseline(boardName, seq, ctx.runtime.config);
   ctx.response.writeHead(304, {
     "Cache-Control": ctx.runtime.boardTemplate.cacheControl(),
-    ETag: etag || boardPageETag(seq),
+    ETag: etag || boardPageETag(seq, ctx.runtime.boardTemplate.cacheRevision),
     Vary: boardHtmlVaryHeader(ctx.url, boardState),
   });
   ctx.response.end();
@@ -279,7 +283,10 @@ async function renderBoardDocument(ctx, pageRequest, document) {
   // omit admin-only tools, but socket permission checks still grant moderator
   // abilities such as report-to-ban.
   const renderOptions = {
-    etag: boardPageETag(document.metadata.seq || 0),
+    etag: boardPageETag(
+      document.metadata.seq || 0,
+      ctx.runtime.boardTemplate.cacheRevision,
+    ),
     boardState,
     varyCookie: boardHtmlVariesByCookie(boardState),
   };
