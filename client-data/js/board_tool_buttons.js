@@ -226,9 +226,12 @@ export function updateCurrentToolChrome(Tools, toolName, newTool, logger) {
       error: e instanceof Error ? e.message : String(e),
     });
   }
-  dom.svg.style.cursor = Tools.toolRegistry.canInteractWithTool(toolName)
+  const cursor = Tools.toolRegistry.canInteractWithTool(toolName)
     ? newTool.mouseCursor || "auto"
     : "not-allowed";
+  dom.svg.style.cursor = cursor;
+  // Pencil's input surface is a sibling of the canonical SVG.
+  dom.board.style.cursor = cursor;
   dom.board.title = Tools.i18n.t(newTool.helpText || "");
   Tools.status.syncWriteStatusIndicator();
 }
