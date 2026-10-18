@@ -1033,7 +1033,7 @@ test("server logs and skips missing configured html head snippet", async () => {
   }
 });
 
-test("board pages use seq-based etag and return 304 on cache hit", async () => {
+test("board pages validate both their shell and drawing sequence", async () => {
   const dirs = await createServerDirs();
   await fs.writeFile(
     boardSvgFile(dirs.historyDir, "etag-board"),
@@ -1051,7 +1051,8 @@ test("board pages use seq-based etag and return 304 on cache hit", async () => {
     const firstResponse = await request(app, "/boards/etag-board");
 
     assert.equal(firstResponse.statusCode, 200);
-    assert.equal(firstResponse.headers.etag, 'W/"wbo-seq-3"');
+    assert.ok(firstResponse.headers.etag);
+    assert.match(firstResponse.headers.etag, /^W\/"wbo-seq-3-[a-f0-9]{16}"$/);
 
     const cachedResponse = await request(app, "/boards/etag-board", {
       "If-None-Match": firstResponse.headers.etag,
@@ -1069,8 +1070,66 @@ test("board pages use seq-based etag and return 304 on cache hit", async () => {
     });
 
     assert.equal(staleResponse.statusCode, 200);
-    assert.equal(staleResponse.headers.etag, 'W/"wbo-seq-3"');
+    assert.equal(staleResponse.headers.etag, firstResponse.headers.etag);
+
+    // Pre-release sequence-only validators must also fetch the current shell.
+    const legacy = await request(app, "/boards/etag-board", {
+      "If-None-Match": 'W/"wbo-seq-3"',
+    });
+    assert.equal(legacy.statusCode, 200);
   } finally {
+    await closeServer(app);
+  }
+});
+
+test("unchanged drawing sequences do not preserve an obsolete board shell", async () => {
+  const dirs = await createServerDirs();
+  const { BoardData } = require("../server/board/data.mjs");
+  const {
+    setLoadedBoard,
+    deleteLoadedBoard,
+  } = require("../server/board/registry.mjs");
+  const templatePath = path.join(dirs.webroot, "board.html");
+  await fs.writeFile(templatePath, '<main id="oldShell"></main>');
+  const config = createServerConfig(dirs, { IS_DEVELOPMENT: false });
+  let app = await createTestServer(config);
+  try {
+    const original = await request(app, "/boards/cache-release");
+    assert.equal(original.statusCode, 200);
+    assert.ok(original.headers.etag);
+    assert.match(original.body, /id="oldShell"/);
+    await closeServer(app);
+    app = await createTestServer(config);
+    const unchanged = await request(app, "/boards/cache-release", {
+      "If-None-Match": original.headers.etag,
+    });
+    assert.equal(unchanged.statusCode, 304);
+    await closeServer(app);
+    await fs.writeFile(templatePath, '<main id="activeBansSection"></main>');
+    app = await createTestServer(config);
+
+    const updated = await request(app, "/boards/cache-release", {
+      "If-None-Match": original.headers.etag,
+    });
+    assert.equal(updated.statusCode, 200);
+    assert.ok(updated.headers.etag);
+    assert.match(updated.body, /id="activeBansSection"/);
+    assert.notEqual(updated.headers.etag, original.headers.etag);
+    setLoadedBoard(
+      "cache-release",
+      Promise.resolve(await BoardData.load("cache-release", config)),
+    );
+    const loaded = await request(app, "/boards/cache-release", {
+      "If-None-Match": original.headers.etag,
+    });
+    assert.equal(loaded.statusCode, 200);
+    assert.match(loaded.body, /id="activeBansSection"/);
+    const cached = await request(app, "/boards/cache-release", {
+      "If-None-Match": updated.headers.etag,
+    });
+    assert.equal(cached.statusCode, 304);
+  } finally {
+    deleteLoadedBoard("cache-release");
     await closeServer(app);
   }
 });

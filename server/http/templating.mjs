@@ -1,7 +1,9 @@
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import handlebars from "handlebars";
+import packageJson from "../../package.json" with { type: "json" };
 
 import {
   boardStateGrantsCapability,
@@ -405,6 +407,20 @@ class BoardTemplate extends Template {
    */
   constructor(path, serverConfig, options) {
     super(path, serverConfig, options);
+    // A saved drawing sequence does not identify the surrounding application.
+    // Compute this once, keeping conditional board requests independent of SVG size.
+    this.cacheRevision = createHash("sha256")
+      .update(
+        JSON.stringify([
+          packageJson.version,
+          this.templateContents,
+          this.htmlHeadSnippet,
+          this.clientConfig,
+          TRANSLATIONS,
+        ]),
+      )
+      .digest("hex")
+      .slice(0, 16);
     const contents = this.templateContents;
     const marker = "{{{inlineBoardSvg}}}";
     const markerIndex = contents.indexOf(marker);
