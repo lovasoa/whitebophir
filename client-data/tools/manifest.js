@@ -325,6 +325,8 @@ export const TOOL_ID_BY_CODE = Object.freeze(
 export const TOOL_BY_ID = Object.freeze(
   Object.fromEntries(TOOL_MANIFEST.map((tool) => [tool.toolId, tool])),
 );
+// Cached message_tool_metadata modules still import this published array.
+export const TOOL_BY_CODE = TOOL_MANIFEST;
 export const DRAW_TOOL_IDS = Object.freeze(
   TOOL_MANIFEST.filter((tool) => tool.drawsOnBoard).map((tool) => tool.toolId),
 );

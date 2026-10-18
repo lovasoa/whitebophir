@@ -48,9 +48,12 @@ test("mutation type codes match the documented protocol", async () => {
 });
 
 test("code-to-tool maps round trip through the explicit maps", async () => {
-  const { TOOL_CODE_BY_ID, TOOL_ID_BY_CODE } = await import(MANIFEST_PATH);
+  const { TOOL_CODE_BY_ID, TOOL_ID_BY_CODE, TOOL_BY_CODE, TOOL_BY_ID } =
+    await import(MANIFEST_PATH);
   for (const [toolId, code] of Object.entries(TOOL_CODE_BY_ID)) {
     assert.equal(TOOL_ID_BY_CODE[code], toolId, `code ${code} -> ${toolId}`);
+    // Released metadata modules index this array with the wire code minus one.
+    assert.equal(TOOL_BY_CODE[code - 1], TOOL_BY_ID[toolId]);
   }
   for (const [code, toolId] of Object.entries(TOOL_ID_BY_CODE)) {
     assert.equal(
