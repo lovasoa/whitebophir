@@ -286,13 +286,14 @@ export function pressShapeTool(state, x, y, evt) {
     evt,
     x,
     y,
-    (pageX, pageY, time) => {
+    (pageX, pageY, time, received) => {
       observeShapeInput(
         state,
         state.coordinates.pageCoordinateToBoard(pageX),
         state.coordinates.pageCoordinateToBoard(pageY),
         undefined,
         time,
+        received,
       );
     },
   );
@@ -357,7 +358,7 @@ export function moveShapeTool(state, x, y, evt, force = false) {
     if (evt && effect.preventDefault) evt.preventDefault();
     return;
   }
-  state.measurement?.input(state.endX, state.endY, evt?.timeStamp ?? now);
+  state.measurement?.input(state.endX, state.endY, evt?.timeStamp ?? now, now);
   const update = effect.update;
   if (effect.shouldSend) {
     state.writes.drawAndSend(update);
@@ -409,10 +410,10 @@ function constrainEndPosition(state, x, y, evt) {
   state.config.constrainEndPosition?.(state, x, y, evt);
 }
 
-/** @param {ShapeToolState} state @param {number} x @param {number} y @param {ShapePointerEvent} evt @param {number} time */
-function observeShapeInput(state, x, y, evt, time) {
+/** @param {ShapeToolState} state @param {number} x @param {number} y @param {ShapePointerEvent} evt @param {number} time @param {number} received */
+function observeShapeInput(state, x, y, evt, time, received) {
   constrainEndPosition(state, x, y, evt);
-  state.measurement?.input(state.endX, state.endY, time);
+  state.measurement?.input(state.endX, state.endY, time, received);
 }
 
 /** @param {ShapeToolState} state @param {string} reason */

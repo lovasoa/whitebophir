@@ -5,7 +5,7 @@
 
 /** @typedef {import("../../types/app-runtime").DrawingPerformanceSummary} DrawingPerformanceSummary */
 /** @typedef {(summary: Readonly<DrawingPerformanceSummary>) => void} DrawingPerformanceListener */
-/** @typedef {(x: number, y: number, time: number) => void} DrawingInput */
+/** @typedef {(x: number, y: number, time: number, received: number) => void} DrawingInput */
 
 const listeners = new Set(/** @type {DrawingPerformanceListener[]} */ ([]));
 const strokes = new Set(/** @type {DrawingPerformance[]} */ ([]));
@@ -83,7 +83,9 @@ class DrawingPerformance {
     this.pointIntervalMs = pointIntervalMs;
     this.sample = sample;
     // Pointer-down can itself have waited in the browser input queue.
-    this.start = Math.min(event.timeStamp, performance.now());
+    const now = performance.now();
+    this.start = Math.min(event.timeStamp, now);
+    this.inputDelay = now - this.start;
     this.end = this.start;
     this.inputType =
       Math.abs(event.timeStamp - pointerTime) < 50
@@ -147,19 +149,22 @@ class DrawingPerformance {
     )
       return;
     const samples = event.getCoalescedEvents?.();
+    const received = performance.now();
     if (samples?.length) {
       this.inputTiming = "coalesced";
       for (const sample of samples)
-        this.sample(sample.pageX, sample.pageY, sample.timeStamp);
-    } else this.sample(event.pageX, event.pageY, event.timeStamp);
+        this.sample(sample.pageX, sample.pageY, sample.timeStamp, received);
+    } else this.sample(event.pageX, event.pageY, event.timeStamp, received);
   }
 
   /** Effective tool coordinates, before any point throttle. Duplicate and
    * clamped positions do not create demand. Gaps close movement runs, including
    * gaps inside a coalesced batch; idle time must not inflate a frozen stroke.
-   * @param {number} x @param {number} y @param {number} time */
-  input(x, y, time) {
+   * @param {number} x @param {number} y @param {number} time
+   * @param {number} [received] */
+  input(x, y, time, received = time) {
     if (this.disposed || this.reason || (x === this.x && y === this.y)) return;
+    this.inputDelay = Math.max(this.inputDelay, received - time);
     time = Math.max(this.lastInput, time);
     const gap = time - this.lastInput;
     if (gap > 50) {
@@ -278,6 +283,7 @@ class DrawingPerformance {
       ...(this.count ? { meanFeedbackWaitMs: this.sum / this.count } : {}),
       feedbackCount: this.count,
       inputSampleCount: this.sequence,
+      maxInputQueueDelayMs: this.inputDelay,
       unfinishedWaitMs: this.unfinished,
       movingDurationMs: this.moving,
       strokeDurationMs: this.end - this.start,

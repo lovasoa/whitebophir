@@ -930,6 +930,8 @@ export interface DrawingPerformanceSummary {
   meanFeedbackWaitMs?: number;
   feedbackCount: number;
   inputSampleCount: number;
+  /** Age of the oldest meaningful input when its browser handler ran. */
+  maxInputQueueDelayMs: number;
   unfinishedWaitMs: number;
   movingDurationMs: number;
   strokeDurationMs: number;

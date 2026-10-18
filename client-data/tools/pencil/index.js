@@ -847,11 +847,12 @@ export function press(state, x, y, evt) {
     evt,
     x,
     y,
-    (pageX, pageY, time) => {
+    (pageX, pageY, time, received) => {
       state.measurement?.input(
         state.coordinates.pageCoordinateToBoard(pageX),
         state.coordinates.pageCoordinateToBoard(pageY),
         time,
+        received,
       );
     },
     state.minPencilIntervalMs,
@@ -880,7 +881,7 @@ export function press(state, x, y, evt) {
  */
 export function move(state, x, y, evt, force = false) {
   const now = performance.now();
-  state.measurement?.input(x, y, evt?.timeStamp ?? now);
+  state.measurement?.input(x, y, evt?.timeStamp ?? now, now);
   const effect = createPencilMoveEffect(state, x, y, now, force);
   if (effect.stopBefore) {
     finishActiveStroke(state, "point-limit");

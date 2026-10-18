@@ -94,7 +94,7 @@ function harness(run) {
         /** @type {MouseEvent} */ ({ timeStamp: pressedAt }),
         0,
         0,
-        (x, y, t) => stroke?.input(x, y, t),
+        (x, y, t, received) => stroke?.input(x, y, t, received),
         20,
       );
       assert.ok(stroke);
@@ -154,6 +154,7 @@ test("coalesced histories preserve queued movement and idle/resume boundaries", 
     assert.equal(e.summaries[0]?.unfinishedWaitMs, 90);
     assert.equal(e.summaries[0]?.maxFeedbackWaitStartTimeMs, 1700000000010);
     assert.equal(e.summaries[0]?.inputSampleCount, samples.length);
+    assert.equal(e.summaries[0]?.maxInputQueueDelayMs, 710);
     assert.equal(e.summaries[0]?.movingDurationMs, 110);
     assert.equal(e.summaries[0]?.feedbackCount, 0);
     assert.equal("meanFeedbackWaitMs" in (e.summaries[0] ?? {}), false);
@@ -276,4 +277,5 @@ test("queued pointer-down preserves the original timestamps of subsequent moveme
     assert.equal(e.summaries[0]?.maxFeedbackWaitMs, 300);
     assert.equal(e.summaries[0]?.movingDurationMs, 290);
     assert.equal(e.summaries[0]?.strokeDurationMs, 320);
+    assert.equal(e.summaries[0]?.maxInputQueueDelayMs, 300);
   }));
