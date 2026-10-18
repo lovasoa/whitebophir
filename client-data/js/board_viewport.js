@@ -746,7 +746,8 @@ export function createViewportController(Tools) {
     scaleTimeout = window.setTimeout(() => {
       const timeoutDom = getAttachedDom();
       if (timeoutDom) {
-        timeoutDom.svg.style.willChange = "auto";
+        // Let tool styles retain a layer after the temporary zoom hint expires.
+        timeoutDom.svg.style.willChange = "";
         setViewportScalingClass(timeoutDom, false);
       }
     }, SCALE_WILL_CHANGE_TIMEOUT_MS);

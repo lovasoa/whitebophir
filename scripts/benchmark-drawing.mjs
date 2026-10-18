@@ -14,8 +14,11 @@ import { writeBoardState } from "../server/persistence/svg_board_store.mjs";
 
 // --collaborative reproduces local ink competing with seven remote drawers.
 // --transforms adds one peer drawing and moving an eight-item selection.
+// --touch uses a wide board of short Pencil paths with seven remote drawers.
 const transforms = process.argv.includes("--transforms");
-const collaborative = transforms || process.argv.includes("--collaborative");
+const touch = process.argv.includes("--touch");
+const collaborative =
+  transforms || touch || process.argv.includes("--collaborative");
 const peerCount = transforms ? 1 : 7;
 const transformedItems = 8;
 const strokeDurationMs = collaborative ? 5000 : 1500;
@@ -57,14 +60,14 @@ try {
         y = Math.floor((i * 17) / 3) % 8000,
         id = `seed-${i}`;
       board[id] =
-        items === 32768 && i % 6 === 0
+        items === 32768 && (touch || i % 6 === 0)
           ? {
               id,
               tool: "pencil",
               type: "path",
               color: "#123456",
               size: 3,
-              _children: Array.from({ length: 120 }, (_, p) => ({
+              _children: Array.from({ length: touch ? 4 : 120 }, (_, p) => ({
                 x: x + p,
                 y: y + ((p * 3) % 120),
               })),
@@ -84,7 +87,11 @@ try {
             };
     }
     const name = `drawing-bench-${items}`;
-    await writeBoardState(name, board, { readonly: false }, 0, { historyDir });
+    await writeBoardState(name, board, { readonly: false }, 0, {
+      historyDir,
+      ...(touch ? { svgExtent: { width: 655360, height: 655360 } } : {}),
+    });
+    const drawingScale = collaborative ? (touch ? 0.07 : 0.18) : scale;
     for (const cpuRate of collaborative ? [6] : [1, 6]) {
       for (
         let repeat = 0;
@@ -99,6 +106,8 @@ try {
             : [false, true]) {
           const page = await browser.newPage({
             viewport: { width: 1100, height: 760 },
+            hasTouch: touch,
+            isMobile: touch,
           });
           const cdp = await page.context().newCDPSession(page);
           const peers = /** @type {any[]} */ ([]);
@@ -119,7 +128,7 @@ try {
               await route.fulfill({ response, body });
             });
             await page.goto(
-              `http://127.0.0.1:${started.port}/boards/${name}#0,0,${collaborative ? 0.18 : scale}`,
+              `http://127.0.0.1:${started.port}/boards/${name}#0,0,${drawingScale}`,
             );
             await page.waitForFunction(
               () => document.documentElement.dataset.boardPhase === "ready",
@@ -240,8 +249,16 @@ try {
             }
             await cdp.send("Performance.enable");
             const before = await cdp.send("Performance.getMetrics");
-            await page.mouse.move(100, 240);
-            await page.mouse.down();
+            if (touch)
+              await cdp.send("Input.dispatchTouchEvent", {
+                type: "touchStart",
+                touchPoints: [{ x: 100, y: 240, id: 1 }],
+                timestamp: Date.now() / 1000,
+              });
+            else {
+              await page.mouse.move(100, 240);
+              await page.mouse.down();
+            }
             const start = performance.now(),
               pending = /** @type {Promise<unknown>[]} */ ([]);
             await new Promise((resolve) => {
@@ -253,15 +270,24 @@ try {
                   return;
                 }
                 const progress = elapsed / strokeDurationMs;
+                const x = 100 + 700 * progress,
+                  y = 240 + 30 * Math.sin(progress * 12),
+                  timestamp = Date.now() / 1000;
                 pending.push(
-                  cdp.send("Input.dispatchMouseEvent", {
-                    type: "mouseMoved",
-                    x: 100 + 700 * progress,
-                    y: 240 + 30 * Math.sin(progress * 12),
-                    button: "left",
-                    buttons: 1,
-                    timestamp: Date.now() / 1000,
-                  }),
+                  touch
+                    ? cdp.send("Input.dispatchTouchEvent", {
+                        type: "touchMove",
+                        touchPoints: [{ x, y, id: 1 }],
+                        timestamp,
+                      })
+                    : cdp.send("Input.dispatchMouseEvent", {
+                        type: "mouseMoved",
+                        x,
+                        y,
+                        button: "left",
+                        buttons: 1,
+                        timestamp,
+                      }),
                 );
               }, 8);
             });
@@ -269,7 +295,13 @@ try {
             // input. Otherwise remote updates can prevent it from catching up.
             clearInterval(peerTimer);
             await Promise.all(pending);
-            await page.mouse.up();
+            if (touch)
+              await cdp.send("Input.dispatchTouchEvent", {
+                type: "touchEnd",
+                touchPoints: [],
+                timestamp: Date.now() / 1000,
+              });
+            else await page.mouse.up();
             if (collaborative) {
               if (rejected.length) throw new Error(JSON.stringify(rejected));
               await page.waitForFunction(
@@ -355,7 +387,8 @@ try {
             console.log(
               JSON.stringify({
                 items,
-                scale,
+                scale: drawingScale,
+                inputType: touch ? "touch" : "mouse",
                 cpuRate,
                 repeat,
                 enabled,

@@ -23,6 +23,12 @@ path {
   will-change: transform;
 }
 
+#board:has(> .wbo-pencil-live-overlay-active) > #canvas {
+  /* Keep the dense SVG's paint chunks out of live ink's layer updates.
+     Release the layer when Pencil is deselected. */
+  will-change: transform;
+}
+
 .wbo-pencil-live-path {
   fill: none;
   stroke-linecap: round;
