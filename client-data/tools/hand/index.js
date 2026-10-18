@@ -1154,11 +1154,27 @@ export function draw(state, data, isLocal = false) {
     });
     return;
   }
-  if (isBatchMessage(data)) {
-    for (const child of data._children) draw(state, child, isLocal);
-    return;
+  const children = isBatchMessage(data) ? data._children : [data];
+  for (const child of children) drawHandChild(state, child);
+  if (!isLocal) {
+    // Finish every SVG write before measuring. Reading getBBox() between
+    // transform writes forces layout once per item, freezing dense boards.
+    let bounds = null;
+    for (const child of children) {
+      if (child.type !== MutationType.UPDATE) continue;
+      const element = state.Tools.board.svg.getElementById(child.id);
+      if (!element) continue;
+      bounds = extendBoundsWithBounds(
+        bounds,
+        measureSvgElementBoundsAfterTransform(element, child.transform),
+      );
+    }
+    if (bounds) state.Tools.viewport.ensureBoardExtentForBounds(bounds);
   }
+}
 
+/** @param {HandState} state @param {HandChildMessage} data */
+function drawHandChild(state, data) {
   switch (data.type) {
     case MutationType.UPDATE: {
       const elem = state.Tools.board.svg.getElementById(data.id);
@@ -1175,11 +1191,6 @@ export function draw(state, data, isLocal = false) {
       tmatrix.d = data.transform.d;
       tmatrix.e = data.transform.e;
       tmatrix.f = data.transform.f;
-      if (!isLocal) {
-        state.Tools.viewport.ensureBoardExtentForBounds(
-          measureSvgElementBoundsAfterTransform(elem, data.transform),
-        );
-      }
       break;
     }
     case MutationType.COPY: {

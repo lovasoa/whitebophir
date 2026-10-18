@@ -8,10 +8,16 @@ import os from "node:os";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { chromium } from "@playwright/test";
+import { MutationType } from "../client-data/js/mutation_type.js";
+import { TOOL_CODE_BY_ID } from "../client-data/tools/tool-order.js";
 import { writeBoardState } from "../server/persistence/svg_board_store.mjs";
 
 // --collaborative reproduces local ink competing with seven remote drawers.
-const collaborative = process.argv.includes("--collaborative");
+// --transforms adds one peer drawing and moving an eight-item selection.
+const transforms = process.argv.includes("--transforms");
+const collaborative = transforms || process.argv.includes("--collaborative");
+const peerCount = transforms ? 1 : 7;
+const transformedItems = 8;
 const strokeDurationMs = collaborative ? 5000 : 1500;
 const peerIo = collaborative
   ? createRequire(import.meta.url)(
@@ -176,7 +182,7 @@ try {
               requestAnimationFrame(frame);
             }, enabled);
             if (collaborative) {
-              for (let i = 0; i < 7; i++) {
+              for (let i = 0; i < peerCount; i++) {
                 const peer = peerIo(`http://127.0.0.1:${started.port}`, {
                   query: { board: name },
                   transports: ["websocket"],
@@ -192,8 +198,8 @@ try {
                   signal: AbortSignal.timeout(10000),
                 });
                 peer.emit("broadcast", {
-                  tool: 1,
-                  type: 1,
+                  tool: TOOL_CODE_BY_ID.pencil,
+                  type: MutationType.CREATE,
                   id: `peer-${repeat}-${i}`,
                   color: "#123456",
                   size: 10,
@@ -202,12 +208,31 @@ try {
               peerTimer = setInterval(() => {
                 for (const [i, peer] of peers.entries())
                   peer.emit("broadcast", {
-                    tool: 1,
-                    type: 4,
+                    tool: TOOL_CODE_BY_ID.pencil,
+                    type: MutationType.APPEND,
                     parent: `peer-${repeat}-${i}`,
                     x: 1500 + peerPoint * 7,
                     y: Math.round(
                       2000 + i * 100 + 30 * Math.sin(peerPoint / 5),
+                    ),
+                  });
+                if (transforms && peerPoint % 3 === 0)
+                  peers[0].emit("broadcast", {
+                    tool: TOOL_CODE_BY_ID.hand,
+                    _children: Array.from(
+                      { length: transformedItems },
+                      (_, i) => ({
+                        type: MutationType.UPDATE,
+                        id: `seed-${1000 + i}`,
+                        transform: {
+                          a: 1,
+                          b: 0,
+                          c: 0,
+                          d: 1,
+                          e: peerPoint * 3,
+                          f: peerPoint * 2,
+                        },
+                      }),
                     ),
                   });
                 peerPoint++;
@@ -240,14 +265,22 @@ try {
                 );
               }, 8);
             });
+            // Bound the workload even when the browser is still draining slow
+            // input. Otherwise remote updates can prevent it from catching up.
+            clearInterval(peerTimer);
             await Promise.all(pending);
             await page.mouse.up();
-            clearInterval(peerTimer);
             if (collaborative) {
               if (rejected.length) throw new Error(JSON.stringify(rejected));
               await page.waitForFunction(
-                ({ repeat, peerPoint }) => {
-                  for (let i = 0; i < 7; i++) {
+                ({
+                  repeat,
+                  peerPoint,
+                  peerCount,
+                  transforms,
+                  transformedItems,
+                }) => {
+                  for (let i = 0; i < peerCount; i++) {
                     const line = /** @type {SVGPathElement | null} */ (
                       document.getElementById(`peer-${repeat}-${i}`)
                     );
@@ -259,9 +292,26 @@ try {
                     )
                       return false;
                   }
+                  if (transforms) {
+                    const lastPoint = Math.floor((peerPoint - 1) / 3) * 3;
+                    for (let i = 0; i < transformedItems; i++) {
+                      const element = /** @type {SVGGraphicsElement | null} */ (
+                        document.getElementById(`seed-${1000 + i}`)
+                      );
+                      const list = element?.transform.baseVal;
+                      const matrix = list?.numberOfItems
+                        ? list.getItem(0).matrix
+                        : null;
+                      if (
+                        matrix?.e !== lastPoint * 3 ||
+                        matrix.f !== lastPoint * 2
+                      )
+                        return false;
+                    }
+                  }
                   return true;
                 },
-                { repeat, peerPoint },
+                { repeat, peerPoint, peerCount, transforms, transformedItems },
               );
             }
             await page.waitForFunction((active) => {
@@ -310,10 +360,12 @@ try {
                 repeat,
                 enabled,
                 remoteDrawers: peers.length,
+                remoteTransformsPerBatch: transforms ? transformedItems : 0,
                 retainedCollector,
                 ...result,
                 scriptMs: (metrics.ScriptDuration ?? 0) * 1000,
                 taskMs: (metrics.TaskDuration ?? 0) * 1000,
+                layoutMs: (metrics.LayoutDuration ?? 0) * 1000,
               }),
             );
           } finally {
