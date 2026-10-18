@@ -53,10 +53,8 @@ function getTransformMatrix(elem) {
     }
   }
   if (transform === null) {
-    transform = elem.transform.baseVal.createSVGTransformFromMatrix(
-      svg.createSVGMatrix(),
-    );
-    elem.transform.baseVal.appendItem(transform);
+    // Bounds inspection must not invalidate layout before the next getBBox().
+    return { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
   }
   const matrix = transform.matrix;
   return {
