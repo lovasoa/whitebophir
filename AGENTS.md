@@ -75,18 +75,19 @@ for system boundaries and [README.md](./README.md) for running an instance.
 definitions. Install with `npm ci` (Node 22+).
 
 `npm test` runs Node tests, Playwright, and Biome lint. `npm run typecheck` is
-separate. Use the package scripts to target affected tests and benchmarks.
+separate.
 
 - Run checks relevant to the change; run `npm test` and typecheck for changes
   spanning client/server boundaries. Report failures and environmental limits.
+- Deploy only through the GitHub release workflow. Bump the package and lockfile
+  patch version for every release.
 - Before adding tests, identify a plausible regression, assess existing coverage,
   and weigh protection against long-term maintenance cost. Extend focused tests
   when sufficient. Add coverage for meaningful gaps, especially at trust and
   persistence boundaries; routine refactors and implementation mirrors rarely
   deserve new tests.
 - Assert authoritative app/socket state in browser tests; avoid sleeps and fix
-  application races before adding test workarounds. Install Chromium with
-  `npx playwright install chromium` if needed.
+  application races before adding test workarounds.
 - Benchmark before and after hot-path, persistence, replay, or broadcast changes.
   Profile with `npm run profile -- <scenario>` only to investigate a regression.
 - Keep production drawing data out of fixtures and leave unrelated local edits

@@ -5,4 +5,7 @@ release_version=$(sed -nE 's/^  "version": "([0-9]+\.[0-9]+\.[0-9]+)",$/\1/p' pa
 test "$GITHUB_REF_NAME" = "v$release_version"
 
 # Use the existing deployment credentials and mounted configuration.
-ssh "$SSH_REMOTE" -- run --no-tty "$APP_NAME" node --input-type=module - "$release_version" < .github/stamp-head-version.mjs
+# Dokku's one-off runner does not forward stdin. A data URL preserves the
+# script as one shell argument without interpolating its JavaScript source.
+script=$(base64 < .github/stamp-head-version.mjs | tr -d '\n')
+ssh "$SSH_REMOTE" -- "run --no-tty $APP_NAME node --input-type=module -e 'await import(\"data:text/javascript;base64,$script\")' -- - $release_version"
