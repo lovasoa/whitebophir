@@ -52,11 +52,13 @@ export class WriteModule {
     this.writeReadyWaiters = /** @type {Array<() => void>} */ ([]);
     this.serverRateLimitedUntil = 0;
     this.localRateLimitedUntil = 0;
+    // The server starts each allowance with traffic, not with page setup.
+    /** @type {Record<RateLimitKind, ReturnType<typeof RateLimitCommon.createRateLimitState> | null>} */
     this.localRateLimitStates = {
-      general: RateLimitCommon.createRateLimitState(Date.now()),
-      constructive: RateLimitCommon.createRateLimitState(Date.now()),
-      destructive: RateLimitCommon.createRateLimitState(Date.now()),
-      text: RateLimitCommon.createRateLimitState(Date.now()),
+      general: null,
+      constructive: null,
+      destructive: null,
+      text: null,
     };
   }
 
@@ -91,24 +93,6 @@ export class WriteModule {
         this.writeReadyWaiters.push(() => resolve());
       },
     );
-  }
-
-  /**
-   * @param {RateLimitKind} kind
-   * @param {number} [now]
-   */
-  resetLocalRateLimitState(kind, now) {
-    this.localRateLimitStates[kind] = RateLimitCommon.createRateLimitState(
-      now || Date.now(),
-    );
-  }
-
-  /** @param {number} [now] */
-  resetAllLocalRateLimitStates(now) {
-    this.resetLocalRateLimitState("general", now);
-    this.resetLocalRateLimitState("constructive", now);
-    this.resetLocalRateLimitState("destructive", now);
-    this.resetLocalRateLimitState("text", now);
   }
 
   /**

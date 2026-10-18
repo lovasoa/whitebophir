@@ -187,6 +187,27 @@ test("WriteModule keeps direct pumps inside the buffered-write safety window", (
   }
 });
 
+test("WriteModule starts an allowance with its first emitted write", () => {
+  const nowRef = { now: 1_000 };
+  const timerHarness = installTimerHarness(nowRef);
+  try {
+    const runtime = createWriteRuntime();
+    nowRef.now = 1_500;
+    runtime.writes.sendBufferedWrite({ tool: 3, id: "first" });
+    nowRef.now = 2_000;
+    runtime.writes.sendBufferedWrite({ tool: 3, id: "second" });
+
+    // The server's one-second window began at the first write, not page setup.
+    assert.deepEqual(
+      runtime.emittedMessages.map((message) => message.id),
+      ["first"],
+    );
+    assert.equal(runtime.writes.bufferedWrites.length, 1);
+  } finally {
+    timerHarness.restore();
+  }
+});
+
 test("WriteModule keeps persistent writes buffered until authoritative ack", () => {
   const nowRef = { now: 1_000 };
   const timerHarness = installTimerHarness(nowRef);
