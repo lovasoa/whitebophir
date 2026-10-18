@@ -124,7 +124,7 @@ Common settings:
 
 - `WBO_HISTORY_DIR` : configures the directory where the boards are saved. Defaults to `./server-data/`.
 - `WBO_BASE_PATH` : optional external URL path prefix, such as `/wbo`, for deployments mounted under a reverse-proxy subfolder.
-- `WBO_HTML_HEAD_SNIPPET_PATH` : optional path to an HTML snippet inserted raw before `</head>` on rendered HTML pages. This is useful for adding user analytics scripts or similar trusted snippets. The file is read once at server startup; relative paths resolve from the server working directory.
+- `WBO_HTML_HEAD_SNIPPET_PATH` : optional path to an HTML snippet inserted raw before `</head>` on rendered HTML pages. The file is read once at server startup; relative paths resolve from the server working directory.
 - `WBO_MAX_EMIT_COUNT` : the general per-IP socket write limit profile. Use compact entries such as `*:250/5s anonymous:125/5s`. Increase this if you want smoother drawings, at the expense of making denial-of-service bursts cheaper for clients. The default is `*:250/5s`.
 - `WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP` : the constructive per-IP write limit profile. Use compact entries such as `*:40/10s anonymous:20/10s`.
 - `WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP` : the destructive per-IP write limit profile. Use compact entries such as `*:190/60s anonymous:95/60s`.
@@ -133,20 +133,21 @@ Common settings:
 
 ## Monitoring
 
-Server logs go to stdout/stderr. Set `LOG_LEVEL` to `debug`, `info`, `warn`, or
-`error`. Metrics, logs, and traces support OpenTelemetry OTLP export:
+Server logs use stdout/stderr and `LOG_LEVEL`. Set
+`OTEL_EXPORTER_OTLP_ENDPOINT` for OTLP export; `OTEL_*` settings control
+resources and sampling.
 
-```sh
-OTEL_SERVICE_NAME=whitebophir-server \
-OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318 \
-npm start
+After board readiness, deployment head snippets can subscribe:
+
+```js
+const url = new URL("../js/drawing_performance.js", location.href);
+const { observeDrawingPerformance } = await import(url.href);
+const unsubscribe = observeDrawingPerformance(summary => exportDrawing(summary));
 ```
 
-Standard `OTEL_*` settings control resource attributes, per-signal endpoints,
-headers, and trace sampling. Without an exporter endpoint, WBO does not attempt
-remote export. Traces default to 5% sampling; for a debugging session, set
-`OTEL_TRACES_SAMPLER=parentbased_traceidratio` and
-`OTEL_TRACES_SAMPLER_ARG=1.0`.
+No subscriber means no measurement scheduling. Summaries estimate per-stroke
+ink wait without coordinates. Deployments own export and thresholds; separate
+`inputTiming` cohorts because event timing can miss queued movement.
 
 ## Storage and recovery
 

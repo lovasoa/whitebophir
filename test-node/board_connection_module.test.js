@@ -198,7 +198,7 @@ test("connection and replay discard superseded asynchronous work", async (t) => 
       pruneBufferedWritesForInvalidatingMessage: noop,
     },
     turnstile: { pendingWrites: [], hideOverlay: noop },
-    interaction: { releaseAll: noop },
+    interaction: { releaseAll: noop, isOwnCursorSuppressed: () => true },
     toolRegistry: {
       mounted: {},
       pendingMessages: {},
@@ -208,6 +208,15 @@ test("connection and replay discard superseded asynchronous work", async (t) => 
   });
   Tools.connection = new ConnectionModule(() => Tools, noop);
   Tools.replay = new ReplayModule(() => Tools, noop);
+  Tools.dom.drawingArea.childElementCount = 32768;
+  Tools.replay.enqueueIncomingBroadcast({
+    seq: 1,
+    mutation: { tool: 3, type: 1, id: "superseded" },
+  });
+  assert.notEqual(Tools.replay.broadcastTimer, 0);
+  Tools.replay.beginAuthoritativeResync();
+  assert.equal(Tools.replay.broadcastTimer, 0);
+  assert.deepEqual(Tools.replay.incomingBroadcastQueue, []);
   const connect = t.mock.fn(() => ({
     id: "socket",
     on: noop,
@@ -267,4 +276,94 @@ test("connection and replay discard superseded asynchronous work", async (t) => 
   browser.advanceTime(250);
   await Tools.connection.starting;
   assert.equal(connect.mock.callCount(), 2);
+});
+
+test("dense-board drawing batches broadcasts without losing sequence or acknowledgements", async (t) => {
+  const { ReplayModule } = await import(
+    "../client-data/js/board_replay_module.js"
+  );
+  const browser = installBrowserHarness();
+  t.after(() => browser.restore());
+  const applied = /** @type {string[]} */ ([]);
+  const acknowledged = /** @type {string[]} */ ([]);
+  let drawing = true;
+  const noop = () => {};
+  const Tools = /** @type {any} */ ({
+    dom: { status: "attached", drawingArea: { childElementCount: 32768 } },
+    connection: { generation: 0, socket: { id: "local" } },
+    interaction: { isOwnCursorSuppressed: () => drawing },
+    optimistic: { promoteMutation: noop, pruneForAuthoritativeMessage: noop },
+    writes: {
+      resolveBufferedWrite: /** @param {string} id */ (id) =>
+        acknowledged.push(id),
+      pruneBufferedWritesForInvalidatingMessage: noop,
+    },
+    messages: {
+      messageForTool: /** @param {{id: string}} message */ async (message) =>
+        applied.push(message.id),
+    },
+    presence: { updateConnectedUsersFromActivity: noop },
+    status: { syncWriteStatusIndicator: noop },
+  });
+  const replay = new ReplayModule(() => Tools, noop);
+  replay.awaitingSnapshot = false;
+  /** @param {string} id */
+  const rectangle = (id) => ({
+    tool: /** @type {3} */ (3),
+    type: /** @type {1} */ (1),
+    id,
+    color: "#000000",
+    size: 2,
+    x: 0,
+    y: 0,
+    x2: 10,
+    y2: 10,
+  });
+  replay.enqueueIncomingBroadcast({
+    seq: 1,
+    acceptedAtMs: 0,
+    mutation: rectangle("remote"),
+  });
+  replay.enqueueIncomingBroadcast({
+    seq: 2,
+    acceptedAtMs: 0,
+    mutation: {
+      ...rectangle("own"),
+      socket: "local",
+      clientMutationId: "ack",
+    },
+  });
+  browser.advanceTime(99);
+  assert.deepEqual(applied, []);
+  assert.equal(replay.authoritativeSeq, 0);
+  browser.advanceTime(1);
+  await new Promise(setImmediate);
+  assert.deepEqual(applied, ["remote"]);
+  assert.deepEqual(acknowledged, ["ack"]);
+  assert.equal(replay.authoritativeSeq, 2);
+  replay.enqueueIncomingBroadcast({
+    seq: 3,
+    acceptedAtMs: 0,
+    mutation: rectangle("pending"),
+  });
+  drawing = false;
+  replay.enqueueIncomingBroadcast({
+    seq: 4,
+    acceptedAtMs: 0,
+    mutation: rectangle("after-release"),
+  });
+  await new Promise(setImmediate);
+  assert.deepEqual(applied, ["remote", "pending", "after-release"]);
+  assert.equal(replay.broadcastTimer, 0);
+  drawing = true;
+  Tools.dom.drawingArea.childElementCount = 100;
+  replay.enqueueIncomingBroadcast({
+    seq: 5,
+    acceptedAtMs: 0,
+    mutation: rectangle("sparse"),
+  });
+  await new Promise(setImmediate);
+  assert.equal(applied[applied.length - 1], "sparse");
+  assert.equal(replay.authoritativeSeq, 5);
+  assert.equal(replay.incomingBroadcastQueue.length, 0);
 });

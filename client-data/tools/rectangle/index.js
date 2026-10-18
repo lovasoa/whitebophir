@@ -8,6 +8,10 @@ import {
 
 export {
   cancelShapeToolTouchGesture as cancelTouchGesture,
+  quitShapeTool as onquit,
+  disconnectShapeTool as onSocketDisconnect,
+  rejectShapeMutation as onMutationRejected,
+  shapeToolMessage as onMessage,
   drawShapeTool as draw,
   moveShapeTool as move,
   pressShapeTool as press,
@@ -38,15 +42,22 @@ const config = {
   isShapeElement: (element) =>
     String(element?.tagName).toLowerCase() === contract.storedTagName,
   makeCreateMessage: makeSeedShapeCreateMessage,
+  constrainEndPosition: (state, x, y) => {
+    const start = state.currentShape;
+    if (!start) return;
+    if (state.secondary?.active) {
+      constrainEqualSpanToBoard(state, start, x, y);
+      x = state.endX;
+      y = state.endY;
+    }
+    state.endX = x;
+    state.endY = y;
+  },
   makeUpdateMessage: (state, x, y) => {
     const start = state.currentShape;
-    if (!start) return null;
-    if (state.secondary?.active) {
-      const constrained = constrainEqualSpanToBoard(state, start, x, y);
-      x = constrained.x;
-      y = constrained.y;
-    }
-    return makeBoxShapeUpdateMessage(contract.toolCode, start.id, start, x, y);
+    return start
+      ? makeBoxShapeUpdateMessage(contract.toolCode, start.id, start, x, y)
+      : null;
   },
   makeFallbackShape: (data) => ({
     id: data.id,

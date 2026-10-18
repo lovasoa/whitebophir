@@ -1,3 +1,4 @@
+import { beginDrawingPerformance } from "../js/drawing_performance.js";
 import { logFrontendEvent } from "../js/frontend_logging.js";
 import { clampCoord, LIMITS } from "../js/message_common.js";
 import { MutationType } from "../js/mutation_type.js";
@@ -38,6 +39,7 @@ import { TOOL_CODE_BY_ID } from "./tool-order.js";
  *   secondary?: ShapeToolSecondary,
  *   uidPrefix: string,
  *   isShapeElement: (element: Element | null) => boolean,
+ *   constrainEndPosition?: (state: ShapeToolState, x: number, y: number, evt: ShapePointerEvent) => void,
  *   makeCreateMessage: (state: ShapeToolState, id: string, x: number, y: number) => ShapeCurrentMessage,
  *   makeUpdateMessage: (state: ShapeToolState, x: number, y: number, evt: ShapePointerEvent) => ShapeToolMessage | null,
  *   makeFallbackShape: (update: ShapeToolMessage) => ShapeRuntimeMessage,
@@ -55,14 +57,24 @@ import { TOOL_CODE_BY_ID } from "./tool-order.js";
 
 /** @param {ToolBootContext} ctx */
 function createShapeToolStateCore(ctx) {
+  const maxBoardSize = Number(ctx.runtime.config.serverConfig.MAX_BOARD_SIZE);
   return {
     board: ctx.runtime.board,
     coordinates: ctx.runtime.coordinates,
     preferences: ctx.runtime.preferences,
     writes: ctx.runtime.writes,
-    runtimeConfig: ctx.runtime.config,
+    maxBoardSize: Number.isFinite(maxBoardSize)
+      ? maxBoardSize
+      : LIMITS.DEFAULT_MAX_BOARD_SIZE,
     ids: ctx.runtime.ids,
     interaction: ctx.runtime.interaction,
+    measurement: /** @type {ReturnType<typeof beginDrawingPerformance>} */ (
+      null
+    ),
+    renderedX: 0,
+    renderedY: 0,
+    endX: 0,
+    endY: 0,
     currentShape: /** @type {ShapeCurrentMessage | null} */ (null),
     lastTime: performance.now(),
     secondary: /** @type {ShapeToolSecondary | null} */ (null),
@@ -161,15 +173,9 @@ export function makeLineShapeUpdateMessage(tool, id, x, y) {
  * @param {{x: number, y: number}} start
  * @param {number} x
  * @param {number} y
- * @returns {{x: number, y: number}}
  */
 export function constrainEqualSpanToBoard(state, start, x, y) {
-  const configuredMaxBoardSize = Number(
-    state.runtimeConfig.serverConfig?.MAX_BOARD_SIZE,
-  );
-  const maxBoardSize = Number.isFinite(configuredMaxBoardSize)
-    ? configuredMaxBoardSize
-    : LIMITS.DEFAULT_MAX_BOARD_SIZE;
+  const maxBoardSize = state.maxBoardSize;
   const startX = clampCoord(start.x, maxBoardSize);
   const startY = clampCoord(start.y, maxBoardSize);
   const dx = x - startX;
@@ -182,10 +188,8 @@ export function constrainEqualSpanToBoard(state, start, x, y) {
     0,
     Math.min(Math.max(Math.abs(dx), Math.abs(dy)), maxXSpan, maxYSpan),
   );
-  return {
-    x: startX + xDirection * span,
-    y: startY + yDirection * span,
-  };
+  state.endX = startX + xDirection * span;
+  state.endY = startY + yDirection * span;
 }
 
 /**
@@ -218,8 +222,9 @@ function createShape(state, data) {
 /**
  * @param {ShapeToolState} state
  * @param {ShapeToolMessage} data
+ * @param {boolean} [isLocal]
  */
-export function drawShapeTool(state, data) {
+export function drawShapeTool(state, data, isLocal = false) {
   const { board, config } = state;
   state.interaction.drawingEvent = true;
   if (data.type === MutationType.CREATE) {
@@ -234,6 +239,17 @@ export function drawShapeTool(state, data) {
         : createShape(state, config.makeFallbackShape(data))
     );
     config.applyShapeGeometry(shape, data);
+    if (
+      isLocal &&
+      state.measurement &&
+      data.id === state.currentShape?.id &&
+      (data.x2 !== state.renderedX || data.y2 !== state.renderedY)
+    ) {
+      state.renderedX = data.x2;
+      state.renderedY = data.y2;
+      state.measurement?.accept();
+      state.measurement?.geometry();
+    }
     return;
   }
   logFrontendEvent("error", "tool.shape.draw_invalid_type", {
@@ -262,6 +278,25 @@ export function createShapePressEffect(state, x, y) {
  */
 export function pressShapeTool(state, x, y, evt) {
   evt.preventDefault();
+  state.measurement?.finish("replaced", true);
+  state.renderedX = state.endX = x;
+  state.renderedY = state.endY = y;
+  state.measurement = beginDrawingPerformance(
+    state.config.contract.toolId,
+    evt,
+    x,
+    y,
+    (pageX, pageY, time, received) => {
+      observeShapeInput(
+        state,
+        state.coordinates.pageCoordinateToBoard(pageX),
+        state.coordinates.pageCoordinateToBoard(pageY),
+        undefined,
+        time,
+        received,
+      );
+    },
+  );
   const effect = createShapePressEffect(state, x, y);
   state.currentShape = effect.currentShape;
   state.writes.drawAndSend(effect.message);
@@ -285,7 +320,13 @@ export function createShapeMoveEffect(state, x, y, evt, force, now) {
       preventDefault: true,
     };
   }
-  const update = state.config.makeUpdateMessage(state, x, y, evt);
+  constrainEndPosition(state, x, y, evt);
+  const update = state.config.makeUpdateMessage(
+    state,
+    state.endX,
+    state.endY,
+    evt,
+  );
   if (!update) {
     return {
       update: null,
@@ -311,24 +352,19 @@ export function createShapeMoveEffect(state, x, y, evt, force, now) {
  * @param {boolean} [force]
  */
 export function moveShapeTool(state, x, y, evt, force = false) {
-  const effect = createShapeMoveEffect(
-    state,
-    x,
-    y,
-    evt,
-    force,
-    performance.now(),
-  );
+  const now = performance.now();
+  const effect = createShapeMoveEffect(state, x, y, evt, force, now);
   if (!effect.update) {
     if (evt && effect.preventDefault) evt.preventDefault();
     return;
   }
+  state.measurement?.input(state.endX, state.endY, evt?.timeStamp ?? now, now);
   const update = effect.update;
   if (effect.shouldSend) {
     state.writes.drawAndSend(update);
     state.lastTime = effect.nextLastTime;
   } else {
-    drawShapeTool(state, update);
+    drawShapeTool(state, update, true);
   }
   if (evt && effect.preventDefault) evt.preventDefault();
 }
@@ -340,6 +376,8 @@ export function moveShapeTool(state, x, y, evt, force = false) {
  */
 export function releaseShapeTool(state, x, y) {
   moveShapeTool(state, x, y, undefined, true);
+  state.measurement?.finish("release");
+  state.measurement = null;
   state.currentShape = null;
 }
 
@@ -354,6 +392,7 @@ function createDeleteShapeMessage(shapeId) {
 
 /** @param {ShapeToolState} state */
 export function cancelShapeToolTouchGesture(state) {
+  finishShapePerformance(state, "cancel");
   const shapeId = state.currentShape?.id;
   state.currentShape = null;
   if (!shapeId) return;
@@ -362,4 +401,53 @@ export function cancelShapeToolTouchGesture(state) {
     state.board.drawingArea.removeChild(shape);
   }
   state.writes.send(createDeleteShapeMessage(shapeId));
+}
+
+/** @param {ShapeToolState} state @param {number} x @param {number} y @param {ShapePointerEvent} evt */
+function constrainEndPosition(state, x, y, evt) {
+  state.endX = x;
+  state.endY = y;
+  state.config.constrainEndPosition?.(state, x, y, evt);
+}
+
+/** @param {ShapeToolState} state @param {number} x @param {number} y @param {ShapePointerEvent} evt @param {number} time @param {number} received */
+function observeShapeInput(state, x, y, evt, time, received) {
+  constrainEndPosition(state, x, y, evt);
+  state.measurement?.input(state.endX, state.endY, time, received);
+}
+
+/** @param {ShapeToolState} state @param {string} reason */
+function finishShapePerformance(state, reason) {
+  state.measurement?.finish(reason, true);
+  state.measurement = null;
+}
+/** @param {ShapeToolState} state */
+export function quitShapeTool(state) {
+  finishShapePerformance(state, "tool-change");
+}
+/** @param {ShapeToolState} state */
+export function disconnectShapeTool(state) {
+  finishShapePerformance(state, "disconnect");
+}
+/** @param {ShapeToolState} state @param {{id?: string, parent?: string}} message */
+export function rejectShapeMutation(state, message) {
+  if (message.id === state.currentShape?.id)
+    finishShapePerformance(state, "rejected");
+}
+/** @param {ShapeToolState} state @param {{type?: number, id?: string, _children?: {type?: number, id?: string}[]}} message */
+export function shapeToolMessage(state, message) {
+  if (message.type === MutationType.CLEAR)
+    finishShapePerformance(state, "clear");
+  if (
+    message.type === MutationType.DELETE &&
+    message.id === state.currentShape?.id
+  )
+    finishShapePerformance(state, "delete");
+  for (const child of message._children ?? []) {
+    if (
+      child.type === MutationType.DELETE &&
+      child.id === state.currentShape?.id
+    )
+      finishShapePerformance(state, "delete");
+  }
 }

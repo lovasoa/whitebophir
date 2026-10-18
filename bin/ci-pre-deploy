@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+
+release_version=$(sed -nE 's/^  "version": "([0-9]+\.[0-9]+\.[0-9]+)",$/\1/p' package.json)
+test "$GITHUB_REF_NAME" = "v$release_version"
+
+# Use the existing deployment credentials and mounted configuration.
+ssh "$SSH_REMOTE" -- run --no-tty "$APP_NAME" node --input-type=module - "$release_version" < .github/stamp-head-version.mjs

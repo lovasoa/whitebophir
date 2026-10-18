@@ -58,6 +58,7 @@ test("pan-ready boot graph excludes full app and tool implementations", () => {
   const closure = staticImportClosure("client-data/js/board_main.js");
   assertClosureExcludes(closure, [
     "client-data/js/app_tools.js",
+    "client-data/js/drawing_performance.js",
     "client-data/js/board.js",
     "client-data/js/board_access_module.js",
     "client-data/js/board_connection_module.js",

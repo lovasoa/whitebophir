@@ -917,3 +917,27 @@ export type SocketParams = {
   extraHeaders?: SocketHeaders;
   query?: string;
 };
+
+/** One opt-in local stroke measurement; all durations are milliseconds. */
+export interface DrawingPerformanceSummary {
+  measurementVersion: number;
+  toolId: string;
+  inputType: string;
+  inputTiming: string;
+  /** Epoch milliseconds of the original press; duration locates release. */
+  strokeStartTimeMs: number;
+  maxFeedbackWaitMs: number;
+  /** Epoch milliseconds; pair with maxFeedbackWaitMs for the worst interval. */
+  maxFeedbackWaitStartTimeMs: number;
+  meanFeedbackWaitMs?: number;
+  feedbackCount: number;
+  inputSampleCount: number;
+  /** Age of the oldest meaningful input when its browser handler ran. */
+  maxInputQueueDelayMs: number;
+  unfinishedWaitMs: number;
+  movingDurationMs: number;
+  strokeDurationMs: number;
+  renderFallbackCount: number;
+  terminationReason: string;
+  pointIntervalMs?: number;
+}

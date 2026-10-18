@@ -18,6 +18,15 @@ path {
   /* Use the existing overlay as Pencil's hit-test surface. This keeps pointer
      targeting out of the dense board SVG without mutating #drawingArea. */
   pointer-events: bounding-box;
+  /* Keep live ink on its own compositor layer: otherwise dense board layers
+     are rebuilt during each stroke. Release it when Pencil is deselected. */
+  will-change: transform;
+}
+
+#board:has(> .wbo-pencil-live-overlay-active) > #canvas {
+  /* Keep the dense SVG's paint chunks out of live ink's layer updates.
+     Release the layer when Pencil is deselected. */
+  will-change: transform;
 }
 
 .wbo-pencil-live-path {

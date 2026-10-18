@@ -1317,7 +1317,7 @@ test("Pencil replay updates stroke styling on the reused DOM node", async () => 
   assert.deepEqual(line.pathData, []);
 });
 
-test("Pencil input sends an initial child point without DOM setup", () => {
+test("Pencil input sends its initial and final point without DOM setup", () => {
   const tools = createInputTools();
   const state = PencilTool.boot(
     createToolBootContext(
@@ -1335,7 +1335,7 @@ test("Pencil input sends an initial child point without DOM setup", () => {
   assert.equal(event.preventDefaultCount, 2);
   assert.deepEqual(
     tools.sentMessages.map((/** @type {any} */ message) => message.data.type),
-    [MutationType.CREATE, MutationType.APPEND],
+    [MutationType.CREATE, MutationType.APPEND, MutationType.APPEND],
   );
   assert.deepEqual(tools.sentMessages[1].data, {
     tool: TOOL_CODE_BY_ID.pencil,
@@ -1344,6 +1344,51 @@ test("Pencil input sends an initial child point without DOM setup", () => {
     x: 100,
     y: 100,
   });
+  assert.equal(tools.sentMessages[2].data.x, 200);
+  assert.equal(tools.sentMessages[2].data.y, 200);
+  getBrowserHarness().advanceTime(1000);
+  assert.equal(tools.sentMessages.length, 3);
+});
+
+test("Pencil renders trailing movement without waiting for release and cancels pending work", async () => {
+  const harness = createHarness();
+  globalAny.Tools.config.serverConfig.RATE_LIMITS.general.limit = 50;
+  const pencil = await harness.loadTool("pencil");
+  const event = createToolEvent();
+  globalAny.Tools.toolRegistry.current = pencil;
+  harness.clock.now = 0;
+  pencil.listeners.press(100, 100, event);
+  harness.clock.now = 5;
+  pencil.listeners.move(150, 150, event);
+  harness.clock.now = 10;
+  pencil.listeners.move(200, 200, event);
+  assert.equal(globalAny.Tools.sentMessages.length, 2);
+
+  harness.time.advanceTime(16);
+  harness.time.flushAsync();
+  assert.equal(globalAny.Tools.sentMessages.length, 3);
+  assert.equal(globalAny.Tools.sentMessages[2].data.x, 200);
+  assert.deepEqual(
+    getPencilLiveOverlayPath()?.pathData.at(-1)?.values.slice(-2),
+    [200, 200],
+  );
+  assert.equal(drawingAreaPaths().length, 0);
+
+  harness.clock.now = 30;
+  pencil.listeners.move(250, 250, event);
+  pencil.onSocketDisconnect();
+  harness.time.advanceTime(1000);
+  assert.equal(globalAny.Tools.sentMessages.length, 3);
+  assert.deepEqual(getPencilLiveOverlayPath()?.pathData, []);
+
+  pencil.listeners.press(300, 300, event);
+  harness.time.advanceTime(1000);
+  assert.equal(globalAny.Tools.sentMessages.length, 5);
+  pencil.listeners.release(300, 300, event);
+  assert.deepEqual(
+    harness.elementsById.get("l-1")?.pathData.at(-1)?.values.slice(-2),
+    [300, 300],
+  );
 });
 
 test("Pencil onMessage discards the active stroke deleted inside a hand batch", () => {
@@ -2380,6 +2425,12 @@ test("large Hand replay completes transforms before the next message", async () 
   rect.width.baseVal.value = 60;
   rect.height.baseVal.value = 40;
   globalAny.Tools.drawingArea.appendChild(rect);
+  rect.getBBox = () => {
+    // Measuring between writes would repeatedly force browser layout. Every
+    // transform in the batch must already be applied before the first read.
+    assert.equal(rect.transform.baseVal[0].matrix.e, 1424);
+    return { x: 100, y: 100, width: 60, height: 40 };
+  };
 
   const messages = new MessageModule(
     /** @type {any} */ ({ mounted: { hand: handTool } }),
@@ -2402,13 +2453,14 @@ test("large Hand replay completes transforms before the next message", async () 
   });
 
   const ensuredBounds = globalAny.Tools.viewportState.controller.ensuredBounds;
-  assert.equal(ensuredBounds.length, 1025);
+  assert.equal(ensuredBounds.length, 1);
   assert.deepEqual(ensuredBounds.at(-1), {
-    minX: 1524,
+    minX: 500,
     minY: 350,
     maxX: 1584,
     maxY: 390,
   });
+  rect.getBBox = () => ({ x: 100, y: 100, width: 60, height: 40 });
   await messages.messageForTool({
     tool: TOOL_CODE_BY_ID.hand,
     type: MutationType.UPDATE,
@@ -2418,6 +2470,30 @@ test("large Hand replay completes transforms before the next message", async () 
   harness.time.flushUntilIdle();
   await Promise.resolve();
   assert.equal(rect.transform.baseVal[0].matrix.e, 2000);
+
+  // A mixed batch may transform a copy created earlier in that same batch.
+  // Its final geometry still grows the viewport after the source is deleted.
+  await messages.messageForTool({
+    tool: TOOL_CODE_BY_ID.hand,
+    _children: [
+      { type: MutationType.COPY, id: rect.id, newid: "moved-copy" },
+      {
+        type: MutationType.UPDATE,
+        id: "moved-copy",
+        transform: { a: 1, b: 0, c: 0, d: 1, e: 3000, f: 50 },
+      },
+      { type: MutationType.DELETE, id: rect.id },
+    ],
+  });
+  assert.equal(globalAny.Tools.dom.svg.getElementById(rect.id), null);
+  const copy = globalAny.Tools.dom.svg.getElementById("moved-copy");
+  assert.equal(copy.transform.baseVal[0].matrix.e, 3000);
+  assert.deepEqual(ensuredBounds.at(-1), {
+    minX: 3100,
+    minY: 150,
+    maxX: 3160,
+    maxY: 190,
+  });
 });
 
 test("Hand batch deletes complete synchronously and preserve the SVG shell", async () => {

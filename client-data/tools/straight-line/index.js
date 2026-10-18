@@ -7,6 +7,10 @@ import {
 
 export {
   cancelShapeToolTouchGesture as cancelTouchGesture,
+  quitShapeTool as onquit,
+  disconnectShapeTool as onSocketDisconnect,
+  rejectShapeMutation as onMutationRejected,
+  shapeToolMessage as onMessage,
   drawShapeTool as draw,
   moveShapeTool as move,
   pressShapeTool as press,
@@ -37,9 +41,9 @@ const config = {
   isShapeElement: (element) =>
     String(element?.tagName).toLowerCase() === contract.storedTagName,
   makeCreateMessage: makeSeedShapeCreateMessage,
-  makeUpdateMessage: (state, x, y) => {
+  constrainEndPosition: (state, x, y) => {
     const start = state.currentShape;
-    if (!start) return null;
+    if (!start) return;
     if (state.secondary?.active) {
       let alpha = Math.atan2(y - start.y, x - start.x);
       const d = Math.hypot(y - start.y, x - start.x);
@@ -48,7 +52,14 @@ const config = {
       x = state.coordinates.toBoardCoordinate(start.x + d * Math.cos(alpha));
       y = state.coordinates.toBoardCoordinate(start.y + d * Math.sin(alpha));
     }
-    return makeLineShapeUpdateMessage(contract.toolCode, start.id, x, y);
+    state.endX = x;
+    state.endY = y;
+  },
+  makeUpdateMessage: (state, x, y) => {
+    const start = state.currentShape;
+    return start
+      ? makeLineShapeUpdateMessage(contract.toolCode, start.id, x, y)
+      : null;
   },
   makeFallbackShape: (data) => ({
     id: data.id,

@@ -703,7 +703,19 @@ export function createViewportController(Tools) {
    */
   function ensureBoardExtentForBounds(bounds) {
     if (!bounds) return false;
-    return ensureBoardExtentForPoint(bounds.maxX, bounds.maxY);
+    const dom = getAttachedDom();
+    if (!dom) return false;
+    const width = dom.svg.width.baseVal.value;
+    const height = dom.svg.height.baseVal.value;
+    // Consume half the empty margin before growing it again. Extending the
+    // margin for every point otherwise resizes the page throughout a stroke.
+    const withinWidth = bounds.maxX <= width - BOARD_EXTENT_MARGIN / 2;
+    const withinHeight = bounds.maxY <= height - BOARD_EXTENT_MARGIN / 2;
+    if (withinWidth && withinHeight) return false;
+    return ensureBoardExtentAtLeast(
+      withinWidth ? width : bounds.maxX + BOARD_EXTENT_MARGIN,
+      withinHeight ? height : bounds.maxY + BOARD_EXTENT_MARGIN,
+    );
   }
 
   /**
@@ -734,7 +746,8 @@ export function createViewportController(Tools) {
     scaleTimeout = window.setTimeout(() => {
       const timeoutDom = getAttachedDom();
       if (timeoutDom) {
-        timeoutDom.svg.style.willChange = "auto";
+        // Let tool styles retain a layer after the temporary zoom hint expires.
+        timeoutDom.svg.style.willChange = "";
         setViewportScalingClass(timeoutDom, false);
       }
     }, SCALE_WILL_CHANGE_TIMEOUT_MS);
