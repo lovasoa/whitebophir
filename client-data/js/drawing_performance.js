@@ -82,7 +82,8 @@ class DrawingPerformance {
     this.toolId = toolId;
     this.pointIntervalMs = pointIntervalMs;
     this.sample = sample;
-    this.start = performance.now();
+    // Pointer-down can itself have waited in the browser input queue.
+    this.start = Math.min(event.timeStamp, performance.now());
     this.end = this.start;
     this.inputType =
       Math.abs(event.timeStamp - pointerTime) < 50

@@ -8,7 +8,7 @@ const {
 // Drive native timing boundaries deterministically, without a production clock
 // abstraction or reset API. Every test unsubscribes and restores the globals.
 /** @typedef {NonNullable<ReturnType<typeof beginDrawingPerformance>>} Stroke */
-/** @typedef {{summaries: import("../types/app-runtime").DrawingPerformanceSummary[], frames: Map<number, () => void>, handlers: Map<string, Set<Function>>, at(time: number): void, frame(time: number): void, message(time: number): void, stroke(): Stroke, unsubscribe(): void}} TestEnvironment */
+/** @typedef {{summaries: import("../types/app-runtime").DrawingPerformanceSummary[], frames: Map<number, () => void>, handlers: Map<string, Set<Function>>, at(time: number): void, frame(time: number): void, message(time: number): void, stroke(pressedAt?: number): Stroke, unsubscribe(): void}} TestEnvironment */
 /** @param {(environment: TestEnvironment) => void} run */
 function harness(run) {
   const names = [
@@ -88,10 +88,10 @@ function harness(run) {
       now = time;
       messages.shift()?.();
     },
-    stroke: () => {
+    stroke: (pressedAt = now) => {
       const stroke = beginDrawingPerformance(
         "pencil",
-        /** @type {MouseEvent} */ ({ timeStamp: now }),
+        /** @type {MouseEvent} */ ({ timeStamp: pressedAt }),
         0,
         0,
         (x, y, t) => stroke?.input(x, y, t),
@@ -257,4 +257,19 @@ test("visibility interruption drains a stroke awaiting its final render", () =>
     e.frame(20);
     e.message(30);
     assert.equal(e.summaries.length, 1);
+  }));
+
+test("queued pointer-down preserves the original timestamps of subsequent movement", () =>
+  harness((e) => {
+    e.at(300);
+    const s = e.stroke(0);
+    for (let t = 10; t <= 290; t += 10) s.input(t, 0, t);
+    s.accept();
+    s.geometry(true);
+    e.message(310);
+    e.at(320);
+    s.finish("release");
+    assert.equal(e.summaries[0]?.maxFeedbackWaitMs, 300);
+    assert.equal(e.summaries[0]?.movingDurationMs, 290);
+    assert.equal(e.summaries[0]?.strokeDurationMs, 320);
   }));
