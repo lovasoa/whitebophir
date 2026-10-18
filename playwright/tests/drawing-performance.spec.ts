@@ -27,6 +27,38 @@ for (const tool of ["pencil", "straight-line"]) {
     await page.mouse.move(150, 240);
     await page.mouse.down();
     await page.mouse.move(450, 300, { steps: 25 });
+    if (tool === "pencil") {
+      const endpoint = await page.evaluate(() => {
+        const target = document.querySelector(".wbo-pencil-live-overlay");
+        if (!target) throw Error("missing overlay");
+        // The second input is guaranteed to fall inside Pencil's point
+        // interval. It must reach the ink even if no further input arrives.
+        for (const x of [460, 470])
+          target.dispatchEvent(
+            new MouseEvent("mousemove", {
+              bubbles: true,
+              clientX: x,
+              clientY: 310,
+              buttons: 1,
+            }),
+          );
+        const coordinates = window.WBOApp.coordinates;
+        return ` ${coordinates.pageCoordinateToBoard(470 + scrollX)} ${coordinates.pageCoordinateToBoard(310 + scrollY)}`;
+      });
+      await expect
+        .poll(() =>
+          page.evaluate(
+            (suffix) =>
+              document
+                .querySelector(".wbo-pencil-live-path")
+                ?.getAttribute("d")
+                ?.endsWith(suffix),
+            endpoint,
+          ),
+        )
+        .toBe(true);
+      await page.mouse.move(470, 310);
+    }
     await page.mouse.up();
     await expect
       .poll(() => page.evaluate(() => window.drawingSummaries.length))

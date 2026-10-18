@@ -303,6 +303,15 @@ function createInitialState(ctx) {
     hasUsedStylus: false,
     curLineId: "",
     lastTime: performance.now(),
+    lastPointX: NaN,
+    lastPointY: NaN,
+    pendingX: NaN,
+    pendingY: NaN,
+    pointTimer: 0,
+    flushPendingPoint() {
+      this.pointTimer = 0;
+      move(this, this.pendingX, this.pendingY, undefined);
+    },
     hasSentPoint: false,
     currentLineChildCount: 0,
     renderingLine: /** @type {SVGPathElement | null} */ (null),
@@ -401,9 +410,10 @@ export function createPencilPressEffect(state) {
  * @param {number} x
  * @param {number} y
  * @param {number} now
+ * @param {boolean} [force]
  * @returns {PencilMoveEffect}
  */
-export function createPencilMoveEffect(state, x, y, now) {
+export function createPencilMoveEffect(state, x, y, now, force = false) {
   if (
     state.curLineId !== "" &&
     state.currentLineChildCount >= state.MAX_PENCIL_CHILDREN
@@ -419,7 +429,9 @@ export function createPencilMoveEffect(state, x, y, now) {
   }
   if (
     state.curLineId === "" ||
-    (state.hasSentPoint && now - state.lastTime <= state.minPencilIntervalMs)
+    (state.hasSentPoint &&
+      ((x === state.lastPointX && y === state.lastPointY) ||
+        (!force && now - state.lastTime <= state.minPencilIntervalMs)))
   ) {
     return {
       appendMessage: null,
@@ -482,6 +494,13 @@ function releaseInteractionLease(state) {
   state.activeInteractionLease = null;
 }
 
+/** @param {PencilState} state */
+function clearPendingPoint(state) {
+  window.clearTimeout(state.pointTimer);
+  state.pointTimer = 0;
+  state.pendingX = state.pendingY = NaN;
+}
+
 /**
  * Claims the active drawing interaction so the local cursor does not repaint
  * over Pencil's own overlay feedback.
@@ -499,6 +518,7 @@ function clearActiveStrokeState(
   keepPathData = false,
   reason = "cancel",
 ) {
+  clearPendingPoint(state);
   state.measurement?.finish(
     reason,
     reason !== "release" &&
@@ -542,6 +562,8 @@ function commitActiveStroke(state) {
  * @param {PencilState} state
  */
 function finishActiveStroke(state, reason = "release") {
+  if (reason === "tool-change" && !Number.isNaN(state.pendingX))
+    move(state, state.pendingX, state.pendingY, undefined, true);
   commitActiveStroke(state);
   clearActiveStrokeState(state, true, reason);
 }
@@ -742,6 +764,7 @@ function handleAutoWhiteOut(state, evt) {
 /** @param {ToolBootContext} ctx */
 export function boot(ctx) {
   const state = createInitialState(ctx);
+  state.flushPendingPoint = state.flushPendingPoint.bind(state);
   state.secondary.switch = () => {
     finishActiveStroke(state, "tool-change");
     toggleSize(state);
@@ -810,6 +833,7 @@ export function draw(state, data, isLocal = false) {
  */
 export function press(state, x, y, evt) {
   evt.preventDefault();
+  clearPendingPoint(state);
   if (
     state.AUTO_FINGER_WHITEOUT &&
     typeof TouchEvent !== "undefined" &&
@@ -852,20 +876,41 @@ export function press(state, x, y, evt) {
  * @param {number} x
  * @param {number} y
  * @param {MouseEvent | TouchEvent | undefined} evt
+ * @param {boolean} [force]
  */
-export function move(state, x, y, evt) {
+export function move(state, x, y, evt, force = false) {
   const now = performance.now();
   state.measurement?.input(x, y, evt?.timeStamp ?? now);
-  const effect = createPencilMoveEffect(state, x, y, now);
+  const effect = createPencilMoveEffect(state, x, y, now, force);
   if (effect.stopBefore) {
     finishActiveStroke(state, "point-limit");
   }
   if (effect.appendMessage) {
+    clearPendingPoint(state);
     state.writes.drawAndSend(effect.appendMessage);
     state.currentLineChildCount = effect.nextChildCount;
     state.hasSentPoint = effect.nextHasSentPoint;
     state.lastTime = effect.nextLastTime;
+    state.lastPointX = x;
+    state.lastPointY = y;
     if (effect.stopAfter) finishActiveStroke(state, "point-limit");
+  } else if (state.curLineId) {
+    if (x === state.lastPointX && y === state.lastPointY) {
+      clearPendingPoint(state);
+    } else {
+      state.pendingX = x;
+      state.pendingY = y;
+      // Throttling must retain the latest movement. Otherwise stopping between
+      // accepted points leaves the ink behind until the next move or release.
+      // Let normal input supply the next point first, avoiding extra writes
+      // during continuous movement. The timer is only needed when input stops.
+      if (!state.pointTimer) {
+        state.pointTimer = window.setTimeout(
+          state.flushPendingPoint,
+          state.minPencilIntervalMs + 1,
+        );
+      }
+    }
   }
   if (evt) evt.preventDefault();
 }
@@ -878,7 +923,8 @@ export function move(state, x, y, evt) {
  * @param {number} y
  */
 export function release(state, x, y) {
-  move(state, x, y, undefined);
+  // The write runtime still enforces the network budget for this final point.
+  move(state, x, y, undefined, true);
   finishActiveStroke(state);
 }
 
