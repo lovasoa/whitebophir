@@ -114,6 +114,8 @@ try {
                   prototype[key] = /** @param {...any} args */ function (
                     ...args
                   ) {
+                    if (key === "input" && !probe.strokeRef)
+                      probe.strokeRef = new w.WeakRef(this);
                     const begin = performance.now();
                     try {
                       return original.apply(this, args);
@@ -192,12 +194,23 @@ try {
                   document.getElementById("drawingArea")?.childElementCount,
               };
             });
+            // After unsubscribe/GC the collector must be collectible, independently
+            // of the SVG and Pencil geometry retained by the application itself.
+            await cdp.send("HeapProfiler.collectGarbage");
+            const retainedCollector = await page.evaluate(() =>
+              Boolean(
+                /** @type {any} */ (window).drawingBench.strokeRef?.deref(),
+              ),
+            );
+            if (retainedCollector)
+              throw new Error("Collector retained after stroke cleanup");
             console.log(
               JSON.stringify({
                 items,
                 cpuRate,
                 repeat,
                 enabled,
+                retainedCollector,
                 ...result,
                 scriptMs: (metrics.ScriptDuration ?? 0) * 1000,
                 taskMs: (metrics.TaskDuration ?? 0) * 1000,
