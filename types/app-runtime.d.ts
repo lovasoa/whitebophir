@@ -924,6 +924,8 @@ export interface DrawingPerformanceSummary {
   toolId: string;
   inputType: string;
   inputTiming: string;
+  /** Epoch milliseconds of the original press; duration locates release. */
+  strokeStartTimeMs: number;
   maxFeedbackWaitMs: number;
   /** Epoch milliseconds; pair with maxFeedbackWaitMs for the worst interval. */
   maxFeedbackWaitStartTimeMs: number;

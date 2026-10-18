@@ -275,6 +275,7 @@ class DrawingPerformance {
       toolId: this.toolId,
       inputType: this.inputType,
       inputTiming: this.inputTiming,
+      strokeStartTimeMs: performance.timeOrigin + this.start,
       maxFeedbackWaitMs: Math.max(this.max, this.unfinished),
       // Epoch milliseconds locate the worst interval beside browser long tasks.
       maxFeedbackWaitStartTimeMs:

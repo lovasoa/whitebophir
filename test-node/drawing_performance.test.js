@@ -214,6 +214,10 @@ test("release waits for final render; successive strokes and exceptions stay iso
     e.message(20);
     assert.equal(e.summaries.length, 2);
     assert.equal(e.summaries[1]?.meanFeedbackWaitMs, 10);
+    assert.equal(
+      e.summaries[1]?.strokeStartTimeMs + e.summaries[1]?.strokeDurationMs,
+      1700000000011,
+    );
     removeThrower();
   }));
 
@@ -278,4 +282,5 @@ test("queued pointer-down preserves the original timestamps of subsequent moveme
     assert.equal(e.summaries[0]?.movingDurationMs, 290);
     assert.equal(e.summaries[0]?.strokeDurationMs, 320);
     assert.equal(e.summaries[0]?.maxInputQueueDelayMs, 300);
+    assert.equal(e.summaries[0]?.strokeStartTimeMs, 1700000000000);
   }));
