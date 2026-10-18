@@ -63,7 +63,9 @@ export function compileToolListeners(Tools, tool) {
     return function handlePointer(evt) {
       if (
         tool === Tools.toolRegistry.current &&
-        Tools.toolRegistry.shouldDisableTool(tool.name)
+        (Tools.toolRegistry.shouldDisableTool(tool.name) ||
+          (listener === tool.listeners.press &&
+            !Tools.toolRegistry.canInteractWithTool(tool.name)))
       ) {
         return true;
       }

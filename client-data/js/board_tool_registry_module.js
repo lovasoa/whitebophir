@@ -220,8 +220,12 @@ export class ToolRegistryModule {
 
   /** @param {string} toolName */
   canInteractWithTool(toolName) {
+    const Tools = this.getTools();
     return (
-      this.shouldDisplayTool(toolName) && !this.shouldDisableTool(toolName)
+      this.shouldDisplayTool(toolName) &&
+      !this.shouldDisableTool(toolName) &&
+      (!TOOL_BY_ID[toolName]?.requiredCapability ||
+        Tools.writes.canBufferWrites())
     );
   }
 
@@ -241,7 +245,7 @@ export class ToolRegistryModule {
     const toolElem = document.getElementById(`toolID-${toolName}`);
     if (!toolElem) return;
     const disabled =
-      !this.mounted[toolName] || this.shouldDisableTool(toolName);
+      !this.mounted[toolName] || !this.canInteractWithTool(toolName);
     toolElem.classList.toggle("disabledTool", disabled);
     toolElem.setAttribute("aria-disabled", disabled ? "true" : "false");
   }

@@ -20,6 +20,7 @@ export class StatusModule {
     this.boardStatusTimer = null;
     this.explicitBoardStatus = null;
     this.initialLoading = true;
+    this.boardWritable = false;
   }
 
   clearRateLimitNoticeTimer() {
@@ -186,10 +187,13 @@ export class StatusModule {
 
   syncWriteStatusIndicator() {
     const Tools = this.getTools();
-    if (
-      Tools.writes.canBufferWrites() &&
-      Tools.writes.writeReadyWaiters.length > 0
-    ) {
+    const writable = Tools.writes.canBufferWrites();
+    if (writable !== this.boardWritable) {
+      this.boardWritable = writable;
+      // Readiness changes tool chrome even when the zoom is unchanged.
+      Tools.toolRegistry.syncDrawToolAvailability(true);
+    }
+    if (writable && Tools.writes.writeReadyWaiters.length > 0) {
       const waiters = Tools.writes.writeReadyWaiters.splice(0);
       waiters.forEach((resolve) => resolve());
     }
