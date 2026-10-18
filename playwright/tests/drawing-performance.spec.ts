@@ -22,6 +22,12 @@ for (const tool of ["pencil", "straight-line"]) {
       await route.continue();
     });
     const boardName = `feedback-startup-${tool}`;
+    const drawingCursor = () =>
+      page.evaluate(() => {
+        const target = document.elementFromPoint(150, 240);
+        if (!target) throw Error("Missing drawing surface");
+        return getComputedStyle(target).cursor;
+      });
     try {
       await page.goto(`${server.serverUrl}/boards/${boardName}#0,0,1`);
       await page.waitForFunction(
@@ -46,7 +52,7 @@ for (const tool of ["pencil", "straight-line"]) {
         "false",
       );
       await expect(boardPage.statusTitle).toHaveText("Loading");
-      await expect(page.locator("#canvas")).toHaveCSS("cursor", "not-allowed");
+      await expect.poll(drawingCursor).toBe("not-allowed");
       await page.mouse.move(150, 240);
       await page.mouse.down();
       await page.mouse.move(300, 260, { steps: 10 });
@@ -60,6 +66,13 @@ for (const tool of ["pencil", "straight-line"]) {
         "cursor",
         "not-allowed",
       );
+      await expect
+        .poll(drawingCursor)
+        .toBe(
+          await page
+            .locator("#canvas")
+            .evaluate((canvas) => getComputedStyle(canvas).cursor),
+        );
       await page.mouse.move(500, 290, { steps: 10 });
       await page.mouse.up();
       expect(await page.evaluate(() => window.drawingSummaries)).toEqual([]);
