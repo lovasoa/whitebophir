@@ -7,6 +7,39 @@ declare global {
   }
 }
 
+test("drawing works with a cached fixed-window rate-limit API", async ({
+  page,
+  boardPage,
+  server,
+}) => {
+  // A cached common module can predate the rolling-budget exports.
+  await page.route("**/js/rate_limit_common.js", (route) =>
+    route.fulfill({
+      contentType: "application/javascript",
+      body: `import current from "./rate_limit_common.js?complete-api";
+        const {recordRateLimitUsage, getRateLimitHistoryWaitMs, ...legacy} = current;
+        export default legacy;`,
+    }),
+  );
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const boardName = "feedback-cached-rate-api";
+  await boardPage.gotoBoard(boardName);
+  await boardPage.selectTool("pencil");
+  await page.mouse.move(150, 240);
+  await page.mouse.down();
+  await page.mouse.move(450, 300, { steps: 25 });
+  await page.mouse.up();
+  await server.waitForStoredBoard(
+    server.dataPath,
+    boardName,
+    (board) =>
+      Object.values(board).filter((item) => item?.tool === "pencil").length ===
+      1,
+  );
+  expect(errors).toEqual([]);
+});
+
 for (const tool of ["pencil", "straight-line"]) {
   test(`${tool} waits for write readiness before starting a stroke`, async ({
     page,

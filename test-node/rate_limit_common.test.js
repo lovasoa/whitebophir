@@ -5,7 +5,7 @@ const RateLimitCommon = require("../client-data/js/rate_limit_common.js");
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const { Pencil, Text } = require("../client-data/tools/index.js");
 
-test("fixed-window helpers are stateless and reset after the period", () => {
+test("fixed-window exports remain usable by cached write modules", () => {
   const initial = RateLimitCommon.createRateLimitState(1_000);
   const consumed = RateLimitCommon.consumeFixedWindowRateLimit(
     initial,
@@ -24,6 +24,26 @@ test("fixed-window helpers are stateless and reset after the period", () => {
     count: 2,
     lastSeen: 2_000,
   });
+  assert.equal(
+    RateLimitCommon.canConsumeFixedWindowRateLimit(
+      consumed,
+      1,
+      3,
+      5_000,
+      2_500,
+    ),
+    true,
+  );
+  assert.equal(
+    RateLimitCommon.canConsumeFixedWindowRateLimit(
+      consumed,
+      2,
+      3,
+      5_000,
+      2_500,
+    ),
+    false,
+  );
   assert.equal(
     RateLimitCommon.getRateLimitRemainingMs(consumed, 5_000, 2_500),
     3_500,
