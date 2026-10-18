@@ -19,7 +19,5 @@ if (path) {
     fs.writeFileSync(temporary, updated, { mode: fs.statSync(path).mode });
     fs.renameSync(temporary, path);
   }
-  console.log(`Deployment head version: ${version}`);
-} else {
-  console.log("No deployment head snippet configured");
 }
+console.log(`Deployment head ready: ${version}`);

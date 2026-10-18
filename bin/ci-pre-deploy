@@ -8,4 +8,6 @@ test "$GITHUB_REF_NAME" = "v$release_version"
 # Dokku's one-off runner does not forward stdin. A data URL preserves the
 # script as one shell argument without interpolating its JavaScript source.
 script=$(base64 < .github/stamp-head-version.mjs | tr -d '\n')
-ssh "$SSH_REMOTE" -- "run --no-tty $APP_NAME node --input-type=module -e 'await import(\"data:text/javascript;base64,$script\")' -- - $release_version"
+# The SSH wrapper parses arguments through xargs/echo, which consumes -e.
+output=$(ssh -- "$SSH_REMOTE" "run --no-tty $APP_NAME node --input-type=module --eval 'await import(\"data:text/javascript;base64,$script\")' -- - $release_version")
+printf '%s\n' "$output" | grep -Fx "Deployment head ready: $release_version"
