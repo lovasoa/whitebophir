@@ -65,6 +65,9 @@ test("code-to-tool maps round trip through the explicit maps", async () => {
 });
 
 test("server-safe contracts agree with the manifest for every tool", async () => {
+  const { defineShapeContract } = await import(
+    "../client-data/tools/shape_contract.js"
+  );
   const { TOOL_CONTRACT_BY_ID } = await import(CONTRACTS_PATH);
   const { TOOL_BY_ID } = await import(MANIFEST_PATH);
   for (const [toolId, manifestEntry] of Object.entries(TOOL_BY_ID)) {
@@ -92,6 +95,12 @@ test("server-safe contracts agree with the manifest for every tool", async () =>
       manifestEntry.requiredCapability,
       `${toolId} requiredCapability`,
     );
+    if (contract.shapeTool) {
+      // Released contracts modules wrap these definitions with this helper.
+      const compatible = defineShapeContract(contract);
+      assert.notEqual(compatible, contract);
+      assert.deepEqual(compatible, contract);
+    }
   }
 });
 

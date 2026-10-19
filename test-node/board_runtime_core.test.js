@@ -1,5 +1,70 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
+const { installBrowserHarness } = require("./helpers/browser_harness.js");
+
+test("cached AppTools initialization keeps viewport state on its target", async () => {
+  const browser = installBrowserHarness({ innerWidth: 100, innerHeight: 100 });
+  try {
+    const { initializeCoreRuntime } = await import(
+      "../client-data/js/app_tools_core.js"
+    );
+    const target = { retained: true };
+    const runtime = initializeCoreRuntime(target, {
+      translations: {},
+      serverConfig: {},
+      boardName: "generated-runtime",
+      token: null,
+      colorPresets: [],
+      initialPreferences: {
+        tool: "pencil",
+        color: "#000000",
+        size: 10,
+        opacity: 1,
+      },
+    });
+    assert.ok(Object.is(runtime, target));
+    assert.equal(runtime.retained, true);
+    const board = { style: { width: "" }, dataset: {}, dispatchEvent() {} };
+    const svg = {
+      style: { transform: "" },
+      width: { baseVal: { value: 1000 } },
+      height: { baseVal: { value: 800 } },
+    };
+    runtime.attachDom(board, svg, {});
+    assert.equal(runtime.viewportState.controller.setScale(0.5), 0.5);
+    assert.equal(svg.style.transform, "scale(0.5)");
+    assert.equal(board.style.width, "500px");
+    assert.equal(runtime.coordinates.pageCoordinateToBoard(100), 200);
+  } finally {
+    browser.restore();
+  }
+});
+
+test("AssetModule supports released injected and default path resolvers", async () => {
+  const { AssetModule, normalizeBoardAssetPath } = await import(
+    "../client-data/js/board_full_runtime_modules.js"
+  );
+  const { normalizeBoardAssetPath: directResolver } = await import(
+    "../client-data/js/board_asset_path.js"
+  );
+  assert.equal(normalizeBoardAssetPath, directResolver);
+  for (const path of ["./x", "../x", "/x", "data:x", "http://x", "https://x"]) {
+    assert.equal(normalizeBoardAssetPath(path), path);
+  }
+  assert.equal(
+    normalizeBoardAssetPath("tools/hand/hand.css"),
+    "../tools/hand/hand.css",
+  );
+  assert.equal(
+    new AssetModule().getToolAssetUrl("hand", "hand.css"),
+    "../tools/hand/hand.css",
+  );
+  const injected = new AssetModule((path) => `/generated/${path}`);
+  assert.equal(
+    injected.getToolAssetUrl("hand", "hand.css"),
+    "/generated/tools/hand/hand.css",
+  );
+});
 
 test("IDs remain distinct across tools within one millisecond", (t) => {
   const mod = require("../client-data/js/board_full_runtime_modules.js");

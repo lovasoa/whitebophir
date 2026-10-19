@@ -16,7 +16,19 @@ import { createViewportController } from "./board_viewport.js";
  * @returns {object}
  */
 export function createCoreRuntime(options) {
-  const runtime = /** @type {any} */ ({
+  return initializeCoreRuntime({}, options);
+}
+
+/**
+ * Retained for cached AppTools constructors. Bind viewport closures to the
+ * caller's object so its later DOM attachment is visible to the controller.
+ * @param {object} target
+ * @param {AppToolsCoreOptions} options
+ * @returns {any}
+ */
+export function initializeCoreRuntime(target, options) {
+  const runtime = /** @type {any} */ (target);
+  Object.assign(runtime, {
     i18n: new I18nModule(options.translations),
     config: { serverConfig: options.serverConfig },
     identity: { boardName: options.boardName, token: options.token },

@@ -72,3 +72,13 @@ export function serializeStoredShapeTag(tagName, attrs, item, helpers) {
     `${opacity}${transform}></${tagName}>`
   );
 }
+
+// This helper is still imported by released, cacheable contracts modules.
+/**
+ * @template {ToolContract & {storedTagName: string}} T
+ * @param {T} contract
+ * @returns {T & {shapeTool: true}}
+ */
+export function defineShapeContract(contract) {
+  return { ...contract, shapeTool: true };
+}
