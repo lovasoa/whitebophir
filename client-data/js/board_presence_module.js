@@ -131,9 +131,11 @@ export class PresenceModule {
       return;
     this.renderedBans = this.bans;
     this.renderedCanBan = canBan;
-    const details = /** @type {HTMLDetailsElement} */ (
-      getRequiredElement("activeBansSection")
+    const details = /** @type {HTMLDetailsElement | null} */ (
+      document.getElementById("activeBansSection")
     );
+    // Older cached HTML has no active-bans panel; its absence must not block boot.
+    if (!details) return;
     details.hidden = this.bans.length === 0;
     if (details.hidden) details.open = false;
     getRequiredElement("activeBansSummary").textContent = Tools.i18n.format(
