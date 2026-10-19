@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, test } from "../fixtures/test";
+import { createBoardPage, expect, test } from "../fixtures/test";
 
 type BootPhaseSnapshot = {
   phase: string;
@@ -87,6 +87,84 @@ async function readBoardTouchAction(page: Page) {
 }
 
 test.describe("single-page interactions", () => {
+  test("selector cancels scaling when a peer removes a selected element", async ({
+    boardPage,
+    server,
+    page,
+    context,
+  }) => {
+    const boardName = "selector-peer-delete";
+    await server.writeBoard(server.dataPath, boardName, {
+      "seed-rect": {
+        type: "rect",
+        id: "seed-rect",
+        tool: "rectangle",
+        x: 100,
+        y: 100,
+        x2: 160,
+        y2: 140,
+        color: "#123456",
+        size: 4,
+      },
+    });
+    const peer = await context.newPage();
+    const peerBoard = createBoardPage(peer, server);
+    await boardPage.gotoBoard(boardName);
+    await peerBoard.gotoBoard(boardName);
+    await boardPage.waitForBoardWritable();
+    await peerBoard.waitForBoardWritable();
+    await boardPage.selectTool("hand");
+    const shapeBounds = await page.locator("#seed-rect").boundingBox();
+    if (!shapeBounds) throw new Error("Missing selected rectangle bounds");
+    await page.mouse.move(shapeBounds.x - 10, shapeBounds.y - 10);
+    await page.mouse.down();
+    await page.mouse.move(
+      shapeBounds.x + shapeBounds.width + 10,
+      shapeBounds.y + shapeBounds.height + 10,
+      { steps: 4 },
+    );
+    await page.mouse.up();
+    const handle = page.locator("#selectionButton-scaleHandle");
+    await expect(handle).toBeVisible();
+    await handle.dispatchEvent("mousedown");
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const selection = document.getElementById(
+            "selectionRect",
+          ) as unknown as SVGRectElement;
+          window.WBOApp.toolRegistry.current?.listeners.move?.(
+            selection.x.baseVal.value + selection.width.baseVal.value * 1.5,
+            selection.y.baseVal.value + selection.height.baseVal.value * 1.5,
+            new MouseEvent("mousemove"),
+            false,
+          );
+          const rect = document.getElementById(
+            "seed-rect",
+          ) as unknown as SVGGraphicsElement;
+          return rect.transform.baseVal[0]?.matrix.a ?? 1;
+        }),
+      )
+      .toBeGreaterThan(1);
+    await peerBoard.selectTool("eraser");
+    await peerBoard.eraseShapeById("seed-rect");
+    await expect(page.locator("#seed-rect")).toHaveCount(0);
+    await server.waitForStoredBoard(
+      server.dataPath,
+      boardName,
+      (stored) => Object.keys(stored).length === 0,
+    );
+    await page.evaluate(() => {
+      const tool = window.WBOApp.toolRegistry.current;
+      tool?.listeners.move?.(260, 220, new MouseEvent("mousemove"), false);
+      tool?.listeners.release?.(260, 220, new MouseEvent("mouseup"), false);
+    });
+    await expect(handle).toBeHidden();
+    await expect(page.locator("#selectionRectOverlay")).toBeHidden();
+    await expect(page.locator("#seed-rect")).toHaveCount(0);
+    await expect(peer.locator("#seed-rect")).toHaveCount(0);
+  });
+
   test("selector moves existing rectangle", async ({
     boardPage,
     server,

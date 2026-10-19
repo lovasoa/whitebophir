@@ -670,6 +670,28 @@ function hideSelectionUI(state) {
   state.selectionRect.style.display = "none";
 }
 
+/** @param {HandState} state @returns {boolean} */
+function ensureCurrentSelection(state) {
+  let current = state.selectedEls.length !== 0;
+  for (let i = 0; current && i < state.selectedEls.length; i++) {
+    const element = state.selectedEls[i];
+    current =
+      !!element && state.Tools.board.svg.getElementById(element.id) === element;
+  }
+  if (current) return true;
+
+  // A removal or same-ID replacement invalidates the whole transform gesture.
+  state.selectionRunId += 1;
+  state.selected = null;
+  state.selectedEls = [];
+  state.transformElements = [];
+  state.selectionRectTransform = undefined;
+  state.currentTransform = null;
+  state.selectorState = state.selectorStates.pointing;
+  hideSelectionUI(state);
+  return false;
+}
+
 /**
  * @param {HandState} state
  * @param {number} x
@@ -678,14 +700,12 @@ function hideSelectionUI(state) {
  */
 function startMovingElements(state, x, y, evt) {
   evt.preventDefault();
+  if (!ensureCurrentSelection(state)) return;
   state.selectionRunId += 1;
   state.selectorState = state.selectorStates.transform;
   state.currentTransform = (moveX, moveY, force) =>
     moveSelection(state, moveX, moveY, force);
   state.selected = { x: x, y: y };
-  state.selectedEls = state.selectedEls.filter(
-    (el) => state.Tools.board.svg.getElementById(el.id) !== null,
-  );
   state.transformElements = state.selectedEls.map((el) => {
     const tmatrix = getTransformMatrix(state, el);
     return {
@@ -709,6 +729,7 @@ function startMovingElements(state, x, y, evt) {
  */
 function startScalingTransform(state, _x, _y, evt) {
   evt.preventDefault();
+  if (!ensureCurrentSelection(state)) return;
   hideSelectionButtons(state);
   state.selectionRunId += 1;
   state.selectorState = state.selectorStates.transform;
@@ -956,6 +977,7 @@ function moveSelection(state, x, y, force) {
   ) {
     return;
   }
+  if (!ensureCurrentSelection(state)) return;
   const rectTranslation = /** @type {{x: number, y: number}} */ (
     state.selectionRectTransform
   );
@@ -999,6 +1021,7 @@ function scaleSelection(state, x, y, force) {
   ) {
     return;
   }
+  if (!ensureCurrentSelection(state)) return;
   const scaleSelectionState =
     /** @type {{x: number, y: number, w: number, h: number}} */ (
       state.selected

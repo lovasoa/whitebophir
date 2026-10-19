@@ -2574,6 +2574,36 @@ test("Hand batch deletes complete synchronously and preserve the SVG shell", asy
   }
 });
 
+test("Hand selector cancels a transform after same-ID element replacement", async () => {
+  const harness = createHarness();
+  const handTool = await harness.loadTool("hand");
+  const rect = globalAny.Tools.dom.createSVGElement("rect");
+  rect.id = "replaced-rect";
+  rect.x.baseVal.value = 100;
+  rect.y.baseVal.value = 100;
+  rect.width.baseVal.value = 60;
+  rect.height.baseVal.value = 40;
+  globalAny.Tools.drawingArea.appendChild(rect);
+  handTool.secondary.active = true;
+  dispatchToolEvent(handTool.listeners.press, 110, 110, rect);
+
+  globalAny.Tools.drawingArea.removeChild(rect);
+  const replacement = globalAny.Tools.dom.createSVGElement("rect");
+  replacement.id = rect.id;
+  replacement.x.baseVal.value = 500;
+  replacement.y.baseVal.value = 500;
+  replacement.width.baseVal.value = 20;
+  replacement.height.baseVal.value = 20;
+  globalAny.Tools.drawingArea.appendChild(replacement);
+  dispatchToolEvent(handTool.listeners.move, 150, 135, replacement);
+  dispatchToolEvent(handTool.listeners.release, 150, 135, replacement);
+
+  assert.equal(globalAny.Tools.sentMessages.length, 0);
+  assert.equal(replacement.transform.baseVal.numberOfItems, 0);
+  assert.equal(replacement.x.baseVal.value, 500);
+  assert.equal(replacement.y.baseVal.value, 500);
+});
+
 test("Hand selector stops at the last valid transform", async () => {
   const harness = createHarness();
   const handTool = await harness.loadTool("hand");
