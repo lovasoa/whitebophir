@@ -1179,9 +1179,13 @@ window.turnstile = {
       if (!(cursor instanceof HTMLElement)) return null;
       const style = window.getComputedStyle(cursor);
       const icon = cursor.querySelector(".opcursor-toolIcon");
+      const board = document.getElementById("board");
+      if (!board) return null;
+      const rect = cursor.getBoundingClientRect();
+      const origin = board.getBoundingClientRect();
       return {
-        left: cursor.style.left,
-        top: cursor.style.top,
+        left: `${Math.round(rect.left - origin.left)}px`,
+        top: `${Math.round(rect.top - origin.top)}px`,
         color: style.getPropertyValue("--opcursor-color").trim(),
         opacity: style.getPropertyValue("--opcursor-opacity").trim(),
         sampleSize: style.getPropertyValue("--opcursor-sample-size").trim(),

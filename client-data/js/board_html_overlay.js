@@ -46,6 +46,7 @@ import { VIEWPORT_LAYOUT_EVENT } from "./board_viewport.js";
  *   board: {board: HTMLElement} | HTMLElement,
  *   viewport: OverlayViewport,
  *   element: HTMLElement,
+ *   positionWithTransform?: boolean,
  * }} BoardHtmlOverlayOptions
  */
 
@@ -114,8 +115,17 @@ function readLayoutRect(source) {
 /**
  * @param {BoardHtmlOverlayOptions} options
  */
-export function createBoardHtmlOverlay({ board, viewport, element }) {
+export function createBoardHtmlOverlay({
+  board,
+  viewport,
+  element,
+  positionWithTransform = false,
+}) {
   const boardElement = resolveBoardElement(board);
+  if (positionWithTransform) {
+    element.style.left = "0px";
+    element.style.top = "0px";
+  }
   /** @type {{kind: "board", source: BoardRectSource} | {kind: "client", source: ClientRectSource} | {kind: "layout", source: LayoutRectSource} | null} */
   let lastSync = null;
   let listening = false;
@@ -140,8 +150,13 @@ export function createBoardHtmlOverlay({ board, viewport, element }) {
   /** @param {LayoutRect} rect */
   function applyLayoutRect(rect) {
     ensureAttached();
-    element.style.left = `${rect.left}px`;
-    element.style.top = `${rect.top}px`;
+    if (positionWithTransform) {
+      // Moving presence must not run layout for every animation frame.
+      element.style.transform = `translate3d(${rect.left}px, ${rect.top}px, 0)`;
+    } else {
+      element.style.left = `${rect.left}px`;
+      element.style.top = `${rect.top}px`;
+    }
     element.style.width = `${rect.width}px`;
     element.style.height = `${rect.height}px`;
     element.style.display = "";

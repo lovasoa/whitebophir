@@ -1523,8 +1523,9 @@ test("Cursor renders presence as a viewport-scaled HTML overlay", async () => {
   assert.equal(ownCursor.getAttribute("class"), "opcursor-html");
   assert.equal(ownCursor.getAttribute("aria-hidden"), "true");
   assert.equal(ownCursor.parentNode, globalAny.Tools.board);
-  assert.equal(ownCursor.style.left, "20px");
-  assert.equal(ownCursor.style.top, "40px");
+  assert.equal(ownCursor.style.transform, "translate3d(20px, 40px, 0)");
+  assert.equal(ownCursor.style.left, "0px");
+  assert.equal(ownCursor.style.top, "0px");
   assert.equal(ownCursor.style.width, "0px");
   assert.equal(ownCursor.style.height, "0px");
   assert.equal(ownCursor.style["--opcursor-color"], "#123456");
@@ -1547,8 +1548,7 @@ test("Cursor renders presence as a viewport-scaled HTML overlay", async () => {
 
   const peerCursor = harness.elementsById.get("cursor-socket-peer");
   assert.ok(peerCursor);
-  assert.equal(peerCursor.style.left, "60px");
-  assert.equal(peerCursor.style.top, "80px");
+  assert.equal(peerCursor.style.transform, "translate3d(60px, 80px, 0)");
   assert.equal(peerCursor.style["--opcursor-color"], "#00ff66");
   assert.equal(peerCursor.style["--opcursor-opacity"], "1");
   assert.equal(peerCursor.style["--opcursor-sample-size"], "4px");
@@ -1585,8 +1585,7 @@ test("Cursor renders presence as a viewport-scaled HTML overlay", async () => {
 
   globalAny.Tools.viewportState.controller.setScale(3);
   globalAny.Tools.board.dispatchEvent({ type: VIEWPORT_LAYOUT_EVENT });
-  assert.equal(peerCursor.style.left, "90px");
-  assert.equal(peerCursor.style.top, "120px");
+  assert.equal(peerCursor.style.transform, "translate3d(90px, 120px, 0)");
   assert.equal(peerCursor.style["--opcursor-sample-size"], "6px");
 
   cursorTool.onSocketDisconnect();
@@ -1611,8 +1610,7 @@ test("Cursor follows peer drawing activity messages", async () => {
 
   const peerCursor = harness.elementsById.get("cursor-socket-peer");
   assert.ok(peerCursor);
-  assert.equal(peerCursor.style.left, "12px");
-  assert.equal(peerCursor.style.top, "34px");
+  assert.equal(peerCursor.style.transform, "translate3d(12px, 34px, 0)");
   assert.equal(peerCursor.style["--opcursor-color"], "#445566");
   assert.equal(peerCursor.style["--opcursor-sample-size"], "9px");
   assert.equal(
@@ -1634,8 +1632,7 @@ test("Cursor follows peer drawing activity messages", async () => {
     y2: 220,
   });
 
-  assert.equal(peerCursor.style.left, "200px");
-  assert.equal(peerCursor.style.top, "220px");
+  assert.equal(peerCursor.style.transform, "translate3d(200px, 220px, 0)");
   assert.equal(
     findElementByClass(peerCursor, "opcursor-toolIcon")?.src,
     "../tools/rectangle/icon.svg",
