@@ -4,6 +4,7 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const jsonwebtoken = require("jsonwebtoken");
+const packageJson = require("../package.json");
 
 const {
   closeServer,
@@ -433,7 +434,7 @@ test("index route renders absolute canonical and hreflang urls", async () => {
     const origin = `http://127.0.0.1:${port}`;
 
     assert.equal(response.statusCode, 200);
-    assert.match(arabicResponse.body, /<html lang="ar" dir="rtl">/);
+    assert.match(arabicResponse.body, /<html\b[^>]*lang="ar"[^>]*dir="rtl"/);
     assert.match(
       response.body,
       new RegExp(`<link rel="canonical" href="${origin}/\\?lang=en" />`),
@@ -794,7 +795,7 @@ test("board pages are no-store in development and render plain asset URLs", asyn
     assert.equal(frenchResponse.statusCode, 200);
     assert.match(
       arabicResponse.body,
-      /<html lang="ar" dir="ltr" data-ui-direction="rtl">/,
+      /<html\b[^>]*lang="ar"[^>]*dir="ltr"[^>]*data-ui-direction="rtl"/,
     );
     assert.match(
       arabicResponse.body,
@@ -980,6 +981,7 @@ test("server inserts configured html head snippet into rendered html pages", asy
     const indexResponse = await request(app, "/");
     const boardResponse = await request(app, "/boards/head-snippet");
     const errorResponse = await request(app, "/preview");
+    const rulesResponse = await request(app, "/rules");
 
     assert.equal(indexResponse.statusCode, 200);
     assert.equal(boardResponse.statusCode, 200);
@@ -987,6 +989,16 @@ test("server inserts configured html head snippet into rendered html pages", asy
     assertSnippetBeforeHeadEnd(indexResponse.body, snippet);
     assertSnippetBeforeHeadEnd(boardResponse.body, snippet);
     assertSnippetBeforeHeadEnd(errorResponse.body, snippet);
+    for (const response of [
+      indexResponse,
+      boardResponse,
+      errorResponse,
+      rulesResponse,
+    ]) {
+      assert.ok(
+        response.body.includes(`data-wbo-version="${packageJson.version}"`),
+      );
+    }
     assert.doesNotMatch(indexResponse.body, /changed/);
     assert.doesNotMatch(boardResponse.body, /changed/);
     assert.doesNotMatch(errorResponse.body, /changed/);

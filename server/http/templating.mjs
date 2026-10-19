@@ -17,7 +17,7 @@ import { parseRequestUrl } from "./request_url.mjs";
 
 /** @typedef {{[name: string]: string}} TranslationDictionary */
 /** @typedef {{[language: string]: TranslationDictionary}} TranslationMap */
-/** @typedef {{baseUrl: string, baseHref: string, languages: string[], language: string, direction: "ltr" | "rtl", translations: TranslationDictionary, configuration: object, moderator: boolean, htmlHeadSnippet: string, varyCookie?: boolean, [name: string]: any}} TemplateParameters */
+/** @typedef {{baseUrl: string, baseHref: string, languages: string[], language: string, direction: "ltr" | "rtl", translations: TranslationDictionary, configuration: object, moderator: boolean, htmlHeadSnippet: string, appVersion: string, varyCookie?: boolean, [name: string]: any}} TemplateParameters */
 /** @typedef {import("http").IncomingMessage} TemplateRequest */
 /** @typedef {import("http").ServerResponse} TemplateResponse */
 /** @typedef {string | string[] | undefined} HeaderValue */
@@ -276,6 +276,7 @@ class StaticTemplate {
     return this.template({
       htmlHeadSnippet: this.htmlHeadSnippet,
       ...parameters,
+      appVersion: packageJson.version,
     });
   }
 }
@@ -347,6 +348,7 @@ class Template extends StaticTemplate {
       moderator,
       htmlHeadSnippet: this.htmlHeadSnippet,
       ...extraParams,
+      appVersion: packageJson.version,
     };
   }
 

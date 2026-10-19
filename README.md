@@ -124,7 +124,7 @@ Common settings:
 
 - `WBO_HISTORY_DIR` : configures the directory where the boards are saved. Defaults to `./server-data/`.
 - `WBO_BASE_PATH` : optional external URL path prefix, such as `/wbo`, for deployments mounted under a reverse-proxy subfolder.
-- `WBO_HTML_HEAD_SNIPPET_PATH` : optional path to an HTML snippet inserted raw before `</head>` on rendered HTML pages. The file is read once at server startup; relative paths resolve from the server working directory.
+- `WBO_HTML_HEAD_SNIPPET_PATH` : trusted HTML inserted before `</head>`, read once at startup. Scripts can read the package version from `document.documentElement.dataset.wboVersion`.
 - `WBO_MAX_EMIT_COUNT` : the general per-IP socket write limit profile. Use compact entries such as `*:250/5s anonymous:125/5s`. Increase this if you want smoother drawings, at the expense of making denial-of-service bursts cheaper for clients. The default is `*:250/5s`.
 - `WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP` : the constructive per-IP write limit profile. Use compact entries such as `*:40/10s anonymous:20/10s`.
 - `WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP` : the destructive per-IP write limit profile. Use compact entries such as `*:190/60s anonymous:95/60s`.
