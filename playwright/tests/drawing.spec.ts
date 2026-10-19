@@ -552,20 +552,39 @@ test.describe("drawing and persistence", () => {
   );
 
   test("straight line snap persists", async ({ boardPage, server, page }) => {
-    await boardPage.gotoBoard("line-test");
+    await page.goto(`${boardPage.buildBoardUrl("line-test")}#0,0,1`);
     await expect(boardPage.tool("straight-line")).toBeVisible();
     await boardPage.selectTool("straight-line");
     await boardPage.selectTool("straight-line");
 
     const result = await boardPage.drawStraightLine(
-      { x: 100, y: 100 },
-      { x: 102, y: 160 },
+      { x: 300, y: 300 },
+      { x: 302, y: 360 },
     );
     expect(result.secondaryActive).toBe(true);
-    expect(result.x1).toBe(100);
-    expect(result.y1).toBe(100);
-    expect(Math.abs(result.x2 - 100)).toBeLessThan(0.5);
-    expect(Math.abs(result.y2 - 160)).toBeLessThan(0.5);
+    expect(result.x1).toBe(300);
+    expect(result.y1).toBe(300);
+    expect(Math.abs(result.x2 - 300)).toBeLessThan(0.5);
+    expect(Math.abs(result.y2 - 360)).toBeLessThan(0.5);
+
+    const hitsExistingLine = () =>
+      page.locator("#drawingArea line").evaluate((line) => {
+        const bounds = line.getBoundingClientRect();
+        return (
+          document.elementFromPoint(
+            bounds.left + bounds.width / 2,
+            bounds.top + bounds.height / 2,
+          ) === line
+        );
+      });
+    // Drawing needs coordinates; editing tools still need the underlying item.
+    await expect.poll(hitsExistingLine).toBe(false);
+    await boardPage.selectTool("hand");
+    await expect.poll(hitsExistingLine).toBe(true);
+    await boardPage.selectTool("eraser");
+    await expect.poll(hitsExistingLine).toBe(true);
+    await boardPage.selectTool("straight-line");
+    await expect.poll(hitsExistingLine).toBe(false);
 
     await server.waitForStoredBoard(
       server.dataPath,
@@ -575,8 +594,8 @@ test.describe("drawing and persistence", () => {
           (item) =>
             item &&
             item.tool === "straight-line" &&
-            Math.abs(item.x2 - 100) < 0.5 &&
-            Math.abs(item.y2 - 160) < 0.5,
+            Math.abs(item.x2 - 300) < 0.5 &&
+            Math.abs(item.y2 - 360) < 0.5,
         ),
     );
     await page.reload();
@@ -594,10 +613,10 @@ test.describe("drawing and persistence", () => {
         }),
       )
       .toMatchObject({
-        x1: 100,
-        y1: 100,
-        x2: 100,
-        y2: 160,
+        x1: 300,
+        y1: 300,
+        x2: 300,
+        y2: 360,
       });
   });
 
