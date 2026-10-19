@@ -80,3 +80,12 @@ export function queuePendingMessage(pendingMessages, toolName, message) {
   if (toolMessages) toolMessages.push(message);
   else pendingMessages[toolName] = [message];
 }
+
+// Cached connection and message modules import these published namespaces.
+export const connection = {
+  normalizeSocketIOExtraHeaders,
+  buildSocketParams,
+  closeSocket,
+};
+
+export const messages = { queuePendingMessage };
