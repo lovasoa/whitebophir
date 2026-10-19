@@ -18,6 +18,8 @@ export class OptimisticModule {
   /** @param {() => AppToolsState} getTools */
   constructor(getTools) {
     this.getTools = getTools;
+    // Cached owners without this contract cannot snapshot deferred geometry.
+    this.flushesPendingToolDraws = true;
     this.journal = createOptimisticJournal();
   }
 

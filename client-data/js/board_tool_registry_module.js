@@ -605,6 +605,9 @@ function createToolBootContext(Tools, toolName) {
   })();
   return {
     runtime: createToolRuntimeModules(mountedTools, toolName),
+    canDeferDraws:
+      mountedTools.optimistic.flushesPendingToolDraws === true &&
+      mountedTools.replay.resetsPendingToolDraws === true,
     assetUrl(assetFile) {
       return mountedTools.assets.getToolAssetUrl(toolName, assetFile);
     },

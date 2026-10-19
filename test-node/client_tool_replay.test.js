@@ -1219,12 +1219,14 @@ function drawReplayStroke(pencilTool) {
   });
 }
 
-test("Pencil replay resets an existing path before reapplying children", async () => {
+test("Pencil replay stays canonical with a cached boot context and resets existing paths", async () => {
   const harness = createHarness();
   const pencilTool = await harness.loadTool("pencil");
+  pencilTool.onstart(null);
 
   drawReplayStroke(pencilTool);
   const line = harness.elementsById.get("line-1");
+  assert.equal(line.parentNode, globalAny.Tools.dom.drawingArea);
   assert.deepEqual(line.pathData, expectedTwoPointStroke());
 
   drawReplayStroke(pencilTool);
