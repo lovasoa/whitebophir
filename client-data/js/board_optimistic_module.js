@@ -85,6 +85,16 @@ export class OptimisticModule {
   /** @param {OptimisticJournalEntry[]} rejected */
   applyRejectedEntries(rejected) {
     if (rejected.length === 0) return;
+    const Tools = this.getTools();
+    // Rollback also removes dependent writes. They must not be sent or redrawn
+    // after their optimistic source has been removed.
+    for (const entry of rejected) {
+      Tools.writes.resolveBufferedWrite(entry.clientMutationId);
+    }
+    // Resolving the final write must also clear its local pause and timer.
+    if (Tools.writes.bufferedWrites.length === 0) {
+      Tools.writes.discardBufferedWrites();
+    }
     rejected
       .slice()
       .reverse()
