@@ -5,7 +5,7 @@ import { TOKENS } from "../helpers/tokens";
 const moderationTest = test.extend({ serverOptions: { useJWT: true } });
 
 moderationTest(
-  "users menu shows active bans and moderators can unban",
+  "active bans survive a cached-shell reload and moderators can unban",
   async ({ boardPage, browser, page, server }) => {
     const boardName = "active-bans-menu";
     const targetContext = await browser.newContext();
@@ -103,15 +103,34 @@ moderationTest(
       );
       await expect(viewerSection.locator("button")).toHaveCount(0);
       // Fresh connections get the same authoritative list while the ban is active.
+      // Cached HTML from before the active-bans panel must still finish booting.
+      await targetPage.route("**/boards/**", async (route) => {
+        const request = route.request();
+        if (
+          request.resourceType() !== "document" ||
+          request.frame().parentFrame()
+        )
+          return route.continue();
+        const response = await route.fetch({
+          headers: { ...request.headers(), "accept-encoding": "identity" },
+        });
+        const html = await response.text();
+        expect(html).toContain('id="activeBansSection"');
+        await route.fulfill({
+          response,
+          body: html.replace(
+            /\s*<details id="activeBansSection"[\s\S]*?<\/details>/,
+            "",
+          ),
+        });
+      });
       await targetPage.reload();
       await targetBoard.waitForSocketConnected();
       await expect
         .poll(() => targetPage.evaluate(() => window.WBOApp.access.canEdit))
         .toBe(false);
       await targetBoard.connectedUsersToggle.click();
-      await expect(
-        targetPage.locator(".active-bans-section summary"),
-      ).toHaveText("Active bans (1)");
+      await expect(targetPage.locator(".active-bans-section")).toHaveCount(0);
       await page
         .getByRole("button", { name: `Unban ${targetName}`, exact: true })
         .click();
