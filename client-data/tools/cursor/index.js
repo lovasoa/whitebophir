@@ -74,6 +74,7 @@ function computeMinCursorUpdateIntervalMs(rateLimits) {
  */
 function setStyleProperty(element, name, value) {
   if (typeof element.style.setProperty === "function") {
+    if (element.style.getPropertyValue(name) === value) return;
     element.style.setProperty(name, value);
     return;
   }
@@ -172,7 +173,9 @@ function getCursor(state, cursorId) {
   return entry;
 }
 
-/** @param {CursorState} state */
+/** @param {CursorState} state
+ * @returns {CursorMessage}
+ */
 function makeCursorMessage(state) {
   return {
     tool: toolCode,
@@ -185,7 +188,7 @@ function makeCursorMessage(state) {
     activeTool: getActiveToolId(state),
   };
 }
-/** @typedef {ReturnType<typeof makeCursorMessage> & {socket?: string}} CursorMessage */
+/** @typedef {{tool: typeof toolCode, type: typeof MutationType.UPDATE, x: number, y: number, color: string, size: number, opacity: number, activeTool: string, socket?: string}} CursorMessage */
 
 /** @param {CursorState} state */
 function isOwnCursorSuppressed(state) {
@@ -242,6 +245,8 @@ export function boot(ctx) {
       /** @type {Map<string, {element: HTMLElement, overlay: BoardHtmlOverlay, timeout: ReturnType<typeof setTimeout>}>} */ (
         new Map()
       ),
+    pendingCursors: /** @type {Map<string, CursorMessage>} */ (new Map()),
+    cursorFrame: 0,
     lastCursorUpdate: 0,
     sending: true,
     x: 0,
@@ -308,6 +313,9 @@ export function onOpacityChange(state, opacity) {
 
 /** @param {CursorState} state */
 export function onSocketDisconnect(state) {
+  if (state.cursorFrame) window.cancelAnimationFrame(state.cursorFrame);
+  state.cursorFrame = 0;
+  state.pendingCursors.clear();
   for (const cursorId of Array.from(state.cursors.keys())) {
     removeCursor(state, cursorId);
   }
@@ -446,7 +454,8 @@ function getCursorPart(element, className) {
  */
 function updateCursorContent(state, cursor, message) {
   const name = getCursorPart(cursor, "opcursor-name");
-  if (name) name.textContent = getCursorName(state, message);
+  const text = getCursorName(state, message);
+  if (name && name.textContent !== text) name.textContent = text;
 
   const toolIcon = /** @type {HTMLImageElement | null} */ (
     getCursorPart(cursor, "opcursor-toolIcon")
@@ -492,6 +501,22 @@ function isCursorInsideBoard(state, message) {
 export function draw(state, message) {
   if (!message.socket && isOwnCursorSuppressed(state)) return;
   if (!isCursorInsideBoard(state, message)) return;
+  if (message.socket) {
+    state.pendingCursors.set(message.socket, message);
+    if (!state.cursorFrame)
+      state.cursorFrame = window.requestAnimationFrame(() => {
+        state.cursorFrame = 0;
+        for (const pending of state.pendingCursors.values())
+          renderCursor(state, pending);
+        state.pendingCursors.clear();
+      });
+    return;
+  }
+  renderCursor(state, message);
+}
+
+/** @param {CursorState} state @param {CursorMessage} message */
+function renderCursor(state, message) {
   const cursorId = `cursor-${message.socket || "me"}`;
   const { element, overlay } = getCursor(state, cursorId);
   updateCursorContent(state, element, message);

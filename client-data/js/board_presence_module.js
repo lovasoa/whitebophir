@@ -5,7 +5,6 @@ import { VIEWPORT_HASH_SCALE_DECIMALS } from "./board_viewport.js";
 import { getMessageActivityPoint } from "./message_activity_point.js";
 import MessageCommon from "./message_common.js";
 import { LIMITS } from "./message_limits.js";
-import { MutationType } from "./message_tool_metadata.js";
 import {
   getModerationRule,
   MODERATION_DURATION_OPTIONS,
@@ -14,7 +13,7 @@ import {
 import { SocketEvents } from "./socket_events.js";
 import { createToolIconBadge, updateToolIconBadge } from "./tool_icon_badge.js";
 
-/** @import { ActiveBan, AppToolsState, AttachedBoardDomModule, BoardMessage, ConnectedUser, ConnectedUserMap, HandChildMessage } from "../../types/app-runtime" */
+/** @import { ActiveBan, AppToolsState, BoardMessage, ConnectedUser, ConnectedUserMap } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 /** @typedef {"minute" | "hour" | "day"} ConnectedUserDurationUnit */
 /** @typedef {{kind: "now"} | {kind: "duration", count: number, unit: ConnectedUserDurationUnit, shortKey: string}} ConnectedUserRelativeTime */
@@ -269,7 +268,6 @@ export class PresenceModule {
    * @param {BoardMessage} message
    */
   updateConnectedUsersFromActivity(userId, message) {
-    const Tools = this.getTools();
     // Presence has three layers:
     // - `socketId`: one live browser tab/socket connection. This is the most precise activity target.
     // - `userId`: derived server-side from the shared user-secret cookie, so multiple tabs from one browser profile can share it.
@@ -278,8 +276,7 @@ export class PresenceModule {
     const messageSocketId = message.socket || null;
     if (!userId && messageSocketId === null) return;
     let changed = false;
-    const dom = getAttachedBoardDom(Tools);
-    const focusPoint = dom ? getMessageFocusPoint(dom, message) : null;
+    const focusPoint = getMessageFocusPoint(message);
     Array.from(this.users.values()).forEach((user) => {
       if (!connectedUserMatchesActivity(user, userId, messageSocketId)) return;
       changed =
@@ -389,14 +386,6 @@ function getConnectedUsersPanel() {
 
 function getConnectedUsersList() {
   return getRequiredElement("connectedUsersList");
-}
-
-/**
- * @param {AppToolsState} Tools
- * @returns {AttachedBoardDomModule | null}
- */
-function getAttachedBoardDom(Tools) {
-  return Tools.dom.status === "attached" ? Tools.dom : null;
 }
 
 /**
@@ -640,116 +629,18 @@ function getBoundsCenter(bounds) {
   };
 }
 
-/**
- * SVG layout measurement is limited to connected-user focus derivation for the
- * already small set of ids touched by one received activity message.
- * @param {SVGGraphicsElement} element
- * @returns {{minX: number, minY: number, maxX: number, maxY: number} | null}
- */
-function getRenderedElementBounds(element) {
-  if (typeof element.transformedBBox !== "function") return null;
-  /** @type {{r: [number, number], a: [number, number], b: [number, number]} | null} */
-  let box = null;
-  try {
-    box = element.transformedBBox();
-  } catch {
-    return null;
-  }
-  /** @type {[number, number][]} */
-  const points = [
-    box.r,
-    [box.r[0] + box.a[0], box.r[1] + box.a[1]],
-    [box.r[0] + box.b[0], box.r[1] + box.b[1]],
-    [box.r[0] + box.a[0] + box.b[0], box.r[1] + box.a[1] + box.b[1]],
-  ];
-  const firstPoint = points[0];
-  if (!firstPoint) return null;
-  return points.reduce(
-    /**
-     * @param {{minX: number, minY: number, maxX: number, maxY: number}} bounds
-     * @param {[number, number]} point
-     */
-    function extend(bounds, point) {
-      return {
-        minX: Math.min(bounds.minX, point[0]),
-        minY: Math.min(bounds.minY, point[1]),
-        maxX: Math.max(bounds.maxX, point[0]),
-        maxY: Math.max(bounds.maxY, point[1]),
-      };
-    },
-    {
-      minX: firstPoint[0],
-      minY: firstPoint[1],
-      maxX: firstPoint[0],
-      maxY: firstPoint[1],
-    },
-  );
-}
-
-/**
- * @param {AttachedBoardDomModule} dom
- * @param {string} elementId
- * @returns {SVGGraphicsElement | null}
- */
-function getBoardFocusElementById(dom, elementId) {
-  const element = dom.svg.getElementById(elementId);
-  if (!(element instanceof SVGGraphicsElement)) return null;
-  return dom.drawingArea.contains(element) ? element : null;
-}
-
-/**
- * @param {AttachedBoardDomModule} dom
- * @param {HandChildMessage[]} children
- * @returns {{x: number, y: number} | null}
- */
-function getBatchFocusPoint(dom, children) {
-  /** @type {{minX: number, minY: number, maxX: number, maxY: number} | null} */
-  let bounds = null;
-  children.forEach((child) => {
-    const targetId =
-      child.type === MutationType.UPDATE
-        ? child.id
-        : child.type === MutationType.COPY
-          ? child.newid
-          : null;
-    if (!targetId) return;
-    const element = getBoardFocusElementById(dom, targetId);
-    if (!element) return;
-    const elementBounds = getRenderedElementBounds(element);
-    if (!elementBounds) return;
-    if (!bounds) {
-      bounds = elementBounds;
-      return;
-    }
-    bounds = {
-      minX: Math.min(bounds.minX, elementBounds.minX),
-      minY: Math.min(bounds.minY, elementBounds.minY),
-      maxX: Math.max(bounds.maxX, elementBounds.maxX),
-      maxY: Math.max(bounds.maxY, elementBounds.maxY),
-    };
-  });
-  return getBoundsCenter(bounds);
-}
-
-/**
- * @param {AttachedBoardDomModule} dom
+/** Presence follows reported pointer/content coordinates. Transform-only
+ * messages retain the user's last position: measuring SVG geometry here would
+ * interleave layout reads with every live drawing write, even with the panel
+ * closed. Selection geometry belongs to the hand tool.
  * @param {BoardMessage} message
- * @returns {{x: number, y: number} | null}
  */
-function getMessageFocusPoint(dom, message) {
-  if ("_children" in message) {
-    return getBatchFocusPoint(dom, message._children);
-  }
-
-  const activityPoint = getMessageActivityPoint(message);
-  if (activityPoint) return activityPoint;
-
-  if (message.type === MutationType.UPDATE && "id" in message) {
-    const element = getBoardFocusElementById(dom, message.id);
-    return element ? getBoundsCenter(getRenderedElementBounds(element)) : null;
-  }
-
-  return getBoundsCenter(MessageCommon.getEffectiveGeometryBounds(message));
+function getMessageFocusPoint(message) {
+  if ("_children" in message) return null;
+  return (
+    getMessageActivityPoint(message) ||
+    getBoundsCenter(MessageCommon.getEffectiveGeometryBounds(message))
+  );
 }
 
 /**

@@ -6,9 +6,6 @@ import {
 
 /** @import { AppToolsState, AuthoritativeBaseline, IncomingBroadcast } from "../../types/app-runtime" */
 
-const DENSE_BOARD_ITEMS = 8192;
-const DRAWING_BROADCAST_BATCH_MS = 100;
-
 /**
  * @param {number | undefined} [cacheBust]
  * @returns {string}
@@ -39,7 +36,6 @@ export class ReplayModule {
     this.preSnapshotMessages = /** @type {IncomingBroadcast[]} */ ([]);
     this.incomingBroadcastQueue = /** @type {IncomingBroadcast[]} */ ([]);
     this.processingIncomingBroadcast = /** @type {number | null} */ (null);
-    this.broadcastTimer = 0;
   }
 
   /** @param {AuthoritativeBaseline} baseline */
@@ -47,6 +43,9 @@ export class ReplayModule {
     const Tools = this.getTools();
     if (Tools.dom.status !== "attached") return;
     const dom = Tools.dom;
+    // A fresh SVG supersedes transient tool rendering as well as board nodes.
+    for (const name in Tools.toolRegistry.mounted)
+      Tools.toolRegistry.mounted[name]?.onSocketDisconnect();
     this.hasAuthoritativeSnapshot = true;
     this.authoritativeSeq = baseline.seq;
     Tools.optimistic.journal.reset();
@@ -91,8 +90,6 @@ export class ReplayModule {
   /** @param {{preserveBufferedWrites?: boolean}} [options] */
   beginAuthoritativeResync(options) {
     const Tools = this.getTools();
-    window.clearTimeout(this.broadcastTimer);
-    this.broadcastTimer = 0;
     Tools.connection.generation++;
     this.awaitingSnapshot = true;
     this.refreshBaselineBeforeConnect = true;
@@ -229,24 +226,6 @@ export class ReplayModule {
     const Tools = this.getTools();
     if (this.processingIncomingBroadcast === Tools.connection.generation)
       return;
-    // Incoming ink repaints the entire board SVG. During a local stroke on a
-    // dense board, group those paints so they leave time for the local overlay.
-    // Apply every message in order; replay, geometry and socket data are intact.
-    if (
-      Tools.dom.status === "attached" &&
-      Tools.dom.drawingArea.childElementCount >= DENSE_BOARD_ITEMS &&
-      Tools.interaction.isOwnCursorSuppressed()
-    ) {
-      if (!this.broadcastTimer) {
-        this.broadcastTimer = window.setTimeout(() => {
-          this.broadcastTimer = 0;
-          void this.drainIncomingBroadcastQueue();
-        }, DRAWING_BROADCAST_BATCH_MS);
-      }
-      return;
-    }
-    window.clearTimeout(this.broadcastTimer);
-    this.broadcastTimer = 0;
     void this.drainIncomingBroadcastQueue();
   }
 }

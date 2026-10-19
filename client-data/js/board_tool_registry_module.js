@@ -630,6 +630,7 @@ function createMountedTool(Tools, toolModule, toolState, toolName) {
   const onstart = toolModule.onstart;
   const onquit = toolModule.onquit;
   const onSocketDisconnect = toolModule.onSocketDisconnect;
+  const flushPendingDraws = toolModule.flushPendingDraws;
   const onPresenceDisplayChange = toolModule.onPresenceDisplayChange;
   const onMutationRejected = toolModule.onMutationRejected;
   const onColorChange = toolModule.onColorChange;
@@ -670,6 +671,9 @@ function createMountedTool(Tools, toolModule, toolState, toolName) {
     onSocketDisconnect: onSocketDisconnect
       ? () => onSocketDisconnect(toolState)
       : () => {},
+    flushPendingDraws: flushPendingDraws
+      ? (message) => flushPendingDraws(toolState, message)
+      : undefined,
     onPresenceDisplayChange: onPresenceDisplayChange
       ? () => onPresenceDisplayChange(toolState)
       : undefined,

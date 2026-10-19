@@ -27,12 +27,16 @@
 import { beginDrawingPerformance } from "../../js/drawing_performance.js";
 import { logFrontendEvent } from "../../js/frontend_logging.js";
 import { LIMITS } from "../../js/message_common.js";
-import { MutationType } from "../../js/mutation_type.js";
+import {
+  getMutationType,
+  MutationType,
+} from "../../js/message_tool_metadata.js";
+import { collectOptimisticDependencyIds } from "../../js/optimistic_mutation.js";
 import { PencilContract } from "../contracts.js";
 import { TOOL_CODE_BY_ID } from "../tool-order.js";
 import { wboPencilPoint } from "./wbo_pencil_point.js";
 
-/** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
+/** @import { BoardMessage, ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
 /** @typedef {Omit<ReturnType<typeof createLineMessage>, "opacity"> & {opacity?: number}} PencilCreateMessage */
 /** @typedef {ReturnType<typeof createPointMessage>} PencilAppendMessage */
 /** @typedef {PencilCreateMessage | PencilAppendMessage} PencilMessage */
@@ -73,8 +77,12 @@ export const serverRenderedElementSelector = "path";
 const LIVE_OVERLAY_CLASS = "wbo-pencil-live-overlay";
 const LIVE_OVERLAY_ACTIVE_CLASS = "wbo-pencil-live-overlay-active";
 const LIVE_PATH_CLASS = "wbo-pencil-live-path";
+// The supported wire protocol has no stroke-end event. Idle remote ink is
+// materialized between gestures; active local input keeps it in the light layer.
+const REMOTE_INK_IDLE_MS = 250;
 /** @typedef {{type: string, values: number[]}} PencilPathSegment */
 /** @typedef {PencilPathSegment[]} PencilPathData */
+/** @typedef {{line: SVGPathElement, overlay: SVGPathElement, visibility: string, dirty: boolean, detached: boolean, updated: number}} RemoteInk */
 /** @typedef {{name: string, icon: string, active: boolean, switch?: () => void}} PencilSecondary */
 /** @typedef {ReturnType<typeof createInitialState>} PencilState */
 /** @typedef {{lineId: string, createMessage: PencilCreateMessage}} PencilPressEffect */
@@ -319,6 +327,9 @@ function createInitialState(ctx) {
     activeInteractionLease: /** @type {{release: () => void} | null} */ (null),
     liveOverlay: new PencilLiveOverlay(runtime.board, runtime.viewport),
     pathDataCache: /** @type {Record<string, PencilPathData>} */ ({}),
+    remoteInk: /** @type {Map<string, RemoteInk>} */ (new Map()),
+    remoteFrame: 0,
+    remoteIdleTimer: 0,
     rejectedLineDeletes: new Set(),
     drawingSize: -1,
     whiteOutSize: -1,
@@ -477,7 +488,9 @@ function getPathData(state, line) {
 function getLineById(state, lineId) {
   if (!lineId) return null;
   const line =
-    document.getElementById(lineId) || state.board.svg.getElementById(lineId);
+    state.remoteInk.get(lineId)?.line ||
+    document.getElementById(lineId) ||
+    state.board.svg.getElementById(lineId);
   return line instanceof SVGPathElement
     ? /** @type {SVGPathElement & {id: string}} */ (line)
     : null;
@@ -531,6 +544,7 @@ function clearActiveStrokeState(
   releaseInteractionLease(state);
   state.curLineId = "";
   state.activeLineData = null;
+  flushPendingDraws(state);
   state.hasSentPoint = false;
   state.currentLineChildCount = 0;
   state.renderingLine = null;
@@ -564,6 +578,7 @@ function commitActiveStroke(state) {
 function finishActiveStroke(state, reason = "release") {
   if (reason === "tool-change" && !Number.isNaN(state.pendingX))
     move(state, state.pendingX, state.pendingY, undefined, true);
+  flushPendingDraws(state);
   commitActiveStroke(state);
   clearActiveStrokeState(state, true, reason);
 }
@@ -668,9 +683,10 @@ function normalizePersistedPath(d) {
  * Active local strokes call this only when they are committed at the end.
  * @param {PencilState} state
  * @param {PencilLineData} lineData
+ * @param {boolean} [deferAttachment]
  * @returns {SVGPathElement & {id: string}}
  */
-function createLine(state, lineData) {
+function createLine(state, lineData, deferAttachment = false) {
   let line = getLineById(state, lineData.id);
   delete state.pathDataCache[lineData.id];
   if (line) line.setPathData([]);
@@ -686,7 +702,7 @@ function createLine(state, lineData) {
     "opacity",
     String(Math.max(0.1, Math.min(1, Number(lineData.opacity) || 1))),
   );
-  if (line.parentNode !== state.board.drawingArea) {
+  if (!deferAttachment && line.parentNode !== state.board.drawingArea) {
     state.board.drawingArea.appendChild(line);
   }
   return line;
@@ -775,9 +791,9 @@ export function boot(ctx) {
 /**
  * Draws one pencil message.
  *
- * Local active strokes are special: they are visible through
- * `PencilLiveOverlay` and stay out of `#drawingArea` until release. All
- * remote/replay messages continue to mutate canonical board SVG immediately.
+ * Local active strokes use `PencilLiveOverlay`. While local input is active,
+ * remote ink shares that light layer and coalesces geometry writes per frame.
+ * Read boundaries and release materialize pending geometry in the board SVG.
  * @param {PencilState} state
  * @param {unknown} data
  * @param {boolean} [isLocal]
@@ -804,7 +820,9 @@ export function draw(state, data, isLocal = false) {
       state.pathDataCache[data.id] = [];
       state.liveOverlay.draw(state.activeLineData);
     } else {
-      state.renderingLine = createLine(state, data);
+      if (state.remoteInk.has(data.id)) flushPendingDraws(state);
+      state.renderingLine = createLine(state, data, state.liveOverlay.active);
+      if (state.liveOverlay.active) queueRemoteInk(state, state.renderingLine);
     }
     return;
   }
@@ -818,8 +836,121 @@ export function draw(state, data, isLocal = false) {
     state.liveOverlay.draw(state.activeLineData, pathData);
   } else {
     const line = getBoardLineForAppend(state, data.parent);
-    line.setPathData(wboPencilPoint(getPathData(state, line), data.x, data.y));
+    const pathData = wboPencilPoint(getPathData(state, line), data.x, data.y);
+    if (state.liveOverlay.active) queueRemoteInk(state, line);
+    else line.setPathData(pathData);
   }
+}
+
+/** Keep active remote ink off the dense SVG while Pencil is selected.
+ * Existing nodes keep their stacking position; new nodes attach on commit.
+ * Other mutations flush geometry before copying, transforming or snapshotting.
+ * @param {PencilState} state
+ * @param {SVGPathElement} line
+ */
+function queueRemoteInk(state, line) {
+  let ink = state.remoteInk.get(line.id);
+  if (!ink) {
+    const overlay = /** @type {SVGPathElement} */ (line.cloneNode(false));
+    overlay.removeAttribute("id");
+    overlay.setAttribute("class", LIVE_PATH_CLASS);
+    state.liveOverlay.overlay?.appendChild(overlay);
+    const detached = line.parentNode !== state.board.drawingArea;
+    ink = {
+      line,
+      overlay,
+      visibility: line.style.visibility,
+      dirty: true,
+      detached,
+      updated: 0,
+    };
+    if (!detached) line.style.visibility = "hidden";
+    state.remoteInk.set(line.id, ink);
+  }
+  ink.dirty = true;
+  ink.updated = performance.now();
+  if (!state.remoteFrame)
+    state.remoteFrame = window.requestAnimationFrame(() => {
+      state.remoteFrame = 0;
+      if (state.liveOverlay.overlay)
+        syncOverlayTransform(state.liveOverlay.overlay, state.viewport);
+      for (const [id, remote] of state.remoteInk) {
+        if (!remote.dirty) continue;
+        remote.dirty = false;
+        const points = state.pathDataCache[id];
+        if (points) remote.overlay.setPathData(points);
+      }
+    });
+  scheduleRemoteInkCommit(state);
+}
+
+/** @param {PencilState} state */
+function scheduleRemoteInkCommit(state) {
+  if (state.activeLineData || state.remoteIdleTimer || !state.remoteInk.size)
+    return;
+  const now = performance.now();
+  let delay = REMOTE_INK_IDLE_MS;
+  for (const ink of state.remoteInk.values())
+    delay = Math.min(
+      delay,
+      Math.max(1, REMOTE_INK_IDLE_MS - (now - ink.updated)),
+    );
+  state.remoteIdleTimer = window.setTimeout(() => {
+    state.remoteIdleTimer = 0;
+    if (state.activeLineData) return;
+    const now = performance.now();
+    for (const remote of state.remoteInk.values()) {
+      if (now - remote.updated >= REMOTE_INK_IDLE_MS) {
+        // Commit the group in creation order, including earlier active paths.
+        // Otherwise a later completed stroke could end up underneath them.
+        flushPendingDraws(state);
+        return;
+      }
+    }
+    scheduleRemoteInkCommit(state);
+  }, delay);
+}
+
+/** Rendering is deferred, mutation ordering is not. Flush at read boundaries
+ * and on local stroke completion; cursor/ink messages do not need a snapshot.
+ * @param {PencilState} state
+ * @param {BoardMessage} [message]
+ */
+export function flushPendingDraws(state, message) {
+  if (message) {
+    const type = getMutationType(message);
+    if (
+      !state.remoteInk.size ||
+      message.tool === TOOL_CODE_BY_ID.cursor ||
+      (message.tool === toolCode &&
+        (type === MutationType.CREATE || type === MutationType.APPEND))
+    )
+      return;
+    // Unrelated moves must not materialize active ink. Reuse the same item
+    // dependency contract as editing/rollback; copies read their source id.
+    if (type !== MutationType.CLEAR && type !== MutationType.CREATE) {
+      let readsPendingInk = false;
+      for (const id of collectOptimisticDependencyIds(message))
+        if (state.remoteInk.has(id)) {
+          readsPendingInk = true;
+          break;
+        }
+      if (!readsPendingInk) return;
+    }
+  }
+  if (state.remoteFrame) window.cancelAnimationFrame(state.remoteFrame);
+  state.remoteFrame = 0;
+  window.clearTimeout(state.remoteIdleTimer);
+  state.remoteIdleTimer = 0;
+  for (const [id, ink] of state.remoteInk) {
+    const points = state.pathDataCache[id];
+    if (ink.detached) state.board.drawingArea.appendChild(ink.line);
+    if (points && ink.line.parentNode === state.board.drawingArea)
+      ink.line.setPathData(points);
+    ink.line.style.visibility = ink.visibility;
+    ink.overlay.remove();
+  }
+  state.remoteInk.clear();
 }
 
 /**
@@ -991,17 +1122,19 @@ function messageDeletesActiveStroke(message, activeId) {
  * The overlay is local-only, so clear/delete must explicitly discard it.
  * Hand selection deletes arrive as a batch, so child deletes are inspected too.
  * @param {PencilState} state
- * @param {{type?: unknown, id?: string, _children?: unknown}} message
+ * @param {BoardMessage} message
  */
 export function onMessage(state, message) {
+  flushPendingDraws(state, message);
+  const type = getMutationType(message);
   if (
-    message.type === MutationType.CLEAR ||
+    type === MutationType.CLEAR ||
     messageDeletesActiveStroke(message, state.curLineId)
   ) {
     clearActiveStrokeState(
       state,
       false,
-      message.type === MutationType.CLEAR ? "clear" : "delete",
+      type === MutationType.CLEAR ? "clear" : "delete",
     );
   }
 }
@@ -1012,6 +1145,13 @@ export function onMessage(state, message) {
  * @param {PencilState} state
  */
 export function onSocketDisconnect(state) {
+  // The next baseline owns geometry. Restore presentation without committing
+  // stale deferred paths into a document that may already have been replaced.
+  for (const ink of state.remoteInk.values()) {
+    ink.line.style.visibility = ink.visibility;
+    ink.overlay.remove();
+  }
+  state.remoteInk.clear();
   clearActiveStrokeState(state, false, "disconnect");
 }
 

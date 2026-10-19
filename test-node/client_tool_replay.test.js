@@ -1402,6 +1402,7 @@ test("Pencil onMessage discards the active stroke deleted inside a hand batch", 
   state.curLineId = "l-7";
 
   PencilTool.onMessage(state, {
+    tool: TOOL_CODE_BY_ID.hand,
     _children: [
       { type: MutationType.DELETE, id: "l-other" },
       { type: MutationType.DELETE, id: "l-7" },
@@ -1411,6 +1412,7 @@ test("Pencil onMessage discards the active stroke deleted inside a hand batch", 
 
   state.curLineId = "l-8";
   PencilTool.onMessage(state, {
+    tool: TOOL_CODE_BY_ID.hand,
     _children: [{ type: MutationType.DELETE, id: "l-other" }],
   });
   assert.equal(state.curLineId, "l-8");
@@ -1546,6 +1548,8 @@ test("Cursor renders presence as a viewport-scaled HTML overlay", async () => {
     activeTool: "hand",
   });
 
+  harness.time.advanceTime(16);
+
   const peerCursor = harness.elementsById.get("cursor-socket-peer");
   assert.ok(peerCursor);
   assert.equal(peerCursor.style.transform, "translate3d(60px, 80px, 0)");
@@ -1608,6 +1612,8 @@ test("Cursor follows peer drawing activity messages", async () => {
     y: 34,
   });
 
+  harness.time.advanceTime(16);
+
   const peerCursor = harness.elementsById.get("cursor-socket-peer");
   assert.ok(peerCursor);
   assert.equal(peerCursor.style.transform, "translate3d(12px, 34px, 0)");
@@ -1631,6 +1637,8 @@ test("Cursor follows peer drawing activity messages", async () => {
     x2: 200,
     y2: 220,
   });
+
+  harness.time.advanceTime(16);
 
   assert.equal(peerCursor.style.transform, "translate3d(200px, 220px, 0)");
   assert.equal(

@@ -32,11 +32,10 @@ browser renders SVG and applies local edits optimistically.
    mutations receive sequences and are broadcast to synchronized clients,
    including the sender. Saves later fold state into a new SVG baseline.
 
-Cursors and presence are ephemeral. They do not enter persistence or replay.
-Wire constants and field contracts live in
-[socket_events.js](./client-data/js/socket_events.js), the tool manifest, and
-[message_tool_metadata.js](./client-data/js/message_tool_metadata.js); admission
-behavior is exercised by `test-node` socket tests.
+Cursors are ephemeral. Pencil coalesces active remote ink on its light overlay
+and commits it between gestures. Editing and rollback snapshots flush pending
+geometry first; replay still applies every message in order. Rendering policy
+belongs to tools, so it never delays mutation sequencing or acknowledgements.
 
 ## Why these choices
 

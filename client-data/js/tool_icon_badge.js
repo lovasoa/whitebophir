@@ -26,6 +26,7 @@ export function createToolIconBadge(badgeClass, iconClass) {
  * @param {string} label
  */
 export function updateToolIconBadge(icon, toolId, label) {
-  icon.src = `../${getToolRuntimeAssetPath(toolId || "hand", "icon.svg")}`;
-  icon.title = label;
+  const src = `../${getToolRuntimeAssetPath(toolId || "hand", "icon.svg")}`;
+  if (icon.getAttribute("src") !== src) icon.src = src;
+  if (icon.title !== label) icon.title = label;
 }

@@ -204,16 +204,17 @@ test("connected user display sort pins self, then friends, then other users", as
   );
 });
 
-test("presence activity treats rendered focus measurement as best-effort", async () => {
+test("presence activity keeps pointer position without measuring SVG geometry", async (t) => {
   const env = createPresenceEnvironment();
   try {
     const { PresenceModule } = await import(
       "../client-data/js/board_presence_module.js"
     );
     const target = new FakeSVGGraphicsElement("rect-1");
-    target.transformedBBox = () => {
+    const measure = t.mock.fn(() => {
       throw new Error("Missing SVG canvas.");
-    };
+    });
+    target.transformedBBox = measure;
     env.drawingArea.appendChild(target);
     env.elementsById.set(target.id, target);
 
@@ -229,6 +230,7 @@ test("presence activity treats rendered focus measurement as best-effort", async
     assert.ok(user);
     assert.equal(user.lastTool, "hand");
     assert.deepEqual(user.position, { x: 0, y: 0 });
+    assert.equal(measure.mock.callCount(), 0);
   } finally {
     env.restore();
   }

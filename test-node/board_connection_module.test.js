@@ -240,14 +240,11 @@ test("connection and replay discard superseded asynchronous work", async (t) => 
   });
   Tools.connection = new ConnectionModule(() => Tools, noop);
   Tools.replay = new ReplayModule(() => Tools, noop);
-  Tools.dom.drawingArea.childElementCount = 32768;
-  Tools.replay.enqueueIncomingBroadcast({
+  Tools.replay.incomingBroadcastQueue.push({
     seq: 1,
     mutation: { tool: 3, type: 1, id: "superseded" },
   });
-  assert.notEqual(Tools.replay.broadcastTimer, 0);
   Tools.replay.beginAuthoritativeResync();
-  assert.equal(Tools.replay.broadcastTimer, 0);
   assert.deepEqual(Tools.replay.incomingBroadcastQueue, []);
   const connect = t.mock.fn(() => ({
     id: "socket",
@@ -310,7 +307,7 @@ test("connection and replay discard superseded asynchronous work", async (t) => 
   assert.equal(connect.mock.callCount(), 2);
 });
 
-test("dense-board drawing batches broadcasts without losing sequence or acknowledgements", async (t) => {
+test("drawing does not delay broadcast sequence or acknowledgements", async (t) => {
   const { ReplayModule } = await import(
     "../client-data/js/board_replay_module.js"
   );
@@ -365,10 +362,6 @@ test("dense-board drawing batches broadcasts without losing sequence or acknowle
       clientMutationId: "ack",
     },
   });
-  browser.advanceTime(99);
-  assert.deepEqual(applied, []);
-  assert.equal(replay.authoritativeSeq, 0);
-  browser.advanceTime(1);
   await new Promise(setImmediate);
   assert.deepEqual(applied, ["remote"]);
   assert.deepEqual(acknowledged, ["ack"]);
@@ -386,7 +379,6 @@ test("dense-board drawing batches broadcasts without losing sequence or acknowle
   });
   await new Promise(setImmediate);
   assert.deepEqual(applied, ["remote", "pending", "after-release"]);
-  assert.equal(replay.broadcastTimer, 0);
   drawing = true;
   Tools.dom.drawingArea.childElementCount = 100;
   replay.enqueueIncomingBroadcast({
