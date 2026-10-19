@@ -6,8 +6,98 @@ import { TOOL_CODE_BY_ID } from "../../client-data/tools/tool-order.js";
 declare global {
   interface Window {
     drawingSummaries: DrawingPerformanceSummary[];
+    drawingMeasures: PerformanceMeasure[];
   }
 }
+
+test("opt-in User Timing exposes drawing context and bounds retained history", async ({
+  page,
+  boardPage,
+  server,
+}) => {
+  const boardName = "user-timing";
+  await page.route(`**/boards/${boardName}?*`, async (route) => {
+    const response = await route.fetch();
+    await route.fulfill({
+      response,
+      body: (await response.text()).replace(
+        "<html",
+        '<html data-wbo-performance="true"',
+      ),
+    });
+  });
+  await page.addInitScript(() => {
+    window.drawingMeasures = [];
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries())
+        if (entry.name === "wbo.drawing")
+          window.drawingMeasures.push(entry as PerformanceMeasure);
+    }).observe({ type: "measure", buffered: true });
+  });
+  await boardPage.gotoBoard(boardName);
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-wbo-performance",
+    "true",
+  );
+  await boardPage.selectTool("pencil");
+  await boardPage.waitForBoardWritable();
+  for (let i = 0; i < 3; i++) {
+    await page.mouse.move(150, 240 + i * 30);
+    await page.mouse.down();
+    await page.mouse.move(450, 250 + i * 30, { steps: 10 });
+    await page.mouse.up();
+    await expect
+      .poll(() => page.evaluate(() => window.drawingMeasures.length))
+      .toBe(i + 1);
+  }
+  const result = await page.evaluate(async () => {
+    // A late exporter can recover the latest sample without retaining every
+    // stroke. The active observer above must still receive all three.
+    const buffered = await new Promise<PerformanceMeasure[]>((resolve) => {
+      const observer = new PerformanceObserver((list) => {
+        observer.disconnect();
+        resolve(list.getEntries() as PerformanceMeasure[]);
+      });
+      observer.observe({ type: "measure", buffered: true });
+    });
+    const entry = buffered.find((entry) => entry.name === "wbo.drawing");
+    if (!entry) throw Error("Missing drawing measure");
+    return {
+      retained: performance.getEntriesByName("wbo.drawing", "measure").length,
+      buffered: buffered.filter((entry) => entry.name === "wbo.drawing").length,
+      ready: performance.getEntriesByName("wbo.ready", "mark").length,
+      drawing: entry.detail.drawing,
+      duration: entry.duration,
+      start: performance.timeOrigin + entry.startTime,
+      current: {
+        boardItemCount: window.WBOApp.dom.drawingArea.childElementCount,
+        zoom: window.WBOApp.viewportState.controller.getScale(),
+        connectedUserCount: window.WBOApp.presence.users.size,
+        connectionState: window.WBOApp.connection.state,
+      },
+    };
+  });
+  expect(result.retained).toBe(1);
+  expect(result.buffered).toBe(1);
+  expect(result.ready).toBe(1);
+  expect(result.drawing).toMatchObject({
+    ...result.current,
+    toolId: "pencil",
+    inputType: "mouse",
+    terminationReason: "release",
+    strokeStartTimeMs: result.start,
+    strokeDurationMs: result.duration,
+  });
+  expect(result.drawing.feedbackCount).toBeGreaterThan(0);
+  expect(result.drawing.over100ms).toBe(
+    Number(result.drawing.maxFeedbackWaitMs > 100),
+  );
+  await server.waitForStoredBoard(
+    server.dataPath,
+    boardName,
+    (board) => Object.values(board).length === 3,
+  );
+});
 
 test("collaborative drawing bounds rendering work per update", async ({
   page,
@@ -462,6 +552,11 @@ for (const tool of ["pencil", "straight-line"]) {
       .poll(() => page.evaluate(() => window.drawingSummaries.length))
       .toBe(1);
     const summary = await page.evaluate(() => window.drawingSummaries[0]);
+    expect(
+      await page.evaluate(
+        () => performance.getEntriesByName("wbo.drawing", "measure").length,
+      ),
+    ).toBe(0);
     expect(summary?.toolId).toBe(tool);
     expect(summary?.terminationReason).toBe("release");
     expect(summary?.feedbackCount).toBeGreaterThan(0);

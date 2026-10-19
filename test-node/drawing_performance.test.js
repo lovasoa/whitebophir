@@ -31,6 +31,7 @@ function harness(run) {
   const globals = {
     document: {
       visibilityState: "visible",
+      documentElement: { dataset: /** @type {Record<string, string>} */ ({}) },
       /** @param {string} name @param {Function} fn */
       addEventListener: (name, fn) => {
         if (!handlers.has(name)) handlers.set(name, new Set());
@@ -105,6 +106,7 @@ function harness(run) {
   try {
     run(env);
   } finally {
+    delete globals.document.documentElement.dataset.wboPerformance;
     unsubscribe();
     names.forEach((name, i) => {
       const descriptor = saved[i];
@@ -203,6 +205,15 @@ test("unfinished freezes exclude deliberate holds and survive interruptions", ()
 
 test("release waits for final render; successive strokes and exceptions stay isolated", () =>
   harness((e) => {
+    document.documentElement.dataset.wboPerformance = "true";
+    let measureAttempts = 0;
+    Object.assign(performance, {
+      clearMeasures() {},
+      measure() {
+        measureAttempts++;
+        throw Error("unsupported User Timing options");
+      },
+    });
     const removeThrower = observeDrawingPerformance(() => {
       throw Error("observer");
     });
@@ -218,6 +229,7 @@ test("release waits for final render; successive strokes and exceptions stay iso
     e.frame(16);
     e.message(20);
     assert.equal(e.summaries.length, 2);
+    assert.equal(measureAttempts, 2);
     assert.equal(e.summaries[1]?.meanFeedbackWaitMs, 10);
     assert.equal(
       e.summaries[1]?.strokeStartTimeMs + e.summaries[1]?.strokeDurationMs,

@@ -3,6 +3,7 @@ import {
   createBoardRuntimeShellFromPage,
 } from "./board_bootstrap.js";
 import { errorLogFields, logFrontendEvent } from "./frontend_logging.js";
+import { markPerformance } from "./performance_metrics.js";
 
 const documentElement = document.documentElement;
 
@@ -19,6 +20,7 @@ const CRITICAL_BOOT_TOOL_NAMES = ["hand"];
 function setBoardBootPhase(phase) {
   if (documentElement.dataset.boardPhase === phase) return;
   documentElement.dataset.boardPhase = phase;
+  markPerformance(`wbo.${phase.replace(/-/g, "_")}`);
   document.dispatchEvent(
     new CustomEvent("wbo:board-phase", {
       detail: { phase: phase },

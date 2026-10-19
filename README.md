@@ -137,17 +137,19 @@ Server logs use stdout/stderr and `LOG_LEVEL`. Set
 `OTEL_EXPORTER_OTLP_ENDPOINT` for OTLP export; `OTEL_*` settings control
 resources and sampling.
 
-After board readiness, deployment head snippets can subscribe:
+Opt in to User Timing before boot:
 
 ```js
-const url = new URL("../js/drawing_performance.js", location.href);
-const { observeDrawingPerformance } = await import(url.href);
-const unsubscribe = observeDrawingPerformance(summary => exportDrawing(summary));
+document.documentElement.dataset.wboPerformance = "true";
+const observer = new PerformanceObserver(list => {
+  for (const entry of list.getEntries())
+    if (entry.name.startsWith("wbo.")) exportMetric(entry);
+});
+for (const type of ["mark", "measure"]) observer.observe({type, buffered: true});
 ```
 
-No subscriber means no measurement scheduling. Summaries estimate per-stroke
-ink wait without coordinates. Deployments own export and thresholds; separate
-`inputTiming` cohorts because event timing can miss queued movement.
+`wbo.*` marks cover boot; measures carry `detail` diagnostics. Active observers
+receive all samples; buffered observers recover the latest per name.
 
 ## Storage and recovery
 

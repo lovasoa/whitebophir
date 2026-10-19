@@ -2,6 +2,10 @@
  * Opt-in, vendor-neutral ink feedback timing. Times are rendering opportunities,
  * not measurements of physical display latency. No input points are retained.
  */
+import {
+  measurePerformance,
+  performanceMetricsEnabled,
+} from "./performance_metrics.js";
 
 /** @typedef {import("../../types/app-runtime").DrawingPerformanceSummary} DrawingPerformanceSummary */
 /** @typedef {(summary: Readonly<DrawingPerformanceSummary>) => void} DrawingPerformanceListener */
@@ -28,21 +32,27 @@ function hidden() {
   }
 }
 
-/** Collection and browser listeners exist only while someone subscribes.
+function observeInput() {
+  document.addEventListener("pointerdown", pointerDown, {
+    passive: true,
+    capture: true,
+  });
+  document.addEventListener("visibilitychange", hidden);
+}
+
+// Installed before the first gesture so native User Timing collection retains
+// the pointer type even when there is no direct subscriber.
+if (performanceMetricsEnabled()) observeInput();
+
+/** Collection is opt-in through User Timing or a direct subscriber.
  * @param {DrawingPerformanceListener} listener
  */
 export function observeDrawingPerformance(listener) {
   listeners.add(listener);
-  if (listeners.size === 1) {
-    document.addEventListener("pointerdown", pointerDown, {
-      passive: true,
-      capture: true,
-    });
-    document.addEventListener("visibilitychange", hidden);
-  }
+  if (listeners.size === 1) observeInput();
   return () => {
     listeners.delete(listener);
-    if (listeners.size) return;
+    if (listeners.size || performanceMetricsEnabled()) return;
     document.removeEventListener("pointerdown", pointerDown, true);
     document.removeEventListener("visibilitychange", hidden);
     for (const stroke of strokes) stroke.dispose();
@@ -70,7 +80,7 @@ export function beginDrawingPerformance(
   sample,
   pointIntervalMs,
 ) {
-  if (!listeners.size) return null;
+  if (!listeners.size && !performanceMetricsEnabled()) return null;
   return new DrawingPerformance(toolId, event, x, y, sample, pointIntervalMs);
 }
 
@@ -343,6 +353,28 @@ class DrawingPerformance {
     };
     this.dispose();
     if (!this.sequence) return;
+    if (performanceMetricsEnabled()) {
+      const app = typeof window !== "undefined" ? window.WBOApp : null;
+      measurePerformance("wbo.drawing", {
+        start: this.start,
+        end: this.end,
+        detail: {
+          drawing: {
+            ...summary,
+            over100ms: Number(summary.maxFeedbackWaitMs > 100),
+            ...(app
+              ? {
+                  boardItemCount: app.dom.drawingArea?.childElementCount,
+                  zoom: app.viewportState.controller.getScale(),
+                  connectedUserCount: app.presence.users.size,
+                  bufferedWriteCount: app.writes.bufferedWrites.length,
+                  connectionState: app.connection.state,
+                }
+              : {}),
+          },
+        },
+      });
+    }
     Object.freeze(summary);
     for (const listener of listeners) {
       try {
