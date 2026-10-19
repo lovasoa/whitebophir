@@ -2,6 +2,38 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const { installBrowserHarness } = require("./helpers/browser_harness.js");
 
+test("published transport namespaces preserve helpers used by cached modules", async () => {
+  const transport = await import("../client-data/js/board_transport.js");
+  const { connection, messages } = transport;
+  assert.equal(
+    connection.normalizeSocketIOExtraHeaders,
+    transport.normalizeSocketIOExtraHeaders,
+  );
+  assert.equal(connection.buildSocketParams, transport.buildSocketParams);
+  assert.equal(connection.closeSocket, transport.closeSocket);
+  assert.equal(messages.queuePendingMessage, transport.queuePendingMessage);
+  assert.equal(
+    connection.buildSocketParams("/boards/test", null, null, "test").query,
+    "board=test",
+  );
+  const pending =
+    /** @type {import("../types/app-runtime").PendingMessages} */ ({});
+  const message = /** @type {import("../types/app-runtime").BoardMessage} */ ({
+    tool: 3,
+    type: 1,
+    id: "pending-rectangle",
+    x: 1,
+    y: 2,
+    x2: 30,
+    y2: 40,
+    color: "#000000",
+    size: 10,
+    opacity: 1,
+  });
+  messages.queuePendingMessage(pending, "rectangle", message);
+  assert.equal(pending.rectangle?.[0], message);
+});
+
 test("moderation disconnect payloads normalize explicit and legacy sources", async () => {
   const {
     getModerationDisconnectNoticeDescriptor,
