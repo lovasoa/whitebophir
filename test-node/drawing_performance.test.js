@@ -164,12 +164,14 @@ test("merged geometry writes use one callback; fallback wins a starved message",
   harness((e) => {
     const s = e.stroke();
     for (let t = 1; t <= 10; t++) {
+      e.at(t);
       s.input(t, 0, t);
       s.accept();
       s.geometry();
     }
     assert.equal(e.frames.size, 1);
     e.frame(16);
+    e.at(20);
     s.input(11, 0, 20);
     s.accept();
     s.geometry();
@@ -182,6 +184,9 @@ test("merged geometry writes use one callback; fallback wins a starved message",
     assert.equal(e.summaries[0]?.feedbackCount, 2);
     assert.equal(e.summaries[0]?.renderFallbackCount, 1);
     assert.equal(e.summaries[0]?.maxFeedbackWaitMs, 31);
+    assert.equal(e.summaries[0]?.maxFeedbackInputQueueMs, 0);
+    assert.equal(e.summaries[0]?.maxFeedbackBeforeGeometryMs, 0);
+    assert.equal(e.summaries[0]?.maxFeedbackAfterGeometryMs, 31);
   }));
 
 test("unfinished freezes exclude deliberate holds and survive interruptions", () =>
@@ -283,4 +288,59 @@ test("queued pointer-down preserves the original timestamps of subsequent moveme
     assert.equal(e.summaries[0]?.strokeDurationMs, 320);
     assert.equal(e.summaries[0]?.maxInputQueueDelayMs, 300);
     assert.equal(e.summaries[0]?.strokeStartTimeMs, 1700000000000);
+  }));
+
+test("worst feedback breakdown follows the oldest input represented by a queued write", () =>
+  harness((e) => {
+    const s = e.stroke();
+    s.input(1, 0, 10, 40);
+    e.at(50);
+    s.accept();
+    e.at(60);
+    s.geometry();
+    e.frame(70);
+    s.input(2, 0, 71, 80);
+    e.at(90);
+    s.accept();
+    e.at(100);
+    s.geometry();
+    s.input(3, 0, 101, 105);
+    e.at(110);
+    s.accept();
+    e.at(120);
+    s.geometry();
+    e.message(130);
+    e.frame(140);
+    e.message(250);
+    e.at(260);
+    s.finish("release");
+    const summary = e.summaries[0];
+    assert.equal(summary?.maxFeedbackWaitMs, 179);
+    assert.equal(summary?.maxFeedbackInputQueueMs, 9);
+    assert.equal(summary?.maxFeedbackBeforeGeometryMs, 20);
+    assert.equal(summary?.maxFeedbackAfterGeometryMs, 150);
+    assert.equal(summary?.acceptedUpdateCount, 3);
+    assert.equal(summary?.geometryWriteCount, 3);
+  }));
+
+test("unfinished feedback does not inherit the breakdown of an earlier painted update", () =>
+  harness((e) => {
+    const s = e.stroke();
+    s.input(1, 0, 10, 20);
+    e.at(30);
+    s.accept();
+    e.at(40);
+    s.geometry();
+    e.frame(50);
+    e.message(60);
+    for (let t = 100; t <= 300; t += 10) s.input(t, 0, t);
+    e.at(310);
+    s.finish("cancel", true);
+    const summary = e.summaries[0];
+    assert.equal(summary?.maxFeedbackWaitMs, 200);
+    assert.equal("maxFeedbackInputQueueMs" in (summary ?? {}), false);
+    assert.equal("maxFeedbackBeforeGeometryMs" in (summary ?? {}), false);
+    assert.equal("maxFeedbackAfterGeometryMs" in (summary ?? {}), false);
+    assert.equal(summary?.acceptedUpdateCount, 1);
+    assert.equal(summary?.geometryWriteCount, 1);
   }));

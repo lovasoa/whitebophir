@@ -103,11 +103,22 @@ class DrawingPerformance {
     this.accepted = 0;
     this.written = 0;
     this.pending = NaN;
+    this.pendingReceived = NaN;
     this.afterAccepted = NaN;
+    this.afterAcceptedReceived = NaN;
     this.queued = NaN;
+    this.queuedReceived = NaN;
+    this.queuedGeometry = NaN;
     this.waiting = NaN;
+    this.waitingReceived = NaN;
+    this.waitingGeometry = NaN;
     this.max = 0;
     this.maxSince = this.start;
+    this.maxInputQueue = 0;
+    this.maxBeforeGeometry = 0;
+    this.maxAfterGeometry = 0;
+    this.acceptedUpdateCount = 0;
+    this.geometryWriteCount = 0;
     this.sum = 0;
     this.count = 0;
     this.unfinished = 0;
@@ -170,19 +181,28 @@ class DrawingPerformance {
     if (gap > 50) {
       this.recordUnfinished();
       this.pending = this.afterAccepted = NaN;
+      this.pendingReceived = this.afterAcceptedReceived = NaN;
     } else this.moving += gap;
     this.x = x;
     this.y = y;
     this.lastInput = time;
     this.sequence++;
-    if (Number.isNaN(this.pending)) this.pending = time;
-    if (Number.isNaN(this.afterAccepted)) this.afterAccepted = time;
+    if (Number.isNaN(this.pending)) {
+      this.pending = time;
+      this.pendingReceived = received;
+    }
+    if (Number.isNaN(this.afterAccepted)) {
+      this.afterAccepted = time;
+      this.afterAcceptedReceived = received;
+    }
   }
 
   /** Call only when geometry actually changes to represent current input. */
   accept() {
     this.accepted = this.sequence;
     this.afterAccepted = NaN;
+    this.afterAcceptedReceived = NaN;
+    this.acceptedUpdateCount++;
   }
 
   /** A geometry write acknowledges only the accepted sequence, never newer raw
@@ -191,9 +211,15 @@ class DrawingPerformance {
   geometry(inAnimationFrame = false) {
     if (this.disposed || this.accepted === this.written) return;
     this.written = this.accepted;
+    this.geometryWriteCount++;
     if (!Number.isNaN(this.pending)) {
-      if (Number.isNaN(this.queued)) this.queued = this.pending;
+      if (Number.isNaN(this.queued)) {
+        this.queued = this.pending;
+        this.queuedReceived = this.pendingReceived;
+        this.queuedGeometry = performance.now();
+      }
       this.pending = this.afterAccepted;
+      this.pendingReceived = this.afterAcceptedReceived;
     }
     if (this.frame || this.job || Number.isNaN(this.queued)) return;
     if (inAnimationFrame) this.render();
@@ -203,6 +229,8 @@ class DrawingPerformance {
   render() {
     this.frame = 0;
     this.waiting = this.queued;
+    this.waitingReceived = this.queuedReceived;
+    this.waitingGeometry = this.queuedGeometry;
     this.queued = NaN;
     if (!channel) {
       channel = new MessageChannel();
@@ -227,10 +255,19 @@ class DrawingPerformance {
     this.job = 0;
     cancelAnimationFrame(this.frame);
     this.frame = 0;
-    const wait = Math.max(0, performance.now() - this.waiting);
+    const now = performance.now();
+    const wait = Math.max(0, now - this.waiting);
     if (wait > this.max) {
       this.max = wait;
       this.maxSince = this.waiting;
+      // Keep stages from this same interval. Independent maxima cannot explain
+      // an individual stall, and replacing queued geometry must not reset age.
+      this.maxInputQueue = Math.max(0, this.waitingReceived - this.waiting);
+      this.maxBeforeGeometry = Math.max(
+        0,
+        this.waitingGeometry - this.waitingReceived,
+      );
+      this.maxAfterGeometry = Math.max(0, now - this.waitingGeometry);
     }
     this.sum += wait;
     this.count++;
@@ -282,8 +319,18 @@ class DrawingPerformance {
         performance.timeOrigin +
         (this.unfinished > this.max ? this.unfinishedSince : this.maxSince),
       ...(this.count ? { meanFeedbackWaitMs: this.sum / this.count } : {}),
+      // Unfinished demand has no observed write/render boundary to attribute.
+      ...(this.count && this.max >= this.unfinished
+        ? {
+            maxFeedbackInputQueueMs: this.maxInputQueue,
+            maxFeedbackBeforeGeometryMs: this.maxBeforeGeometry,
+            maxFeedbackAfterGeometryMs: this.maxAfterGeometry,
+          }
+        : {}),
       feedbackCount: this.count,
       inputSampleCount: this.sequence,
+      acceptedUpdateCount: this.acceptedUpdateCount,
+      geometryWriteCount: this.geometryWriteCount,
       maxInputQueueDelayMs: this.inputDelay,
       unfinishedWaitMs: this.unfinished,
       movingDurationMs: this.moving,

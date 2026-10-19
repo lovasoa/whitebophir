@@ -933,8 +933,16 @@ export interface DrawingPerformanceSummary {
   /** Epoch milliseconds; pair with maxFeedbackWaitMs for the worst interval. */
   maxFeedbackWaitStartTimeMs: number;
   meanFeedbackWaitMs?: number;
+  /** Stages of the same worst observed interval; absent for unfinished demand.
+   * After-geometry includes waiting for a rendering opportunity and its task.
+   */
+  maxFeedbackInputQueueMs?: number;
+  maxFeedbackBeforeGeometryMs?: number;
+  maxFeedbackAfterGeometryMs?: number;
   feedbackCount: number;
   inputSampleCount: number;
+  acceptedUpdateCount?: number;
+  geometryWriteCount?: number;
   /** Age of the oldest meaningful input when its browser handler ran. */
   maxInputQueueDelayMs: number;
   unfinishedWaitMs: number;
