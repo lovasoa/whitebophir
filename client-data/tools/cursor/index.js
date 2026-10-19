@@ -161,6 +161,7 @@ function getCursor(state, cursorId) {
     board: state.board,
     viewport: state.viewport,
     element,
+    positionWithTransform: true,
   });
   const entry = {
     element,

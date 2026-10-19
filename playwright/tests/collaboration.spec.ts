@@ -103,16 +103,22 @@ test.describe("collaboration and rate limiting", () => {
           const icon = remoteCursor.querySelector(
             ".opcursor-toolIcon",
           ) as HTMLImageElement | null;
+          const rect = remoteCursor.getBoundingClientRect();
+          const board = document.getElementById("board");
+          if (!board) return null;
+          const boardRect = board.getBoundingClientRect();
           return {
-            left: remoteCursor.style.left,
-            top: remoteCursor.style.top,
+            x: Math.round(rect.left - boardRect.left),
+            y: Math.round(rect.top - boardRect.top),
+            transition: getComputedStyle(remoteCursor).transitionProperty,
             icon: icon?.getAttribute("src") ?? "",
           };
         }),
       )
       .toMatchObject({
-        left: "130px",
-        top: "100px",
+        x: 130,
+        y: 100,
+        transition: "transform",
         icon: expect.stringContaining("rectangle/icon.svg"),
       });
     await boardPage.emitBroadcast({
@@ -150,6 +156,30 @@ test.describe("collaboration and rate limiting", () => {
       peerRemoteRow?.color === "rgb(255, 0, 0)" ||
         peerRemoteRow?.color === "#ff0000",
     ).toBe(true);
+
+    for (const scale of [0.2, 0.1]) {
+      await peerPage.evaluate((value) => {
+        window.WBOApp.viewportState.controller.setScale(value);
+        window.scrollTo(80, 40);
+      }, scale);
+      await expect
+        .poll(() =>
+          peerPage.evaluate(() => {
+            const cursor = document.querySelector(
+              ".opcursor-html:not(#cursor-me)",
+            );
+            const board = document.getElementById("board");
+            if (!cursor || !board) return null;
+            const rect = cursor.getBoundingClientRect();
+            const origin = board.getBoundingClientRect();
+            return {
+              x: Math.round(rect.left - origin.left),
+              y: Math.round(rect.top - origin.top),
+            };
+          }),
+        )
+        .toEqual({ x: 1100 * scale, y: 800 * scale });
+    }
 
     await peerBoard.forceScrollTopLeft();
     await peerPage
