@@ -3,3 +3,8 @@ line {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+
+html[data-active-tool="straight-line"] #drawingArea {
+  /* Line drawing needs coordinates, not costly hits against existing paths. */
+  pointer-events: none;
+}
