@@ -16,8 +16,15 @@ function i18nKey(raw) {
   return raw.toLowerCase().replace(/[ -]/g, "_");
 }
 
-test("frontend translation catalog covers rendered and runtime UI keys", () => {
+test("frontend translation catalog covers rendered and runtime UI keys", async () => {
   const translations = JSON.parse(fs.readFileSync(TRANSLATIONS_PATH, "utf8"));
+  const { MODERATION_RULES } = await import(
+    "../client-data/js/moderation_rules.js"
+  );
+  const ruleKeys = MODERATION_RULES.flatMap((rule) => [
+    rule.titleKey,
+    ...rule.bodyKeys,
+  ]);
   const requiredKeys = [
     "board_name_placeholder",
     "active_bans_count",
@@ -36,6 +43,8 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
     "community_rules_link",
     "community_rules_title",
     "community_rules_intro",
+    "community_rules_warnings",
+    "community_rules_bans",
     "connected_user_idle",
     "connected_user_joined_now_title",
     "connected_user_joined_title",
@@ -88,19 +97,7 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
     "revoke_temporary_moderator",
     "report",
     "report_user",
-    "rules_drawings_body",
-    "rules_drawings_shared",
-    "rules_drawings_title",
-    "rules_harassment_body",
-    "rules_harassment_title",
-    "rules_illegal_international",
-    "rules_illegal_law",
-
-    "rules_illegal_title",
-    "rules_pornography_body",
-    "rules_pornography_title",
-    "rules_violence_body",
-    "rules_violence_title",
+    ...ruleKeys,
     "selector",
     "share_instructions",
     "size",
@@ -174,6 +171,10 @@ test("frontend translation catalog covers rendered and runtime UI keys", () => {
     );
     if (language !== "en") {
       for (const key of [
+        ...ruleKeys,
+        "community_rules_intro",
+        "community_rules_warnings",
+        "community_rules_bans",
         "warn",
         "moderation_warning_title",
         "moderation_warning_body",

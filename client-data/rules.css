@@ -13,7 +13,7 @@
   min-height: 95vh;
   max-width: 860px;
   padding: 36px 18px 64px;
-  text-align: left;
+  text-align: start;
 }
 
 .rules-card {
@@ -29,7 +29,7 @@
   font-size: 30px;
   line-height: 1.2;
   margin-bottom: 16px;
-  text-align: left;
+  text-align: start;
 }
 
 .rules-intro {
@@ -95,11 +95,18 @@
 .rules-list p {
   color: #374151;
   line-height: 1.65;
-  margin: 8px 0 0 40px;
+  margin: 8px 0 0;
+  margin-inline-start: 40px;
 }
 
 .rules-back {
   margin: 26px 0 0;
+}
+
+.rules-enforcement {
+  color: #374151;
+  line-height: 1.65;
+  margin: 20px 0 0;
 }
 
 .rules-back .compact-button {

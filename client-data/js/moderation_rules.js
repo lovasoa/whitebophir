@@ -5,6 +5,18 @@
  */
 export const MODERATION_RULES = Object.freeze([
   {
+    id: "drawings",
+    iconFile: "respect-other-peoples-drawings.svg",
+    titleKey: "rules_drawings_title",
+    bodyKeys: ["rules_drawings_body"],
+  },
+  {
+    id: "spam",
+    iconFile: "no-spam.svg",
+    titleKey: "rules_spam_title",
+    bodyKeys: ["rules_spam_body"],
+  },
+  {
     id: "harassment",
     iconFile: "no-harassment-personal-attacks.svg",
     titleKey: "rules_harassment_title",
@@ -14,31 +26,31 @@ export const MODERATION_RULES = Object.freeze([
     id: "violence",
     iconFile: "no-violence-or-hate-speech.svg",
     titleKey: "rules_violence_title",
-    bodyKeys: ["rules_violence_body"],
+    bodyKeys: ["rules_violence_body", "rules_violence_threats"],
   },
   {
     id: "pornography",
     iconFile: "no-pornography.svg",
     titleKey: "rules_pornography_title",
-    bodyKeys: ["rules_pornography_body"],
+    bodyKeys: ["rules_pornography_nudity", "rules_pornography_body"],
   },
   {
-    id: "illegal",
-    iconFile: "no-illegal-content.svg",
-    titleKey: "rules_illegal_title",
-    bodyKeys: ["rules_illegal_law", "rules_illegal_international"],
-  },
-  {
-    id: "drawings",
-    iconFile: "respect-other-peoples-drawings.svg",
-    titleKey: "rules_drawings_title",
-    bodyKeys: ["rules_drawings_shared", "rules_drawings_body"],
+    id: "gore",
+    iconFile: "no-graphic-gore.svg",
+    titleKey: "rules_gore_title",
+    bodyKeys: ["rules_gore_body", "rules_gore_detail"],
   },
   {
     id: "moderation_decisions",
     iconFile: "respect-moderation-decisions.svg",
     titleKey: "rules_moderation_decisions_title",
     bodyKeys: ["rules_moderation_decisions_body"],
+  },
+  {
+    id: "illegal",
+    iconFile: "no-illegal-content.svg",
+    titleKey: "rules_illegal_title",
+    bodyKeys: ["rules_illegal_law", "rules_illegal_responsibility"],
   },
 ]);
 

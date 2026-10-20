@@ -1810,3 +1810,119 @@ test.describe("collaboration and rate limiting", () => {
     },
   );
 });
+
+for (const language of Object.keys(
+  translations,
+) as (keyof typeof translations)[]) {
+  moderatorPresenceTest(
+    `moderation choices and rules fit short screens in ${language}`,
+    async ({ boardPage, browser, page, server }, testInfo) => {
+      const peerContext = await browser.newContext();
+      const peerPage = await peerContext.newPage();
+      const peerBoard = createBoardPage(peerPage, server);
+      const catalog = translations[language];
+
+      try {
+        await Promise.all([
+          boardPage.gotoBoard("moderation-layout", {
+            token: TOKENS.globalModerator,
+            lang: language,
+          }),
+          peerBoard.gotoBoard("moderation-layout", {
+            token: TOKENS.globalEditor,
+          }),
+        ]);
+        await Promise.all([
+          boardPage.waitForSocketConnected(),
+          peerBoard.waitForSocketConnected(),
+        ]);
+        await boardPage.connectedUsersToggle.click();
+        await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+
+        for (const viewport of [
+          { width: 800, height: 360 },
+          { width: 360, height: 320 },
+        ]) {
+          await page.setViewportSize(viewport);
+          await boardPage.reportFirstRemoteUser();
+          const dialog = page.locator(".moderation-action-dialog");
+          const rules = dialog.locator(".moderation-action-rule");
+          await expect(dialog).toBeVisible();
+          await expect(
+            dialog.locator(".moderation-action-title"),
+          ).toBeInViewport({
+            ratio: 1,
+          });
+          await expect(rules).toHaveCount(MODERATION_RULES.length);
+          await expect(
+            dialog.locator(".moderation-action-rule-label"),
+          ).toHaveText(
+            MODERATION_RULES.map(
+              (rule: { titleKey: string }) =>
+                catalog[rule.titleKey as keyof typeof catalog],
+            ),
+          );
+          const bounds = await dialog.evaluate((element) => {
+            const rect = element.getBoundingClientRect();
+            return {
+              top: rect.top,
+              bottom: rect.bottom,
+              client: element.clientWidth,
+              scroll: element.scrollWidth,
+            };
+          });
+          expect(bounds.top).toBeGreaterThanOrEqual(0);
+          expect(bounds.bottom).toBeLessThanOrEqual(viewport.height);
+          expect(bounds.scroll).toBeLessThanOrEqual(bounds.client);
+          if (["en", "ar", "de", "my"].includes(language)) {
+            await page.screenshot({
+              path: testInfo.outputPath(`dialog-open-${viewport.width}.png`),
+            });
+          }
+          const durationLabelsFit = await dialog
+            .locator(".moderation-action-choice-label")
+            .evaluateAll((labels) =>
+              labels.every((label) => {
+                const text = label.getBoundingClientRect();
+                const button = label.parentElement?.getBoundingClientRect();
+                return (
+                  button !== undefined &&
+                  text.left >= button.left &&
+                  text.right <= button.right
+                );
+              }),
+            );
+          expect(durationLabelsFit).toBe(true);
+          for (const rule of await rules.all()) {
+            await rule.click({ trial: true });
+          }
+          const cancel = dialog.locator(".moderation-action-cancel");
+          await cancel.scrollIntoViewIfNeeded();
+          if (["en", "ar", "de", "my"].includes(language)) {
+            await page.screenshot({
+              path: testInfo.outputPath(`dialog-${viewport.width}.png`),
+            });
+          }
+          await cancel.click();
+          await expect(dialog).toHaveCount(0);
+        }
+
+        await page.goto(`${server.serverUrl}/rules?lang=${language}`);
+        await expect(page.locator(".rules-list > li")).toHaveCount(
+          MODERATION_RULES.length,
+        );
+        await expect(page.locator(".rules-enforcement")).toHaveText([
+          catalog.community_rules_warnings,
+          catalog.community_rules_bans,
+        ]);
+        const pageWidth = await page.evaluate(() => ({
+          scroll: document.documentElement.scrollWidth,
+          client: document.documentElement.clientWidth,
+        }));
+        expect(pageWidth.scroll).toBeLessThanOrEqual(pageWidth.client);
+      } finally {
+        await peerContext.close();
+      }
+    },
+  );
+}

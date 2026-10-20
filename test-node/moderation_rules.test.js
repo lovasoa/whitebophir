@@ -5,21 +5,23 @@ const test = require("node:test");
 
 const RULES_DIR = path.join(__dirname, "..", "client-data", "rules");
 
-test("MODERATION_RULES defines six rules in order with required metadata", async () => {
+test("MODERATION_RULES defines eight rules in order with required metadata", async () => {
   const { MODERATION_RULES } = await import(
     "../client-data/js/moderation_rules.js"
   );
 
-  assert.equal(MODERATION_RULES.length, 6);
+  assert.equal(MODERATION_RULES.length, 8);
 
   const ruleIds = MODERATION_RULES.map((rule) => rule.id);
   assert.deepEqual(ruleIds, [
+    "drawings",
+    "spam",
     "harassment",
     "violence",
     "pornography",
-    "illegal",
-    "drawings",
+    "gore",
     "moderation_decisions",
+    "illegal",
   ]);
 
   for (const rule of MODERATION_RULES) {
@@ -33,12 +35,12 @@ test("MODERATION_RULES defines six rules in order with required metadata", async
   }
 });
 
-test("MODERATION_RULE_IDS contains all six rule IDs", async () => {
+test("MODERATION_RULE_IDS contains all eight rule IDs", async () => {
   const { MODERATION_RULE_IDS, MODERATION_RULES } = await import(
     "../client-data/js/moderation_rules.js"
   );
 
-  assert.equal(MODERATION_RULE_IDS.size, 6);
+  assert.equal(MODERATION_RULE_IDS.size, 8);
   for (const rule of MODERATION_RULES) {
     assert.ok(MODERATION_RULE_IDS.has(rule.id));
   }
@@ -61,24 +63,11 @@ test("getModerationRule returns the correct rule or undefined", async () => {
   assert.equal(getModerationRule(undefined), undefined);
 });
 
-test("each rule has a corresponding SVG icon file on disk", () => {
-  for (const ruleId of [
-    "harassment",
-    "violence",
-    "pornography",
-    "illegal",
-    "drawings",
-    "moderation_decisions",
-  ]) {
-    const iconFile = {
-      harassment: "no-harassment-personal-attacks.svg",
-      violence: "no-violence-or-hate-speech.svg",
-      pornography: "no-pornography.svg",
-      illegal: "no-illegal-content.svg",
-      drawings: "respect-other-peoples-drawings.svg",
-      moderation_decisions: "respect-moderation-decisions.svg",
-    }[ruleId];
-    assert.ok(iconFile, `Missing iconFile mapping for ${ruleId}`);
+test("each rule has a corresponding SVG icon file on disk", async () => {
+  const { MODERATION_RULES } = await import(
+    "../client-data/js/moderation_rules.js"
+  );
+  for (const { iconFile } of MODERATION_RULES) {
     const iconPath = path.join(RULES_DIR, iconFile);
     assert.ok(fs.existsSync(iconPath), `Missing SVG icon: ${iconFile}`);
   }
