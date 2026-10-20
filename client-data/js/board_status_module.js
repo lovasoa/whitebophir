@@ -102,7 +102,7 @@ export class StatusModule {
         }),
         detail: "",
       },
-      6000,
+      8000,
     );
   }
 
