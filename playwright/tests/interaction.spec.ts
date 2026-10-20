@@ -87,6 +87,113 @@ async function readBoardTouchAction(page: Page) {
 }
 
 test.describe("single-page interactions", () => {
+  test("authoritative delete removes queued copies that depend on a removed copy", async ({
+    boardPage,
+    server,
+    page,
+    context,
+  }) => {
+    const boardName = "copy-chain-peer-delete";
+    const rectangle = {
+      type: "rect",
+      tool: "rectangle",
+      x: 100,
+      y: 100,
+      x2: 160,
+      y2: 140,
+      color: "#123456",
+      size: 4,
+    };
+    await server.writeBoard(server.dataPath, boardName, {
+      "seed-rect": { ...rectangle, id: "seed-rect" },
+      "unrelated-rect": { ...rectangle, id: "unrelated-rect", x: 250, x2: 310 },
+    });
+    const peer = await context.newPage();
+    const peerBoard = createBoardPage(peer, server);
+    await boardPage.gotoBoard(boardName);
+    await peerBoard.gotoBoard(boardName);
+    await boardPage.waitForBoardWritable();
+    await peerBoard.waitForBoardWritable();
+    await boardPage.selectTool("hand");
+    const queued = await page.evaluate(async () => {
+      const app = window.WBOApp;
+      const js = "/js/";
+      const tools = "/tools/";
+      const { MutationType } = await import(`${js}message_tool_metadata.js`);
+      const { TOOL_CODE_BY_ID } = await import(`${tools}tool-order.js`);
+      const originalBudgetWait = app.writes.getBufferedWriteBudgetWaitMs;
+      const testState = window as unknown as { restoreCopyBudget: () => void };
+      testState.restoreCopyBudget = () => {
+        app.writes.getBufferedWriteBudgetWaitMs = originalBudgetWait;
+      };
+      // Keep these generated copies local until the peer's delete arrives.
+      app.writes.getBufferedWriteBudgetWaitMs = () => 60_000;
+      for (const [id, newid] of [
+        ["seed-rect", "queued-copy-source"],
+        ["queued-copy-source", "queued-copy-child"],
+        ["unrelated-rect", "after-copy"],
+      ]) {
+        app.writes.drawAndSend({
+          tool: TOOL_CODE_BY_ID.hand,
+          _children: [{ type: MutationType.COPY, id, newid }],
+        });
+      }
+      const entries = app.optimistic.journal.list();
+      return {
+        buffered: app.writes.bufferedWrites.length,
+        journal: entries.length,
+        dependent: entries[1]?.dependsOn.has(entries[0].clientMutationId),
+        independent: entries[2]?.dependsOn.size === 0,
+      };
+    });
+    expect(queued).toEqual({
+      buffered: 3,
+      journal: 3,
+      dependent: true,
+      independent: true,
+    });
+    await expect(
+      page.locator("#queued-copy-source, #queued-copy-child"),
+    ).toHaveCount(2);
+    await peerBoard.selectTool("eraser");
+    await peerBoard.eraseShapeById("seed-rect");
+    await expect(
+      page.locator("#seed-rect, #queued-copy-source, #queued-copy-child"),
+    ).toHaveCount(0);
+    await expect(
+      peer.locator("#seed-rect, #queued-copy-source, #queued-copy-child"),
+    ).toHaveCount(0);
+    await server.waitForStoredBoard(
+      server.dataPath,
+      boardName,
+      (stored) =>
+        Object.keys(stored).length === 1 && !!stored["unrelated-rect"],
+    );
+    const pending = await page.evaluate(() => ({
+      buffered: window.WBOApp.writes.bufferedWrites.length,
+      journal: window.WBOApp.optimistic.journal.list().length,
+    }));
+    expect(pending).toEqual({ buffered: 1, journal: 1 });
+    await page.evaluate(() => {
+      const app = window.WBOApp;
+      (
+        window as unknown as { restoreCopyBudget: () => void }
+      ).restoreCopyBudget();
+      for (const write of app.writes.bufferedWrites) write.notBeforeMs = 0;
+      app.writes.pumpBufferedWrites();
+    });
+    await expect(page.locator("#after-copy")).toHaveCount(1);
+    await expect(peer.locator("#after-copy")).toHaveCount(1);
+    await server.waitForStoredBoard(
+      server.dataPath,
+      boardName,
+      (stored) =>
+        Object.keys(stored).length === 2 &&
+        !!stored["unrelated-rect"] &&
+        !!stored["after-copy"],
+    );
+  });
+
   test("selector cancels scaling when a peer removes a selected element", async ({
     boardPage,
     server,
