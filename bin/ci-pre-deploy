@@ -2,4 +2,4 @@
 set -eu
 
 release_version=$(sed -nE 's/^  "version": "([0-9]+\.[0-9]+\.[0-9]+)",$/\1/p' package.json)
-test "$GITHUB_REF_NAME" = "v$release_version"
+test "$RELEASE_TAG" = "v$release_version"

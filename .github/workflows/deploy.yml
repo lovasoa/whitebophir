@@ -1,20 +1,50 @@
 name: deploy
 on:
-  push:
-    tags:
-      - v*
+  workflow_call:
+
+permissions:
+  contents: read
 
 jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      sha: ${{ steps.release.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+      - name: Prepare release commit and tag
+        id: release
+        run: node .github/scripts/prepare-release.mjs
+      - name: Push release tag
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: git push origin "refs/tags/$RELEASE_TAG"
+
   build:
     name: deploy
+    needs: release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ needs.release.outputs.sha }}
           fetch-depth: 0
+          persist-credentials: false
       - name: Dokku
         uses: dokku/github-action@v1.10.0
+        env:
+          RELEASE_TAG: ${{ needs.release.outputs.tag }}
         with:
+          ci_commit: ${{ needs.release.outputs.sha }}
           git_remote_url: ssh://dokku@${{ secrets.SSH_SERVER }}:22/wbo
           ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           git_push_flags: --force
@@ -22,12 +52,14 @@ jobs:
           branch: main
   push_to_registry:
     name: Push Docker image to Docker Hub
+    needs: release
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repo
         uses: actions/checkout@v6
-      - name: Set env
-        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+        with:
+          ref: ${{ needs.release.outputs.sha }}
+          persist-credentials: false
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
@@ -41,6 +73,23 @@ jobs:
       - name: Push to Docker Hub
         uses: docker/build-push-action@v7
         with:
+          context: .
           push: true
-          tags: lovasoa/wbo:latest,lovasoa/wbo:${{ env.RELEASE_VERSION }}
+          tags: lovasoa/wbo:latest,lovasoa/wbo:${{ needs.release.outputs.tag }}
           platforms: linux/amd64,linux/arm64
+
+  publish:
+    needs: [release, build, push_to_registry]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.release.outputs.tag }}
+        run: |
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --verify-tag --generate-notes
+          fi

@@ -1,0 +1,32 @@
+name: Merge verified Dependabot PRs
+
+on:
+  workflow_run:
+    workflows: [Node.js CI]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  merge:
+    if: >-
+      github.repository == 'lovasoa/whitebophir' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      # Only trusted default-branch code runs with this write token.
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/github-script@v8
+        with:
+          script: |
+            const merge = require('./.github/scripts/merge-dependabot.cjs');
+            await merge({ github, context, core });

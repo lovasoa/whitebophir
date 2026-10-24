@@ -27,9 +27,7 @@ Try [wbo.ophir.dev](https://wbo.ophir.dev). For contributors, see the short
 
 ### Docker
 
-The Docker image is available as [`lovasoa/wbo`](https://hub.docker.com/r/lovasoa/wbo).
-
-You can run the following bash command to launch WBO on port 5001, while persisting the boards outside of docker:
+Run [`lovasoa/wbo`](https://hub.docker.com/r/lovasoa/wbo) on port 5001 with persistent boards:
 
 ```bash
 mkdir wbo-boards # Create a directory that will contain your whiteboards
@@ -37,7 +35,7 @@ chown -R 1000:1000 wbo-boards # Make this directory accessible to WBO
 docker run -it --publish 5001:80 --volume "$(pwd)/wbo-boards:/opt/app/server-data" lovasoa/wbo:latest # run wbo
 ```
 
-You can then access WBO at `http://localhost:5001`.
+Open `http://localhost:5001`.
 
 The official Docker image does not force an IP source. By default the application uses `WBO_IP_SOURCE=remoteAddress`. If you run the container behind a trusted proxy or CDN, set `-e WBO_IP_SOURCE=...` explicitly, for example `X-Forwarded-For`, `Forwarded`, or `CF-Connecting-IP`.
 
@@ -54,6 +52,13 @@ PORT=5001 npm start
 
 Set `HOST=127.0.0.1` to listen only on loopback when using a reverse proxy.
 For development, use `npm ci` to include test and lint dependencies.
+
+### Releases
+
+Successful CI on each `master` push publishes a patch release to GitHub,
+Docker Hub, and Dokku. The tagged commit bumps both package files; `master`
+keeps its development version. Retry failed jobs to reuse that tag.
+Verified Dependabot PRs merge after CI passes, then run `master` CI for release.
 
 ### Running WBO on a subfolder
 
@@ -136,20 +141,6 @@ Common settings:
 Server logs use stdout/stderr and `LOG_LEVEL`. Set
 `OTEL_EXPORTER_OTLP_ENDPOINT` for OTLP export; `OTEL_*` settings control
 resources and sampling.
-
-Opt in to User Timing before boot:
-
-```js
-document.documentElement.dataset.wboPerformance = "true";
-const observer = new PerformanceObserver(list => {
-  for (const entry of list.getEntries())
-    if (entry.name.startsWith("wbo.")) exportMetric(entry);
-});
-for (const type of ["mark", "measure"]) observer.observe({type, buffered: true});
-```
-
-`wbo.*` marks cover boot; measures carry `detail` diagnostics. Active observers
-receive all samples; buffered observers recover the latest per name.
 
 ## Storage and recovery
 

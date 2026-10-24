@@ -1,6 +1,3 @@
-# This workflow will do a clean install of node dependencies, build the source code and run tests across different versions of node
-# For more information see: https://help.github.com/actions/language-and-framework-guides/using-nodejs-with-github-actions
-
 name: Node.js CI
 
 on:
@@ -8,6 +5,16 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+  # GITHUB_TOKEN merges do not trigger push workflows.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Keep master tests and publication in order without dropping queued pushes.
+concurrency:
+  group: ci-${{ github.ref }}
+  queue: max
 
 jobs:
   typecheck:
@@ -55,3 +62,11 @@ jobs:
           path: |
             playwright-report/
             test-results/
+
+  release:
+    needs: [typecheck, build]
+    if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request' && github.repository == 'lovasoa/whitebophir'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit
