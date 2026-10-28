@@ -4,6 +4,7 @@ const fs = require("node:fs/promises");
 const fsSync = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 const { Session } = require("node:inspector/promises");
 
 const { executionCount, withEnv } = require("./test_helpers.js");
@@ -13,6 +14,10 @@ const svgBoardStore = require("../server/persistence/svg_board_store.mjs");
 const legacyJsonBoardSource = require("../server/persistence/legacy_json_board_source.mjs");
 const storedSvgItemCodec = require("../server/persistence/stored_svg_item_codec.mjs");
 const { copyCanonicalItem } = require("../server/board/canonical_items.mjs");
+const applicationRoots = [
+  new URL("../server/", pathToFileURL(__filename)).href,
+  new URL("../client-data/", pathToFileURL(__filename)).href,
+];
 
 /**
  * @param {string} boardName
@@ -67,8 +72,13 @@ async function readBoardDocumentState(boardName, historyDir) {
       historyDir,
     });
     const { result } = await session.post("Profiler.takePreciseCoverage");
-    const work = executionCount(result);
-    // Baseline ~1,800, including Node bookkeeping; allow ample headroom.
+    // Filesystem awaits can include unrelated Node and SDK callbacks. Measure
+    // WBO work so runtime bookkeeping cannot masquerade as a directory scan.
+    const work = executionCount(
+      result.filter(({ url }) =>
+        applicationRoots.some((root) => url.startsWith(root)),
+      ),
+    );
     assert.ok(work < 5_000, `${work} backend JS executions (limit 5,000)`);
     return state;
   } finally {
@@ -776,7 +786,10 @@ test("readBoardDocumentState falls back to legacy json metadata and generated in
   );
   const boardName = "document-state-json";
   const source = jsonPath(boardName, historyDir);
-  t.after(() => fs.rm(historyDir, { recursive: true, force: true }));
+  t.after(() => {
+    t.mock.restoreAll();
+    return fs.rm(historyDir, { recursive: true, force: true });
+  });
 
   await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
     await fs.writeFile(
@@ -800,6 +813,17 @@ test("readBoardDocumentState falls back to legacy json metadata and generated in
     for (let i = 0; i < 10_000; i++) {
       await fs.link(source, jsonPath(`unused-${i}`, historyDir));
     }
+    const rejectDirectoryScan = () => {
+      assert.fail(
+        "Board metadata must look up named files without enumerating history",
+      );
+    };
+    t.mock.method(fs, "readdir", rejectDirectoryScan);
+    t.mock.method(fs, "opendir", rejectDirectoryScan);
+    t.mock.method(fsSync, "readdir", rejectDirectoryScan);
+    t.mock.method(fsSync, "readdirSync", rejectDirectoryScan);
+    t.mock.method(fsSync, "opendir", rejectDirectoryScan);
+    t.mock.method(fsSync, "opendirSync", rejectDirectoryScan);
     assert.equal(
       (await readBoardDocumentState("new-board", historyDir)).source,
       "generated",
