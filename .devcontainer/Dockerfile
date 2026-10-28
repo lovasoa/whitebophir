@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/devcontainers/javascript-node:24-trixie
+FROM node:26.12.1-trixie
 
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 

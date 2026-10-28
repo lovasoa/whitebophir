@@ -31,6 +31,7 @@ const URL_LIKE_TEXT_PATTERN = /(?:https?:\/\/|www\.)\S+/i;
  */
 function toPositiveInteger(value) {
   const number = Math.floor(Number(value));
+  // biome-ignore lint/complexity/useMathMinMax: Invalid numbers must become zero, including NaN.
   return number > 0 ? number : 0;
 }
 

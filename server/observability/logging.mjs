@@ -1,5 +1,8 @@
-import { context, isSpanContextValid } from "@opentelemetry/api";
-import { SeverityNumber } from "@opentelemetry/api-logs";
+import {
+  context,
+  isSpanContextValid,
+  SeverityNumber,
+} from "@opentelemetry/api";
 import {
   DEFAULT_SERVICE_NAME,
   flattenError,
@@ -247,7 +250,7 @@ function severityNumberForLevel(level) {
 
 /**
  * @param {unknown} value
- * @returns {import("@opentelemetry/api-logs").AnyValue | undefined}
+ * @returns {import("@opentelemetry/api").AnyValue | undefined}
  */
 function toLogAttributeValue(value) {
   if (value === undefined) return undefined;
@@ -265,10 +268,10 @@ function toLogAttributeValue(value) {
 
 /**
  * @param {{[key: string]: unknown}=} fields
- * @returns {import("@opentelemetry/api-logs").AnyValueMap}
+ * @returns {import("@opentelemetry/api").Attributes}
  */
 function normalizeLogAttributes(fields) {
-  /** @type {import("@opentelemetry/api-logs").AnyValueMap} */
+  /** @type {import("@opentelemetry/api").Attributes} */
   const attributes = {};
   if (!fields) return attributes;
   for (const [key, value] of Object.entries(fields)) {
@@ -290,7 +293,7 @@ function normalizeLogAttributes(fields) {
  *   severityNumber: number,
  *   severityText: string,
  *   body: string | undefined,
- *   attributes: import("@opentelemetry/api-logs").AnyValueMap,
+ *   attributes: import("@opentelemetry/api").Attributes,
  *   exception: unknown,
  * }}
  */

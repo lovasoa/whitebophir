@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   context,
+  logs,
   metrics as otelMetrics,
   propagation,
   ROOT_CONTEXT,
@@ -8,7 +9,7 @@ import {
   SpanStatusCode,
   trace,
 } from "@opentelemetry/api";
-import { logs } from "@opentelemetry/api-logs";
+import { getNumberFromEnv } from "@opentelemetry/core";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
@@ -25,7 +26,7 @@ import {
   ParentBasedSampler,
   SimpleSpanProcessor,
   TraceIdRatioBasedSampler,
-} from "@opentelemetry/sdk-trace-base";
+} from "@opentelemetry/sdk-trace";
 import {
   ATTR_ERROR_TYPE,
   ATTR_HTTP_REQUEST_METHOD,
@@ -83,22 +84,31 @@ function hasConfiguredOtlpEndpoint(signal) {
 }
 
 /**
- * @returns {import("@opentelemetry/sdk-trace-base").SpanProcessor[]}
+ * @returns {import("@opentelemetry/sdk-trace").SpanProcessor[]}
  */
 function buildTraceSpanProcessors() {
-  /** @type {import("@opentelemetry/sdk-trace-base").SpanProcessor[]} */
+  /** @type {import("@opentelemetry/sdk-trace").SpanProcessor[]} */
   const processors = [];
   if (TEST_TRACE_EXPORTER) {
-    processors.push(new SimpleSpanProcessor(TEST_TRACE_EXPORTER));
+    processors.push(new SimpleSpanProcessor({ exporter: TEST_TRACE_EXPORTER }));
   }
   if (hasConfiguredOtlpEndpoint("traces")) {
-    processors.push(new BatchSpanProcessor(new OTLPTraceExporter()));
+    processors.push(
+      new BatchSpanProcessor({
+        exporter: new OTLPTraceExporter(),
+        // SDK 3 trace processors require explicit environment configuration.
+        maxExportBatchSize: getNumberFromEnv("OTEL_BSP_MAX_EXPORT_BATCH_SIZE"),
+        maxQueueSize: getNumberFromEnv("OTEL_BSP_MAX_QUEUE_SIZE"),
+        scheduledDelayMillis: getNumberFromEnv("OTEL_BSP_SCHEDULE_DELAY"),
+        exportTimeoutMillis: getNumberFromEnv("OTEL_BSP_EXPORT_TIMEOUT"),
+      }),
+    );
   }
   return processors;
 }
 
 /**
- * @returns {import("@opentelemetry/sdk-trace-base").Sampler | undefined}
+ * @returns {import("@opentelemetry/sdk-trace").Sampler | undefined}
  */
 function buildTracerSampler() {
   if (OBSERVABILITY_OPTIONS.tracesSamplerConfigured) {

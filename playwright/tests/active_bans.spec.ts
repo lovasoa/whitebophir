@@ -44,7 +44,8 @@ moderationTest(
       );
       const targetName = await targetRow
         .locator(".connected-user-name-text")
-        .innerText();
+        .textContent();
+      if (!targetName) throw new Error("Missing target user name");
       // Hostile socket requests must leave the target available for a valid UI ban.
       await page.evaluate((socketId) => {
         const socket = window.WBOApp.connection.socket;
