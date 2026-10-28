@@ -43,7 +43,7 @@ The official Docker image does not force an IP source. By default the applicatio
 
 ### Node.js
 
-Install Node.js 22 or later, then:
+Install Node.js 22.23.4 or later, then:
 
 ```sh
 git clone https://github.com/lovasoa/whitebophir.git

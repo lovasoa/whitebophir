@@ -1,4 +1,12 @@
-FROM mcr.microsoft.com/devcontainers/javascript-node:24-trixie
+ARG NODE_RUNTIME_VERSION=24.22.1
+FROM node:${NODE_RUNTIME_VERSION}-trixie AS node-runtime
+FROM mcr.microsoft.com/devcontainers/javascript-node:5.2.3-24-trixie
+ARG NODE_RUNTIME_VERSION
+
+ENV NODE_VERSION=${NODE_RUNTIME_VERSION}
+
+# Devcontainer images can lag Node security releases.
+COPY --from=node-runtime /usr/local/ /usr/local/
 
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 

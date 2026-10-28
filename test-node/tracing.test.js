@@ -3,13 +3,21 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
+const http = require("node:http");
+const { execFile } = require("node:child_process");
+const { promisify } = require("node:util");
 
-const { context, metrics, propagation, trace } = require("@opentelemetry/api");
-const { logs } = require("@opentelemetry/api-logs");
+const {
+  context,
+  logs,
+  metrics,
+  propagation,
+  trace,
+} = require("@opentelemetry/api");
 const {
   ATTR_HTTP_RESPONSE_HEADER,
 } = require("@opentelemetry/semantic-conventions");
-const { InMemorySpanExporter } = require("@opentelemetry/sdk-trace-base");
+const { InMemorySpanExporter } = require("@opentelemetry/sdk-trace");
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const { Cursor } = require("../client-data/tools/index.js");
 
@@ -272,6 +280,99 @@ function getRequiredHandler(handlers, eventName) {
   assert.equal(typeof handler, "function");
   return /** @type {(...args: any[]) => any} */ (handler);
 }
+
+test("OTLP HTTP export delivers traces, logs and metrics", async (t) => {
+  /** @type {Map<string, any[]>} */
+  const received = new Map();
+  const collector = http.createServer((req, res) => {
+    let body = "";
+    req.setEncoding("utf8");
+    req.on("data", (chunk) => {
+      body += chunk;
+    });
+    req.on("end", () => {
+      const route = req.url || "";
+      const payloads = received.get(route) || [];
+      payloads.push(JSON.parse(body));
+      received.set(route, payloads);
+      res.setHeader("Content-Type", "application/json");
+      res.end("{}");
+    });
+  });
+  await new Promise((resolve) =>
+    collector.listen(0, "127.0.0.1", () => resolve(undefined)),
+  );
+  t.after(
+    () => new Promise((resolve) => collector.close(() => resolve(undefined))),
+  );
+  const address = collector.address();
+  assert.ok(address && typeof address === "object");
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(([key]) => !key.startsWith("OTEL_")),
+  );
+  await promisify(execFile)(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      `
+    import { logger, metrics, tracing, shutdownObservability } from "./server/observability/index.mjs";
+    const span = tracing.startSpan("export-smoke");
+    logger.info("export.log", { msg: "export smoke" });
+    metrics.setLoadedBoards(3);
+    span.end();
+    tracing.startSpan("export-smoke-second").end();
+    await shutdownObservability();
+  `,
+    ],
+    {
+      cwd: path.join(__dirname, ".."),
+      env: {
+        ...env,
+        WBO_SILENT: "true",
+        OTEL_EXPORTER_OTLP_ENDPOINT: `http://127.0.0.1:${address.port}`,
+        OTEL_TRACES_SAMPLER: "always_on",
+        OTEL_BSP_MAX_EXPORT_BATCH_SIZE: "1",
+        OTEL_BSP_MAX_QUEUE_SIZE: "2",
+      },
+      timeout: 10_000,
+    },
+  );
+  /** @type {any[]} */
+  const spans = [];
+  for (const payload of received.get("/v1/traces") || []) {
+    for (const resource of payload.resourceSpans) {
+      for (const scope of resource.scopeSpans) spans.push(...scope.spans);
+    }
+  }
+  assert.ok(spans.some((span) => span.name === "export-smoke"));
+  assert.equal(received.get("/v1/traces")?.length, 2);
+  /** @type {any[]} */
+  const records = [];
+  for (const payload of received.get("/v1/logs") || []) {
+    for (const resource of payload.resourceLogs) {
+      for (const scope of resource.scopeLogs) records.push(...scope.logRecords);
+    }
+  }
+  assert.ok(
+    records.some((record) => record.body?.stringValue === "export smoke"),
+  );
+  /** @type {any[]} */
+  const exportedMetrics = [];
+  for (const payload of received.get("/v1/metrics") || []) {
+    for (const resource of payload.resourceMetrics) {
+      for (const scope of resource.scopeMetrics)
+        exportedMetrics.push(...scope.metrics);
+    }
+  }
+  const boards = exportedMetrics.find(
+    (metric) => metric.name === "wbo.board.loaded",
+  );
+  assert.ok(boards);
+  /** @type {{asInt?: number, asDouble?: number}[]} */
+  const points = boards.gauge.dataPoints;
+  assert.ok(points.some((point) => point.asInt === 3 || point.asDouble === 3));
+});
 
 test("preview requests continue traceparent and create a child render span", async () => {
   const dirs = await createServerDirs();

@@ -72,7 +72,7 @@ for system boundaries and [README.md](./README.md) for running an instance.
 ## Validation
 
 [CI](./.github/workflows/CI.yml) and [package.json](./package.json) own the check
-definitions. Install with `npm ci` (Node 22+).
+definitions. Install with `npm ci` (Node 22.23.4+).
 
 `npm test` runs Node tests, Playwright, and Biome lint. `npm run typecheck` is
 separate.

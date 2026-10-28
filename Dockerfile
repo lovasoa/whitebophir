@@ -1,4 +1,4 @@
-FROM node:24-alpine AS build
+FROM node:24.22.1-alpine3.24 AS build
 
 WORKDIR /opt/app
 RUN chown -R 1000:1000 /opt/app
@@ -8,7 +8,7 @@ COPY --chown=1000:1000 package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts
 COPY --chown=1000:1000 . .
 
-FROM node:24-alpine AS run
+FROM node:24.22.1-alpine3.24 AS run
 
 LABEL org.opencontainers.image.source="https://github.com/lovasoa/whitebophir"
 
