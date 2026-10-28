@@ -43,7 +43,7 @@ The official Docker image does not force an IP source. By default the applicatio
 
 ### Node.js
 
-Install Node.js 22.23.4 or later, then:
+Install Node.js 26, then:
 
 ```sh
 git clone https://github.com/lovasoa/whitebophir.git
@@ -137,19 +137,7 @@ Server logs use stdout/stderr and `LOG_LEVEL`. Set
 `OTEL_EXPORTER_OTLP_ENDPOINT` for OTLP export; `OTEL_*` settings control
 resources and sampling.
 
-Opt in to User Timing before boot:
-
-```js
-document.documentElement.dataset.wboPerformance = "true";
-const observer = new PerformanceObserver(list => {
-  for (const entry of list.getEntries())
-    if (entry.name.startsWith("wbo.")) exportMetric(entry);
-});
-for (const type of ["mark", "measure"]) observer.observe({type, buffered: true});
-```
-
-`wbo.*` marks cover boot; measures carry `detail` diagnostics. Active observers
-receive all samples; buffered observers recover the latest per name.
+Browser telemetry uses User Timing entries named `wbo.*`; measures carry `detail` diagnostics.
 
 ## Storage and recovery
 
@@ -165,3 +153,10 @@ them after quarantine. This staging file is not a durable backup. See the
 
 Open `/preview/<boardName>` to download a standalone SVG preview, for example
 [the anonymous board preview](https://wbo.ophir.dev/preview/anonymous).
+
+## Releases
+
+Dependabot opens daily dependency update PRs. Successful CI merges them and tests
+master before the release workflow bumps the package and lockfile patch version,
+tags, and deploys. Manual version tags also run CI before deployment. Retry failed
+deployment jobs to reuse their release tag.

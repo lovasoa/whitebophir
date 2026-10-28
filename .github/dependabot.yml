@@ -1,0 +1,23 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: daily
+    groups:
+      opentelemetry:
+        patterns: ["@opentelemetry/*"]
+  - package-ecosystem: docker
+    directories: [/, /.devcontainer]
+    schedule:
+      interval: daily
+    groups:
+      node:
+        patterns: [node]
+    ignore:
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: daily

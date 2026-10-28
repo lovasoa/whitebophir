@@ -1,0 +1,27 @@
+name: Merge dependency updates
+on:
+  workflow_run:
+    workflows: [Node.js CI]
+    types: [completed]
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+jobs:
+  merge:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.actor.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: master
+          persist-credentials: false
+      - uses: actions/github-script@v9
+        with:
+          script: |
+            const merge = require('./.github/scripts/merge-dependabot.cjs');
+            await merge({ github, context });
