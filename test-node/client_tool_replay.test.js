@@ -1102,7 +1102,7 @@ function createHarnessToolRuntime(app) {
     connection: app.connection,
     presence: app.presence,
     config: app.config,
-    i18n: app.i18n,
+    i18n: app.i18n || { t: (s) => s },
     ui: app.ui,
     ids: app.ids,
     messages: app.messages,

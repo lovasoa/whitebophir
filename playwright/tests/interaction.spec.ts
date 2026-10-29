@@ -981,7 +981,12 @@ test.describe("single-page interactions", () => {
     await expect(boardPage.statusIndicator).toBeHidden();
   });
 
-  test("download exports SVG content", async ({ boardPage, server }) => {
+  test("download exports SVG at default zoom regardless of the viewport", async ({
+    boardPage,
+    server,
+    page,
+    context,
+  }) => {
     await server.writeBoard(server.dataPath, "download-test", {
       "download-rect": {
         type: "rect",
@@ -1000,6 +1005,20 @@ test.describe("single-page interactions", () => {
     await expect(boardPage.tool("download")).toBeVisible();
     await expect(boardPage.page.locator("#download-rect")).toBeVisible();
     await boardPage.installDownloadCapture();
+    const extent = await page.evaluate(() => {
+      const { svg } = window.WBOApp.dom;
+      if (!svg) throw new Error("Missing canvas");
+      window.WBOApp.viewportState.controller.setScale(0.5);
+      window.scrollTo(100, 100);
+      // Whole-board exports must use the known extent, without measuring every item.
+      svg.getBBox = () => {
+        throw new Error("Board-wide geometry scan");
+      };
+      return {
+        width: svg.width.baseVal.value,
+        height: svg.height.baseVal.value,
+      };
+    });
     await boardPage.tool("download").click();
 
     await expect
@@ -1012,6 +1031,140 @@ test.describe("single-page interactions", () => {
         hasRect: true,
         hasBoardStyles: true,
       });
+    const exported = await context.newPage();
+    await exported.goto(
+      `data:image/svg+xml,${encodeURIComponent((await boardPage.readDownloadCapture()).svg)}`,
+    );
+    await expect(exported.locator("svg")).toHaveAttribute(
+      "viewBox",
+      `0 0 ${extent.width} ${extent.height}`,
+    );
+    await expect(exported.locator("svg")).toHaveAttribute(
+      "width",
+      String(extent.width * 0.1),
+    );
+    await expect(exported.locator("svg")).toHaveAttribute(
+      "height",
+      String(extent.height * 0.1),
+    );
+    const rect = await exported.locator("#download-rect").boundingBox();
+    expect(rect?.width).toBeCloseTo(64);
+    expect(rect?.height).toBeCloseTo(44);
+    await expect(exported.locator("#download-rect")).toHaveCSS("fill", "none");
+    await expect(exported.locator("parsererror")).toHaveCount(0);
+  });
+
+  test("selector downloads only selected objects with cropped transformed bounds", async ({
+    boardPage,
+    server,
+    page,
+    context,
+  }) => {
+    await server.writeBoard(server.dataPath, "selection-download", {
+      "selected-back": {
+        type: "rect",
+        id: "selected-back",
+        tool: "rectangle",
+        x: 200,
+        y: 150,
+        x2: 260,
+        y2: 190,
+        color: "#123456",
+        size: 4,
+        transform: { a: 1.5, b: 0, c: 0, d: 2, e: 100, f: 100 },
+      },
+      "selected-front": {
+        type: "line",
+        id: "selected-front",
+        tool: "straight-line",
+        x: 220,
+        y: 160,
+        x2: 280,
+        y2: 160,
+        color: "#ff0000",
+        size: 6,
+      },
+      unselected: {
+        type: "rect",
+        id: "unselected",
+        tool: "rectangle",
+        x: 800,
+        y: 150,
+        x2: 850,
+        y2: 190,
+        color: "#123456",
+        size: 4,
+      },
+    });
+    await boardPage.gotoBoard("selection-download");
+    await boardPage.waitForBoardWritable();
+    await boardPage.selectTool("hand");
+    const back = await page.locator("#selected-back").boundingBox();
+    const front = await page.locator("#selected-front").boundingBox();
+    if (!back || !front) throw new Error("Missing selection shapes");
+    const left = Math.min(back.x, front.x) - 10;
+    const top = Math.min(back.y, front.y) - 10;
+    const right = Math.max(back.x + back.width, front.x + front.width) + 10;
+    const bottom = Math.max(back.y + back.height, front.y + front.height) + 10;
+    await page.mouse.move(left, top);
+    await page.mouse.down();
+    await page.mouse.move(right, bottom, { steps: 4 });
+    await page.mouse.up();
+    const download = page.locator("#selectionButton-download");
+    await expect(download).toBeVisible();
+    await expect(download).toHaveAccessibleName("Download");
+    await expect(download.locator("img")).toHaveJSProperty("complete", true);
+    expect(
+      await download
+        .locator("img")
+        .evaluate((img: HTMLImageElement) => img.naturalWidth),
+    ).toBeGreaterThan(0);
+    await page.evaluate(() =>
+      window.WBOApp.viewportState.controller.setScale(0.2),
+    );
+    const original = await page.locator("#drawingArea").innerHTML();
+    await boardPage.installDownloadCapture();
+    await download.click();
+    const captured = await boardPage.readDownloadCapture();
+    expect(captured.download).toBe("selection-download-selection.svg");
+    const exported = await context.newPage();
+    await exported.goto(
+      `data:image/svg+xml,${encodeURIComponent(captured.svg)}`,
+    );
+    await expect(exported.locator("#drawingArea > *")).toHaveCount(2);
+    expect(
+      await exported
+        .locator("#drawingArea > *")
+        .evaluateAll((elements) => elements.map((element) => element.id)),
+    ).toEqual(["selected-back", "selected-front"]);
+    await expect(
+      exported.locator("#unselected, #selectionRect, .hand-selection-button"),
+    ).toHaveCount(0);
+    await expect(exported.locator("#selected-back")).toHaveCSS("fill", "none");
+    // The crop includes both objects and their transformed stroke widths.
+    const crop = await exported.locator("svg").boundingBox();
+    const exportedBack = await exported.locator("#selected-back").boundingBox();
+    const exportedFront = await exported
+      .locator("#selected-front")
+      .boundingBox();
+    if (!crop || !exportedBack || !exportedFront)
+      throw new Error("Missing exported geometry");
+    expect(exportedBack.width).toBeCloseTo(back.width);
+    expect(exportedBack.height).toBeCloseTo(back.height);
+    expect(exportedFront.width).toBeCloseTo(front.width);
+    expect(crop.width).toBeCloseTo(
+      Math.max(back.x + back.width, front.x + front.width) -
+        Math.min(back.x, front.x),
+    );
+    expect(crop.height).toBeCloseTo(
+      Math.max(back.y + back.height, front.y + front.height) -
+        Math.min(back.y, front.y),
+    );
+    await expect(page.locator("#drawingArea")).toHaveJSProperty(
+      "innerHTML",
+      original,
+    );
+    await expect(download).toBeVisible();
   });
 
   test("selector duplicate and delete persist", async ({
