@@ -2,7 +2,6 @@ import type RateLimitCommonType from "../client-data/js/rate_limit_common.js";
 import type {
   AppToolsState,
   BoardMessage,
-  DownloadCapture,
   ReportUserPayload,
   SocketHeaders,
   TurnstileGlobal,
@@ -13,9 +12,6 @@ declare global {
   interface Window {
     WBOApp: AppToolsState;
     socketio_extra_headers?: SocketHeaders;
-    __downloadCapture?: DownloadCapture | null;
-    __downloadAnchorClicks?: number;
-    __downloadBlob?: Blob;
     __receivedBroadcasts?: BoardMessage[];
     __reportedUsers?: ReportUserPayload[];
     __turnstileMock?: {

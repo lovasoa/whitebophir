@@ -71,24 +71,20 @@ for system boundaries and [README.md](./README.md) for running an instance.
 
 ## Validation
 
-[CI](./.github/workflows/CI.yml) and [package.json](./package.json) own the check
-definitions. Install with `npm ci` (Node 22.23.4+).
-
-`npm test` runs Node tests, Playwright, and Biome lint. `npm run typecheck` is
-separate.
+[CI](./.github/workflows/CI.yml) and [package.json](./package.json) own checks and
+Node requirements. Install with `npm ci`; `npm test` runs Node tests, Playwright,
+and Biome. Typecheck is separate.
 
 - Run checks relevant to the change; run `npm test` and typecheck for changes
   spanning client/server boundaries. Report failures and environmental limits.
 - Deploy only through the GitHub release workflow. Bump the package and lockfile
   patch version for every release.
-- Before adding tests, identify a plausible regression, assess existing coverage,
-  and weigh protection against long-term maintenance cost. Extend focused tests
-  when sufficient. Add coverage for meaningful gaps, especially at trust and
-  persistence boundaries; routine refactors and implementation mirrors rarely
-  deserve new tests.
-- Assert authoritative app/socket state in browser tests; avoid sleeps and fix
-  application races before adding test workarounds.
+- Name the failure a test must detect. Prefer extending existing coverage; keep
+  fixtures, helpers, and assertions only when protection justifies maintenance.
+- Before committing, ask what could be completely broken while tests pass.
+  Verify the user outcome across affected environments; for UI/rendering changes,
+  inspect headless browser screenshots. Report material gaps.
+- Assert authoritative app/socket state; avoid sleeps and fix application races.
 - Benchmark before and after hot-path, persistence, replay, or broadcast changes.
   Profile with `npm run profile -- <scenario>` only to investigate a regression.
-- Keep production drawing data out of fixtures and leave unrelated local edits
-  intact.
+- Keep production drawing data out of fixtures; preserve unrelated local edits.

@@ -46,9 +46,6 @@ declare global {
       normalizeBoardState: typeof import("../client-data/js/board_page_state.js")["normalizeBoardState"];
     };
     socketio_extra_headers?: import("../types/app-runtime").SocketHeaders;
-    __downloadCapture?: import("../types/app-runtime").DownloadCapture | null;
-    __downloadAnchorClicks?: number;
-    __downloadBlob?: Blob;
     __lastAlert?: string | null;
     __receivedBroadcasts?: import("../types/app-runtime").BoardMessage[];
     __turnstileOptions?:

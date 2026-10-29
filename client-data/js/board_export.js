@@ -7,12 +7,19 @@ import MessageCommon from "./message_common.js";
 
 /** @import { ToolRuntimeModules } from "../../types/app-runtime" */
 
-/** @param {SVGGraphicsElement[]} elements */
-function selectionBounds(elements) {
+/**
+ * @param {SVGSVGElement} svg
+ * @param {SVGGraphicsElement[]} elements
+ */
+function selectionBounds(svg, elements) {
+  const viewport = svg.getScreenCTM();
+  if (!viewport) return null;
+  const toBoard = viewport.inverse();
   let bounds = null;
   for (const element of elements) {
     const local = measureSvgElementLocalBounds(element);
-    if (!local) continue;
+    const toScreen = element.getScreenCTM();
+    if (!local || !toScreen) continue;
     const style = getComputedStyle(element);
     const padding =
       style.stroke === "none"
@@ -28,7 +35,8 @@ function selectionBounds(elements) {
           maxX: local.maxX + padding,
           maxY: local.maxY + padding,
         },
-        element.getCTM(),
+        // Cancel viewport zoom/scroll. getCTM() includes CSS zoom in Firefox.
+        toBoard.multiply(toScreen),
       ),
     );
   }
@@ -52,7 +60,7 @@ export function downloadBoardSvg(runtime, selection) {
         )
       )
     : null;
-  const bounds = elements ? selectionBounds(elements) : null;
+  const bounds = elements ? selectionBounds(svg, elements) : null;
   if (elements && !bounds) return;
   const x = bounds?.minX ?? 0;
   const y = bounds?.minY ?? 0;
@@ -65,7 +73,9 @@ export function downloadBoardSvg(runtime, selection) {
   copy.setAttribute("viewBox", `${x} ${y} ${width} ${height}`);
   copy.setAttribute("width", String(width * DEFAULT_BOARD_SCALE));
   copy.setAttribute("height", String(height * DEFAULT_BOARD_SCALE));
-  const drawingCopy = drawingArea.cloneNode(!elements);
+  const drawingCopy = /** @type {SVGGElement} */ (
+    drawingArea.cloneNode(!elements)
+  );
   if (elements) {
     for (const element of elements)
       drawingCopy.appendChild(element.cloneNode(true));
@@ -78,9 +88,14 @@ export function downloadBoardSvg(runtime, selection) {
         stylesheet.href &&
         /\/(?:tools\/.*|board)\.css(?:\?|$)/.test(stylesheet.href),
     )
-    .flatMap((stylesheet) =>
-      Array.from(stylesheet.cssRules, (rule) => rule.cssText),
+    .flatMap((stylesheet) => Array.from(stylesheet.cssRules))
+    .filter(
+      (rule) =>
+        rule instanceof CSSStyleRule &&
+        (drawingCopy.matches(rule.selectorText) ||
+          drawingCopy.querySelector(rule.selectorText)),
     )
+    .map((rule) => rule.cssText)
     .join("\n");
   copy.appendChild(styleNode);
   const blob = new Blob([new XMLSerializer().serializeToString(copy)], {

@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { expect, type Page } from "@playwright/test";
 import { MutationType } from "../../client-data/js/mutation_type.js";
 import { TOOL_CODE_BY_ID } from "../../client-data/tools/tool-order.js";
@@ -64,15 +65,6 @@ type SelectionMoveState = {
     e: number | undefined;
     f: number | undefined;
   };
-};
-type DownloadState = {
-  clicks: number;
-  href: string | null | undefined;
-  download: string | null | undefined;
-  hasSvgTag: boolean;
-  hasRect: boolean;
-  hasBoardStyles: boolean;
-  svg: string;
 };
 type ReconnectState = { connected: boolean; validated: boolean };
 type WriteStatusState = {
@@ -881,41 +873,16 @@ window.turnstile = {
     };
   }
 
-  async installDownloadCapture() {
-    await this.page.evaluate(() => {
-      window.__downloadCapture = null;
-      window.__downloadAnchorClicks = 0;
-      window.URL.createObjectURL = (blob: Blob) => {
-        window.__downloadBlob = blob;
-        return "blob:test-download";
-      };
-      window.URL.revokeObjectURL = () => {};
-      HTMLAnchorElement.prototype.click = function click() {
-        window.__downloadAnchorClicks =
-          (window.__downloadAnchorClicks ?? 0) + 1;
-        window.__downloadCapture = {
-          href: this.getAttribute("href"),
-          download: this.getAttribute("download"),
-        };
-      };
-    });
-  }
-
-  async readDownloadCapture(): Promise<DownloadState> {
-    return this.page.evaluate(async () => {
-      const blob = window.__downloadBlob;
-      if (!blob) throw new Error("Missing captured download blob");
-      const text = await blob.text();
-      return {
-        clicks: window.__downloadAnchorClicks ?? 0,
-        href: window.__downloadCapture?.href,
-        download: window.__downloadCapture?.download,
-        hasSvgTag: text.includes("<svg"),
-        hasRect: text.includes('id="download-rect"'),
-        hasBoardStyles: text.includes("#drawingArea"),
-        svg: text,
-      };
-    });
+  async downloadSvg(button = this.tool("download")) {
+    const pending = this.page.waitForEvent("download");
+    await button.click();
+    const download = await pending;
+    const path = await download.path();
+    if (!path) throw new Error("Missing SVG download");
+    return {
+      name: download.suggestedFilename(),
+      svg: await readFile(path, "utf8"),
+    };
   }
 
   async duplicateSelectionAndDelete(id: string) {

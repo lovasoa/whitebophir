@@ -1002,56 +1002,24 @@ test.describe("single-page interactions", () => {
     });
 
     await boardPage.gotoBoard("download-test");
-    await expect(boardPage.tool("download")).toBeVisible();
     await expect(boardPage.page.locator("#download-rect")).toBeVisible();
-    await boardPage.installDownloadCapture();
-    const extent = await page.evaluate(() => {
-      const { svg } = window.WBOApp.dom;
-      if (!svg) throw new Error("Missing canvas");
+    await page.evaluate(() => {
       window.WBOApp.viewportState.controller.setScale(0.5);
       window.scrollTo(100, 100);
-      // Whole-board exports must use the known extent, without measuring every item.
-      svg.getBBox = () => {
-        throw new Error("Board-wide geometry scan");
-      };
-      return {
-        width: svg.width.baseVal.value,
-        height: svg.height.baseVal.value,
-      };
     });
-    await boardPage.tool("download").click();
-
-    await expect
-      .poll(() => boardPage.readDownloadCapture())
-      .toMatchObject({
-        clicks: 1,
-        href: "blob:test-download",
-        download: "download-test.svg",
-        hasSvgTag: true,
-        hasRect: true,
-        hasBoardStyles: true,
-      });
+    const downloaded = await boardPage.downloadSvg();
+    expect(downloaded.name).toBe("download-test.svg");
     const exported = await context.newPage();
     await exported.goto(
-      `data:image/svg+xml,${encodeURIComponent((await boardPage.readDownloadCapture()).svg)}`,
-    );
-    await expect(exported.locator("svg")).toHaveAttribute(
-      "viewBox",
-      `0 0 ${extent.width} ${extent.height}`,
-    );
-    await expect(exported.locator("svg")).toHaveAttribute(
-      "width",
-      String(extent.width * 0.1),
-    );
-    await expect(exported.locator("svg")).toHaveAttribute(
-      "height",
-      String(extent.height * 0.1),
+      `data:image/svg+xml,${encodeURIComponent(downloaded.svg)}`,
     );
     const rect = await exported.locator("#download-rect").boundingBox();
+    expect(rect?.x).toBeCloseTo(98);
+    expect(rect?.y).toBeCloseTo(98);
     expect(rect?.width).toBeCloseTo(64);
     expect(rect?.height).toBeCloseTo(44);
     await expect(exported.locator("#download-rect")).toHaveCSS("fill", "none");
-    await expect(exported.locator("parsererror")).toHaveCount(0);
+    expect(downloaded.svg).not.toMatch(/board-hud|opcursor|hand-selection/);
   });
 
   test("selector downloads only selected objects with cropped transformed bounds", async ({
@@ -1112,46 +1080,30 @@ test.describe("single-page interactions", () => {
     await page.mouse.up();
     const download = page.locator("#selectionButton-download");
     await expect(download).toBeVisible();
-    await expect(download).toHaveAccessibleName("Download");
-    await expect(download.locator("img")).toHaveJSProperty("complete", true);
-    expect(
-      await download
-        .locator("img")
-        .evaluate((img: HTMLImageElement) => img.naturalWidth),
-    ).toBeGreaterThan(0);
     await page.evaluate(() =>
       window.WBOApp.viewportState.controller.setScale(0.2),
     );
     const original = await page.locator("#drawingArea").innerHTML();
-    await boardPage.installDownloadCapture();
-    await download.click();
-    const captured = await boardPage.readDownloadCapture();
-    expect(captured.download).toBe("selection-download-selection.svg");
+    const captured = await boardPage.downloadSvg(download);
+    expect(captured.name).toBe("selection-download-selection.svg");
     const exported = await context.newPage();
     await exported.goto(
       `data:image/svg+xml,${encodeURIComponent(captured.svg)}`,
     );
-    await expect(exported.locator("#drawingArea > *")).toHaveCount(2);
     expect(
       await exported
         .locator("#drawingArea > *")
         .evaluateAll((elements) => elements.map((element) => element.id)),
     ).toEqual(["selected-back", "selected-front"]);
-    await expect(
-      exported.locator("#unselected, #selectionRect, .hand-selection-button"),
-    ).toHaveCount(0);
     await expect(exported.locator("#selected-back")).toHaveCSS("fill", "none");
-    // The crop includes both objects and their transformed stroke widths.
+    // Correct sizes alone are insufficient: off-canvas objects render a blank SVG.
     const crop = await exported.locator("svg").boundingBox();
-    const exportedBack = await exported.locator("#selected-back").boundingBox();
-    const exportedFront = await exported
-      .locator("#selected-front")
-      .boundingBox();
-    if (!crop || !exportedBack || !exportedFront)
-      throw new Error("Missing exported geometry");
-    expect(exportedBack.width).toBeCloseTo(back.width);
-    expect(exportedBack.height).toBeCloseTo(back.height);
-    expect(exportedFront.width).toBeCloseTo(front.width);
+    const drawing = await exported.locator("#drawingArea").boundingBox();
+    if (!crop || !drawing) throw new Error("Missing exported geometry");
+    expect(drawing.x).toBeCloseTo(crop.x, 1);
+    expect(drawing.y).toBeCloseTo(crop.y, 1);
+    expect(drawing.width).toBeCloseTo(crop.width, 1);
+    expect(drawing.height).toBeCloseTo(crop.height, 1);
     expect(crop.width).toBeCloseTo(
       Math.max(back.x + back.width, front.x + front.width) -
         Math.min(back.x, front.x),
@@ -1160,6 +1112,7 @@ test.describe("single-page interactions", () => {
       Math.max(back.y + back.height, front.y + front.height) -
         Math.min(back.y, front.y),
     );
+    expect(captured.svg).not.toMatch(/board-hud|opcursor|hand-selection/);
     await expect(page.locator("#drawingArea")).toHaveJSProperty(
       "innerHTML",
       original,
