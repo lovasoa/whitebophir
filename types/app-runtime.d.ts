@@ -885,11 +885,6 @@ export type SVGElementAttributes = {
   [key: string]: string | number | undefined;
 };
 
-export type DownloadCapture = {
-  href: string | null;
-  download: string | null;
-};
-
 export type TurnstileRenderOptions = {
   sitekey?: string;
   action?: string;
