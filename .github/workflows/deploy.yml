@@ -85,27 +85,49 @@ jobs:
   push_to_registry:
     needs: prepare
     if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.prepare.outputs.tag != '' }}
-    name: Push Docker image to Docker Hub
+    name: Push Docker image to Docker Hub and GHCR
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.prepare.outputs.tag }}
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
       - name: Set up Docker Buildx
         id: buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
       - name: Log in to Docker Hub
-        uses: docker/login-action@v4
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
         with:
           username: lovasoa
           password: ${{ secrets.DOCKER_PASSWORD }}
-      - name: Push to Docker Hub
-        uses: docker/build-push-action@v7
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
+        with:
+          context: git
+          images: |
+            lovasoa/wbo
+            ghcr.io/${{ github.repository_owner }}/wbo
+          # workflow_run refers to master; use the prepared release tag explicitly.
+          tags: |
+            type=raw,value=${{ needs.prepare.outputs.tag }}
+            type=raw,value=latest
+      - name: Build and push to Docker Hub and GHCR
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           push: true
-          tags: lovasoa/wbo:latest,lovasoa/wbo:${{ needs.prepare.outputs.tag }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64,linux/arm64
