@@ -24,6 +24,7 @@
  * @licend
  */
 
+import { downloadBoardSvg } from "../../js/board_export.js";
 import {
   extendBoundsWithBounds,
   measureSvgElementBoundsAfterTransform,
@@ -242,7 +243,7 @@ function createBatchMessage(children) {
   };
 }
 
-/** @typedef {Pick<ToolRuntimeModules, "config" | "permissions" | "writes" | "ids" | "board" | "viewport" | "messages">} HandRuntime */
+/** @typedef {Pick<ToolRuntimeModules, "config" | "permissions" | "writes" | "ids" | "board" | "viewport" | "messages" | "identity" | "toolRegistry" | "i18n">} HandRuntime */
 /** @typedef {ReturnType<typeof createInitialState>} HandState */
 
 /**
@@ -318,6 +319,34 @@ function selectionActionButtonX(state, preferred) {
 }
 
 /**
+ * @param {HandState} state
+ * @param {string} name
+ * @param {string} icon
+ * @param {number} index
+ * @param {() => void} onClick
+ * @param {string} [label]
+ */
+function createActionButton(state, name, icon, index, onClick, label) {
+  return createButton(
+    state,
+    name,
+    icon,
+    24,
+    24,
+    (me, bbox, scale) => ({
+      x:
+        selectionActionButtonX(state, bbox.r[0]) +
+        (index * (me.origWidth + 2)) / scale,
+      y: selectionActionButtonY(bbox, me.origHeight, scale),
+      width: me.origWidth / scale,
+      height: me.origHeight / scale,
+    }),
+    onClick,
+    label,
+  );
+}
+
+/**
  * @param {HandRuntime} Tools
  * @param {(assetFile: string) => string} assetUrl
  */
@@ -331,39 +360,11 @@ function createState(Tools, assetUrl) {
     element: state.selectionChrome,
   });
   state.selectionButtons = [
-    createButton(
-      state,
-      "delete",
-      "delete",
-      24,
-      24,
-      (me, bbox, scale) => {
-        const x = selectionActionButtonX(state, bbox.r[0]);
-        return {
-          x,
-          y: selectionActionButtonY(bbox, me.origHeight, scale),
-          width: me.origWidth / scale,
-          height: me.origHeight / scale,
-        };
-      },
-      (_x, _y, _evt) => deleteSelection(state),
+    createActionButton(state, "delete", "delete", 0, () =>
+      deleteSelection(state),
     ),
-    createButton(
-      state,
-      "duplicate",
-      "duplicate",
-      24,
-      24,
-      (me, bbox, scale) => {
-        const x = selectionActionButtonX(state, bbox.r[0]);
-        return {
-          x: x + (me.origWidth + 2) / scale,
-          y: selectionActionButtonY(bbox, me.origHeight, scale),
-          width: me.origWidth / scale,
-          height: me.origHeight / scale,
-        };
-      },
-      () => duplicateSelection(state),
+    createActionButton(state, "duplicate", "duplicate", 1, () =>
+      duplicateSelection(state),
     ),
     createButton(
       state,
@@ -380,6 +381,14 @@ function createState(Tools, assetUrl) {
         };
       },
       (x, y, evt) => startScalingTransform(state, x, y, evt),
+    ),
+    createActionButton(
+      state,
+      "download",
+      "../download/icon",
+      2,
+      () => downloadBoardSvg(state.Tools, state.selectedEls),
+      state.Tools.i18n.t("download"),
     ),
   ];
   state.blockedSelectionButtons.forEach((buttonIndex) => {
@@ -535,6 +544,7 @@ function eventBoardPoint(state, event) {
  * @param {number} height
  * @param {(button: SelectionButton, bbox: {r:[number,number], a:[number,number], b:[number,number]}, scale:number) => BoardRect} drawCallback
  * @param {(x:number, y:number, evt: { preventDefault(): void }) => void} clickCallback
+ * @param {string} [label]
  * @returns {SelectionButton}
  */
 function createButton(
@@ -545,12 +555,14 @@ function createButton(
   height,
   drawCallback,
   clickCallback,
+  label,
 ) {
   const element = document.createElement("button");
   element.id = `selectionButton-${name}`;
   element.className = "hand-selection-button";
   element.type = "button";
-  element.setAttribute("aria-label", name);
+  element.setAttribute("aria-label", label ?? name);
+  if (label) element.title = label;
   element.style.display = "none";
   const image = document.createElement("img");
   image.alt = "";

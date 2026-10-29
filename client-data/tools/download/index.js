@@ -24,6 +24,8 @@
  * @licend
  */
 
+import { downloadBoardSvg } from "../../js/board_export.js";
+
 /** @import { ToolBootContext } from "../../../types/app-runtime" */
 /** @typedef {ReturnType<typeof boot>} DownloadToolState */
 
@@ -33,62 +35,14 @@ export const oneTouch = true;
 export const mouseCursor = "crosshair";
 export const visibleWhenReadOnly = true;
 
-/**
- * @param {Blob} blob
- * @param {string} filename
- */
-function downloadContent(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const element = document.createElement("a");
-  element.setAttribute("href", url);
-  element.setAttribute("download", filename);
-  element.style.display = "none";
-  document.body.appendChild(element);
-  element.click();
-  document.body.removeChild(element);
-  window.URL.revokeObjectURL(url);
-}
-
-/** @param {DownloadToolState} state */
-function downloadSvgFile(state) {
-  const canvasCopy = /** @type {SVGSVGElement} */ (
-    state.board.svg.cloneNode(true)
-  );
-  canvasCopy.removeAttribute("style");
-  const styleNode = document.createElement("style");
-  styleNode.innerHTML = Array.from(document.styleSheets)
-    .filter(
-      (stylesheet) =>
-        !!(
-          stylesheet.href &&
-          (stylesheet.href.match(/\/tools\/.*\.css/) ||
-            stylesheet.href.match(/board\.css/))
-        ),
-    )
-    .map((stylesheet) =>
-      Array.from(stylesheet.cssRules).map((rule) => rule.cssText),
-    )
-    .join("\n");
-  canvasCopy.appendChild(styleNode);
-  const outerHTML =
-    canvasCopy.outerHTML || new XMLSerializer().serializeToString(canvasCopy);
-  downloadContent(
-    new Blob([outerHTML], { type: "image/svg+xml;charset=utf-8" }),
-    `${state.identity.boardName}.svg`,
-  );
-}
-
 /** @param {ToolBootContext} ctx */
 export function boot(ctx) {
-  return {
-    board: ctx.runtime.board,
-    identity: ctx.runtime.identity,
-  };
+  return ctx.runtime;
 }
 
 /** @param {DownloadToolState} state */
 export function onstart(state) {
-  downloadSvgFile(state);
+  downloadBoardSvg(state);
 }
 
 export function draw() {}

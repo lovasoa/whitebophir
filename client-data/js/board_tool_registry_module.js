@@ -528,6 +528,11 @@ export function createToolRuntimeModules(mountedTools, ownerToolName = "") {
       },
     },
     toolRegistry: {
+      flushPendingDraws() {
+        for (const tool of Object.values(mountedTools.toolRegistry.mounted)) {
+          tool?.flushPendingDraws?.();
+        }
+      },
       get current() {
         return mountedTools.toolRegistry.current;
       },

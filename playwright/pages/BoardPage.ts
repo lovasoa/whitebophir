@@ -72,6 +72,7 @@ type DownloadState = {
   hasSvgTag: boolean;
   hasRect: boolean;
   hasBoardStyles: boolean;
+  svg: string;
 };
 type ReconnectState = { connected: boolean; validated: boolean };
 type WriteStatusState = {
@@ -912,6 +913,7 @@ window.turnstile = {
         hasSvgTag: text.includes("<svg"),
         hasRect: text.includes('id="download-rect"'),
         hasBoardStyles: text.includes("#drawingArea"),
+        svg: text,
       };
     });
   }
