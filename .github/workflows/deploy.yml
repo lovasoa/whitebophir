@@ -8,7 +8,7 @@ on:
       - v*
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release
@@ -23,6 +23,7 @@ jobs:
     needs: validate-tag
     if: >-
       !cancelled() &&
+      github.repository == 'lovasoa/whitebophir' &&
       (needs.validate-tag.result == 'success' ||
         (github.event.workflow_run.conclusion == 'success' &&
          github.event.workflow_run.head_repository.full_name == github.repository &&
@@ -30,6 +31,8 @@ jobs:
          (github.event.workflow_run.event == 'push' ||
           github.event.workflow_run.event == 'workflow_dispatch')))
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
       tag: ${{ steps.version.outputs.tag }}
       commit: ${{ steps.version.outputs.commit }}

@@ -156,7 +156,7 @@ Open `/preview/<boardName>` to download a standalone SVG preview, for example
 
 ## Releases
 
-Dependabot opens daily dependency update PRs. Successful CI merges them and tests
-master before the release workflow bumps the package and lockfile patch version,
-tags, and deploys. Manual version tags also run CI before deployment. Retry failed
-deployment jobs to reuse their release tag.
+Only `lovasoa/whitebophir` publishes releases; forks skip preparation. Successful
+dependency CI merges updates and tests master before bumping the package and
+lockfile patch version, tagging, and deploying. Manual version tags also run CI
+before deployment. Retry failed deployment jobs to reuse their release tag.
