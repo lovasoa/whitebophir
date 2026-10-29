@@ -1,6 +1,11 @@
 #!/bin/sh
 set -eu
 
+if [ "${GITHUB_REPOSITORY:-}" != "lovasoa/whitebophir" ]; then
+  echo "Refusing to release outside lovasoa/whitebophir." >&2
+  exit 1
+fi
+
 # Never publish an older successful CI run over newer master changes.
 tested_commit=$1
 git fetch origin master --tags
