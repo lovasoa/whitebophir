@@ -3,6 +3,7 @@ wbo-backups
 tests_output
 wbo-backup.tgz
 geckodriver.log
+logs
 server-data/*
 AUTHORS
 LICENSE
@@ -12,3 +13,10 @@ docker-compose.yml
 .git
 .github
 .gitignore
+.githooks
+.vscode
+AGENTS.md
+CHECKS
+test-node
+tests
+tsconfig.checkjs.json

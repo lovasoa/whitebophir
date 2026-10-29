@@ -1,0 +1,738 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const { MutationType } = require("../client-data/js/message_tool_metadata.js");
+const {
+  Clear,
+  Eraser,
+  Pencil,
+  Text,
+} = require("../client-data/tools/index.js");
+
+const {
+  createConfig,
+  createSocket,
+  SOCKETS_PATH,
+  loadSockets,
+  resetSocketTestState,
+  withTemporaryHistoryDir,
+} = require("./test_helpers.js");
+
+require(SOCKETS_PATH);
+
+/**
+ * @param {{[key: string]: any}} overrides
+ * @param {(sockets: any) => any | Promise<any>} run
+ * @returns {Promise<any>}
+ */
+async function withSocketConfig(overrides, run) {
+  return withTemporaryHistoryDir("wbo-rate-limits-", async ({ historyDir }) => {
+    const sockets = await loadSockets(
+      createConfig({
+        IP_SOURCE: "remoteAddress",
+        HISTORY_DIR: historyDir,
+        ...overrides,
+      }),
+    );
+    sockets.__test.resetRateLimitMaps();
+    try {
+      return await run(sockets);
+    } finally {
+      await resetSocketTestState(sockets);
+    }
+  });
+}
+
+test("configuration provides sane default rate-limit ordering", () => {
+  const config = createConfig();
+  assert.equal(config.IP_SOURCE, "remoteAddress");
+  assert.equal(config.TRUST_PROXY_HOPS, 0);
+  assert.ok(config.DESTRUCTIVE_ACTION_RATE_LIMITS.limit > 0);
+  assert.ok(config.DESTRUCTIVE_ACTION_RATE_LIMITS.periodMs > 0);
+  assert.ok(config.CONSTRUCTIVE_ACTION_RATE_LIMITS.limit > 0);
+  assert.ok(config.CONSTRUCTIVE_ACTION_RATE_LIMITS.periodMs > 0);
+  assert.equal(config.TEXT_CREATION_RATE_LIMITS.limit, 2);
+  assert.equal(config.TEXT_CREATION_RATE_LIMITS.periodMs, 1_000);
+  assert.equal(
+    config.CONSTRUCTIVE_ACTION_RATE_LIMITS.overrides.anonymous?.limit,
+    Math.floor(config.CONSTRUCTIVE_ACTION_RATE_LIMITS.limit / 2),
+  );
+  assert.equal(
+    config.DESTRUCTIVE_ACTION_RATE_LIMITS.overrides.anonymous?.limit,
+    Math.floor(config.DESTRUCTIVE_ACTION_RATE_LIMITS.limit / 2),
+  );
+  assert.ok(config.GENERAL_RATE_LIMITS.limit > 0);
+  assert.ok(config.GENERAL_RATE_LIMITS.periodMs > 0);
+  assert.deepEqual(config.TEXT_CREATION_RATE_LIMITS, {
+    limit: 2,
+    periodMs: 1_000,
+    overrides: {
+      anonymous: {
+        limit: 30,
+        periodMs: 60_000,
+      },
+    },
+  });
+  assert.ok(
+    config.GENERAL_RATE_LIMITS.limit >
+      config.CONSTRUCTIVE_ACTION_RATE_LIMITS.limit,
+    "Emit limit should be higher than constructive limit",
+  );
+  assert.ok(
+    config.CONSTRUCTIVE_ACTION_RATE_LIMITS.limit >
+      config.TEXT_CREATION_RATE_LIMITS.limit,
+    "Constructive limit should be higher than text creation limit",
+  );
+});
+
+test("general rate limit closes the socket when exceeded", async () => {
+  await withSocketConfig(
+    {
+      GENERAL_RATE_LIMITS: { limit: 0, periodMs: 4096, overrides: {} },
+      TURNSTILE_SECRET_KEY: "test-secret",
+    },
+    async (sockets) => {
+      const { socket, handlers, emitted } = createSocket({
+        headers: { "user-agent": "test-agent" },
+        remoteAddress: "203.0.113.10",
+        query: { board: "anonymous" },
+      });
+      await sockets.__test.handleSocketConnection(socket, sockets.__config);
+
+      assert.ok(handlers.broadcast);
+      await handlers.broadcast({ tool: Pencil.id, type: MutationType.CREATE });
+
+      assert.equal(socket.disconnected, true);
+      assert.equal(socket.disconnectCalls.length, 1);
+      const rateLimitedEvent = emitted.find(
+        (event) => event.event === "rate-limited",
+      );
+      assert.ok(rateLimitedEvent);
+      assert.equal(rateLimitedEvent.event, "rate-limited");
+    },
+  );
+});
+
+test("general rate limit is shared by IP across boards", async () => {
+  await withSocketConfig(
+    {
+      GENERAL_RATE_LIMITS: { limit: 1, periodMs: 10_000, overrides: {} },
+    },
+    async (sockets) => {
+      const first = createSocket({
+        id: "socket-general-shared-1",
+        headers: { "user-agent": "test-agent" },
+        remoteAddress: "203.0.113.20",
+        query: { board: "shared-limit-a" },
+      });
+      const second = createSocket({
+        id: "socket-general-shared-2",
+        headers: { "user-agent": "test-agent" },
+        remoteAddress: "203.0.113.20",
+        query: { board: "shared-limit-b" },
+      });
+      await sockets.__test.handleSocketConnection(
+        first.socket,
+        sockets.__config,
+      );
+      await sockets.__test.handleSocketConnection(
+        second.socket,
+        sockets.__config,
+      );
+
+      assert.ok(first.handlers.broadcast);
+      assert.ok(second.handlers.broadcast);
+      await first.handlers.broadcast({});
+      await second.handlers.broadcast({});
+
+      assert.notEqual(first.socket.disconnected, true);
+      assert.equal(second.socket.disconnected, true);
+      assert.deepEqual(
+        second.emitted.find((event) => event.event === "rate-limited"),
+        {
+          event: "rate-limited",
+          payload: {
+            event: "GENERAL_RATE_LIMIT_EXCEEDED",
+            kind: "general",
+            limit: 1,
+            periodMs: 10_000,
+            retryAfterMs: second.emitted.find(
+              (event) => event.event === "rate-limited",
+            )?.payload?.retryAfterMs,
+          },
+        },
+      );
+    },
+  );
+});
+
+test("general rate limit keeps separate budgets for different IPs", async () => {
+  await withSocketConfig(
+    {
+      GENERAL_RATE_LIMITS: { limit: 1, periodMs: 10_000, overrides: {} },
+    },
+    async (sockets) => {
+      const first = createSocket({
+        id: "socket-general-ip-1",
+        headers: { "user-agent": "test-agent" },
+        remoteAddress: "203.0.113.21",
+        query: { board: "separate-limit-a" },
+      });
+      const second = createSocket({
+        id: "socket-general-ip-2",
+        headers: { "user-agent": "test-agent" },
+        remoteAddress: "203.0.113.22",
+        query: { board: "separate-limit-b" },
+      });
+      await sockets.__test.handleSocketConnection(
+        first.socket,
+        sockets.__config,
+      );
+      await sockets.__test.handleSocketConnection(
+        second.socket,
+        sockets.__config,
+      );
+
+      assert.ok(first.handlers.broadcast);
+      assert.ok(second.handlers.broadcast);
+      await first.handlers.broadcast({});
+      await second.handlers.broadcast({});
+
+      assert.notEqual(first.socket.disconnected, true);
+      assert.notEqual(second.socket.disconnected, true);
+      assert.equal(first.socket.disconnectCalls.length, 0);
+      assert.equal(second.socket.disconnectCalls.length, 0);
+    },
+  );
+});
+
+test("rate-limit maps cap stored IP states by evicting oldest entries", async () => {
+  await withSocketConfig({}, async (sockets) => {
+    const internals = sockets.__test.rateLimitTestInternals;
+    const cap = internals.RATE_LIMIT_MAP_MAX_SIZE;
+    const periodMs = 60_000;
+    const now = 100_000;
+
+    for (let index = 0; index < cap; index += 1) {
+      internals.touchState("general", `ip-${index}`, now + index, periodMs);
+    }
+    assert.equal(internals.getMapSize("general"), cap);
+
+    internals.touchState("general", "ip-new", now + cap, periodMs);
+
+    assert.equal(internals.getMapSize("general"), cap);
+    assert.equal(internals.hasState("general", "ip-0"), false);
+    assert.equal(internals.hasState("general", "ip-new"), true);
+  });
+});
+
+test("all rate-limit maps use bounded stale cleanup", async () => {
+  await withSocketConfig({}, async (sockets) => {
+    const internals = sockets.__test.rateLimitTestInternals;
+    const kinds = ["general", "constructive", "destructive", "text"];
+    const periodMs = 1_000;
+    const now = 10_000;
+
+    for (const kind of kinds) {
+      sockets.__test.resetRateLimitMaps();
+      for (
+        let index = 0;
+        index < internals.RATE_LIMIT_STALE_SCAN_LIMIT + 2;
+        index += 1
+      ) {
+        internals.setState(kind, `${kind}-stale-${index}`, {
+          windowStart: 0,
+          count: 1,
+          lastSeen: 0,
+        });
+      }
+
+      internals.touchState(kind, `${kind}-fresh`, now, periodMs);
+
+      assert.equal(internals.getMapSize(kind), 3);
+      assert.equal(internals.hasState(kind, `${kind}-stale-0`), false);
+      assert.equal(
+        internals.hasState(
+          kind,
+          `${kind}-stale-${internals.RATE_LIMIT_STALE_SCAN_LIMIT}`,
+        ),
+        true,
+      );
+      assert.equal(internals.hasState(kind, `${kind}-fresh`), true);
+    }
+  });
+});
+
+test("destructive per-IP rate limit closes the socket when exceeded", async () => {
+  await withSocketConfig(
+    {
+      GENERAL_RATE_LIMITS: { limit: 10, periodMs: 4096, overrides: {} },
+      DESTRUCTIVE_ACTION_RATE_LIMITS: {
+        limit: 10,
+        periodMs: 10_000,
+        overrides: { anonymous: { limit: 0, periodMs: 10_000 } },
+      },
+    },
+    async (sockets) => {
+      const { socket, handlers, emitted } = createSocket({
+        headers: { "user-agent": "test-agent" },
+        remoteAddress: "203.0.113.11",
+        query: { board: "anonymous" },
+      });
+      await sockets.__test.handleSocketConnection(socket, sockets.__config);
+
+      assert.ok(handlers.broadcast);
+      await handlers.broadcast({
+        tool: Eraser.id,
+        type: MutationType.DELETE,
+        id: "shape-1",
+      });
+
+      assert.equal(socket.disconnected, true);
+      assert.equal(socket.disconnectCalls.length, 1);
+      assert.deepEqual(
+        emitted.find((event) => event.event === "rate-limited"),
+        {
+          event: "rate-limited",
+          payload: {
+            event: "DESTRUCTIVE_RATE_LIMIT_EXCEEDED",
+            kind: "destructive",
+            limit: 0,
+            periodMs: 10_000,
+            retryAfterMs: 10_000,
+          },
+        },
+      );
+    },
+  );
+});
+
+test("canClear users bypass the destructive per-IP rate limit", async () => {
+  const moderatorSecret = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  await withSocketConfig(
+    {
+      GENERAL_RATE_LIMITS: { limit: 10, periodMs: 4096, overrides: {} },
+      DESTRUCTIVE_ACTION_RATE_LIMITS: {
+        limit: 0,
+        periodMs: 10_000,
+        overrides: {},
+      },
+      BOARD_MODERATORS: new Map([
+        ["clear-rate-limit-board", new Set([moderatorSecret])],
+      ]),
+    },
+    async (sockets) => {
+      const { socket, handlers, emitted } = createSocket({
+        headers: {
+          "user-agent": "test-agent",
+          cookie: `wbo-user-secret-v1=${moderatorSecret}`,
+        },
+        remoteAddress: "203.0.113.21",
+        query: { board: "clear-rate-limit-board" },
+      });
+      await sockets.__test.handleSocketConnection(socket, sockets.__config);
+
+      assert.ok(handlers.broadcast);
+      await handlers.broadcast({
+        tool: Clear.id,
+        type: MutationType.CLEAR,
+      });
+
+      assert.notEqual(socket.disconnected, true);
+      assert.equal(socket.disconnectCalls.length, 0);
+      assert.equal(
+        emitted.some((event) => event.event === "rate-limited"),
+        false,
+      );
+    },
+  );
+});
+
+test("canClear users still hit the general per-IP rate limit", async () => {
+  const moderatorSecret = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+  await withSocketConfig(
+    {
+      GENERAL_RATE_LIMITS: { limit: 0, periodMs: 4096, overrides: {} },
+      DESTRUCTIVE_ACTION_RATE_LIMITS: {
+        limit: 0,
+        periodMs: 10_000,
+        overrides: {},
+      },
+      BOARD_MODERATORS: new Map([
+        ["general-rate-limit-board", new Set([moderatorSecret])],
+      ]),
+    },
+    async (sockets) => {
+      const { socket, handlers, emitted } = createSocket({
+        headers: {
+          "user-agent": "test-agent",
+          cookie: `wbo-user-secret-v1=${moderatorSecret}`,
+        },
+        remoteAddress: "203.0.113.22",
+        query: { board: "general-rate-limit-board" },
+      });
+      await sockets.__test.handleSocketConnection(socket, sockets.__config);
+
+      assert.ok(handlers.broadcast);
+      await handlers.broadcast({
+        tool: Clear.id,
+        type: MutationType.CLEAR,
+      });
+
+      assert.equal(socket.disconnected, true);
+      assert.equal(socket.disconnectCalls.length, 1);
+      assert.deepEqual(
+        emitted.find((event) => event.event === "rate-limited"),
+        {
+          event: "rate-limited",
+          payload: {
+            event: "GENERAL_RATE_LIMIT_EXCEEDED",
+            kind: "general",
+            limit: 0,
+            periodMs: 4096,
+            retryAfterMs: 4096,
+          },
+        },
+      );
+    },
+  );
+});
+
+test("constructive per-IP rate limit closes the socket when exceeded", async () => {
+  await withSocketConfig(
+    {
+      GENERAL_RATE_LIMITS: { limit: 10, periodMs: 4096, overrides: {} },
+      CONSTRUCTIVE_ACTION_RATE_LIMITS: {
+        limit: 10,
+        periodMs: 10_000,
+        overrides: { anonymous: { limit: 0, periodMs: 10_000 } },
+      },
+    },
+    async (sockets) => {
+      const { socket, handlers, emitted } = createSocket({
+        headers: { "user-agent": "test-agent" },
+        remoteAddress: "203.0.113.13",
+        query: { board: "anonymous" },
+      });
+      await sockets.__test.handleSocketConnection(socket, sockets.__config);
+
+      assert.ok(handlers.broadcast);
+      await handlers.broadcast({
+        tool: Pencil.id,
+        type: MutationType.CREATE,
+        id: "line-1",
+        color: "#123456",
+        size: 10,
+      });
+
+      assert.equal(socket.disconnected, true);
+      assert.equal(socket.disconnectCalls.length, 1);
+      assert.deepEqual(
+        emitted.find((event) => event.event === "rate-limited"),
+        {
+          event: "rate-limited",
+          payload: {
+            event: "CONSTRUCTIVE_RATE_LIMIT_EXCEEDED",
+            kind: "constructive",
+            limit: 0,
+            periodMs: 10_000,
+            retryAfterMs: 10_000,
+          },
+        },
+      );
+    },
+  );
+});
+
+test("text per-IP rate limit closes the socket when text creation is exceeded", async () => {
+  await withSocketConfig(
+    {
+      GENERAL_RATE_LIMITS: { limit: 10, periodMs: 4096, overrides: {} },
+      CONSTRUCTIVE_ACTION_RATE_LIMITS: {
+        limit: 10,
+        periodMs: 10_000,
+        overrides: { anonymous: { limit: 10, periodMs: 10_000 } },
+      },
+      TEXT_CREATION_RATE_LIMITS: {
+        limit: 10,
+        periodMs: 10_000,
+        overrides: { anonymous: { limit: 0, periodMs: 10_000 } },
+      },
+    },
+    async (sockets) => {
+      const { socket, handlers, emitted } = createSocket({
+        headers: { "user-agent": "test-agent" },
+        remoteAddress: "203.0.113.16",
+        query: { board: "anonymous" },
+      });
+      await sockets.__test.handleSocketConnection(socket, sockets.__config);
+
+      assert.ok(handlers.broadcast);
+      await handlers.broadcast({
+        tool: Text.id,
+        type: MutationType.CREATE,
+        id: "text-1",
+        color: "#123456",
+        size: 24,
+        x: 10,
+        y: 30,
+      });
+
+      assert.equal(socket.disconnected, true);
+      assert.equal(socket.disconnectCalls.length, 1);
+      assert.deepEqual(
+        emitted.find((event) => event.event === "rate-limited"),
+        {
+          event: "rate-limited",
+          payload: {
+            event: "TEXT_RATE_LIMIT_EXCEEDED",
+            kind: "text",
+            limit: 0,
+            periodMs: 10_000,
+            retryAfterMs: 10_000,
+          },
+        },
+      );
+    },
+  );
+});
+
+test("url-like text updates consume text rate-limit budget", async () => {
+  await withSocketConfig(
+    {
+      GENERAL_RATE_LIMITS: { limit: 10, periodMs: 4096, overrides: {} },
+      CONSTRUCTIVE_ACTION_RATE_LIMITS: {
+        limit: 10,
+        periodMs: 10_000,
+        overrides: { anonymous: { limit: 10, periodMs: 10_000 } },
+      },
+      TEXT_CREATION_RATE_LIMITS: {
+        limit: 10,
+        periodMs: 10_000,
+        overrides: { anonymous: { limit: 1, periodMs: 10_000 } },
+      },
+    },
+    async (sockets) => {
+      const { socket, handlers, emitted } = createSocket({
+        headers: { "user-agent": "test-agent" },
+        remoteAddress: "203.0.113.17",
+        query: { board: "anonymous" },
+      });
+      await sockets.__test.handleSocketConnection(socket, sockets.__config);
+
+      assert.ok(handlers.broadcast);
+      await handlers.broadcast({
+        tool: Text.id,
+        type: MutationType.CREATE,
+        id: "text-2",
+        color: "#123456",
+        size: 24,
+        x: 10,
+        y: 30,
+      });
+      assert.notEqual(socket.disconnected, true);
+
+      await handlers.broadcast({
+        tool: Text.id,
+        type: MutationType.UPDATE,
+        id: "text-2",
+        txt: "https://example.com/demo",
+      });
+
+      assert.equal(socket.disconnected, true);
+      const rateLimited = emitted.find(
+        (event) => event.event === "rate-limited",
+      );
+      assert.deepEqual(rateLimited, {
+        event: "rate-limited",
+        payload: {
+          event: "TEXT_RATE_LIMIT_EXCEEDED",
+          kind: "text",
+          limit: 1,
+          periodMs: 10_000,
+          retryAfterMs: rateLimited?.payload?.retryAfterMs,
+        },
+      });
+      assert.ok(rateLimited?.payload?.retryAfterMs <= 10_000);
+      assert.ok(rateLimited?.payload?.retryAfterMs > 0);
+    },
+  );
+});
+
+test("plain text updates do not consume text rate-limit budget", async () => {
+  await withSocketConfig(
+    {
+      GENERAL_RATE_LIMITS: { limit: 10, periodMs: 4096, overrides: {} },
+      CONSTRUCTIVE_ACTION_RATE_LIMITS: {
+        limit: 10,
+        periodMs: 10_000,
+        overrides: { anonymous: { limit: 10, periodMs: 10_000 } },
+      },
+      TEXT_CREATION_RATE_LIMITS: {
+        limit: 10,
+        periodMs: 10_000,
+        overrides: { anonymous: { limit: 1, periodMs: 10_000 } },
+      },
+    },
+    async (sockets) => {
+      const { socket, handlers } = createSocket({
+        headers: { "user-agent": "test-agent" },
+        remoteAddress: "203.0.113.18",
+        query: { board: "anonymous" },
+      });
+      await sockets.__test.handleSocketConnection(socket, sockets.__config);
+
+      assert.ok(handlers.broadcast);
+      await handlers.broadcast({
+        tool: Text.id,
+        type: MutationType.CREATE,
+        id: "text-3",
+        color: "#123456",
+        size: 24,
+        x: 10,
+        y: 30,
+      });
+      await handlers.broadcast({
+        tool: Text.id,
+        type: MutationType.UPDATE,
+        id: "text-3",
+        txt: "plain text only",
+      });
+
+      assert.notEqual(socket.disconnected, true);
+      assert.equal(socket.disconnectCalls.length, 0);
+    },
+  );
+});
+
+test("resetRateLimitMaps clears text rate-limit state", async () => {
+  await withSocketConfig(
+    {
+      GENERAL_RATE_LIMITS: { limit: 10, periodMs: 4096, overrides: {} },
+      CONSTRUCTIVE_ACTION_RATE_LIMITS: {
+        limit: 10,
+        periodMs: 10_000,
+        overrides: { anonymous: { limit: 10, periodMs: 10_000 } },
+      },
+      TEXT_CREATION_RATE_LIMITS: {
+        limit: 10,
+        periodMs: 10_000,
+        overrides: { anonymous: { limit: 1, periodMs: 10_000 } },
+      },
+    },
+    async (sockets) => {
+      const first = createSocket({
+        headers: { "user-agent": "test-agent" },
+        remoteAddress: "203.0.113.19",
+        query: { board: "anonymous" },
+        id: "socket-text-1",
+      });
+      await sockets.__test.handleSocketConnection(
+        first.socket,
+        sockets.__config,
+      );
+      assert.ok(first.handlers.broadcast);
+      await first.handlers.broadcast({
+        tool: Text.id,
+        type: MutationType.CREATE,
+        id: "text-4",
+        color: "#123456",
+        size: 24,
+        x: 10,
+        y: 30,
+      });
+      assert.notEqual(first.socket.disconnected, true);
+
+      await resetSocketTestState(sockets);
+
+      const second = createSocket({
+        headers: { "user-agent": "test-agent" },
+        remoteAddress: "203.0.113.19",
+        query: { board: "anonymous" },
+        id: "socket-text-2",
+      });
+      await sockets.__test.handleSocketConnection(
+        second.socket,
+        sockets.__config,
+      );
+      assert.ok(second.handlers.broadcast);
+      await second.handlers.broadcast({
+        tool: Text.id,
+        type: MutationType.CREATE,
+        id: "text-5",
+        color: "#123456",
+        size: 24,
+        x: 10,
+        y: 30,
+      });
+
+      assert.notEqual(second.socket.disconnected, true);
+      assert.equal(second.socket.disconnectCalls.length, 0);
+    },
+  );
+});
+
+test("missing configured IP source falls back without disconnecting", async () => {
+  await withSocketConfig(
+    {
+      IP_SOURCE: "X-Forwarded-For",
+      GENERAL_RATE_LIMITS: { limit: 10, periodMs: 5000, overrides: {} },
+      DESTRUCTIVE_ACTION_RATE_LIMITS: {
+        limit: 10,
+        periodMs: 60_000,
+        overrides: { anonymous: { limit: 5, periodMs: 60_000 } },
+      },
+    },
+    async (sockets) => {
+      const { socket, handlers } = createSocket({
+        headers: { "user-agent": "test-agent" },
+        remoteAddress: "203.0.113.12",
+        query: { board: "anonymous" },
+      });
+      await sockets.__test.handleSocketConnection(socket, sockets.__config);
+
+      assert.ok(handlers.broadcast);
+      await handlers.broadcast({});
+
+      assert.notEqual(socket.disconnected, true);
+      assert.equal(socket.disconnectCalls.length, 0);
+    },
+  );
+});
+
+test("connection rejects missing handshake board without registering handlers", async () => {
+  await withSocketConfig(
+    {
+      GENERAL_RATE_LIMITS: { limit: 10, periodMs: 5000, overrides: {} },
+    },
+    async (sockets) => {
+      const { socket, handlers, broadcasted } = createSocket({
+        headers: { "user-agent": "test-agent" },
+        remoteAddress: "203.0.113.14",
+      });
+      await sockets.__test.handleSocketConnection(socket, sockets.__config);
+
+      assert.equal(socket.disconnected, true);
+      assert.deepEqual(broadcasted, []);
+      assert.equal(socket.rooms.size, 0);
+      assert.equal(handlers.broadcast, undefined);
+    },
+  );
+});
+
+test("connection rejects malformed handshake board names", async () => {
+  await withSocketConfig({}, async (sockets) => {
+    const created = createSocket({
+      headers: { "user-agent": "test-agent" },
+      remoteAddress: "203.0.113.15",
+      query: { board: /** @type {any} */ ({ bad: true }) },
+    });
+    await sockets.__test.handleSocketConnection(
+      created.socket,
+      sockets.__config,
+    );
+
+    assert.equal(created.socket.disconnected, true);
+    assert.equal(created.socket.rooms.size, 0);
+    assert.equal(created.handlers.broadcast, undefined);
+  });
+});

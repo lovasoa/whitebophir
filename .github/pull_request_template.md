@@ -1,8 +1,8 @@
 <!--
-Thanks for taking the time to contribute to WBO !
-Please use this field to describe the changes you made, and mention
-the eventual issues this PR addresses: https://github.com/lovasoa/whitebophir/issues
-Please also check the other existing pull requests: https://github.com/lovasoa/whitebophir/pulls
+Describe the problem and resulting behavior. Link related issues.
+Include the checks run and any remaining limitations.
+Explain architectural tradeoffs and documentation/test decisions when material.
+Documentation additions must replace genuinely less important material.
 Please leave the license agreement below to grant us the rights to use your code.
 -->
 <sub>

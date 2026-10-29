@@ -1,0 +1,1683 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs/promises");
+const os = require("node:os");
+const path = require("node:path");
+const jsonwebtoken = require("jsonwebtoken");
+const packageJson = require("../package.json");
+
+const {
+  closeServer,
+  createConfig,
+  getTcpAddress,
+  request,
+  requestRaw,
+  withEnv,
+} = require("./test_helpers.js");
+
+const SERVER_PATH = path.join(__dirname, "..", "server", "server.mjs");
+const TEMPLATING_PATH = path.join(
+  __dirname,
+  "..",
+  "server",
+  "http",
+  "templating.mjs",
+);
+const CREATE_SVG_PATH = path.join(
+  __dirname,
+  "..",
+  "server",
+  "persistence",
+  "create_svg.mjs",
+);
+const CONFIGURATION_PATH = path.join(
+  __dirname,
+  "..",
+  "server",
+  "configuration.mjs",
+);
+const CHECK_OUTPUT_DIRECTORY_PATH = path.join(
+  __dirname,
+  "..",
+  "server",
+  "runtime",
+  "check_output_directory.mjs",
+);
+const CLIENT_CONFIGURATION_PATH = path.join(
+  __dirname,
+  "..",
+  "server",
+  "http",
+  "client_configuration.mjs",
+);
+const COMPRESSION_PATH = path.join(
+  __dirname,
+  "..",
+  "server",
+  "http",
+  "compression.mjs",
+);
+const OBSERVABILITY_PATH = path.join(
+  __dirname,
+  "..",
+  "server",
+  "observability",
+  "index.mjs",
+);
+const CLIENT_WEBROOT = path.join(__dirname, "..", "client-data");
+const JWTAUTH_PATH = path.join(__dirname, "..", "server", "auth", "jwt.mjs");
+
+/**
+ * @returns {Promise<{createServerApp: (config: any, options?: any) => Promise<import("http").Server>}>}
+ */
+async function loadServer() {
+  return require(SERVER_PATH);
+}
+
+/**
+ * @param {{historyDir: string, webroot?: string}} dirs
+ * @param {{[key: string]: any}=} overrides
+ * @returns {any}
+ */
+function createServerConfig(dirs, overrides = {}) {
+  return createConfig({
+    HOST: "127.0.0.1",
+    PORT: 0,
+    AUTH_SECRET_KEY: "",
+    HISTORY_DIR: dirs.historyDir,
+    WEBROOT: dirs.webroot,
+    ...overrides,
+  });
+}
+
+/**
+ * @param {{[key: string]: any}} [configOverrides]
+ * @returns {Promise<import("http").Server>}
+ */
+async function createTestServer(configOverrides) {
+  const { createServerApp } = await loadServer();
+  return createServerApp(createConfig(configOverrides), {
+    logStarted: false,
+  });
+}
+
+/**
+ * @returns {Promise<{historyDir: string, webroot: string}>}
+ */
+async function createServerDirs() {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "wbo-server-routes-"));
+  const historyDir = path.join(root, "history");
+  const webroot = path.join(root, "webroot");
+  await fs.mkdir(historyDir);
+  await fs.mkdir(webroot);
+  await fs.writeFile(path.join(webroot, "error.html"), "error-page", "utf8");
+  await fs.writeFile(path.join(webroot, "board.html"), "board-page", "utf8");
+  await fs.writeFile(path.join(webroot, "index.html"), "index-page", "utf8");
+  await fs.writeFile(path.join(webroot, "manifest.json"), "{}", "utf8");
+  return { historyDir, webroot };
+}
+
+/**
+ * @param {import("http").IncomingHttpHeaders} headers
+ * @returns {string}
+ */
+function getSingleSetCookie(headers) {
+  const value = headers["set-cookie"];
+  if (Array.isArray(value)) return value[0] || "";
+  return typeof value === "string" ? value : "";
+}
+
+/**
+ * @param {string} historyDir
+ * @param {string} name
+ * @returns {string}
+ */
+function boardSvgFile(historyDir, name) {
+  return path.join(historyDir, `board-${name}.svg`);
+}
+
+/**
+ * @param {string} body
+ * @param {string} snippet
+ * @returns {void}
+ */
+function assertSnippetBeforeHeadEnd(body, snippet) {
+  const snippetIndex = body.indexOf(snippet);
+  const headEndIndex = body.indexOf("</head>");
+  assert.notEqual(snippetIndex, -1);
+  assert.notEqual(headEndIndex, -1);
+  assert.ok(snippetIndex < headEndIndex);
+}
+
+/**
+ * @param {string} body
+ * @returns {{readonly: boolean, canEdit: boolean, canClear: boolean, canBan: boolean, canReport?: boolean, canWrite?: boolean, accessRefreshAfterMs?: number}}
+ */
+function parseRenderedBoardState(body) {
+  const match = body.match(
+    /<script type="application\/json" id="board-state">([^<]*)<\/script>/,
+  );
+  const json = match?.[1];
+  if (typeof json !== "string") {
+    assert.fail("board-state script is rendered");
+  }
+  return JSON.parse(json);
+}
+
+/**
+ * @param {import("http").IncomingHttpHeaders} headers
+ * @param {string[]} expected
+ * @returns {void}
+ */
+function assertVaryTokens(headers, expected) {
+  const tokens = String(headers.vary || "")
+    .split(",")
+    .map((token) => token.trim())
+    .filter(Boolean)
+    .sort();
+  assert.deepEqual(tokens, expected.slice().sort());
+}
+
+test("in-process server imports do not register process signal handlers", async () => {
+  const dirs = await createServerDirs();
+  const sigintBefore = process.listenerCount("SIGINT");
+  const sigtermBefore = process.listenerCount("SIGTERM");
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: dirs.webroot,
+    WBO_SILENT: "true",
+  }, async () => {
+    const app = await createTestServer();
+    try {
+      assert.equal(process.listenerCount("SIGINT"), sigintBefore);
+      assert.equal(process.listenerCount("SIGTERM"), sigtermBefore);
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("server returns 400 for preview and download routes without a board name", async () => {
+  const dirs = await createServerDirs();
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: dirs.webroot,
+    WBO_SILENT: "true",
+  }, async () => {
+    const app = await createTestServer();
+    try {
+      const preview = await request(app, "/preview");
+      const download = await request(app, "/download");
+
+      assert.equal(preview.statusCode, 400);
+      assert.equal(download.statusCode, 400);
+      assert.equal(typeof preview.headers["x-request-id"], "string");
+      assert.equal(typeof download.headers["x-request-id"], "string");
+      assert.equal(preview.body, "error-page");
+      assert.equal(download.body, "error-page");
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("server returns 404 instead of 500 when preview board data is missing", async () => {
+  const dirs = await createServerDirs();
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: dirs.webroot,
+    WBO_SILENT: "true",
+  }, async () => {
+    const app = await createTestServer();
+    try {
+      const response = await request(app, "/preview/missing-board");
+
+      assert.equal(response.statusCode, 404);
+      assert.equal(typeof response.headers["x-request-id"], "string");
+      assert.equal(response.body, "error-page");
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("board pages redirect non-canonical board names to canonical urls", async () => {
+  const dirs = await createServerDirs();
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: dirs.webroot,
+    WBO_SILENT: "true",
+  }, async () => {
+    const app = await createTestServer();
+    try {
+      const canonicalResponse = await request(
+        app,
+        "/boards/Refugee%20Camp%202?token=test-token",
+      );
+      assert.equal(canonicalResponse.statusCode, 301);
+      assert.equal(typeof canonicalResponse.headers["x-request-id"], "string");
+      assert.equal(
+        canonicalResponse.headers.location,
+        "/boards/refugee-camp-2?token=test-token",
+      );
+
+      const unicodeResponse = await request(
+        app,
+        "/boards/%D0%A2%D0%95%D0%A1%D0%A2",
+      );
+      assert.equal(unicodeResponse.statusCode, 301);
+      assert.equal(typeof unicodeResponse.headers["x-request-id"], "string");
+      assert.equal(
+        unicodeResponse.headers.location,
+        `/boards/${encodeURIComponent("тест")}`,
+      );
+
+      const emptyResponse = await request(app, "/boards/%3A%2F%3F%23");
+      assert.equal(emptyResponse.statusCode, 400);
+      assert.equal(typeof emptyResponse.headers["x-request-id"], "string");
+      assert.equal(emptyResponse.body, "error-page");
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("server rejects invalid non-board-page board names with 400 instead of 500", async () => {
+  const dirs = await createServerDirs();
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: dirs.webroot,
+    WBO_SILENT: "true",
+  }, async () => {
+    const app = await createTestServer();
+    try {
+      const invalidPaths = [
+        "/boards?board=test:board",
+        "/preview/test:board",
+        "/download/test%3Aboard",
+      ];
+
+      for (const invalidPath of invalidPaths) {
+        const response = await request(app, invalidPath);
+        assert.equal(response.statusCode, 400, invalidPath);
+        assert.equal(typeof response.headers["x-request-id"], "string");
+        assert.equal(response.body, "error-page");
+      }
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("random route redirects to a canonical pronounceable board name", async () => {
+  const dirs = await createServerDirs();
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: dirs.webroot,
+    WBO_SILENT: "true",
+  }, async () => {
+    const app = await createTestServer();
+    try {
+      const response = await request(app, "/random");
+      assert.equal(response.statusCode, 307);
+      assert.equal(typeof response.headers["x-request-id"], "string");
+      assert.match(
+        response.body,
+        /^(?:[a-z]{4}|[a-z]{6})(?:-(?:[a-z]{4}|[a-z]{6})){3}$/,
+      );
+      assert.equal(response.headers.location, `/boards/${response.body}`);
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("index route canonicalizes configured default board redirects", async () => {
+  const dirs = await createServerDirs();
+  const app = await createTestServer({
+    HISTORY_DIR: dirs.historyDir,
+    WEBROOT: dirs.webroot,
+    DEFAULT_BOARD: "Refugee Camp 2",
+  });
+  try {
+    const response = await request(app, "/");
+    assert.equal(response.statusCode, 302);
+    assert.equal(typeof response.headers["x-request-id"], "string");
+    assert.equal(response.headers.location, "/boards/refugee-camp-2");
+    assert.equal(response.body, "refugee-camp-2");
+  } finally {
+    await closeServer(app);
+  }
+});
+
+test("index route renders absolute canonical and hreflang urls", async () => {
+  const dirs = await createServerDirs();
+  const app = await createTestServer(
+    createServerConfig(dirs, { WEBROOT: CLIENT_WEBROOT }),
+  );
+  try {
+    const response = await request(app, "/");
+    const arabicResponse = await request(app, "/?lang=ar");
+    const { port } = getTcpAddress(app);
+    const origin = `http://127.0.0.1:${port}`;
+
+    assert.equal(response.statusCode, 200);
+    assert.match(arabicResponse.body, /<html\b[^>]*lang="ar"[^>]*dir="rtl"/);
+    assert.match(
+      response.body,
+      new RegExp(`<link rel="canonical" href="${origin}/\\?lang=en" />`),
+    );
+    assert.match(
+      response.body,
+      new RegExp(
+        `<link rel="alternate" hreflang="vi" href="${origin}/\\?lang=vi" />`,
+      ),
+    );
+    assert.match(
+      response.body,
+      new RegExp(
+        `<a href="${origin}/\\?lang=vi" hreflang="vi" rel="alternate">vi</a>`,
+      ),
+    );
+    assert.doesNotMatch(response.body, /hreflang="vn"/);
+    assert.doesNotMatch(response.body, /lang=vn/);
+  } finally {
+    await closeServer(app);
+  }
+});
+
+test("configured base path prefixes generated redirects and canonical urls", async () => {
+  const dirs = await createServerDirs();
+  const basePath = "/custom/base/path";
+  const app = await createTestServer(
+    createServerConfig(dirs, { BASE_PATH: basePath, WEBROOT: CLIENT_WEBROOT }),
+  );
+  try {
+    const randomResponse = await request(app, "/random");
+    assert.match(
+      randomResponse.headers.location || "",
+      /^\/custom\/base\/path\/boards\//,
+    );
+    assert.equal(
+      (await request(app, "/boards/Refugee%20Camp%202")).headers.location,
+      `${basePath}/boards/refugee-camp-2`,
+    );
+    assert.match(
+      (await request(app, "/")).body,
+      /<base href="http:\/\/127\.0\.0\.1:\d+\/custom\/base\/path\/" \/>/,
+    );
+    const boardResponse = await request(app, "/boards/base-path-board");
+    assert.match(
+      boardResponse.body,
+      /\/custom\/base\/path\/boards\/base-path-board\?lang=en/,
+    );
+    assert.match(
+      getSingleSetCookie(boardResponse.headers),
+      /^wbo-user-secret-v1=[0-9a-f]{32}; Max-Age=31536000; Path=\/custom\/base\/path\/; HttpOnly; SameSite=Lax$/,
+    );
+    assert.equal(
+      (await request(app, "/socket.io/socket.io.js")).statusCode,
+      200,
+    );
+  } finally {
+    await closeServer(app);
+  }
+});
+
+test("rules route uses base path and bundled template with custom webroot", async () => {
+  const dirs = await createServerDirs();
+  const basePath = "/custom/base/path";
+  const app = await createTestServer(
+    createServerConfig(dirs, { BASE_PATH: basePath }),
+  );
+  try {
+    const response = await request(app, "/rules?lang=fr");
+    const { port } = getTcpAddress(app);
+    const origin = `http://127.0.0.1:${port}`;
+
+    assert.equal(response.statusCode, 200);
+    assert.match(response.body, /<h2>Règles de la communauté<\/h2>/);
+    assert.match(
+      response.body,
+      new RegExp(`<base href="${origin}/custom/base/path/" />`),
+    );
+    assert.match(
+      response.body,
+      new RegExp(
+        `<meta property="og:image" content="${origin}/custom/base/path/favicon.svg" />`,
+      ),
+    );
+    assert.match(
+      response.body,
+      new RegExp(
+        `<link rel="canonical" href="${origin}/custom/base/path/rules\\?lang=fr" />`,
+      ),
+    );
+    assert.match(
+      response.body,
+      new RegExp(
+        `<link rel="alternate" hreflang="vi" href="${origin}/custom/base/path/rules\\?lang=vi" />`,
+      ),
+    );
+    assert.match(
+      response.body,
+      new RegExp(
+        `<a href="${origin}/custom/base/path/rules\\?lang=vi" hreflang="vi" rel="alternate">vi</a>`,
+      ),
+    );
+    assert.doesNotMatch(response.body, /\/custom\/base\/rules\?/);
+
+    const indexCss = await request(app, "/index.css");
+    assert.equal(indexCss.statusCode, 200);
+    assert.match(indexCss.headers["content-type"] || "", /text\/css/);
+    assert.match(indexCss.body, /--wbo-background/);
+
+    const rulesCss = await request(app, "/rules.css");
+    assert.equal(rulesCss.statusCode, 200);
+    assert.match(rulesCss.headers["content-type"] || "", /text\/css/);
+    assert.match(rulesCss.body, /rules-main/);
+
+    const favicon = await request(app, "/favicon.svg");
+    assert.equal(favicon.statusCode, 200);
+    assert.match(favicon.headers["content-type"] || "", /image\/svg\+xml/);
+    assert.match(favicon.body, /<svg/);
+  } finally {
+    await closeServer(app);
+  }
+});
+
+test("custom webroot static files take precedence over bundled fallback", async () => {
+  const dirs = await createServerDirs();
+  await fs.writeFile(
+    path.join(dirs.webroot, "index.css"),
+    "custom-css",
+    "utf8",
+  );
+  const app = await createTestServer(createServerConfig(dirs));
+  try {
+    const response = await request(app, "/index.css");
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.body, "custom-css");
+  } finally {
+    await closeServer(app);
+  }
+});
+
+test("board pages set an httpOnly user secret cookie when missing", async () => {
+  const dirs = await createServerDirs();
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: dirs.webroot,
+    WBO_SILENT: "true",
+  }, async () => {
+    const app = await createTestServer();
+    try {
+      const response = await request(app, "/boards/demo");
+      const setCookie = getSingleSetCookie(response.headers);
+
+      assert.equal(response.statusCode, 200);
+      assert.match(
+        setCookie,
+        /^wbo-user-secret-v1=[0-9a-f]{32}; Max-Age=31536000; Path=\/; HttpOnly; SameSite=Lax$/,
+      );
+      assert.doesNotMatch(setCookie, /;\s*Secure(?:;|$)/);
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("board pages preserve a valid incoming user secret cookie and do not rotate it", async () => {
+  const dirs = await createServerDirs();
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: dirs.webroot,
+    WBO_SILENT: "true",
+  }, async () => {
+    const app = await createTestServer();
+    try {
+      const response = await request(app, "/boards/demo", {
+        cookie: "wbo-user-secret-v1=abababababababababababababababab",
+        "x-forwarded-proto": "https",
+      });
+
+      assert.equal(response.statusCode, 200);
+      assert.equal(response.headers["set-cookie"], undefined);
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("board pages trust forwarded https for cookies only behind a configured proxy", async () => {
+  const dirs = await createServerDirs();
+  for (const ipSource of [
+    "remoteAddress",
+    "X-Forwarded-For",
+    "Forwarded",
+    "CF-Connecting-IP",
+  ]) {
+    const app = await createTestServer(
+      createServerConfig(dirs, { IP_SOURCE: ipSource }),
+    );
+    try {
+      /** @type {{[key: string]: string}[]} */
+      const protocolHeaderCases = [
+        { "x-forwarded-proto": "https" },
+        { forwarded: "for=203.0.113.1;proto=https" },
+      ];
+      for (const protocolHeaders of protocolHeaderCases) {
+        const response = await request(app, "/boards/demo", {
+          "x-forwarded-for": "203.0.113.1",
+          "cf-connecting-ip": "203.0.113.1",
+          ...protocolHeaders,
+        });
+        assert.equal(response.statusCode, 200);
+        assert.equal(
+          /;\s*Secure(?:;|$)/.test(getSingleSetCookie(response.headers)),
+          ipSource !== "remoteAddress",
+          `${ipSource}: ${JSON.stringify(protocolHeaders)}`,
+        );
+      }
+    } finally {
+      await closeServer(app);
+    }
+  }
+});
+
+test("server preserves an incoming request id header", async () => {
+  const dirs = await createServerDirs();
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: dirs.webroot,
+    WBO_SILENT: "true",
+  }, async () => {
+    const app = await createTestServer();
+    try {
+      const response = await request(app, "/", { "X-Request-Id": "req-123" });
+      assert.equal(response.headers["x-request-id"], "req-123");
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("server rejects malformed double-slash request targets with 400", async () => {
+  const dirs = await createServerDirs();
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: dirs.webroot,
+    WBO_SILENT: "true",
+  }, async () => {
+    const app = await createTestServer();
+    try {
+      const { port } = getTcpAddress(app);
+      const rawResponse = await requestRaw(
+        app,
+        `GET // HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nConnection: close\r\n\r\n`,
+      );
+
+      assert.match(rawResponse, /^HTTP\/1\.1 400 Bad Request/m);
+      assert.match(rawResponse, /^X-Request-Id: .+/m);
+      assert.match(rawResponse, /\r\n\r\nerror-page$/m);
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("server returns 400 for malformed low-level HTTP parser input", async () => {
+  const dirs = await createServerDirs();
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: dirs.webroot,
+    WBO_SILENT: "true",
+  }, async () => {
+    const app = await createTestServer();
+    try {
+      const rawResponse = await requestRaw(
+        app,
+        "G\0T / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n",
+      );
+
+      assert.match(rawResponse, /^HTTP\/1\.1 400 Bad Request/m);
+      assert.match(rawResponse, /\r\n\r\nBad Request$/m);
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("board pages are no-store in development and render plain asset URLs", async () => {
+  const dirs = await createServerDirs();
+  const app = await createTestServer(
+    createServerConfig(dirs, { WEBROOT: CLIENT_WEBROOT, IS_DEVELOPMENT: true }),
+  );
+  try {
+    const response = await request(app, "/boards/cache-test");
+    const frenchResponse = await request(app, "/boards/cache-test?lang=fr");
+    const arabicResponse = await request(app, "/boards/cache-test?lang=ar");
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(frenchResponse.statusCode, 200);
+    assert.match(
+      arabicResponse.body,
+      /<html\b[^>]*lang="ar"[^>]*dir="ltr"[^>]*data-ui-direction="rtl"/,
+    );
+    assert.match(
+      arabicResponse.body,
+      /<div id="boardHud" class="board-hud" dir="rtl">/,
+    );
+    assert.equal(response.headers["cache-control"], "no-store");
+    const { port } = getTcpAddress(app);
+    const origin = `http://127.0.0.1:${port}`;
+    assert.match(
+      response.body,
+      /<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" \/>/,
+    );
+    assert.match(
+      response.body,
+      new RegExp(
+        `<link rel="canonical" href="${origin}/boards/cache-test\\?lang=en" />`,
+      ),
+    );
+    assert.match(
+      response.body,
+      new RegExp(
+        `<link rel="alternate" hreflang="vi" href="${origin}/boards/cache-test\\?lang=vi" />`,
+      ),
+    );
+    assert.doesNotMatch(response.body, /hreflang="vn"/);
+    assert.doesNotMatch(response.body, /lang=vn/);
+    assert.match(
+      response.body,
+      /<div id="boardStatusIndicator" class="board-status-card board-status-reconnecting" role="status"\s+aria-live="polite" data-state="reconnecting">/,
+    );
+    assert.match(
+      response.body,
+      /<div id="boardStatusTitle" class="board-status-title">Loading<\/div>/,
+    );
+    assert.doesNotMatch(
+      response.body,
+      /<div id="boardStatusIndicator"[^>]* hidden/,
+    );
+    assert.match(
+      frenchResponse.body,
+      /<div id="boardStatusTitle" class="board-status-title">Chargement<\/div>/,
+    );
+    assert.match(
+      frenchResponse.body,
+      /<meta property="og:title" content="cache-test \| WBO \| Tableau blanc collaboratif" \/>/,
+    );
+    assert.match(response.body, /\.\.\/board\.css(?:["'])/);
+    assert.match(response.body, /\.\.\/js\/board_main\.js(?:["'])/);
+    assert.match(
+      response.body,
+      /<script id="socketio-client" async src="\.\.\/socket\.io\/socket\.io\.js"><\/script>/,
+    );
+    [
+      "board_bootstrap",
+      "app_tools_core",
+      "board_dom_bootstrap",
+      "board_message_replay",
+      "board_name",
+      "board_page_state",
+      "board_preferences",
+      "board_runtime_core",
+      "board_viewport",
+      "frontend_logging",
+      "message_limits",
+    ].forEach((moduleName) => {
+      assert.match(
+        response.body,
+        new RegExp(
+          `rel="modulepreload" href="\\.\\.\\/js\\/${moduleName}\\.js"`,
+        ),
+      );
+    });
+    assert.doesNotMatch(
+      response.body,
+      /rel="modulepreload" href="\.\.\/tools\//,
+    );
+    [
+      "app_tools",
+      "board_full_runtime_modules",
+      "board_access_module",
+      "board_connection_module",
+      "board",
+      "board_message_module",
+      "board_optimistic_module",
+      "board_presence_module",
+      "board_replay_module",
+      "board_shell_module",
+      "board_status_module",
+      "board_tool_registry_module",
+      "board_write_module",
+      "message_common",
+      "message_tool_metadata",
+      "mutation_type",
+      "path-data-polyfill",
+      "rate_limit_common",
+    ].forEach((moduleName) => {
+      assert.doesNotMatch(
+        response.body,
+        new RegExp(
+          `rel="modulepreload" href="\\.\\.\\/js\\/${moduleName}\\.js"`,
+        ),
+      );
+    });
+    assert.doesNotMatch(
+      response.body,
+      /rel="modulepreload" href="\.\.\/tools\/pencil\/index\.js"/,
+    );
+    assert.match(
+      response.body,
+      /<li class="tool disabledTool"[^>]*id="toolID-pencil"[^>]*aria-disabled="true">/,
+    );
+    assert.match(response.body, /\.\.\/tools\/pencil\/icon\.svg(?:["'])/);
+    assert.match(response.body, /fetchpriority="low"/);
+    assert.match(response.body, /\.\.\/users\.svg(?:["'])/);
+    assert.match(response.body, /id="styleTool"/);
+    assert.match(response.body, /id="stylePreviewDot"/);
+    assert.doesNotMatch(response.body, /\?v=/);
+  } finally {
+    await closeServer(app);
+  }
+});
+
+test("index, manifest, and fallback error pages localize UI strings", async () => {
+  const dirs = await createServerDirs();
+  const app = await createTestServer(
+    createServerConfig(dirs, { WEBROOT: CLIENT_WEBROOT }),
+  );
+  try {
+    const index = await request(app, "/?lang=fr");
+    const manifest = await request(app, "/manifest.json?lang=fr");
+    const missing = await request(app, "/missing-file.txt?lang=fr");
+
+    assert.equal(index.statusCode, 200);
+    assert.match(index.body, /alt="Tableau blanc collaboratif"/);
+    assert.match(index.body, /<input type="submit" value="Ouvrir" \/>/);
+    assert.doesNotMatch(index.body, /value="Go"/);
+
+    assert.equal(manifest.statusCode, 200);
+    assert.equal(manifest.headers["content-type"], "application/manifest+json");
+    const manifestJson = JSON.parse(manifest.body);
+    assert.equal(manifestJson.name, "WBO — Tableau blanc collaboratif");
+    assert.equal(
+      manifestJson.description,
+      "Logiciel libre pour collaborer en ligne sur un tableau blanc. Venez dessiner vos idées ensemble sur WBO !",
+    );
+
+    assert.equal(missing.statusCode, 404);
+    assert.match(
+      missing.body,
+      /<p class="message">Une erreur inconnue s’est produite, veuillez recharger la page<\/p>/,
+    );
+    assert.match(
+      missing.body,
+      /<a class="home-link" href="[^"]+">Retour à WBO<\/a>/,
+    );
+    assert.doesNotMatch(missing.body, /Sorry, an error occured/);
+    assert.doesNotMatch(missing.body, />Back to WBO</);
+  } finally {
+    await closeServer(app);
+  }
+});
+
+test("server inserts configured html head snippet into rendered html pages", async () => {
+  const dirs = await createServerDirs();
+  const snippetPath = path.join(dirs.webroot, "head-snippet.html");
+  const snippet =
+    '<script data-user-analytics>window.__wboTestAnalytics = "{{analyticsId}}";</script>';
+  await fs.writeFile(snippetPath, snippet, "utf8");
+
+  const app = await createTestServer(
+    createServerConfig(dirs, {
+      WEBROOT: CLIENT_WEBROOT,
+      HTML_HEAD_SNIPPET_PATH: snippetPath,
+    }),
+  );
+  try {
+    await fs.writeFile(
+      snippetPath,
+      "<script data-user-analytics>window.__wboTestAnalytics = 'changed';</script>",
+      "utf8",
+    );
+
+    const indexResponse = await request(app, "/");
+    const boardResponse = await request(app, "/boards/head-snippet");
+    const errorResponse = await request(app, "/preview");
+    const rulesResponse = await request(app, "/rules");
+
+    assert.equal(indexResponse.statusCode, 200);
+    assert.equal(boardResponse.statusCode, 200);
+    assert.equal(errorResponse.statusCode, 400);
+    assertSnippetBeforeHeadEnd(indexResponse.body, snippet);
+    assertSnippetBeforeHeadEnd(boardResponse.body, snippet);
+    assertSnippetBeforeHeadEnd(errorResponse.body, snippet);
+    for (const response of [
+      indexResponse,
+      boardResponse,
+      errorResponse,
+      rulesResponse,
+    ]) {
+      assert.ok(
+        response.body.includes(`data-wbo-version="${packageJson.version}"`),
+      );
+    }
+    assert.doesNotMatch(indexResponse.body, /changed/);
+    assert.doesNotMatch(boardResponse.body, /changed/);
+    assert.doesNotMatch(errorResponse.body, /changed/);
+  } finally {
+    await closeServer(app);
+  }
+});
+
+test("server logs and skips missing configured html head snippet", async () => {
+  const dirs = await createServerDirs();
+  const missingSnippetPath = path.join(dirs.webroot, "missing-snippet.html");
+  const observability = require("../server/observability/index.mjs");
+  const originalError = observability.logger.error;
+  /** @type {{name: string, fields: any}[]} */
+  const errorLogs = [];
+  /** @type {import("http").Server | undefined} */
+  let app;
+  observability.logger.error = (name, fields) => {
+    errorLogs.push({ name, fields });
+  };
+
+  try {
+    app = await createTestServer(
+      createServerConfig(dirs, {
+        WEBROOT: CLIENT_WEBROOT,
+        HTML_HEAD_SNIPPET_PATH: missingSnippetPath,
+      }),
+    );
+    const firstResponse = await request(app, "/");
+    const secondResponse = await request(app, "/");
+
+    assert.equal(firstResponse.statusCode, 200);
+    assert.equal(secondResponse.statusCode, 200);
+    assert.deepEqual(
+      errorLogs.map((entry) => entry.name),
+      ["html_head_snippet.read_failed"],
+    );
+    const errorLog = errorLogs[0];
+    assert.ok(errorLog);
+    assert.equal(errorLog.fields.path, missingSnippetPath);
+  } finally {
+    observability.logger.error = originalError;
+    if (app) await closeServer(app);
+  }
+});
+
+test("board pages validate both their shell and drawing sequence", async () => {
+  const dirs = await createServerDirs();
+  await fs.writeFile(
+    boardSvgFile(dirs.historyDir, "etag-board"),
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="3" data-wbo-readonly="false"><defs id="defs"></defs><g id="drawingArea"><line id="line-1" x1="0" y1="0" x2="10" y2="20" stroke="#000000" stroke-width="2" fill="none"></line></g><g id="cursors"></g></svg>',
+    "utf8",
+  );
+
+  const app = await createTestServer(
+    createServerConfig(dirs, {
+      WEBROOT: CLIENT_WEBROOT,
+      IS_DEVELOPMENT: false,
+    }),
+  );
+  try {
+    const firstResponse = await request(app, "/boards/etag-board");
+
+    assert.equal(firstResponse.statusCode, 200);
+    assert.ok(firstResponse.headers.etag);
+    assert.match(firstResponse.headers.etag, /^W\/"wbo-seq-3-[a-f0-9]{16}"$/);
+
+    const cachedResponse = await request(app, "/boards/etag-board", {
+      "If-None-Match": firstResponse.headers.etag,
+    });
+
+    assert.equal(cachedResponse.statusCode, 304);
+    assert.equal(cachedResponse.headers.etag, firstResponse.headers.etag);
+    assertVaryTokens(cachedResponse.headers, [
+      "Accept-Encoding",
+      "Accept-Language",
+    ]);
+
+    const staleResponse = await request(app, "/boards/etag-board", {
+      "If-None-Match": 'W/"wbo-seq-2"',
+    });
+
+    assert.equal(staleResponse.statusCode, 200);
+    assert.equal(staleResponse.headers.etag, firstResponse.headers.etag);
+
+    // Pre-release sequence-only validators must also fetch the current shell.
+    const legacy = await request(app, "/boards/etag-board", {
+      "If-None-Match": 'W/"wbo-seq-3"',
+    });
+    assert.equal(legacy.statusCode, 200);
+  } finally {
+    await closeServer(app);
+  }
+});
+
+test("unchanged drawing sequences do not preserve an obsolete board shell", async () => {
+  const dirs = await createServerDirs();
+  const { BoardData } = require("../server/board/data.mjs");
+  const {
+    setLoadedBoard,
+    deleteLoadedBoard,
+  } = require("../server/board/registry.mjs");
+  const templatePath = path.join(dirs.webroot, "board.html");
+  await fs.writeFile(templatePath, '<main id="oldShell"></main>');
+  const config = createServerConfig(dirs, { IS_DEVELOPMENT: false });
+  let app = await createTestServer(config);
+  try {
+    const original = await request(app, "/boards/cache-release");
+    assert.equal(original.statusCode, 200);
+    assert.ok(original.headers.etag);
+    assert.match(original.body, /id="oldShell"/);
+    await closeServer(app);
+    app = await createTestServer(config);
+    const unchanged = await request(app, "/boards/cache-release", {
+      "If-None-Match": original.headers.etag,
+    });
+    assert.equal(unchanged.statusCode, 304);
+    await closeServer(app);
+    await fs.writeFile(templatePath, '<main id="activeBansSection"></main>');
+    app = await createTestServer(config);
+
+    const updated = await request(app, "/boards/cache-release", {
+      "If-None-Match": original.headers.etag,
+    });
+    assert.equal(updated.statusCode, 200);
+    assert.ok(updated.headers.etag);
+    assert.match(updated.body, /id="activeBansSection"/);
+    assert.notEqual(updated.headers.etag, original.headers.etag);
+    setLoadedBoard(
+      "cache-release",
+      Promise.resolve(await BoardData.load("cache-release", config)),
+    );
+    const loaded = await request(app, "/boards/cache-release", {
+      "If-None-Match": original.headers.etag,
+    });
+    assert.equal(loaded.statusCode, 200);
+    assert.match(loaded.body, /id="activeBansSection"/);
+    const cached = await request(app, "/boards/cache-release", {
+      "If-None-Match": updated.headers.etag,
+    });
+    assert.equal(cached.statusCode, 304);
+  } finally {
+    deleteLoadedBoard("cache-release");
+    await closeServer(app);
+  }
+});
+
+test("board page Vary headers include Cookie for non-default board shells", async () => {
+  const dirs = await createServerDirs();
+  const moderatorSecret = "dddddddddddddddddddddddddddddddd";
+  const bannedSecret = "cccccccccccccccccccccccccccccccc";
+  const bans = require(
+    path.join(__dirname, "..", "server", "socket", "bans.mjs"),
+  );
+  await fs.writeFile(
+    boardSvgFile(dirs.historyDir, "readonly-vary"),
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="2" data-wbo-readonly="true"><defs id="defs"></defs><g id="drawingArea"></g><g id="cursors"></g></svg>',
+    "utf8",
+  );
+
+  const app = await createTestServer(
+    createServerConfig(dirs, {
+      WEBROOT: CLIENT_WEBROOT,
+      BOARD_MODERATORS: new Map([
+        ["moderator-vary", new Set([moderatorSecret])],
+      ]),
+    }),
+  );
+  try {
+    bans.resetBans();
+    bans.banBoardUser("banned-vary", bannedSecret, null, Date.now());
+
+    const defaultResponse = await request(app, "/boards/default-vary");
+    const moderatorResponse = await request(app, "/boards/moderator-vary", {
+      cookie: `wbo-user-secret-v1=${moderatorSecret}`,
+    });
+    const readonlyResponse = await request(app, "/boards/readonly-vary");
+    const bannedResponse = await request(app, "/boards/banned-vary", {
+      cookie: `wbo-user-secret-v1=${bannedSecret}`,
+    });
+    const localizedModeratorResponse = await request(
+      app,
+      "/boards/moderator-vary?lang=fr",
+      {
+        cookie: `wbo-user-secret-v1=${moderatorSecret}`,
+      },
+    );
+    const cachedReadonlyResponse = await request(app, "/boards/readonly-vary", {
+      "If-None-Match": String(readonlyResponse.headers.etag),
+    });
+
+    assert.equal(defaultResponse.statusCode, 200);
+    assert.equal(moderatorResponse.statusCode, 200);
+    assert.equal(readonlyResponse.statusCode, 200);
+    assert.equal(bannedResponse.statusCode, 200);
+    assert.equal(localizedModeratorResponse.statusCode, 200);
+    assert.equal(cachedReadonlyResponse.statusCode, 304);
+    assertVaryTokens(defaultResponse.headers, [
+      "Accept-Encoding",
+      "Accept-Language",
+    ]);
+    assertVaryTokens(moderatorResponse.headers, [
+      "Accept-Encoding",
+      "Accept-Language",
+      "Cookie",
+    ]);
+    assertVaryTokens(readonlyResponse.headers, [
+      "Accept-Encoding",
+      "Accept-Language",
+      "Cookie",
+    ]);
+    assertVaryTokens(bannedResponse.headers, [
+      "Accept-Encoding",
+      "Accept-Language",
+      "Cookie",
+    ]);
+    assertVaryTokens(localizedModeratorResponse.headers, [
+      "Accept-Encoding",
+      "Cookie",
+    ]);
+    assertVaryTokens(cachedReadonlyResponse.headers, [
+      "Accept-Encoding",
+      "Accept-Language",
+      "Cookie",
+    ]);
+  } finally {
+    bans.resetBans();
+    await closeServer(app);
+  }
+});
+
+test("board pages inline the authoritative svg baseline before client boot", async () => {
+  const dirs = await createServerDirs();
+  await fs.writeFile(
+    boardSvgFile(dirs.historyDir, "inline-baseline"),
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="640" height="480" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="7" data-wbo-readonly="true"><defs id="defs"></defs><g id="drawingArea"><rect id="rect-1" x="1" y="2" width="29" height="38" stroke="#123456" stroke-width="4" fill="none"></rect></g><g id="cursors"></g></svg>',
+    "utf8",
+  );
+
+  const app = await createTestServer(
+    createServerConfig(dirs, { WEBROOT: CLIENT_WEBROOT }),
+  );
+  try {
+    const response = await request(app, "/boards/inline-baseline");
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.headers["content-length"], undefined);
+    assert.ok(
+      response.body.indexOf('id="boardStatusIndicator"') <
+        response.body.indexOf('<div id="board">'),
+    );
+    assert.ok(
+      response.body.indexOf('id="menu"') <
+        response.body.indexOf('<div id="board">'),
+    );
+    assert.ok(
+      response.body.indexOf("window.__wboEarlyChrome") <
+        response.body.indexOf('<div id="board">'),
+    );
+    assert.match(
+      response.body,
+      /<div id="board">\s*<svg id="canvas"[\s\S]*data-wbo-seq="7"[\s\S]*<rect id="rect-1"/,
+    );
+    assert.doesNotMatch(
+      response.body,
+      /<div id="board">\s*<svg id="canvas" width="4000" height="4000" version="1\.1" xmlns="http:\/\/www\.w3\.org\/2000\/svg">\s*<defs id="defs"><\/defs>\s*<g id="drawingArea"><\/g>\s*<g id="cursors"><\/g>\s*<\/svg>/,
+    );
+  } finally {
+    await closeServer(app);
+  }
+});
+
+test("board pages fall back to legacy json metadata and inline baseline rendering", async () => {
+  const dirs = await createServerDirs();
+  await fs.writeFile(
+    path.join(dirs.historyDir, "board-legacy-inline.json"),
+    JSON.stringify({
+      __wbo_meta__: { readonly: true },
+      "rect-1": {
+        id: "rect-1",
+        tool: "rectangle",
+        type: "rect",
+        x: 1,
+        y: 2,
+        x2: 30,
+        y2: 40,
+        color: "#123456",
+        size: 4,
+      },
+    }),
+    "utf8",
+  );
+
+  const app = await createTestServer(
+    createServerConfig(dirs, { WEBROOT: CLIENT_WEBROOT }),
+  );
+  try {
+    const response = await request(app, "/boards/legacy-inline");
+
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(parseRenderedBoardState(response.body), {
+      readonly: true,
+      canEdit: false,
+      canClear: false,
+      canBan: false,
+      canGrantTemporaryModerator: false,
+      canReport: true,
+      canWrite: false,
+    });
+    assert.match(response.body, /toolID-hand/);
+    assert.match(response.body, /id="toolID-pencil"[^>]*hidden/);
+    assert.match(
+      response.body,
+      /<div id="board">\s*<svg id="canvas"[\s\S]*data-wbo-readonly="true"[\s\S]*<rect id="rect-1"/,
+    );
+  } finally {
+    await closeServer(app);
+  }
+});
+
+test("board pages render JWT-disabled writable capability state without Clear", async () => {
+  const dirs = await createServerDirs();
+  const app = await createTestServer(
+    createServerConfig(dirs, { WEBROOT: CLIENT_WEBROOT }),
+  );
+  try {
+    const response = await request(app, "/boards/capability-open");
+
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(parseRenderedBoardState(response.body), {
+      readonly: false,
+      canEdit: true,
+      canClear: false,
+      canBan: false,
+      canGrantTemporaryModerator: false,
+      canReport: true,
+      canWrite: true,
+    });
+    assert.match(response.body, /toolID-pencil/);
+    assert.match(response.body, /id="toolID-clear"[^>]*hidden/);
+  } finally {
+    await closeServer(app);
+  }
+});
+
+test("canonical board svg endpoint serves the authoritative baseline with short cache headers", async () => {
+  const dirs = await createServerDirs();
+  await fs.writeFile(
+    boardSvgFile(dirs.historyDir, "canonical-svg"),
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="3" data-wbo-readonly="false"><defs id="defs"></defs><g id="drawingArea"><line id="line-1" x1="0" y1="0" x2="10" y2="20" stroke="#000000" stroke-width="2" fill="none"></line></g><g id="cursors"></g></svg>',
+    "utf8",
+  );
+
+  const app = await createTestServer(
+    createServerConfig(dirs, {
+      WEBROOT: CLIENT_WEBROOT,
+      IS_DEVELOPMENT: false,
+    }),
+  );
+  try {
+    const response = await request(app, "/boards/canonical-svg.svg");
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.headers["content-type"], "image/svg+xml");
+    assert.equal(
+      response.headers["cache-control"],
+      "public, max-age=3, must-revalidate",
+    );
+    assert.equal(response.headers.etag, 'W/"wbo-seq-3"');
+    assert.match(response.body, /data-wbo-seq="3"/);
+    assert.match(response.body, /<line id="line-1"/);
+
+    const cachedResponse = await request(app, "/boards/canonical-svg.svg", {
+      "If-None-Match": String(response.headers.etag),
+    });
+
+    assert.equal(cachedResponse.statusCode, 304);
+    assert.equal(
+      cachedResponse.headers["cache-control"],
+      "public, max-age=3, must-revalidate",
+    );
+    assert.equal(cachedResponse.headers.etag, response.headers.etag);
+    assert.equal(cachedResponse.body, "");
+  } finally {
+    await closeServer(app);
+  }
+});
+
+test("canonical board svg endpoint remains no-store in development", async () => {
+  const dirs = await createServerDirs();
+  await fs.writeFile(
+    boardSvgFile(dirs.historyDir, "canonical-svg-dev"),
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="4" data-wbo-readonly="false"><defs id="defs"></defs><g id="drawingArea"></g><g id="cursors"></g></svg>',
+    "utf8",
+  );
+
+  const app = await createTestServer(
+    createServerConfig(dirs, {
+      WEBROOT: CLIENT_WEBROOT,
+      IS_DEVELOPMENT: true,
+    }),
+  );
+  try {
+    const response = await request(app, "/boards/canonical-svg-dev.svg");
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.headers["cache-control"], "no-store");
+    assert.equal(response.headers.etag, 'W/"wbo-seq-4"');
+  } finally {
+    await closeServer(app);
+  }
+});
+
+test("board html svg and preview routes negotiate compression when requested", async () => {
+  const dirs = await createServerDirs();
+  await fs.writeFile(
+    boardSvgFile(dirs.historyDir, "compressed-board"),
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="6" data-wbo-readonly="false"><defs id="defs"></defs><g id="drawingArea"><line id="line-1" x1="0" y1="0" x2="10" y2="20" stroke="#000000" stroke-width="2" fill="none"></line></g><g id="cursors"></g></svg>',
+    "utf8",
+  );
+  const compressionModule = require(COMPRESSION_PATH);
+  const expectedEncoding =
+    compressionModule.selectCompressionEncoding("zstd, br, gzip");
+  if (compressionModule.selectCompressionEncoding("zstd") === "zstd") {
+    assert.equal(expectedEncoding, "zstd");
+  }
+  const wildcardEncoding = compressionModule.selectCompressionEncoding("*");
+  if (expectedEncoding) {
+    assert.equal(wildcardEncoding, expectedEncoding);
+  }
+  const app = await createTestServer(
+    createServerConfig(dirs, {
+      WEBROOT: CLIENT_WEBROOT,
+      IS_DEVELOPMENT: false,
+    }),
+  );
+  const observability = require(OBSERVABILITY_PATH);
+  const originalRecordHttpRequest = observability.metrics.recordHttpRequest;
+  /** @type {any[]} */
+  const httpRequestMetrics = [];
+  observability.metrics.recordHttpRequest = (
+    /** @type {Parameters<typeof originalRecordHttpRequest>[0]} */ sample,
+  ) => {
+    httpRequestMetrics.push(sample);
+    originalRecordHttpRequest(sample);
+  };
+  try {
+    const plainResponse = await request(app, "/boards/compressed-board");
+    assert.equal(plainResponse.statusCode, 200);
+    assert.equal(plainResponse.headers["content-encoding"], undefined);
+    assert.match(String(plainResponse.headers.vary || ""), /Accept-Encoding/);
+
+    const htmlResponse = await request(app, "/boards/compressed-board", {
+      "Accept-Encoding": "zstd, br, gzip",
+    });
+    assert.equal(htmlResponse.statusCode, 200);
+
+    const svgResponse = await request(app, "/boards/compressed-board.svg", {
+      "Accept-Encoding": "zstd, br, gzip",
+    });
+    assert.equal(svgResponse.statusCode, 200);
+
+    const previewResponse = await request(app, "/preview/compressed-board", {
+      "Accept-Encoding": "zstd, br, gzip",
+    });
+    assert.equal(previewResponse.statusCode, 200);
+
+    for (const response of [htmlResponse, svgResponse, previewResponse]) {
+      if (expectedEncoding === undefined) {
+        assert.equal(response.headers["content-encoding"], undefined);
+      } else {
+        assert.equal(response.headers["content-encoding"], expectedEncoding);
+        assert.equal(response.headers["content-length"], undefined);
+      }
+      assert.match(String(response.headers.vary || ""), /Accept-Encoding/);
+    }
+
+    const responseEncodings = httpRequestMetrics.map(
+      (sample) => sample.responseContentEncoding,
+    );
+    assert.ok(responseEncodings.includes("identity"));
+    if (expectedEncoding !== undefined) {
+      assert.equal(
+        responseEncodings.filter((encoding) => encoding === expectedEncoding)
+          .length,
+        3,
+      );
+    }
+  } finally {
+    observability.metrics.recordHttpRequest = originalRecordHttpRequest;
+    await closeServer(app);
+  }
+});
+
+test("static assets are no-store in development and revalidate in production", async () => {
+  const dirs = await createServerDirs();
+
+  const developmentApp = await createTestServer(
+    createServerConfig(dirs, { WEBROOT: CLIENT_WEBROOT, IS_DEVELOPMENT: true }),
+  );
+  try {
+    const response = await request(developmentApp, "/board.css");
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.headers["cache-control"], "no-store");
+  } finally {
+    await closeServer(developmentApp);
+  }
+
+  const productionApp = await createTestServer(
+    createServerConfig(dirs, {
+      WEBROOT: CLIENT_WEBROOT,
+      IS_DEVELOPMENT: false,
+    }),
+  );
+  try {
+    const response = await request(productionApp, "/board.css");
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(
+      response.headers["cache-control"],
+      "public, max-age=60, must-revalidate",
+    );
+    assert.ok(response.headers.etag);
+
+    const cachedResponse = await request(productionApp, "/board.css", {
+      "If-None-Match": String(response.headers.etag),
+    });
+    assert.equal(cachedResponse.statusCode, 304);
+    assert.equal(
+      cachedResponse.headers["cache-control"],
+      "public, max-age=60, must-revalidate",
+    );
+    assert.equal(cachedResponse.headers.etag, response.headers.etag);
+  } finally {
+    await closeServer(productionApp);
+  }
+});
+
+test("board-scoped JWTs can access their authorized board pages", async () => {
+  const dirs = await createServerDirs();
+  const authSecret = "test-secret";
+  await fs.writeFile(
+    path.join(dirs.historyDir, "board-readonly-auth.json"),
+    JSON.stringify({ __wbo_meta__: { readonly: true } }),
+    "utf8",
+  );
+  const boardReaderToken = jsonwebtoken.sign(
+    { sub: "reader", roles: ["reader:readonly-test"] },
+    authSecret,
+  );
+  const boardEditorToken = jsonwebtoken.sign(
+    { sub: "editor", roles: ["editor:testboard"] },
+    authSecret,
+  );
+  const readonlyEditorToken = jsonwebtoken.sign(
+    { sub: "readonly-editor", roles: ["editor:readonly-auth"] },
+    authSecret,
+  );
+  const boardModeratorToken = jsonwebtoken.sign(
+    { sub: "moderator", roles: ["moderator:testboard"] },
+    authSecret,
+  );
+  const unauthorizedToken = jsonwebtoken.sign(
+    { sub: "unauthorized", roles: ["reader:other-board"] },
+    authSecret,
+  );
+
+  const app = await createTestServer(
+    createServerConfig(dirs, {
+      WEBROOT: CLIENT_WEBROOT,
+      AUTH_SECRET_KEY: authSecret,
+    }),
+  );
+  try {
+    const readonlyResponse = await request(
+      app,
+      `/boards/readonly-test?token=${encodeURIComponent(boardReaderToken)}`,
+    );
+    const editorResponse = await request(
+      app,
+      `/boards/testboard?token=${encodeURIComponent(boardEditorToken)}`,
+    );
+    const readonlyEditorResponse = await request(
+      app,
+      `/boards/readonly-auth?token=${encodeURIComponent(readonlyEditorToken)}`,
+    );
+    const moderatorResponse = await request(
+      app,
+      `/boards/testboard?token=${encodeURIComponent(boardModeratorToken)}`,
+    );
+    const unauthorizedResponse = await request(
+      app,
+      `/boards/testboard?token=${encodeURIComponent(unauthorizedToken)}`,
+    );
+
+    assert.equal(readonlyResponse.statusCode, 200);
+    assert.equal(editorResponse.statusCode, 200);
+    assert.equal(readonlyEditorResponse.statusCode, 200);
+    assert.equal(moderatorResponse.statusCode, 200);
+    assert.equal(unauthorizedResponse.statusCode, 403);
+    assert.match(readonlyResponse.body, /toolID-hand/);
+    assert.match(editorResponse.body, /id="menu"/);
+    assert.deepEqual(parseRenderedBoardState(readonlyEditorResponse.body), {
+      readonly: true,
+      canEdit: true,
+      canClear: false,
+      canBan: false,
+      canGrantTemporaryModerator: false,
+      canReport: true,
+      canWrite: true,
+    });
+    assert.deepEqual(parseRenderedBoardState(moderatorResponse.body), {
+      readonly: false,
+      canEdit: true,
+      canClear: true,
+      canBan: true,
+      canGrantTemporaryModerator: true,
+      canReport: true,
+      canWrite: true,
+    });
+    assert.match(moderatorResponse.body, /toolID-clear/);
+  } finally {
+    await closeServer(app);
+  }
+});
+
+test("banned users get a read-only board page while other visitors do not", async () => {
+  const dirs = await createServerDirs();
+  const bans = require(
+    path.join(__dirname, "..", "server", "socket", "bans.mjs"),
+  );
+  const bannedSecret = "cccccccccccccccccccccccccccccccc";
+  const app = await createTestServer(
+    createServerConfig(dirs, { WEBROOT: CLIENT_WEBROOT }),
+  );
+  try {
+    bans.banBoardUser("ban-http-render", bannedSecret, null, Date.now());
+
+    const bannedResponse = await request(app, "/boards/ban-http-render", {
+      cookie: `wbo-user-secret-v1=${bannedSecret}`,
+    });
+    const visitorResponse = await request(app, "/boards/ban-http-render");
+
+    // The banned user can still view the board, but the served HTML is
+    // read-only: no edit capability and no drawing tools in the toolbar.
+    assert.equal(bannedResponse.statusCode, 200);
+    const bannedBoardState = parseRenderedBoardState(bannedResponse.body);
+    const { accessRefreshAfterMs, ...bannedCapabilities } = bannedBoardState;
+    assert.deepEqual(bannedCapabilities, {
+      readonly: false,
+      canEdit: false,
+      canClear: false,
+      canBan: false,
+      canGrantTemporaryModerator: false,
+      canReport: false,
+      canWrite: false,
+    });
+    assert.ok(
+      typeof accessRefreshAfterMs === "number" &&
+        accessRefreshAfterMs > 0 &&
+        accessRefreshAfterMs <= 15 * 60 * 1000,
+    );
+    assert.match(bannedResponse.body, /toolID-hand/);
+    assert.match(bannedResponse.body, /id="toolID-pencil"[^>]*hidden/);
+
+    // A different visitor on the same board is unaffected by the ban.
+    assert.deepEqual(parseRenderedBoardState(visitorResponse.body), {
+      readonly: false,
+      canEdit: true,
+      canClear: false,
+      canBan: false,
+      canGrantTemporaryModerator: false,
+      canReport: true,
+      canWrite: true,
+    });
+    assert.match(visitorResponse.body, /toolID-pencil/);
+  } finally {
+    bans.resetBans();
+    await closeServer(app);
+  }
+});

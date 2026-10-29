@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html lang="{{language}}">
+<html lang="{{language}}" dir="{{direction}}" data-wbo-version="{{appVersion}}">
   <head>
     <meta charset="utf-8" />
     <title>WBO — {{translations.collaborative_whiteboard}}</title>
+    <base href="{{baseHref}}" />
     <link rel="stylesheet" href="index.css" />
     <meta name="description" content="{{translations.tagline}}" />
     <meta
@@ -15,34 +16,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta property="og:url" content="https://wbo.ophir.dev" />
     <meta property="og:image" content="{{baseUrl}}/favicon.svg" />
-    <link rel="canonical" href="?lang={{language}}" />
-    {{#languages}}
-    <link rel="alternate" hreflang="{{.}}" href="?lang={{.}}" />
-    {{/languages}}
+    <link rel="canonical" href="{{canonicalUrl}}" />
+    {{#languageLinks}}
+    <link rel="alternate" hreflang="{{language}}" href="{{href}}" />
+    {{/languageLinks}}
     <link rel="manifest" href="manifest.json" />
     <meta name="theme-color" content="#C4DFFF" />
+    {{{htmlHeadSnippet}}}
   </head>
 
   <body>
     <header>
       <h1>WBO</h1>
       <nav class="lang-selector">
-        <span>{{language}}</span>
-        <ul>
-          {{#languages}}
-          <li>
-            <a href="?lang={{.}}" hreflang="{{.}}" rel="alternate">{{.}}</a>
-          </li>
-          {{/languages}}
-        </ul>
+        <details>
+          <summary><span>{{language}}</span></summary>
+          <ul>
+            {{#languageLinks}}
+            <li>
+              <a href="{{href}}" hreflang="{{language}}" rel="alternate">{{language}}</a>
+            </li>
+            {{/languageLinks}}
+          </ul>
+        </details>
       </nav>
     </header>
 
-    <main>
-      <div id="description">
+    <main class="page-main home-main">
+      <div id="description" class="home-section">
         <img
           src="frontpage-illustration.svg"
-          alt="Public board illustration"
+          alt="{{translations.collaborative_whiteboard}}"
           with="700"
           height="560"
         />
@@ -53,17 +57,22 @@
         </div>
       </div>
 
-      <div id="actions">
+      <div id="actions" class="home-section">
         <div>
-          <p>{{{translations.public_board_description}}}</p>
-          <a href="boards/anonymous" class="wbo-button"
+          <p>
+              {{{translations.public_board_description}}}
+              <a href="rules" class="inline-link"
+                >{{translations.community_rules_link}}</a
+              >
+          </p>
+          <a href="boards/anonymous" class="button-link wbo-button" tabindex="1"
             >{{{translations.open_public_board}}}</a
           >
         </div>
 
         <div>
           <p>{{{translations.private_board_description}}}</p>
-          <a href="random" class="wbo-button"
+          <a href="random" class="button-link wbo-button" tabindex="1"
             >{{{translations.create_private_board}}}</a
           >
         </div>
@@ -80,13 +89,17 @@
               id="board"
               name="board"
               required
+              autocapitalize="off"
+              autocomplete="off"
+              spellcheck="false"
+              tabindex="1"
               placeholder="{{{translations.board_name_placeholder}}}"
             />
-            <input type="submit" value="Go" />
+            <input type="submit" value="{{translations.open_board}}" />
           </form>
         </div>
 
-        <div id="recent-boards" class="hidden">
+        <div id="recent-boards" class="surface-card hidden">
           <h3>{{{translations.recent_boards}}}</h3>
         </div>
 
@@ -110,5 +123,5 @@
     </main>
   </body>
 
-  <script src="../js/index.js" async defer></script>
+  <script type="module" src="js/index.js"></script>
 </html>

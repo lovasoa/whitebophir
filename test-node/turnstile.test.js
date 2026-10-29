@@ -1,0 +1,309 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs/promises");
+const os = require("node:os");
+const path = require("node:path");
+const {
+  SOCKETS_PATH,
+  withEnv,
+  createSocket,
+  loadSockets,
+  withMockedNow,
+} = require("./test_helpers.js");
+const { MutationType } = require("../client-data/js/message_tool_metadata.js");
+const { Cursor, Pencil } = require("../client-data/tools/index.js");
+
+require(SOCKETS_PATH);
+
+/**
+ * @returns {Promise<string>}
+ */
+function createHistoryDir() {
+  return fs.mkdtemp(path.join(os.tmpdir(), "wbo-turnstile-"));
+}
+
+/**
+ * @param {any} board
+ * @returns {void}
+ */
+function disableSaves(board) {
+  board.delaySave = () => {};
+}
+
+test("server-side Turnstile enforcement in broadcast", async () => {
+  const historyDir = await createHistoryDir();
+  await withEnv(
+    {
+      TURNSTILE_SECRET_KEY: "test-secret",
+      TURNSTILE_SITE_KEY: "test-site-key",
+      TURNSTILE_VALIDATION_WINDOW_MS: "1000",
+      WBO_HISTORY_DIR: historyDir,
+    },
+    async () => {
+      const sockets = await loadSockets();
+      const { socket, handlers } = createSocket({
+        query: { board: "anonymous" },
+      });
+
+      await sockets.__test.handleSocketConnection(socket, sockets.__config);
+      disableSaves(await sockets.__test.getLoadedBoard("anonymous"));
+
+      const broadcastHandler = handlers.broadcast;
+      assert.ok(broadcastHandler, "broadcast handler should be registered");
+
+      let broadcastCalled = false;
+      socket.broadcast.to = () => ({
+        emit: () => {
+          broadcastCalled = true;
+        },
+      });
+
+      await broadcastHandler({
+        tool: Pencil.id,
+        type: MutationType.CREATE,
+        id: "l1",
+        color: "#123456",
+        size: 10,
+      });
+      assert.strictEqual(
+        broadcastCalled,
+        false,
+        "Should block unvalidated broadcast on anonymous board",
+      );
+
+      await broadcastHandler({
+        tool: Cursor.id,
+        type: MutationType.UPDATE,
+        x: 10,
+        y: 20,
+      });
+
+      socket.turnstileValidatedUntil = 1000;
+      await withMockedNow(500, async () => {
+        await broadcastHandler({
+          tool: Pencil.id,
+          type: MutationType.CREATE,
+          id: "l2",
+          color: "#123456",
+          size: 10,
+        });
+      });
+      assert.equal(
+        socket.rooms.has("anonymous"),
+        true,
+        "Should advance to board handling before validation expiry",
+      );
+
+      socket.rooms.delete("anonymous");
+      socket.turnstileValidatedUntil = 1000;
+      await withMockedNow(1001, async () => {
+        await broadcastHandler({
+          tool: Pencil.id,
+          type: MutationType.CREATE,
+          id: "l3",
+          color: "#123456",
+          size: 10,
+        });
+      });
+      assert.equal(
+        socket.rooms.has("anonymous"),
+        false,
+        "Should block protected broadcasts after validation expiry",
+      );
+    },
+  );
+});
+
+test("server-side Turnstile enforcement skips moderator-capable sockets", async () => {
+  const historyDir = await createHistoryDir();
+  const moderatorSecret = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  await withEnv(
+    {
+      TURNSTILE_SECRET_KEY: "test-secret",
+      WBO_BOARD_MODERATORS: `moderated:${moderatorSecret}`,
+      WBO_HISTORY_DIR: historyDir,
+    },
+    async () => {
+      const sockets = await loadSockets();
+      const { socket, handlers } = createSocket({
+        headers: { cookie: `wbo-user-secret-v1=${moderatorSecret}` },
+        query: { board: "moderated" },
+      });
+
+      await sockets.__test.handleSocketConnection(socket, sockets.__config);
+      disableSaves(await sockets.__test.getLoadedBoard("moderated"));
+
+      const broadcastHandler = handlers.broadcast;
+      assert.ok(broadcastHandler, "broadcast handler should be registered");
+
+      await broadcastHandler({
+        tool: Pencil.id,
+        type: MutationType.CREATE,
+        id: "lmod",
+        color: "#123456",
+        size: 10,
+      });
+
+      assert.equal(
+        socket.rooms.has("moderated"),
+        true,
+        "moderator writes should skip Turnstile validation",
+      );
+    },
+  );
+});
+
+test("server-side Turnstile token validation binds Siteverify to request context", async () => {
+  const historyDir = await createHistoryDir();
+  await withEnv(
+    {
+      TURNSTILE_SECRET_KEY: "test-secret",
+      TURNSTILE_VALIDATION_WINDOW_MS: "120000",
+      WBO_HISTORY_DIR: historyDir,
+    },
+    async () => {
+      const sockets = await loadSockets();
+      const config = {
+        ...sockets.__config,
+        GENERAL_RATE_LIMITS: { limit: 3, periodMs: 60_000, overrides: {} },
+      };
+      const { socket, handlers } = createSocket({
+        headers: { host: "board.example" },
+        remoteAddress: "203.0.113.10",
+        query: { board: "anonymous" },
+      });
+
+      const originalFetch = globalThis.fetch;
+      let fetchCalled = false;
+      globalThis.fetch = /** @type {any} */ (
+        async function mockFetch(
+          /** @type {string} */ url,
+          /** @type {{body: URLSearchParams}} */ options,
+        ) {
+          fetchCalled = true;
+          assert.strictEqual(
+            url,
+            "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+          );
+          const body = new URLSearchParams(options.body);
+          assert.strictEqual(body.get("secret"), "test-secret");
+          assert.strictEqual(body.get("response"), "valid-token");
+          assert.strictEqual(body.get("remoteip"), "203.0.113.10");
+          return {
+            json: async () => ({
+              success: true,
+              hostname: "board.example",
+            }),
+          };
+        }
+      );
+
+      try {
+        await sockets.__test.handleSocketConnection(socket, config);
+        const tokenHandler = handlers.turnstile_token;
+        assert.ok(tokenHandler, "turnstile_token handler should be registered");
+
+        // biome-ignore format: keep the malformed-token regression compact.
+        await tokenHandler(null, (/** @type {any} */ result) => assert.deepEqual(result, { success: false }));
+        assert.strictEqual(fetchCalled, false);
+
+        let ackCalledWith = null;
+        await tokenHandler("valid-token", (/** @type {any} */ result) => {
+          ackCalledWith = result;
+        });
+        assert.strictEqual(fetchCalled, true, "fetch should have been called");
+        const expectedTime = Date.now() + config.TURNSTILE_VALIDATION_WINDOW_MS;
+        assert.notEqual(socket.turnstileValidatedUntil, undefined);
+        const validatedUntil = socket.turnstileValidatedUntil;
+        assert.ok(
+          validatedUntil !== undefined &&
+            Math.abs(validatedUntil - expectedTime) <= 10,
+          "socket validation should expire after the configured window",
+        );
+        assert.deepEqual(ackCalledWith, {
+          success: true,
+          validationWindowMs: config.TURNSTILE_VALIDATION_WINDOW_MS,
+          validatedUntil: socket.turnstileValidatedUntil,
+        });
+
+        globalThis.fetch = /** @type {any} */ (
+          async function failedFetch(
+            /** @type {string} */ _url,
+            /** @type {{body: URLSearchParams}} */ _options,
+          ) {
+            fetchCalled = true;
+            return {
+              json: async () => ({
+                success: false,
+                "error-codes": ["invalid-input-response"],
+              }),
+            };
+          }
+        );
+        let failedAck = null;
+        await tokenHandler("invalid-token", (/** @type {any} */ result) => {
+          failedAck = result;
+        });
+        assert.deepEqual(
+          failedAck,
+          { success: false },
+          "ack should be false on failure",
+        );
+        fetchCalled = false;
+        await tokenHandler("rate-limited-token");
+        assert.strictEqual(fetchCalled, false);
+        assert.equal(socket.disconnected, true);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    },
+  );
+});
+
+test("server-side Turnstile token validation rejects hostname mismatches", async () => {
+  const historyDir = await createHistoryDir();
+  await withEnv(
+    {
+      TURNSTILE_SECRET_KEY: "test-secret",
+      TURNSTILE_SITE_KEY: "test-site-key",
+      WBO_HISTORY_DIR: historyDir,
+    },
+    async () => {
+      const sockets = await loadSockets();
+      const { socket, handlers } = createSocket({
+        headers: { host: "board.example:8080" },
+        query: { board: "anonymous" },
+      });
+
+      const originalFetch = globalThis.fetch;
+      try {
+        await sockets.__test.handleSocketConnection(socket, sockets.__config);
+        const tokenHandler = handlers.turnstile_token;
+        assert.ok(tokenHandler);
+
+        globalThis.fetch = /** @type {any} */ (
+          async function hostnameMismatch() {
+            return {
+              json: async () => ({
+                success: true,
+                hostname: "other.example",
+              }),
+            };
+          }
+        );
+        let hostnameMismatchAck = null;
+        await tokenHandler("valid-token", (/** @type {any} */ result) => {
+          hostnameMismatchAck = result;
+        });
+        assert.deepEqual(hostnameMismatchAck, { success: false });
+        assert.equal(
+          socket.turnstileValidatedUntil,
+          undefined,
+          "hostname mismatch should not validate the socket",
+        );
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    },
+  );
+});

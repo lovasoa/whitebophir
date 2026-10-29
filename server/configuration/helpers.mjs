@@ -1,0 +1,247 @@
+const BOARD_MODERATOR_SECRET_PATTERN = /^[0-9a-f]{32}$/i;
+
+/**
+ * @param {string} name
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {Map<string, Set<string>>}
+ */
+export function parseBoardModeratorsEnv(name, env = process.env) {
+  /** @type {Map<string, Set<string>>} */
+  const parsed = new Map();
+  const value = env[name];
+  if (value === undefined || value.trim() === "") return parsed;
+  for (const entry of value.trim().split(/\s+/)) {
+    const parts = entry.split(":");
+    if (parts.length !== 2 || !parts[0] || !parts[1]) {
+      throw new Error(
+        `Invalid ${name}: ${value}. Expected entries like board:0123456789abcdef0123456789abcdef.`,
+      );
+    }
+    const boardName = parts[0].toLowerCase();
+    const secrets = parts[1].split(",");
+    let boardSecrets = parsed.get(boardName);
+    if (!boardSecrets) {
+      boardSecrets = new Set();
+      parsed.set(boardName, boardSecrets);
+    }
+    for (const secret of secrets) {
+      if (!BOARD_MODERATOR_SECRET_PATTERN.test(secret)) {
+        throw new Error(
+          `Invalid ${name}: malformed moderator secret for ${boardName}.`,
+        );
+      }
+      boardSecrets.add(secret.toLowerCase());
+    }
+  }
+  return parsed;
+}
+
+/**
+ * @param {string} name
+ * @param {number} defaultValue
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {number}
+ */
+export function parseIntegerEnv(name, defaultValue, env = process.env) {
+  const value = env[name];
+  if (value === undefined || value === "") return defaultValue;
+  const parsed = parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : defaultValue;
+}
+
+/**
+ * @template {string | undefined} T
+ * @param {string} name
+ * @param {T} defaultValue
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {T extends string ? string : string | undefined}
+ */
+export function parseStringEnv(name, defaultValue, env = process.env) {
+  const value = env[name];
+  return /** @type {T extends string ? string : string | undefined} */ (
+    value === undefined || value === "" ? defaultValue : value
+  );
+}
+
+/**
+ * @param {string} name
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {string}
+ */
+export function parseBasePathEnv(name, env = process.env) {
+  const value = parseStringEnv(name, "", env).trim();
+  if (value === "") return "";
+  if (!value.startsWith("/") || value.startsWith("//")) {
+    throw new Error(`Invalid ${name}: must be a URL path`);
+  }
+  const parsed = new URL(value, "http://wbo");
+  if (parsed.origin !== "http://wbo" || parsed.search || parsed.hash) {
+    throw new Error(`Invalid ${name}: must be a URL path`);
+  }
+  return parsed.pathname.replace(/\/+$/, "");
+}
+
+/**
+ * @param {string} name
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {string[]}
+ */
+export function parseCommaSeparatedEnv(name, env = process.env) {
+  return (env[name] || "").split(",");
+}
+
+/**
+ * @param {string} name
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {boolean}
+ */
+export function parseDisabledFlagEnv(name, env = process.env) {
+  return env[name] !== "disabled";
+}
+
+/**
+ * @param {string} text
+ * @returns {number}
+ */
+function parseDurationMs(text) {
+  const value = String(text || "").trim();
+  const match = /^(\d+)(ms|s|m)$/i.exec(value);
+  if (!match) {
+    throw new Error(
+      `Invalid rate-limit duration: ${value}. Expected formats like 500ms, 60s, or 2m.`,
+    );
+  }
+  const amount = parseInt(match[1] || "", 10);
+  const unit = (match[2] || "").toLowerCase();
+  if (unit === "ms") return amount;
+  if (unit === "s") return amount * 1000;
+  return amount * 60 * 1000;
+}
+
+/**
+ * @param {string} name
+ * @param {string} value
+ * @returns {{limit: number, periodMs: number, overrides: {[boardName: string]: {limit: number, periodMs: number}}}}
+ */
+function parseRateLimitProfile(name, value) {
+  const entries = value.trim().split(/\s+/);
+  /** @type {{limit: number, periodMs: number, overrides: {[boardName: string]: {limit: number, periodMs: number}}}} */
+  const parsed = {
+    limit: 0,
+    periodMs: 0,
+    overrides: {},
+  };
+
+  entries.forEach(function parseEntry(entry) {
+    const match = /^([^:\s]+):(\d+)\/(\d+(?:ms|s|m))$/i.exec(entry);
+    if (!match) {
+      throw new Error(
+        `Invalid ${name}: ${value}. Expected entries like *:240/60s anonymous:120/60s.`,
+      );
+    }
+    const boardName = match[1] || "";
+    const definition = {
+      limit: parseInt(match[2] || "", 10),
+      periodMs: parseDurationMs(match[3] || ""),
+    };
+    if (boardName === "*") {
+      parsed.limit = definition.limit;
+      parsed.periodMs = definition.periodMs;
+      return;
+    }
+    parsed.overrides[boardName.toLowerCase()] = definition;
+  });
+
+  return parsed;
+}
+
+/**
+ * @param {string} name
+ * @param {string} defaultValue
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {{limit: number, periodMs: number, overrides: {[boardName: string]: {limit: number, periodMs: number}}}}
+ */
+export function parseRateLimitProfileEnv(
+  name,
+  defaultValue,
+  env = process.env,
+) {
+  const value = env[name];
+  return parseRateLimitProfile(
+    name,
+    value === undefined || value.trim() === "" ? defaultValue : value,
+  );
+}
+
+/**
+ * @template {string} T
+ * @param {string} name
+ * @param {T[]} allowedValues
+ * @param {T} defaultValue
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {T}
+ */
+export function parseEnumEnv(
+  name,
+  allowedValues,
+  defaultValue,
+  env = process.env,
+) {
+  const value = env[name];
+  if (value === undefined || value === "") return defaultValue;
+
+  const normalizedValue = value.toLowerCase();
+  const match = allowedValues.find(
+    function findAllowed(/** @type {T} */ candidate) {
+      return candidate.toLowerCase() === normalizedValue;
+    },
+  );
+  if (match) return match;
+
+  throw new Error(
+    `Invalid ${name}: ${value}. Expected one of: ${allowedValues.join(", ")}`,
+  );
+}
+
+/**
+ * @param {string} ipSourceName
+ * @param {string} trustProxyHopsName
+ * @param {string} defaultIpSource
+ * @param {number} defaultTrustProxyHops
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {{IP_SOURCE: string, TRUST_PROXY_HOPS: number}}
+ */
+export function parseIpConfigurationEnv(
+  ipSourceName,
+  trustProxyHopsName,
+  defaultIpSource,
+  defaultTrustProxyHops,
+  env = process.env,
+) {
+  const ipSource = parseStringEnv(ipSourceName, defaultIpSource, env)?.trim();
+  const trustProxyHops = parseIntegerEnv(
+    trustProxyHopsName,
+    defaultTrustProxyHops,
+    env,
+  );
+
+  if (trustProxyHops < 0) {
+    throw new Error(`Invalid ${trustProxyHopsName}: must be >= 0`);
+  }
+
+  const normalizedIpSource = (ipSource || "").toLowerCase();
+  if (
+    trustProxyHops > 0 &&
+    normalizedIpSource !== "x-forwarded-for" &&
+    normalizedIpSource !== "forwarded"
+  ) {
+    throw new Error(
+      `${trustProxyHopsName} requires ${ipSourceName} to be X-Forwarded-For or Forwarded`,
+    );
+  }
+
+  return {
+    IP_SOURCE: ipSource || defaultIpSource,
+    TRUST_PROXY_HOPS: trustProxyHops,
+  };
+}

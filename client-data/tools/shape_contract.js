@@ -1,0 +1,84 @@
+/**
+ * @typedef {{attributes?: {[name: string]: string}, rawAttributes?: string, id?: string, content?: string}} StoredSvgEntry
+ * @typedef {{a: number, b: number, c: number, d: number, e: number, f: number}} SvgTransform
+ * @typedef {{minX: number, minY: number, maxX: number, maxY: number}} LocalBounds
+ * @typedef {{id: string, tool: string, paintOrder?: number, data: object, localBounds: LocalBounds | null}} StoredShapeSummary
+ * @typedef {{x: number, y: number}} StoredPoint
+ * @typedef {{[key: string]: unknown, id?: string, tool?: string, color?: string, size?: number, opacity?: number, transform?: SvgTransform, x?: number, y?: number, x2?: number, y2?: number, txt?: string, _children?: StoredPoint[], deltax?: number, deltay?: number}} StoredShapeItem
+ * @typedef {{escapeHtml: (value: string) => string, numberOrZero: (value: unknown) => number, renderTransformAttribute: (transform: SvgTransform | undefined) => string}} StoredShapeSerializeHelpers
+ * @typedef {{id: string, opacity?: number, transform?: SvgTransform, decorateStoredItemData: (data: object, opacity: number | undefined, transform: SvgTransform | undefined) => object, decodedTextLength: (value: string) => number, parseNumber: (value: unknown) => number | undefined, readStoredSvgAttribute: (entry: StoredSvgEntry, name: string) => string | undefined}} StoredShapeSummaryHelpers
+ * @typedef {{readStoredSvgAttribute: (entry: StoredSvgEntry, name: string) => string | undefined, unescapeHtml: (value: string) => string}} StoredShapeParseHelpers
+ * @typedef {{htmlspecialchars: (value: string) => string, numberOrZero: (value: unknown) => number, renderPath: (item: StoredShapeItem, pathString: string) => string, renderTranslate: (item: StoredShapeItem) => string}} StoredShapeRenderHelpers
+ * @typedef {ReadonlyArray<string>} UpdatableFields
+ * @typedef {Readonly<Record<number, Readonly<Record<string, string>>>>} LiveMessageFields
+ * @typedef {{toolId: string, toolCode: import("../../types/app-runtime").ToolCode, storedTagName?: string, shapeTool?: boolean, updatableFields?: UpdatableFields, drawsOnBoard?: boolean, payloadKind?: "inline" | "text" | "children", liveMessageFields?: LiveMessageFields, summarizeStoredSvgItem: (entry: StoredSvgEntry, paintOrder: number | undefined, helpers: StoredShapeSummaryHelpers) => StoredShapeSummary | null, serializeStoredSvgItem: (item: StoredShapeItem, helpers: StoredShapeSerializeHelpers) => string, parseStoredSvgItem?: (summary: StoredShapeSummary, entry: StoredSvgEntry, helpers: StoredShapeParseHelpers) => StoredShapeItem | null, renderBoardSvg?: (shape: StoredShapeItem, helpers: StoredShapeRenderHelpers) => string}} ToolContract
+ */
+
+/**
+ * @param {number} x1
+ * @param {number} y1
+ * @param {number} x2
+ * @param {number} y2
+ * @returns {{x: number, y: number, width: number, height: number}}
+ */
+export function normalizeRectBounds(x1, y1, x2, y2) {
+  return {
+    x: Math.min(x1, x2),
+    y: Math.min(y1, y2),
+    width: Math.abs(x2 - x1),
+    height: Math.abs(y2 - y1),
+  };
+}
+
+/**
+ * @param {StoredShapeSummary} shape
+ * @param {number | undefined} opacity
+ * @param {SvgTransform | undefined} transform
+ * @param {(data: object, opacity: number | undefined, transform: SvgTransform | undefined) => object} decorateStoredItemData
+ * @returns {StoredShapeSummary}
+ */
+export function summarizeStoredShape(
+  shape,
+  opacity,
+  transform,
+  decorateStoredItemData,
+) {
+  return {
+    id: shape.id,
+    tool: shape.tool,
+    paintOrder: shape.paintOrder,
+    data: decorateStoredItemData(shape.data, opacity, transform),
+    localBounds: shape.localBounds,
+  };
+}
+
+/**
+ * @param {"rect" | "ellipse" | "line"} tagName
+ * @param {string} attrs
+ * @param {StoredShapeItem} item
+ * @param {StoredShapeSerializeHelpers} helpers
+ * @returns {string}
+ */
+export function serializeStoredShapeTag(tagName, attrs, item, helpers) {
+  const transform = helpers.renderTransformAttribute(item.transform);
+  const id = typeof item.id === "string" ? helpers.escapeHtml(item.id) : "";
+  const color = helpers.escapeHtml(item.color || "#000000");
+  const size = helpers.numberOrZero(item.size) | 0;
+  const opacity =
+    typeof item.opacity === "number" ? ` opacity="${item.opacity}"` : "";
+  return (
+    `<${tagName} id="${id}"${attrs}` +
+    ` stroke="${color}" stroke-width="${size}" fill="none"` +
+    `${opacity}${transform}></${tagName}>`
+  );
+}
+
+// This helper is still imported by released, cacheable contracts modules.
+/**
+ * @template {ToolContract & {storedTagName: string}} T
+ * @param {T} contract
+ * @returns {T & {shapeTool: true}}
+ */
+export function defineShapeContract(contract) {
+  return { ...contract, shapeTool: true };
+}

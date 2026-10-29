@@ -1,0 +1,519 @@
+import MessageCommon from "../../client-data/js/message_common.js";
+import {
+  getToolId,
+  getMutationType,
+  MutationType,
+} from "../../client-data/js/message_tool_metadata.js";
+import { TOOL_CONTRACTS as TOOLS } from "../../client-data/tools/contracts.js";
+import {
+  TOOL_CODE_BY_ID,
+  TOOL_ID_BY_CODE,
+} from "../../client-data/tools/manifest.js";
+
+/** @typedef {{[key: string]: unknown}} RawRecord */
+/** @typedef {Pick<import("../../types/server-runtime.d.ts").ServerConfig, "MAX_BOARD_SIZE" | "MAX_CHILDREN">} MessageValidationConfig */
+/** @typedef {import("../../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
+/** @typedef {import("../../types/app-runtime.d.ts").BoardCapabilities} BoardCapabilities */
+/** @typedef {import("../../types/app-runtime.d.ts").ToolOwnedBatchMessage} ToolOwnedBatchMessage */
+/** @typedef {import("../../types/app-runtime.d.ts").ToolCode} ToolCode */
+/** @typedef {import("../../types/app-runtime.d.ts").Transform} Transform */
+/**
+ * @template T
+ * @typedef {{ok: true, value: T}} Accepted
+ */
+/** @typedef {{ok: false, reason: string}} Rejected */
+/**
+ * @template T
+ * @typedef {Accepted<T> | Rejected} ValidationResult
+ */
+/**
+ * @template [T=unknown]
+ * @typedef {(value: unknown, raw: RawRecord | undefined, normalized: RawRecord | undefined, maxBoardSize: number) => ValidationResult<T>} FieldNormalizer
+ */
+/**
+ * @template [T=unknown]
+ * @typedef {{
+ *   normalize: FieldNormalizer<T>,
+ *   required: boolean,
+ * }} FieldSpec
+ */
+/** @typedef {{[key: string]: FieldSpec}} FieldSchema */
+/** @typedef {{[tool: number]: {[type: number]: FieldSchema}}} LiveToolSchemas */
+/** @typedef {import("../../client-data/tools/shape_contract.js").ToolContract} ToolContract */
+/** @typedef {"id" | "coord" | "color" | "size" | "opacity" | "text" | "transform" | "time" | "toolId"} SchemaFieldType */
+
+const SHAPE_CONTRACTS = TOOLS.filter((tool) => tool.shapeTool === true);
+const SHAPE_CREATE_FIELDS = {
+  id: "id",
+  color: "color",
+  size: "size",
+  opacity: "opacity?",
+  x: "coord",
+  y: "coord",
+  x2: "coord",
+  y2: "coord",
+};
+
+/**
+ * @template T
+ * @param {T} value
+ * @returns {Accepted<T>}
+ */
+function accepted(value) {
+  return { ok: true, value: value };
+}
+
+/**
+ * @param {string} reason
+ * @returns {Rejected}
+ */
+function rejected(reason) {
+  return { ok: false, reason: reason };
+}
+
+/**
+ * @param {unknown} value
+ * @returns {value is RawRecord}
+ */
+function isPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
+ * @template T
+ * @param {FieldNormalizer<T>} normalize
+ * @param {Partial<FieldSpec<T>>} [options]
+ * @returns {FieldSpec<T>}
+ */
+function required(normalize, options) {
+  return { normalize, required: true, ...options };
+}
+
+/**
+ * @template T
+ * @param {FieldNormalizer<T>} normalize
+ * @param {Partial<FieldSpec<T>>} [options]
+ * @returns {FieldSpec<T>}
+ */
+function optional(normalize, options) {
+  return { normalize, required: false, ...options };
+}
+
+/**
+ * @template {string | number} T
+ * @param {T} expected
+ * @returns {(value: unknown) => ValidationResult<T>}
+ */
+function literal(expected) {
+  return function normalizeLiteral(value) {
+    return value === expected
+      ? accepted(/** @type {T} */ (value))
+      : rejected(`expected ${JSON.stringify(expected)}`);
+  };
+}
+
+/**
+ * @param {unknown} value
+ * @returns {ValidationResult<ToolCode>}
+ */
+function normalizeLiveToolCode(value) {
+  return typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    Object.prototype.hasOwnProperty.call(TOOL_ID_BY_CODE, value)
+    ? accepted(/** @type {ToolCode} */ (value))
+    : rejected("invalid tool");
+}
+
+/**
+ * @param {unknown} value
+ * @returns {ValidationResult<string>}
+ */
+function normalizeId(value) {
+  const id = MessageCommon.normalizeId(value);
+  return id === null ? rejected("invalid id") : accepted(id);
+}
+
+/**
+ * @param {unknown} value
+ * @returns {ValidationResult<number>}
+ */
+function normalizeSize(value) {
+  const size = MessageCommon.normalizeNumberInRange(
+    value,
+    MessageCommon.LIMITS.MIN_SIZE,
+    MessageCommon.LIMITS.MAX_SIZE,
+    true,
+  );
+  return size === null ? rejected("invalid size") : accepted(size);
+}
+
+/**
+ * @param {unknown} value
+ * @returns {ValidationResult<number | undefined>}
+ */
+function normalizeOpacity(value) {
+  const opacity = MessageCommon.normalizeNumberInRange(
+    value,
+    MessageCommon.LIMITS.MIN_OPACITY,
+    MessageCommon.LIMITS.MAX_OPACITY,
+  );
+  return opacity === null ? rejected("invalid opacity") : accepted(opacity);
+}
+
+/**
+ * @param {unknown} value
+ * @param {RawRecord | undefined} _raw
+ * @param {RawRecord | undefined} _normalized
+ * @param {number} maxBoardSize
+ * @returns {ValidationResult<number>}
+ */
+function normalizeCoord(value, _raw, _normalized, maxBoardSize) {
+  const coord = MessageCommon.normalizeBoardCoord(value, maxBoardSize);
+  return coord === null ? rejected("invalid coord") : accepted(coord);
+}
+
+/**
+ * @param {unknown} value
+ * @returns {ValidationResult<string>}
+ */
+function normalizeColor(value) {
+  const color = MessageCommon.normalizeColor(value);
+  return color === null ? rejected("invalid color") : accepted(color);
+}
+
+/**
+ * @param {unknown} value
+ * @returns {ValidationResult<string>}
+ */
+function normalizeText(value) {
+  if (typeof value !== "string") return rejected("invalid text");
+  return value.length <= Number(MessageCommon.LIMITS.MAX_TEXT_LENGTH)
+    ? accepted(value)
+    : rejected("text too long");
+}
+
+/**
+ * @param {unknown} value
+ * @returns {ValidationResult<string>}
+ */
+function normalizeClientMutationId(value) {
+  if (typeof value !== "string" || value.length === 0) {
+    return rejected("invalid clientMutationId");
+  }
+  if (value.length > 128) {
+    return rejected("clientMutationId too long");
+  }
+  return accepted(value);
+}
+
+/**
+ * @param {unknown} value
+ * @returns {ValidationResult<number>}
+ */
+function normalizeTime(value) {
+  const time = MessageCommon.normalizeFiniteNumber(value);
+  return time === null ? rejected("invalid time") : accepted(time);
+}
+
+/**
+ * @param {unknown} value
+ * @returns {ValidationResult<string>}
+ */
+function normalizeToolId(value) {
+  const toolId = getToolId(value);
+  return toolId === undefined ? rejected("invalid tool id") : accepted(toolId);
+}
+
+/**
+ * @param {unknown} value
+ * @returns {ValidationResult<Transform>}
+ */
+function normalizeTransform(value) {
+  if (!isPlainObject(value)) return rejected("invalid transform");
+  const transform = MessageCommon.normalizeTransformNumbers(value);
+  if (transform === null) return rejected("invalid transform");
+  return accepted(/** @type {Transform} */ (transform));
+}
+
+/**
+ * @param {unknown} raw
+ * @param {FieldSchema} fields
+ * @param {number} maxBoardSize
+ * @returns {ValidationResult<RawRecord>}
+ */
+function normalizeObject(raw, fields, maxBoardSize) {
+  if (!isPlainObject(raw)) return rejected("expected object");
+
+  /** @type {RawRecord} */
+  const normalized = {};
+  for (const key in fields) {
+    const field = fields[key];
+    if (!field) continue;
+    const hasValue = Object.prototype.hasOwnProperty.call(raw, key);
+    /** @type {unknown} */
+    let value;
+
+    if (hasValue) {
+      value = raw[key];
+    } else if (field.required) {
+      return rejected(`missing ${key}`);
+    } else {
+      continue;
+    }
+
+    const result = field.normalize(value, raw, normalized, maxBoardSize);
+    if (result.ok === false) return rejected(`${key}: ${result.reason}`);
+    if (result.value !== undefined) normalized[key] = result.value;
+  }
+
+  return accepted(normalized);
+}
+
+/**
+ * @param {string} spec
+ * @returns {{type: SchemaFieldType, optional: boolean}}
+ */
+function parseSchemaFieldSpec(spec) {
+  const optional = spec.endsWith("?");
+  return {
+    type: /** @type {SchemaFieldType} */ (optional ? spec.slice(0, -1) : spec),
+    optional,
+  };
+}
+
+/**
+ * @param {SchemaFieldType} type
+ * @param {boolean} optionalField
+ * @returns {FieldSpec}
+ */
+function buildSchemaField(type, optionalField) {
+  const make = optionalField ? optional : required;
+  switch (type) {
+    case "id":
+      return make(normalizeId);
+    case "coord":
+      return make(normalizeCoord);
+    case "color":
+      return make(normalizeColor);
+    case "size":
+      return make(normalizeSize);
+    case "opacity":
+      return make(normalizeOpacity);
+    case "text":
+      return make(normalizeText);
+    case "transform":
+      return make(normalizeTransform);
+    case "time":
+      return make(normalizeTime);
+    case "toolId":
+      return make(normalizeToolId);
+  }
+}
+
+/**
+ * @param {{[field: string]: string} | undefined} fields
+ * @returns {FieldSchema}
+ */
+function buildSchemaFields(fields) {
+  /** @type {FieldSchema} */
+  const schema = {};
+  for (const [field, spec] of Object.entries(fields || {})) {
+    const parsed = parseSchemaFieldSpec(spec);
+    schema[field] = buildSchemaField(parsed.type, parsed.optional);
+  }
+  return schema;
+}
+
+/**
+ * @param {number} toolCode
+ * @param {number} type
+ * @param {{[field: string]: string}} fields
+ * @returns {FieldSchema}
+ */
+function buildLiveSchema(toolCode, type, fields) {
+  return {
+    tool: required(literal(toolCode)),
+    type: required(literal(type)),
+    ...buildSchemaFields(fields),
+  };
+}
+
+/**
+ * @param {{[type: number]: {[field: string]: string}} | undefined} fieldsByType
+ * @param {(type: number, fields: {[field: string]: string}) => FieldSchema} build
+ * @returns {{[type: number]: FieldSchema}}
+ */
+function buildPerTypeSchemas(fieldsByType, build) {
+  return Object.fromEntries(
+    Object.entries(fieldsByType || {}).map(([type, fields]) => [
+      Number(type),
+      build(Number(type), fields),
+    ]),
+  );
+}
+
+const LIVE_SHAPE_SCHEMAS = Object.fromEntries(
+  SHAPE_CONTRACTS.map((contract) => {
+    return [
+      contract.id,
+      {
+        [MutationType.CREATE]: buildLiveSchema(
+          contract.id,
+          MutationType.CREATE,
+          SHAPE_CREATE_FIELDS,
+        ),
+        [MutationType.UPDATE]: buildLiveSchema(
+          contract.id,
+          MutationType.UPDATE,
+          {
+            id: "id",
+            ...Object.fromEntries(
+              (contract.updatableFields || []).map((field) => [field, "coord"]),
+            ),
+          },
+        ),
+      },
+    ];
+  }),
+);
+
+/** @type {LiveToolSchemas} */
+const CONTRACT_LIVE_MESSAGE_SCHEMAS = Object.fromEntries(
+  TOOLS.filter((tool) => tool.liveMessageFields).map((tool) => [
+    tool.id,
+    buildPerTypeSchemas(tool.liveMessageFields, (type, fields) =>
+      buildLiveSchema(tool.id, type, fields),
+    ),
+  ]),
+);
+
+/** @type {LiveToolSchemas} */
+const LIVE_MESSAGE_SCHEMAS = Object.fromEntries(
+  Object.entries({
+    [TOOL_CODE_BY_ID.cursor]: {
+      [MutationType.UPDATE]: buildLiveSchema(
+        TOOL_CODE_BY_ID.cursor,
+        MutationType.UPDATE,
+        {
+          color: "color",
+          size: "size",
+          opacity: "opacity?",
+          activeTool: "toolId?",
+          x: "coord",
+          y: "coord",
+        },
+      ),
+    },
+    ...CONTRACT_LIVE_MESSAGE_SCHEMAS,
+    ...LIVE_SHAPE_SCHEMAS,
+  }),
+);
+
+const LIVE_BATCH_CHILD_SCHEMAS = Object.fromEntries(
+  TOOLS.filter((tool) => tool.batchMessageFields).map((tool) => [
+    tool.id,
+    buildPerTypeSchemas(tool.batchMessageFields, (type, fields) => ({
+      type: required(literal(type)),
+      ...buildSchemaFields(fields),
+    })),
+  ]),
+);
+
+/**
+ * @param {unknown} raw
+ * @param {number} maxBoardSize
+ * @param {number} maxChildren
+ * @param {BoardCapabilities | undefined} capabilities
+ * @returns {ValidationResult<NormalizedMessageData>}
+ */
+function normalizeIncomingBatch(raw, maxBoardSize, maxChildren, capabilities) {
+  if (!isPlainObject(raw)) return rejected("expected object");
+  if (!Object.prototype.hasOwnProperty.call(raw, "tool")) {
+    return rejected("missing tool");
+  }
+  const toolCode = normalizeLiveToolCode(raw.tool);
+  if (toolCode.ok === false) return toolCode;
+
+  const childSchemas = LIVE_BATCH_CHILD_SCHEMAS[toolCode.value];
+  if (!childSchemas) return rejected("unsupported batch tool");
+  if (!Array.isArray(raw._children)) return rejected("invalid _children");
+  if (capabilities?.canClear !== true && raw._children.length > maxChildren) {
+    return rejected("too many children");
+  }
+
+  const children = [];
+  for (let index = 0; index < raw._children.length; index++) {
+    const child = raw._children[index];
+    const schema =
+      child && typeof child.type === "number"
+        ? childSchemas[child.type]
+        : undefined;
+    if (!schema) {
+      return rejected(`_children[${index}]: invalid type`);
+    }
+
+    const normalizedChild = normalizeObject(child, schema, maxBoardSize);
+    if (normalizedChild.ok === false) {
+      return rejected(`_children[${index}]: ${normalizedChild.reason}`);
+    }
+    children.push(normalizedChild.value);
+  }
+
+  /** @type {ToolOwnedBatchMessage} */
+  const normalized = {
+    tool: /** @type {ToolOwnedBatchMessage["tool"]} */ (toolCode.value),
+    _children: /** @type {ToolOwnedBatchMessage["_children"]} */ (children),
+  };
+  if (Object.prototype.hasOwnProperty.call(raw, "clientMutationId")) {
+    const clientMutationId = normalizeClientMutationId(raw.clientMutationId);
+    if (!clientMutationId.ok) return clientMutationId;
+    normalized.clientMutationId = clientMutationId.value;
+  }
+  return accepted(/** @type {NormalizedMessageData} */ (normalized));
+}
+
+/**
+ * @param {MessageValidationConfig} config
+ * @param {unknown} raw
+ * @param {BoardCapabilities} [capabilities]
+ * @returns {ValidationResult<NormalizedMessageData>}
+ */
+function normalizeIncomingMessage(config, raw, capabilities) {
+  const maxBoardSize = config.MAX_BOARD_SIZE;
+  const maxChildren = config.MAX_CHILDREN;
+
+  if (!isPlainObject(raw)) return rejected("expected object");
+  if (Array.isArray(raw._children)) {
+    return normalizeIncomingBatch(raw, maxBoardSize, maxChildren, capabilities);
+  }
+  if (!Object.prototype.hasOwnProperty.call(raw, "tool")) {
+    return rejected("missing tool");
+  }
+  const toolCode = normalizeLiveToolCode(raw.tool);
+  if (toolCode.ok === false) return toolCode;
+
+  const toolSchemas = LIVE_MESSAGE_SCHEMAS[toolCode.value];
+  const schema =
+    typeof raw.type === "number" ? toolSchemas?.[raw.type] : undefined;
+  if (!schema) return rejected("invalid tool/type");
+
+  const normalized = normalizeObject(raw, schema, maxBoardSize);
+  if (!normalized.ok) return normalized;
+  if (
+    getMutationType(normalized.value) !== MutationType.UPDATE &&
+    MessageCommon.isGeometryInvalid(normalized.value, maxBoardSize)
+  ) {
+    return rejected("shape too large");
+  }
+  if (
+    toolCode.value !== TOOL_CODE_BY_ID.cursor &&
+    Object.prototype.hasOwnProperty.call(raw, "clientMutationId")
+  ) {
+    const clientMutationId = normalizeClientMutationId(raw.clientMutationId);
+    if (!clientMutationId.ok) return clientMutationId;
+    normalized.value.clientMutationId = clientMutationId.value;
+  }
+  return accepted(/** @type {NormalizedMessageData} */ (normalized.value));
+}
+
+export { normalizeIncomingMessage };

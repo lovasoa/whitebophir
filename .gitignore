@@ -1,3 +1,4 @@
+.env
 node_modules
 
 lib-cov
@@ -18,9 +19,17 @@ npm-debug.log
 .DS_Store
 
 wbo-backup*
+server-data/board-*.svg
+server-data/board-*.json
 
 # Jetbrains
 .idea/
 
 # Nightwatch test results
 tests_output/
+playwright-report/
+test-results/
+.codex
+.profiles/
+
+server-data/*.svg

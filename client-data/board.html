@@ -1,109 +1,150 @@
 <!DOCTYPE html>
-<html lang="{{language}}">
+<html lang="{{language}}" dir="ltr" data-wbo-version="{{appVersion}}" data-ui-direction="{{direction}}"{{#moderator}} data-moderator="true"{{/moderator}}>
 
 <head>
 	<meta charset="utf-8" />
 	<title>{{board}} | WBO | {{translations.collaborative_whiteboard}}</title>
-	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 	<link rel="stylesheet" type="text/css" href="../board.css" />
-	<script src="../socket.io/socket.io.js"></script>
+	<link rel="modulepreload" href="../js/board_main.js" />
+	<link rel="modulepreload" href="../js/board_bootstrap.js" />
+	<link rel="modulepreload" href="../js/app_tools_core.js" />
+	<link rel="modulepreload" href="../js/board_dom_bootstrap.js" />
+	<link rel="modulepreload" href="../js/board_message_replay.js" />
+	<link rel="modulepreload" href="../js/board_name.js" />
+	<link rel="modulepreload" href="../js/board_page_state.js" />
+	<link rel="modulepreload" href="../js/board_preferences.js" />
+	<link rel="modulepreload" href="../js/board_runtime_core.js" />
+	<link rel="modulepreload" href="../js/board_viewport.js" />
+	<link rel="modulepreload" href="../js/frontend_logging.js" />
+	<link rel="modulepreload" href="../js/performance_metrics.js" />
+	<link rel="modulepreload" href="../js/message_limits.js" />
+	<script id="socketio-client" async src="../socket.io/socket.io.js"></script>
 	<meta name="description" content="{{translations.tagline}}" />
 	<meta name="keywords"
 		content="{{translations.collaborative_whiteboard}},online,draw,paint,shared,realtime,wbo,whitebophir" />
 	<link rel="apple-touch-icon" href="../favicon.svg">
 	<link rel="icon" type="image/x-icon" sizes="16x16" href="../favicon.ico">
-	<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0" />
-	<meta property="og:title" content="{{board}} board on WBO" />
+	<link rel="manifest" href="../manifest.json" />
+	<meta property="og:title" content="{{board}} | WBO | {{translations.collaborative_whiteboard}}" />
 	<meta property="og:url" content="{{baseUrl}}/boards/{{boardUriComponent}}" />
 	<meta property="og:image" content="{{baseUrl}}/preview/{{boardUriComponent}}" />
-	<link rel="canonical" href="{{boardUriComponent}}?lang={{language}}" />
-	{{#languages}}
-	<link rel="alternate" hreflang="{{.}}" href="{{../boardUriComponent}}?lang={{.}}" />
-	{{/languages}}
-	<script src="../polyfill.min.js"></script>
+	<link rel="canonical" href="{{canonicalUrl}}" />
+	{{#languageLinks}}
+	<link rel="alternate" hreflang="{{language}}" href="{{href}}" />
+	{{/languageLinks}}
+	{{{htmlHeadSnippet}}}
 </head>
 
 <body>
-
-	<div id="board">
-		<svg id="canvas" width="500" height="500" version="1.1" xmlns="http://www.w3.org/2000/svg">
-			<defs id="defs"></defs>
-			<g id="drawingArea"></g>
-			<g id="cursors"></g>
-		</svg>
+	<div id="boardHud" class="board-hud" dir="{{direction}}">
+		<div class="board-presence">
+			<button id="connectedUsersToggle" class="board-presence-toggle" type="button"
+				aria-controls="connectedUsersPanel" aria-expanded="false">
+				<img class="board-presence-icon" width="18" height="18" src="../users.svg" alt="" />
+				<span class="tool-name" hidden></span>
+			</button>
+			<div id="connectedUsersPanel" class="connected-users-panel connected-users-panel-hidden"
+				role="region" aria-label="{{translations.users}}">
+				<ul id="connectedUsersList" class="connected-users-list"></ul>
+				<details id="activeBansSection" class="active-bans-section" hidden>
+					<summary id="activeBansSummary"></summary>
+					<ul id="activeBansList" class="active-bans-list"></ul>
+				</details>
+			</div>
+		</div>
+		<div id="boardStatusIndicator" class="board-status-card board-status-reconnecting" role="status"
+			aria-live="polite" data-state="reconnecting">
+			<span class="board-status-icon" aria-hidden="true"></span>
+			<div class="board-status-copy">
+				<div id="boardStatusTitle" class="board-status-title">{{translations.loading}}</div>
+				<div id="boardStatusNotice" class="board-status-detail board-status-detail-hidden"></div>
+			</div>
+		</div>
 	</div>
-
-	<div id="loadingMessage">{{translations.loading}}</div>
 
 	<div id="menu" tabindex="0" {{#hideMenu}}style="display:none;"{{/hideMenu}}>
 		<div id="menuItems">
 			<ul id="tools" class="tools">
-				<li class="tool" tabindex="-1">
-					<img class="tool-icon" width="35" height="35" src="" alt="icon" />
-					<span class="tool-name"></span>
-					<img class="tool-icon secondaryIcon" width="35" height="35" src="data:," alt="icon" />
+				{{#tools}}
+				<li class="tool disabledTool" tabindex="-1" id="toolID-{{id}}" data-tool-id="{{id}}" aria-label="{{label}}" {{^visible}}hidden{{/visible}}
+					aria-disabled="true">
+					<img class="tool-icon" width="35" height="35" src="{{initialIconUrl}}" data-icon-url="{{iconUrl}}" alt="" aria-hidden="true"
+						fetchpriority="low" />
+					<span class="tool-name">{{label}}</span>
+					<img class="tool-icon secondaryIcon" width="35" height="35" src="data:," alt="" aria-hidden="true" />
 				</li>
+				{{/tools}}
 			</ul>
 
 			<ul class="tools" id="settings">
-				<li class="tool" tabindex="-1">
-					<input class="tool-icon" type="color" id="chooseColor" value="#1913B0" />
-					<label class="tool-name" for="chooseColor">{{translations.color}}</label>
-					<span class="colorPresets" id="colorPresetSel">
-						<span class="colorPresetButton"></span>
-					</span>
+				<li class="style-tool-menu" id="styleToolMenu">
+					<details class="tool" id="styleTool">
+						<summary id="styleSummary" aria-controls="stylePanel">
+							<span class="tool-icon" id="stylePreview" aria-hidden="true">
+								<svg viewBox="0 0 32 32" focusable="false">
+									<defs>
+										<pattern id="stylePreviewChecker" x="0" y="0" width="16" height="16"
+											patternUnits="userSpaceOnUse">
+											<rect width="16" height="16" fill="#fcfcfd"></rect>
+											<rect width="8" height="8" fill="#eef0f3"></rect>
+											<rect x="8" y="8" width="8" height="8" fill="#eef0f3"></rect>
+										</pattern>
+									</defs>
+									<rect width="32" height="32" fill="#ffffff"></rect>
+									<rect width="32" height="32" fill="url(#stylePreviewChecker)" opacity="0.38"></rect>
+									<circle id="stylePreviewDotOutline" cx="16" cy="16" r="7.35" fill="none"
+										stroke="#111111" stroke-opacity="1" stroke-width="1.25"></circle>
+									<circle id="stylePreviewDot" cx="16" cy="16" r="6" fill="#1913B0"
+										fill-opacity="1"></circle>
+								</svg>
+							</span>
+						</summary>
+					</details>
+					<fieldset class="style-panel" id="stylePanel">
+						<legend class="style-panel-title">{{translations.color}}</legend>
+						<input type="color" id="chooseColor" class="style-hidden-input" value="#1913B0"
+							tabindex="-1" aria-label="{{translations.color}}" />
+						<div class="colorPresets" id="colorPresetSel" role="group"
+							aria-label="{{translations.color}}">
+							<button type="button" class="colorPresetButton"></button>
+						</div>
+						<div class="style-row">
+							<label class="style-row-label" for="chooseSize">
+								<span class="style-row-name">{{translations.size}}</span>
+								<span class="style-row-shortcuts">
+									<kbd class="tool-shortcut">[</kbd><kbd class="tool-shortcut">]</kbd>
+									<span class="style-row-hint">S + {{translations.mousewheel}}</span>
+								</span>
+							</label>
+							<input type="range" id="chooseSize" value="40" min="10" max="500" step="10"
+								class="rangeChooser" />
+						</div>
+						<div class="style-row">
+							<label class="style-row-label" for="chooseOpacity">
+								<span class="style-row-name">{{translations.opacity}}</span>
+								<span class="style-row-shortcuts">
+									<kbd class="tool-shortcut">,</kbd><kbd class="tool-shortcut">.</kbd>
+									<span class="style-row-hint">O + {{translations.mousewheel}}</span>
+								</span>
+							</label>
+							<input type="range" id="chooseOpacity" value="1" min="0.1" max="1" step="0.05"
+								class="rangeChooser" />
+						</div>
+					</fieldset>
 				</li>
-				<li class="tool" tabindex="-1"
-					title="{{translations.size}} ({{translations.keyboard_shortcut}}: alt + {{translations.mousewheel}})">
-					<img class="tool-icon" width="60" height="60" src="icon-size.svg" alt="size" />
-					<label class="tool-name slider" for="chooseSize">
-						<span>{{translations.size}}</span>
-						<input type="range" id="chooseSize" value="4" min="1" max="50" step="1" class="rangeChooser" />
-					</label>
-				</li>
-				<li class="tool" tabindex="-1">
-					<span class="tool-icon">
-						<svg viewBox="0 0 8 8">
-							<pattern id="opacityPattern" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse">
-								<rect x=0 y=0 width=2 height=2 fill=black></rect>
-								<rect x=2 y=2 width=2 height=2 fill=black></rect>
-								<rect x=2 y=0 width=2 height=2 fill=#eeeeee></rect>
-								<rect x=0 y=2 width=2 height=2 fill=#eeeeee></rect>
-							</pattern>
-							<circle cx=4 cy=4 id="opacityIndicator" r=3.5 fill="url(#opacityPattern)"></circle>
-						</svg>
-					</span>
-					<label class="tool-name slider" for="chooseOpacity">
-						<span>{{translations.opacity}}</span>
-						<input type="range" id="chooseOpacity" value="1" min="0.2" max="1" step="0.1"
-							class="rangeChooser" />
-					</label>
-				</li>
-			</ul>
+				</ul>
+			</div>
 		</div>
-	</div>
-
 
 	<script type="application/json" id="translations">{{{ json translations }}}</script>
 	<script type="application/json" id="configuration">{{{ json configuration }}}</script>
-	<script src="../js/path-data-polyfill.js"></script>
-	<script src="../js/minitpl.js"></script>
-	<script src="../js/intersect.js"></script>
-	<script src="../js/board.js"></script>
-	<script src="../tools/pencil/wbo_pencil_point.js"></script>
-	<script src="../tools/pencil/pencil.js"></script>
-	<script src="../tools/cursor/cursor.js"></script>
-	<script src="../tools/line/line.js"></script>
-	<script src="../tools/rect/rect.js"></script>
-	<script src="../tools/ellipse/ellipse.js"></script>
-	<script src="../tools/text/text.js"></script>
-	<script src="../tools/eraser/eraser.js"></script>
-	<script src="../tools/hand/hand.js"></script>
-	<script src="../tools/grid/grid.js"></script>
-	<script src="../tools/download/download.js"></script>
-	<script src="../tools/zoom/zoom.js"></script>
-	{{#moderator}}<script src="../tools/clear/clear.js"></script>{{/moderator}}
-	<script src="../js/canvascolor.js"></script>
+	<script type="application/json" id="board-state">{{{ json boardState }}}</script>
+	<script type="module" async src="../js/board_main.js"></script>
+
+	<div id="board">
+		{{{inlineBoardSvg}}}
+	</div>
 </body>
 
 </html>

@@ -1,36 +1,68 @@
 {
   "name": "whitebophir",
   "description": "Online collaborative whiteboard",
-  "version": "1.21.2",
+  "version": "2.18.28",
   "keywords": [
     "collaborative",
     "whiteboard"
   ],
   "license": "AGPL-3.0-or-later",
+  "engines": {
+    "node": ">=22.23.4"
+  },
   "dependencies": {
-    "accept-language-parser": "^1.5.0",
-    "async-mutex": "^0.3.1",
-    "handlebars": "^4.7.7",
-    "jsonwebtoken": "^9.0.0",
-    "polyfill-library": "^3.107.1",
-    "serve-static": "^1.14.1",
-    "socket.io": "^4",
-    "statsd-client": "^0.4.7"
+    "@opentelemetry/api": "^1.10.0",
+    "@opentelemetry/core": "^3.0.0",
+    "@opentelemetry/exporter-logs-otlp-http": "^0.300.0",
+    "@opentelemetry/exporter-metrics-otlp-http": "^0.300.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.300.0",
+    "@opentelemetry/instrumentation-runtime-node": "^0.37.0",
+    "@opentelemetry/resources": "^3.0.0",
+    "@opentelemetry/sdk-logs": "^3.0.0",
+    "@opentelemetry/sdk-metrics": "^3.0.0",
+    "@opentelemetry/sdk-node": "^0.300.0",
+    "@opentelemetry/sdk-trace": "^3.0.0",
+    "@opentelemetry/semantic-conventions": "^1.43.0",
+    "handlebars": "^4.7.10",
+    "jsonwebtoken": "^9.0.3",
+    "serve-static": "^2.2.1",
+    "socket.io": "^4.8.4"
   },
   "scripts": {
-    "start": "node ./server/server.js",
-    "test": "nightwatch tests && nightwatch tests --env jwt",
-    "prettier": "prettier . --write",
-    "prettier-check": "prettier . --check"
+    "prepare": "node scripts/install-git-hooks.mjs",
+    "start": "node ./server/server.mjs",
+    "bench": "node --expose-gc ./scripts/benchmark-server.mjs",
+    "bench:drawing": "node ./scripts/benchmark-drawing.mjs",
+    "bench:e2e": "npm run bench -- e2e",
+    "bench:load": "npm run bench -- load",
+    "bench:persist": "npm run bench -- persist",
+    "bench:broadcast": "npm run bench -- broadcast",
+    "profile": "node ./scripts/profile-benchmark-server.mjs",
+    "generateload": "node ./scripts/generateload.mjs",
+    "lint": "biome check . --assist-enabled=false --error-on-warnings",
+    "format": "biome check . --write --unsafe --assist-enabled=false",
+    "test-node": "WBO_SILENT=true node --test test-node/*.test.js",
+    "test:pw": "node scripts/check-playwright-tests.mjs && playwright test",
+    "test:pw:headed": "node scripts/check-playwright-tests.mjs && playwright test --headed",
+    "test:pw:ui": "node scripts/check-playwright-tests.mjs && playwright test --ui",
+    "test:pw:debug": "node scripts/check-playwright-tests.mjs && playwright test --debug",
+    "typecheck:pw": "tsc -p tsconfig.playwright.json",
+    "test": "npm run test-node && npm run test:pw && npm run lint",
+    "typecheck": "tsc -p tsconfig.checkjs.json",
+    "format-staged": "node scripts/biome-staged.mjs"
   },
-  "main": "./server/server.js",
+  "main": "./server/server.mjs",
   "repository": {
     "type": "git",
     "url": "http://github.com/lovasoa/whitebophir.git"
   },
   "devDependencies": {
-    "geckodriver": "^4.2.1",
-    "nightwatch": "^3.2.1",
-    "prettier": "^3.1.0"
+    "@biomejs/biome": "^2.6.3",
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2"
+  },
+  "allowScripts": {
+    "protobufjs@7.6.6": true
   }
 }

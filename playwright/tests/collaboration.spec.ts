@@ -1,0 +1,1928 @@
+// biome-ignore-all lint/suspicious/noExplicitAny: Playwright tests frequently access global state on the window object.
+import { setTimeout as delay } from "node:timers/promises";
+import { FRIEND_LAST_NAMES_STORAGE_KEY } from "../../client-data/js/board_friend_store.js";
+import { MODERATION_RULES } from "../../client-data/js/moderation_rules.js";
+import { MutationType } from "../../client-data/js/mutation_type.js";
+import {
+  Cursor,
+  Eraser,
+  Hand,
+  Pencil,
+  Rectangle,
+} from "../../client-data/tools/index.js";
+import translations from "../../server/http/translations.json";
+import { createBoardPage, expect, test } from "../fixtures/test";
+import { DEFAULT_FORWARDED_IP, TOKENS } from "../helpers/tokens";
+
+const rateLimitTest = test.extend({
+  serverOptions: {
+    useJWT: false,
+    env: {
+      WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:100/60s anonymous:50/60s",
+    },
+  },
+});
+
+const bufferedRateLimitTest = test.extend({
+  serverOptions: {
+    useJWT: false,
+    env: {
+      WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:10/60s anonymous:1/1s",
+    },
+  },
+});
+
+const moderatorPresenceTest = test.extend({
+  serverOptions: { useJWT: true },
+});
+
+test.describe("collaboration and rate limiting", () => {
+  test("collaboration stays legible across two pages", async ({
+    boardPage,
+    server,
+    context,
+  }) => {
+    const peerPage = await context.newPage();
+    const peerBoard = createBoardPage(peerPage, server);
+
+    await boardPage.setSocketHeaders({
+      "X-Forwarded-For": DEFAULT_FORWARDED_IP,
+    });
+    await peerBoard.setSocketHeaders({
+      "X-Forwarded-For": DEFAULT_FORWARDED_IP,
+    });
+
+    await Promise.all([
+      boardPage.gotoBoardShell("collaborative-test"),
+      peerBoard.gotoBoardShell("collaborative-test"),
+    ]);
+    await Promise.all([
+      boardPage.waitForSocketConnected(),
+      peerBoard.waitForSocketConnected(),
+      boardPage.waitForToolBooted("pencil"),
+      boardPage.waitForToolBooted("rectangle"),
+      peerBoard.waitForToolBooted("rectangle"),
+      peerBoard.waitForToolBooted("cursor"),
+    ]);
+
+    await expect(boardPage.tool("pencil")).toBeVisible();
+    await expect(boardPage.connectedUsersToggle).toBeVisible();
+    await boardPage.selectTool("pencil");
+    await boardPage.expectCurrentTool("pencil");
+
+    await boardPage.connectedUsersToggle.click();
+    await expect(boardPage.connectedUsersPanel).toBeVisible();
+    await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+
+    const firstRows = await boardPage.readConnectedUsers();
+    expect(firstRows.filter((row) => row.isSelf)).toHaveLength(1);
+    expect(firstRows.every((row) => row.reportHidden)).toBe(true);
+    expect(firstRows.every((row) => row.friendHidden)).toBe(true);
+
+    expect(firstRows[0]?.isSelf).toBe(true);
+    expect(firstRows[1]?.isSelf).toBe(false);
+    expect(firstRows[0]?.fontWeight).toBe("700");
+    expect(parseInt(firstRows[1]?.fontWeight, 10)).toBeLessThan(600);
+    expect(firstRows[0]?.borderBottomColor).not.toBe("rgba(0, 0, 0, 0)");
+
+    await boardPage.drawRectangle(
+      "#ff0000",
+      { x: 1100, y: 800 },
+      { x: 1300, y: 1000 },
+    );
+    await expect(
+      peerPage.locator("rect[x='1100'][y='800'][stroke='#ff0000']"),
+    ).toBeVisible();
+    await expect
+      .poll(() =>
+        peerPage.evaluate(() => {
+          const remoteCursor = document.querySelector(
+            ".opcursor-html:not(#cursor-me)",
+          );
+          if (!(remoteCursor instanceof HTMLElement)) return null;
+          const icon = remoteCursor.querySelector(
+            ".opcursor-toolIcon",
+          ) as HTMLImageElement | null;
+          const rect = remoteCursor.getBoundingClientRect();
+          const board = document.getElementById("board");
+          if (!board) return null;
+          const boardRect = board.getBoundingClientRect();
+          return {
+            x: Math.round(rect.left - boardRect.left),
+            y: Math.round(rect.top - boardRect.top),
+            transition: getComputedStyle(remoteCursor).transitionProperty,
+            icon: icon?.getAttribute("src") ?? "",
+          };
+        }),
+      )
+      .toMatchObject({
+        x: 130,
+        y: 100,
+        transition: "transform",
+        icon: expect.stringContaining("rectangle/icon.svg"),
+      });
+    await boardPage.emitBroadcast({
+      tool: Cursor.id,
+      type: MutationType.UPDATE,
+      x: 1100,
+      y: 800,
+      color: "#ff0000",
+      size: 11,
+    });
+    await peerBoard.connectedUsersToggle.click();
+    await expect(peerBoard.connectedUsersPanel).toBeVisible();
+    await expect
+      .poll(async () => {
+        const rows = await peerBoard.readConnectedUsers();
+        const remote = rows.find((row) => !row.isSelf);
+        return remote?.tool ?? "";
+      })
+      .toMatch(/Cursor|Rectangle|Pencil/);
+
+    await expect
+      .poll(async () => {
+        const rows = await peerBoard.readConnectedUsers();
+        return rows.find((row) => !row.isSelf) ?? null;
+      })
+      .not.toBeNull();
+    const rows = await peerBoard.readConnectedUsers();
+    const peerRemoteRow = rows.find((row) => !row.isSelf);
+    expect(peerRemoteRow).toBeTruthy();
+    expect(peerRemoteRow?.tool ?? "").toMatch(/Rectangle|Pencil/);
+    expect(parseFloat(peerRemoteRow?.ringWidth ?? "0")).toBeGreaterThanOrEqual(
+      2,
+    );
+    expect(
+      peerRemoteRow?.color === "rgb(255, 0, 0)" ||
+        peerRemoteRow?.color === "#ff0000",
+    ).toBe(true);
+
+    for (const scale of [0.2, 0.1]) {
+      await peerPage.evaluate((value) => {
+        window.WBOApp.viewportState.controller.setScale(value);
+        window.scrollTo(80, 40);
+      }, scale);
+      await expect
+        .poll(() =>
+          peerPage.evaluate(() => {
+            const cursor = document.querySelector(
+              ".opcursor-html:not(#cursor-me)",
+            );
+            const board = document.getElementById("board");
+            if (!cursor || !board) return null;
+            const rect = cursor.getBoundingClientRect();
+            const origin = board.getBoundingClientRect();
+            return {
+              x: Math.round(rect.left - origin.left),
+              y: Math.round(rect.top - origin.top),
+            };
+          }),
+        )
+        .toEqual({ x: 1100 * scale, y: 800 * scale });
+    }
+
+    await peerBoard.forceScrollTopLeft();
+    await peerPage
+      .locator(
+        "#connectedUsersList .connected-user-row:not(.connected-user-row-self) .connected-user-main-link[href^='#']",
+      )
+      .click();
+    await expect
+      .poll(() => peerBoard.scrollPosition())
+      .toMatchObject({
+        left: expect.any(Number),
+        top: expect.any(Number),
+      });
+    await peerPage.close();
+    await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(1);
+  });
+
+  test("friends stay below self, persist by visible surname, and can be removed", async ({
+    boardPage,
+    browser,
+    server,
+  }) => {
+    const boardName = "presence-friends";
+    await boardPage.page.setViewportSize({ width: 320, height: 640 });
+    const firstRemoteContext = await browser.newContext();
+    const secondRemoteContext = await browser.newContext();
+    const firstRemote = createBoardPage(
+      await firstRemoteContext.newPage(),
+      server,
+    );
+    const secondRemote = createBoardPage(
+      await secondRemoteContext.newPage(),
+      server,
+    );
+
+    try {
+      await Promise.all([
+        boardPage.gotoBoard(boardName),
+        firstRemote.gotoBoard(boardName),
+        secondRemote.gotoBoard(boardName),
+      ]);
+      await Promise.all([
+        boardPage.waitForSocketConnected(),
+        firstRemote.waitForSocketConnected(),
+        secondRemote.waitForSocketConnected(),
+      ]);
+
+      await boardPage.connectedUsersToggle.click();
+      await expect(boardPage.connectedUsersPanel).toBeVisible();
+      await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(3);
+      const initialRows = await boardPage.readConnectedUsers();
+      expect(initialRows[0]?.isSelf).toBe(true);
+      expect(initialRows[0]?.friendHidden).toBe(true);
+      const compactLayout = await boardPage.connectedUsersPanel.evaluate(
+        (panel) => {
+          const starts = Array.from(
+            panel.querySelectorAll(".connected-user-name"),
+          ).map((name) => name.getBoundingClientRect().left);
+          return {
+            clientWidth: panel.clientWidth,
+            scrollWidth: panel.scrollWidth,
+            startSpread: Math.max(...starts) - Math.min(...starts),
+          };
+        },
+      );
+      expect(compactLayout.scrollWidth).toBeLessThanOrEqual(
+        compactLayout.clientWidth,
+      );
+      expect(compactLayout.startSpread).toBeLessThanOrEqual(1);
+
+      const lastRemote = boardPage.page
+        .locator(
+          "#connectedUsersList .connected-user-row:not(.connected-user-row-self)",
+        )
+        .last();
+      const friendUserId = await lastRemote.getAttribute("data-user-id");
+      if (!friendUserId) throw new Error("Remote user is missing a surname id");
+      const friendName =
+        (await lastRemote.locator(".connected-user-name-text").textContent()) ||
+        "";
+      const friendButton = lastRemote.locator(".connected-user-friend");
+      await expect(friendButton).toHaveCSS("opacity", "0");
+      await expect(lastRemote.locator(".connected-user-report")).toHaveCSS(
+        "opacity",
+        "0",
+      );
+      await expect(lastRemote.locator(".connected-user-actions")).toHaveCSS(
+        "width",
+        "49px",
+      );
+      await expect(friendButton).toHaveAttribute(
+        "aria-label",
+        `Add ${friendName} as a friend`,
+      );
+      await expect(
+        lastRemote.locator(".connected-user-report"),
+      ).toHaveAttribute("aria-label", `Report ${friendName}`);
+      await friendButton.focus();
+      await expect(friendButton).toHaveCSS("opacity", "1");
+      await expect(lastRemote.locator(".connected-user-report")).toHaveCSS(
+        "opacity",
+        "1",
+      );
+      await friendButton.press("Space");
+
+      await expect
+        .poll(async () => (await boardPage.readConnectedUsers())[1]?.userId)
+        .toBe(friendUserId);
+      const friendRow = boardPage.page.locator(
+        `#connectedUsersList .connected-user-row[data-user-id="${friendUserId}"]`,
+      );
+      await expect(friendRow.locator(".connected-user-friend")).toBeFocused();
+      await expect(friendRow.locator(".connected-user-friend")).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      await expect(
+        friendRow.locator(".connected-user-name-text"),
+      ).toContainText("\u2764\uFE0F");
+      await expect(friendRow.locator(".connected-user-friend")).toHaveCSS(
+        "opacity",
+        "1",
+      );
+      await expect
+        .poll(() =>
+          boardPage.page.evaluate(
+            ({ key, userId }) => {
+              const stored = JSON.parse(localStorage.getItem(key) || "[]");
+              return Array.isArray(stored) && stored.includes(userId);
+            },
+            { key: FRIEND_LAST_NAMES_STORAGE_KEY, userId: friendUserId },
+          ),
+        )
+        .toBe(true);
+
+      await boardPage.gotoBoard(boardName);
+      await boardPage.waitForSocketConnected();
+      await boardPage.connectedUsersToggle.click();
+      await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(3);
+      await expect
+        .poll(async () => {
+          const rows = await boardPage.readConnectedUsers();
+          return { userId: rows[1]?.userId, friend: rows[1]?.friend };
+        })
+        .toEqual({ userId: friendUserId, friend: true });
+
+      const persistedFriend = boardPage.page.locator(
+        `#connectedUsersList .connected-user-row[data-user-id="${friendUserId}"] .connected-user-friend`,
+      );
+      await persistedFriend.focus();
+      await persistedFriend.press("Space");
+      await expect(persistedFriend).toHaveAttribute("aria-pressed", "false");
+      await expect(persistedFriend).toBeFocused();
+      await expect
+        .poll(() =>
+          boardPage.page.evaluate(
+            ({ key, userId }) => {
+              const stored = JSON.parse(localStorage.getItem(key) || "[]");
+              return Array.isArray(stored) && stored.includes(userId);
+            },
+            { key: FRIEND_LAST_NAMES_STORAGE_KEY, userId: friendUserId },
+          ),
+        )
+        .toBe(false);
+    } finally {
+      await firstRemoteContext.close();
+      await secondRemoteContext.close();
+    }
+  });
+
+  test("touch row taps navigate and reveal only that row's actions", async ({
+    browser,
+    server,
+  }) => {
+    const touchContext = await browser.newContext({
+      hasTouch: true,
+      viewport: { width: 390, height: 844 },
+    });
+    const peerContext = await browser.newContext();
+    const touchPage = await touchContext.newPage();
+    const peerPage = await peerContext.newPage();
+    const touchBoard = createBoardPage(touchPage, server);
+    const peerBoard = createBoardPage(peerPage, server);
+
+    try {
+      await Promise.all([
+        touchBoard.gotoBoard("presence-touch-actions"),
+        peerBoard.gotoBoard("presence-touch-actions"),
+      ]);
+      await Promise.all([
+        touchBoard.waitForSocketConnected(),
+        peerBoard.waitForSocketConnected(),
+      ]);
+      await touchBoard.connectedUsersToggle.tap();
+      await expect(touchBoard.connectedUsersPanel).toBeVisible();
+      await expect.poll(() => touchBoard.readConnectedUsers()).toHaveLength(2);
+
+      const remoteRow = touchPage.locator(
+        "#connectedUsersList .connected-user-row:not(.connected-user-row-self)",
+      );
+      await expect(remoteRow.locator(".connected-user-friend")).toHaveCSS(
+        "opacity",
+        "0",
+      );
+      await remoteRow.locator(".connected-user-main-link").tap();
+      await expect(remoteRow).toHaveClass(/connected-user-row-touch-revealed/);
+      await expect(remoteRow.locator(".connected-user-friend")).toHaveCSS(
+        "opacity",
+        "1",
+      );
+
+      const urlAfterNavigation = touchPage.url();
+      await remoteRow.locator(".connected-user-friend").tap();
+      expect(touchPage.url()).toBe(urlAfterNavigation);
+    } finally {
+      await peerContext.close();
+      await touchContext.close();
+    }
+  });
+
+  moderatorPresenceTest(
+    "moderator ban dialog exposes fixed durations",
+    async ({ boardPage, browser, page, server }) => {
+      const boardName = "moderator-ban-duration-ui";
+      const targetContext = await browser.newContext();
+      const targetPage = await targetContext.newPage();
+      const targetBoard = createBoardPage(targetPage, server);
+
+      try {
+        await boardPage.setSocketHeaders({
+          "X-Forwarded-For": "198.51.100.120",
+        });
+        await targetBoard.setSocketHeaders({
+          "X-Forwarded-For": "198.51.100.121",
+        });
+
+        await Promise.all([
+          boardPage.gotoBoard(boardName, { token: TOKENS.globalModerator }),
+          targetBoard.gotoBoard(boardName, { token: TOKENS.globalEditor }),
+        ]);
+        await Promise.all([
+          boardPage.waitForSocketConnected(),
+          targetBoard.waitForSocketConnected(),
+        ]);
+        const targetClear = targetPage.locator("#toolID-clear");
+        await expect(targetClear).toBeHidden();
+        await page.evaluate(() => {
+          const socket = window.WBOApp.connection.socket as any;
+          if (!socket) throw new Error("Missing socket");
+          const emit = socket.emit.bind(socket);
+          window.__reportedUsers = [];
+          socket.emit = (event: string, ...args: unknown[]) => {
+            if (event === "report_user") {
+              window.__reportedUsers?.push(args[0] as any);
+            }
+            return emit(event, ...args);
+          };
+        });
+
+        await boardPage.connectedUsersToggle.click();
+        await expect(boardPage.connectedUsersPanel).toBeVisible();
+        await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+
+        await boardPage.reportFirstRemoteUser();
+        await expect(page.locator(".moderation-action-dialog")).toBeVisible();
+        await expect(page.locator(".moderation-action-rule-label")).toHaveText(
+          MODERATION_RULES.map(
+            (rule) =>
+              translations.en[rule.titleKey as keyof typeof translations.en],
+          ),
+        );
+
+        await expect(page.locator(".moderation-action-duration")).toContainText(
+          ["Warn", "15m", "30m", "24h", "7d"],
+        );
+
+        await page.getByRole("button", { name: "30m", exact: true }).click();
+        await page
+          .getByRole("button", {
+            name: translations.en.rules_harassment_title,
+            exact: true,
+          })
+          .click();
+        await expect
+          .poll(() => page.evaluate(() => window.__reportedUsers?.[0]))
+          .toMatchObject({
+            banDurationMs: 30 * 60 * 1000,
+            moderationRule: "harassment",
+          });
+        if (!(await boardPage.connectedUsersPanel.isVisible())) {
+          await boardPage.connectedUsersToggle.click();
+        }
+        const banReport = page.locator(
+          "#connectedUsersList .connected-user-row:not(.connected-user-row-self) .connected-user-report",
+        );
+        await expect(banReport).toBeVisible();
+        await expect(banReport).toBeDisabled();
+        await expect(banReport).toHaveAttribute("aria-label", "Ban applied");
+        await expect(banReport).toHaveText("✓");
+        await page.evaluate(() => {
+          document
+            .querySelector<HTMLButtonElement>(
+              "#connectedUsersList .connected-user-row:not(.connected-user-row-self) .connected-user-report",
+            )
+            ?.click();
+        });
+        await expect
+          .poll(() => page.evaluate(() => window.__reportedUsers?.length ?? 0))
+          .toBe(1);
+      } finally {
+        await targetContext.close();
+      }
+    },
+  );
+
+  moderatorPresenceTest(
+    "permanent moderators grant and revoke temporary moderator access",
+    async ({ boardPage, browser, page, server }) => {
+      const boardName = "temporary-moderator-ui";
+      const targetContext = await browser.newContext();
+      const targetPage = await targetContext.newPage();
+      const targetBoard = createBoardPage(targetPage, server);
+
+      try {
+        await Promise.all([
+          boardPage.gotoBoard(boardName, { token: TOKENS.globalModerator }),
+          targetBoard.gotoBoard(boardName, { token: TOKENS.globalEditor }),
+        ]);
+        await Promise.all([
+          boardPage.waitForSocketConnected(),
+          targetBoard.waitForSocketConnected(),
+        ]);
+        const targetClear = targetPage.locator("#toolID-clear");
+        await expect(targetClear).toBeHidden();
+        await boardPage.connectedUsersToggle.click();
+        await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+
+        const remoteRow = page.locator(
+          "#connectedUsersList .connected-user-row:not(.connected-user-row-self)",
+        );
+        const action = remoteRow.locator(".connected-user-friend");
+        await expect(action).toHaveAttribute("aria-label", /Moderate .*/);
+        await action.evaluate((button: HTMLButtonElement) => button.click());
+        await expect(page.getByText("Make temporary moderator")).toBeVisible();
+        await expect(
+          page.locator(
+            ".moderation-action-segmented .moderation-action-choice",
+          ),
+        ).toHaveText(["15m", "30m", "24h", "7d"]);
+        await page.getByRole("button", { name: "30m", exact: true }).click();
+
+        await expect(targetClear).toBeVisible();
+        await expect
+          .poll(() =>
+            page.evaluate(
+              () =>
+                Array.from(window.WBOApp.presence.users.values()).find(
+                  (user) =>
+                    user.socketId !== window.WBOApp.connection.socket?.id,
+                )?.canBan,
+            ),
+          )
+          .toBe(true);
+
+        await action.evaluate((button: HTMLButtonElement) => button.click());
+        await page
+          .getByRole("button", { name: /Revoke temporary moderator access/ })
+          .click();
+        await expect(targetClear).toBeHidden();
+      } finally {
+        await targetContext.close();
+      }
+    },
+  );
+
+  moderatorPresenceTest(
+    "moderator warning shows an overlay and reconnects after acknowledgement",
+    async ({ boardPage, browser, server }) => {
+      const boardName = "moderator-warning-overlay";
+      const targetContext = await browser.newContext();
+      const targetPage = await targetContext.newPage();
+      const targetBoard = createBoardPage(targetPage, server);
+
+      try {
+        await boardPage.setSocketHeaders({
+          "X-Forwarded-For": "198.51.100.122",
+        });
+        await targetBoard.setSocketHeaders({
+          "X-Forwarded-For": "198.51.100.123",
+        });
+
+        await Promise.all([
+          boardPage.gotoBoard(boardName, { token: TOKENS.globalModerator }),
+          targetBoard.gotoBoard(boardName, { token: TOKENS.globalEditor }),
+        ]);
+        await Promise.all([
+          boardPage.waitForSocketConnected(),
+          targetBoard.waitForSocketConnected(),
+        ]);
+
+        await boardPage.connectedUsersToggle.click();
+        await expect(boardPage.connectedUsersPanel).toBeVisible();
+        await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+
+        const targetReconnect = targetBoard.waitForDisconnectThenReconnect();
+        await boardPage.reportFirstRemoteUser();
+        await expect(
+          boardPage.page.locator(".moderation-action-dialog"),
+        ).toBeVisible();
+        await boardPage.page
+          .getByRole("button", {
+            name: translations.en.rules_harassment_title,
+            exact: true,
+          })
+          .click();
+
+        await expect
+          .poll(() => targetBoard.readModerationOverlay())
+          .toMatchObject({
+            visible: true,
+            kind: "warning",
+            title: "Moderator warning",
+            acknowledgeLabel: "I understand",
+          });
+        await expect
+          .poll(() => targetBoard.readConnectionAccessState())
+          .toMatchObject({
+            connected: false,
+            connectionState: "disconnected",
+          });
+
+        await targetBoard.acknowledgeModerationDisconnect();
+        await expect(targetReconnect).resolves.toMatchObject({
+          initialId: expect.any(String),
+          nextId: expect.any(String),
+        });
+        await expect
+          .poll(() => targetBoard.readConnectionAccessState())
+          .toMatchObject({ connected: true, canEdit: true });
+      } finally {
+        await targetContext.close();
+      }
+    },
+  );
+
+  moderatorPresenceTest(
+    "moderator ban shows a ban overlay and reconnects read-only after acknowledgement",
+    async ({ boardPage, browser, server }) => {
+      const boardName = "moderator-ban-overlay";
+      const targetContext = await browser.newContext();
+      const targetPage = await targetContext.newPage();
+      const targetBoard = createBoardPage(targetPage, server);
+
+      try {
+        await boardPage.setSocketHeaders({
+          "X-Forwarded-For": "198.51.100.124",
+        });
+        await targetBoard.setSocketHeaders({
+          "X-Forwarded-For": "198.51.100.125",
+        });
+
+        await Promise.all([
+          boardPage.gotoBoard(boardName, { token: TOKENS.globalModerator }),
+          targetBoard.gotoBoard(boardName, {
+            lang: "ru",
+            token: TOKENS.globalEditor,
+          }),
+        ]);
+        await Promise.all([
+          boardPage.waitForSocketConnected(),
+          targetBoard.waitForSocketConnected(),
+        ]);
+
+        await boardPage.connectedUsersToggle.click();
+        await expect(boardPage.connectedUsersPanel).toBeVisible();
+        await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+
+        const targetReconnect = targetBoard.waitForDisconnectThenReconnect();
+        await boardPage.reportFirstRemoteUser();
+        await expect(
+          boardPage.page.locator(".moderation-action-dialog"),
+        ).toBeVisible();
+        await boardPage.page.getByRole("button", { name: "15m" }).click();
+        await boardPage.page
+          .getByRole("button", {
+            name: translations.en.rules_harassment_title,
+            exact: true,
+          })
+          .click();
+
+        await expect
+          .poll(() => targetBoard.readModerationOverlay())
+          .toMatchObject({
+            visible: true,
+            kind: "ban",
+            title: "Редактирование временно заблокировано",
+            acknowledgeLabel: "Понятно",
+          });
+        const disconnectDialog = targetPage.locator(
+          "#moderation-disconnect-dialog",
+        );
+        const dialogGeometry = await disconnectDialog.evaluate((dialog) => {
+          const privateBoard = dialog.querySelector(
+            ".moderation-disconnect-private",
+          );
+          const acknowledge = dialog.querySelector(
+            ".moderation-disconnect-ack",
+          );
+          if (!(privateBoard instanceof HTMLElement)) {
+            throw new Error("Missing private-board action");
+          }
+          if (!(acknowledge instanceof HTMLElement)) {
+            throw new Error("Missing acknowledge action");
+          }
+          const privateRect = privateBoard.getBoundingClientRect();
+          const acknowledgeRect = acknowledge.getBoundingClientRect();
+          return {
+            client: dialog.clientWidth,
+            scroll: dialog.scrollWidth,
+            width: dialog.getBoundingClientRect().width,
+            privateDisplay: getComputedStyle(privateBoard).display,
+            privateAlign: getComputedStyle(privateBoard).alignItems,
+            privateHeight: privateRect.height,
+            acknowledgeHeight: acknowledgeRect.height,
+            centerDelta: Math.abs(
+              privateRect.top +
+                privateRect.height / 2 -
+                (acknowledgeRect.top + acknowledgeRect.height / 2),
+            ),
+          };
+        });
+        expect(dialogGeometry.width).toBe(420);
+        expect(dialogGeometry.scroll).toBeLessThanOrEqual(
+          dialogGeometry.client,
+        );
+        expect(dialogGeometry.privateDisplay).toBe("flex");
+        expect(dialogGeometry.privateAlign).toBe("center");
+        expect(dialogGeometry.privateHeight).toBe(
+          dialogGeometry.acknowledgeHeight,
+        );
+        expect(dialogGeometry.centerDelta).toBeLessThanOrEqual(0.5);
+        await targetPage.setViewportSize({ width: 360, height: 640 });
+        const narrowDialogGeometry = await disconnectDialog.evaluate(
+          (dialog) => ({
+            client: dialog.clientWidth,
+            scroll: dialog.scrollWidth,
+            width: dialog.getBoundingClientRect().width,
+          }),
+        );
+        expect(narrowDialogGeometry.width).toBe(328);
+        expect(narrowDialogGeometry.scroll).toBeLessThanOrEqual(
+          narrowDialogGeometry.client,
+        );
+        const acknowledge = targetPage.locator(".moderation-disconnect-ack");
+        const rulesLink = targetPage.locator(".moderation-disconnect-rules");
+        await expect(acknowledge).toBeFocused();
+        await acknowledge.press("Tab");
+        await expect(rulesLink).toBeFocused();
+        await rulesLink.press("Shift+Tab");
+        await expect(acknowledge).toBeFocused();
+        await expect
+          .poll(() => targetBoard.readConnectionAccessState())
+          .toMatchObject({
+            connected: false,
+            connectionState: "disconnected",
+          });
+
+        await targetBoard.acknowledgeModerationDisconnect();
+        await expect(acknowledge).not.toBeFocused();
+        await expect(targetReconnect).resolves.toMatchObject({
+          initialId: expect.any(String),
+          nextId: expect.any(String),
+        });
+        await expect
+          .poll(() => targetBoard.readConnectionAccessState())
+          .toMatchObject({ connected: true, canEdit: false });
+        await expect
+          .poll(() =>
+            targetPage.evaluate(() => window.WBOApp?.access.canReport ?? true),
+          )
+          .toBe(false);
+        await targetBoard.connectedUsersToggle.click();
+        await expect(targetBoard.connectedUsersPanel).toBeVisible();
+        await expect
+          .poll(() => targetBoard.readConnectedUsers())
+          .not.toHaveLength(0);
+        await expect(
+          targetPage.locator(
+            "#connectedUsersList .connected-user-report:not([hidden])",
+          ),
+        ).toHaveCount(0);
+      } finally {
+        await targetContext.close();
+      }
+    },
+  );
+
+  test("people editing the same text field see each other's edits", async ({
+    boardPage,
+    server,
+    context,
+    page,
+  }) => {
+    const boardName = "shared-text-edit";
+    await server.writeBoard(server.dataPath, boardName, {
+      "shared-text": {
+        tool: "text",
+        type: "new",
+        id: "shared-text",
+        x: 2600,
+        y: 2200,
+        color: "#111111",
+        size: 120,
+        txt: "Initial text",
+      },
+    });
+
+    const peerPage = await context.newPage();
+    const peerBoard = createBoardPage(peerPage, server);
+
+    await Promise.all([
+      boardPage.gotoBoard(boardName),
+      peerBoard.gotoBoard(boardName),
+    ]);
+    await Promise.all([
+      boardPage.waitForSocketConnected(),
+      peerBoard.waitForSocketConnected(),
+    ]);
+    await Promise.all([
+      boardPage.selectTool("text"),
+      peerBoard.selectTool("text"),
+    ]);
+    await Promise.all([
+      page.locator("#shared-text").click(),
+      peerPage.locator("#shared-text").click(),
+    ]);
+    await Promise.all([
+      expect(page.locator("#textToolInput")).toHaveValue("Initial text"),
+      expect(peerPage.locator("#textToolInput")).toHaveValue("Initial text"),
+    ]);
+
+    await peerPage.locator("#textToolInput").fill("Peer edit");
+    await expect(page.locator("#textToolInput")).toHaveValue("Peer edit");
+    await expect(page.locator("#shared-text")).toHaveText("Peer edit");
+
+    await page.locator("#textToolInput").fill("Main edit");
+    await expect(peerPage.locator("#textToolInput")).toHaveValue("Main edit");
+    await expect(peerPage.locator("#shared-text")).toHaveText("Main edit");
+
+    await peerPage.close();
+  });
+
+  test("active text editor follows remote hand movement", async ({
+    boardPage,
+    server,
+    context,
+    page,
+  }) => {
+    const boardName = "shared-text-remote-move";
+    await server.writeBoard(server.dataPath, boardName, {
+      "remote-moved-text": {
+        tool: "text",
+        type: "new",
+        id: "remote-moved-text",
+        x: 2300,
+        y: 2100,
+        color: "#111111",
+        size: 120,
+        txt: "Move while editing",
+      },
+    });
+
+    const peerPage = await context.newPage();
+    const peerBoard = createBoardPage(peerPage, server);
+
+    await Promise.all([
+      boardPage.gotoBoard(boardName),
+      peerBoard.gotoBoard(boardName),
+    ]);
+    await Promise.all([
+      boardPage.waitForSocketConnected(),
+      peerBoard.waitForSocketConnected(),
+    ]);
+
+    await boardPage.selectTool("text");
+    await page.locator("#remote-moved-text").click();
+    await expect(page.locator("#textToolInput")).toHaveValue(
+      "Move while editing",
+    );
+    await boardPage.expectTextEditorToCoverText("#remote-moved-text");
+
+    await peerBoard.selectTool("hand");
+    await peerPage.evaluate(
+      ({ handTool, targetId, updateType }) => {
+        window.WBOApp.writes.drawAndSend({
+          tool: handTool,
+          _children: [
+            {
+              type: updateType,
+              id: targetId,
+              transform: { a: 1, b: 0, c: 0, d: 1, e: 850, f: 460 },
+            },
+          ],
+        });
+      },
+      {
+        handTool: Hand.id,
+        targetId: "remote-moved-text",
+        updateType: MutationType.UPDATE,
+      },
+    );
+
+    await boardPage.expectTextEditorToCoverText("#remote-moved-text");
+    await peerPage.close();
+  });
+
+  test("reporting a user shows the reported target a neutral notice before reconnect", async ({
+    boardPage,
+    browser,
+    server,
+  }) => {
+    const peerContext = await browser.newContext();
+    const peerPage = await peerContext.newPage();
+    const peerBoard = createBoardPage(peerPage, server);
+
+    try {
+      await Promise.all([
+        boardPage.gotoBoard("report-user-reconnect"),
+        peerBoard.gotoBoard("report-user-reconnect"),
+      ]);
+      await Promise.all([
+        boardPage.waitForSocketConnected(),
+        peerBoard.waitForSocketConnected(),
+      ]);
+
+      await boardPage.connectedUsersToggle.click();
+      await peerBoard.connectedUsersToggle.click();
+      await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+      await expect.poll(() => peerBoard.readConnectedUsers()).toHaveLength(2);
+
+      const reporterReconnect = boardPage.waitForDisconnectThenReconnect();
+      const reportedReconnect = peerBoard.waitForDisconnectThenReconnect();
+
+      await boardPage.reportFirstRemoteUser();
+
+      await expect(reporterReconnect).resolves.toMatchObject({
+        initialId: expect.any(String),
+        nextId: expect.any(String),
+      });
+
+      await expect
+        .poll(() => peerBoard.readModerationOverlay())
+        .toMatchObject({
+          visible: true,
+          kind: "report",
+          title: "Disconnected after a user report",
+          message:
+            "Another user reported activity from your connection. Both connections were closed to prevent an immediate conflict. You can reconnect now.",
+          acknowledgeLabel: "I understand",
+        });
+      await expect
+        .poll(() => peerBoard.readConnectionAccessState())
+        .toMatchObject({
+          connected: false,
+          connectionState: "disconnected",
+        });
+
+      await peerBoard.acknowledgeModerationDisconnect();
+      await expect(reportedReconnect).resolves.toMatchObject({
+        initialId: expect.any(String),
+        nextId: expect.any(String),
+      });
+
+      await Promise.all([
+        boardPage.waitForSocketConnected(),
+        peerBoard.waitForSocketConnected(),
+      ]);
+      await boardPage.connectedUsersToggle.click();
+      await peerBoard.connectedUsersToggle.click();
+      await expect(boardPage.connectedUsersPanel).toBeVisible();
+      await expect(peerBoard.connectedUsersPanel).toBeVisible();
+      await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+      await expect.poll(() => peerBoard.readConnectedUsers()).toHaveLength(2);
+    } finally {
+      await peerContext.close();
+    }
+  });
+
+  test("same-session sockets keep separate activity in the user list", async ({
+    boardPage,
+    server,
+    context,
+  }) => {
+    const peerPage = await context.newPage();
+    const peerBoard = createBoardPage(peerPage, server);
+
+    await boardPage.setSocketHeaders({
+      "X-Forwarded-For": DEFAULT_FORWARDED_IP,
+    });
+    await peerBoard.setSocketHeaders({
+      "X-Forwarded-For": DEFAULT_FORWARDED_IP,
+    });
+
+    await Promise.all([
+      boardPage.gotoBoard("same-session-activity"),
+      peerBoard.gotoBoard("same-session-activity"),
+    ]);
+    await Promise.all([
+      boardPage.waitForSocketConnected(),
+      peerBoard.waitForSocketConnected(),
+    ]);
+
+    await boardPage.connectedUsersToggle.click();
+    await expect(boardPage.connectedUsersPanel).toBeVisible();
+    await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+
+    await expect
+      .poll(async () => {
+        const rows = await boardPage.readConnectedUsers();
+        const self = rows.find((row) => row.isSelf);
+        const remote = rows.find((row) => !row.isSelf);
+        return {
+          firstIsSelf: rows[0]?.isSelf ?? false,
+          selfFontWeight: self?.fontWeight ?? "",
+          remoteFontWeight: parseInt(remote?.fontWeight ?? "0", 10),
+          selfBorder: !!(self?.borderBottomColor ?? ""),
+        };
+      })
+      .toMatchObject({
+        firstIsSelf: true,
+        selfFontWeight: "700",
+        remoteFontWeight: expect.any(Number),
+        selfBorder: true,
+      });
+
+    await peerBoard.emitBroadcast({
+      tool: Cursor.id,
+      type: MutationType.UPDATE,
+      x: 250,
+      y: 150,
+      color: "#00ff00",
+      size: 10,
+    });
+
+    await expect
+      .poll(async () => {
+        const rows = await boardPage.readConnectedUsers();
+        const remote = rows.find((row) => !row.isSelf);
+        const ringWidth = parseFloat(remote?.ringWidth ?? "0");
+        return {
+          color: remote?.color ?? "",
+          ringVisible: ringWidth >= 2,
+        };
+      })
+      .toMatchObject({
+        color: "rgb(0, 255, 0)",
+        ringVisible: true,
+      });
+
+    await boardPage.drawRectangle(
+      "#ff0000",
+      { x: 1100, y: 800 },
+      { x: 1300, y: 1000 },
+      11,
+    );
+
+    await expect
+      .poll(async () => {
+        const rows = await boardPage.readConnectedUsers();
+        const self = rows.find((row) => row.isSelf);
+        const remote = rows.find((row) => !row.isSelf);
+        return {
+          self: {
+            color: self?.color ?? "",
+            ringWidth: parseFloat(self?.ringWidth ?? "0"),
+            tool: self?.tool ?? "",
+          },
+          remote: {
+            color: remote?.color ?? "",
+            ringWidth: parseFloat(remote?.ringWidth ?? "0"),
+            tool: remote?.tool ?? "",
+          },
+        };
+      })
+      .toMatchObject({
+        self: {
+          color: "rgb(255, 0, 0)",
+          tool: "Rectangle",
+        },
+        remote: {
+          color: "rgb(0, 255, 0)",
+          tool: "Hand",
+        },
+      });
+
+    const rows = await boardPage.readConnectedUsers();
+    const self = rows.find((row) => row.isSelf);
+    const remote = rows.find((row) => !row.isSelf);
+    expect(parseFloat(self?.ringWidth ?? "0")).toBeGreaterThanOrEqual(
+      parseFloat(remote?.ringWidth ?? "0"),
+    );
+
+    await peerPage.close();
+  });
+
+  test("same-session pages use the server cookie identity and do not persist the secret in localStorage", async ({
+    boardPage,
+    server,
+    context,
+  }) => {
+    const peerPage = await context.newPage();
+    const peerBoard = createBoardPage(peerPage, server);
+
+    await boardPage.setSocketHeaders({
+      "X-Forwarded-For": DEFAULT_FORWARDED_IP,
+    });
+    await peerBoard.setSocketHeaders({
+      "X-Forwarded-For": DEFAULT_FORWARDED_IP,
+    });
+
+    const boardUrl = boardPage.buildBoardUrl("same-session-cookie-identity");
+    await Promise.all([
+      boardPage.gotoBoard("same-session-cookie-identity"),
+      peerBoard.gotoBoard("same-session-cookie-identity"),
+    ]);
+    await Promise.all([
+      boardPage.waitForSocketConnected(),
+      peerBoard.waitForSocketConnected(),
+    ]);
+
+    const localSecret = await boardPage.page.evaluate(() =>
+      window.localStorage.getItem("wbo-user-secret-v1"),
+    );
+    expect(localSecret).toBeNull();
+
+    const cookies = await context.cookies(boardUrl);
+    const userSecretCookie = cookies.find(
+      (cookie) => cookie.name === "wbo-user-secret-v1",
+    );
+    expect(userSecretCookie).toMatchObject({
+      httpOnly: true,
+      sameSite: "Lax",
+      path: "/",
+    });
+
+    await boardPage.connectedUsersToggle.click();
+    await expect(boardPage.connectedUsersPanel).toBeVisible();
+    await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+
+    const rows = await boardPage.readConnectedUsers();
+    expect(new Set(rows.map((row) => row.name)).size).toBe(1);
+    expect(new Set(rows.map((row) => row.userId)).size).toBe(1);
+    const sameIdentityPeer = rows.find((row) => !row.isSelf);
+    expect(sameIdentityPeer).toMatchObject({
+      friendHidden: true,
+      reportHidden: true,
+    });
+
+    await peerPage.close();
+  });
+
+  test("connected user jump rows stay attached while cursor updates stream in", async ({
+    boardPage,
+    server,
+    context,
+    page,
+  }) => {
+    const peerPage = await context.newPage();
+    const peerBoard = createBoardPage(peerPage, server);
+
+    await boardPage.setSocketHeaders({
+      "X-Forwarded-For": DEFAULT_FORWARDED_IP,
+    });
+    await peerBoard.setSocketHeaders({
+      "X-Forwarded-For": DEFAULT_FORWARDED_IP,
+    });
+
+    await Promise.all([
+      boardPage.gotoBoard("connected-user-jump-links"),
+      peerBoard.gotoBoard("connected-user-jump-links"),
+    ]);
+    await Promise.all([
+      boardPage.waitForSocketConnected(),
+      peerBoard.waitForSocketConnected(),
+    ]);
+
+    await boardPage.connectedUsersToggle.click();
+    await expect(boardPage.connectedUsersPanel).toBeVisible();
+    await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+
+    await peerBoard.emitBroadcast({
+      tool: Cursor.id,
+      type: MutationType.UPDATE,
+      x: 1600,
+      y: 1200,
+      color: "#00ff00",
+      size: 10,
+    });
+
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const row = document.querySelector(
+            "#connectedUsersList .connected-user-row:not(.connected-user-row-self)",
+          );
+          const link = row?.querySelector(
+            ".connected-user-main-link",
+          ) as HTMLAnchorElement | null;
+          return link?.getAttribute("href") ?? "";
+        }),
+      )
+      .toMatch(/^#/);
+
+    await page.evaluate(() => {
+      const row = document.querySelector(
+        "#connectedUsersList .connected-user-row:not(.connected-user-row-self)",
+      );
+      (window as any).__trackedConnectedUserRow = row;
+    });
+
+    await peerPage.evaluate(
+      async ({ tool, updateType }) => {
+        const nextFrame = () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => resolve()),
+          );
+        for (let index = 0; index < 12; index += 1) {
+          window.WBOApp.connection.socket?.emit("broadcast", {
+            tool,
+            type: updateType,
+            x: 1600 + index * 8,
+            y: 1200 + index * 6,
+            color: "#00ff00",
+            size: 10,
+          });
+          await nextFrame();
+        }
+      },
+      { tool: Cursor.id, updateType: MutationType.UPDATE },
+    );
+
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const saved = (window as any)
+            .__trackedConnectedUserRow as Element | null;
+          const current = document.querySelector(
+            "#connectedUsersList .connected-user-row:not(.connected-user-row-self)",
+          );
+          const link = current?.querySelector(
+            ".connected-user-main-link",
+          ) as HTMLAnchorElement | null;
+          return {
+            sameNode: saved === current,
+            isConnected: !!saved && (saved as HTMLElement).isConnected,
+            href: link?.getAttribute("href") ?? "",
+          };
+        }),
+      )
+      .toMatchObject({
+        sameNode: true,
+        isConnected: true,
+        href: expect.stringMatching(/^#/),
+      });
+
+    await peerPage.close();
+  });
+
+  test("disconnect keeps authoritative shapes visible while showing reconnect status", async ({
+    boardPage,
+    page,
+    server,
+  }) => {
+    await boardPage.gotoBoard("disconnect-visibility");
+    await boardPage.waitForSocketConnected();
+    await boardPage.waitForAuthoritativeResync();
+
+    await page.evaluate(
+      async ({ createType, tool }) => {
+        const rectangle =
+          await window.WBOApp.toolRegistry.bootTool("rectangle");
+        if (!rectangle) throw new Error("rectangle tool is unavailable");
+        window.WBOApp.writes.drawAndSend({
+          tool,
+          type: createType,
+          id: "persisted-across-disconnect",
+          x: 40,
+          y: 40,
+          x2: 120,
+          y2: 100,
+          color: "#224466",
+          size: 10,
+          opacity: 1,
+        });
+      },
+      { createType: MutationType.CREATE, tool: Rectangle.id },
+    );
+
+    await server.waitForStoredBoard(
+      server.dataPath,
+      "disconnect-visibility",
+      (storedBoard) => storedBoard["persisted-across-disconnect"] != null,
+    );
+    await expect(
+      page.locator("rect#persisted-across-disconnect"),
+    ).toBeVisible();
+
+    const disconnectState = await page.evaluate(() => {
+      return new Promise<{
+        awaitingBoardSnapshot: boolean;
+        connectionState: string;
+        statusVisible: boolean;
+        rectVisible: boolean;
+      }>((resolve) => {
+        window.WBOApp.connection.socket?.once("disconnect", () => {
+          resolve({
+            awaitingBoardSnapshot: !!window.WBOApp.replay.awaitingSnapshot,
+            connectionState: String(window.WBOApp.connection.state ?? ""),
+            statusVisible: !document.getElementById("boardStatusIndicator")
+              ?.hidden,
+            rectVisible: !!document.getElementById(
+              "persisted-across-disconnect",
+            ),
+          });
+        });
+        window.WBOApp.connection.socket?.io?.engine?.close();
+      });
+    });
+
+    expect(disconnectState).toEqual({
+      awaitingBoardSnapshot: true,
+      connectionState: "disconnected",
+      statusVisible: true,
+      rectVisible: true,
+    });
+
+    await boardPage.waitForAuthoritativeResync();
+    await expect(
+      page.locator("rect#persisted-across-disconnect"),
+    ).toBeVisible();
+  });
+
+  test("reconnect snapshot replay does not duplicate pencil path data", async ({
+    boardPage,
+    page,
+    server,
+  }) => {
+    await boardPage.gotoBoard("reconnect-pencil-replay");
+    await boardPage.waitForSocketConnected();
+    await boardPage.waitForAuthoritativeResync();
+
+    await page.evaluate(
+      async ({ pencilTool, createType, appendType }) => {
+        const nextFrame = () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => resolve()),
+          );
+        const lineId = "reconnect-pencil-path";
+        const pencil = await window.WBOApp.toolRegistry.bootTool("pencil");
+        if (!pencil) throw new Error("pencil tool is unavailable");
+        window.WBOApp.writes.drawAndSend({
+          tool: pencilTool,
+          type: createType,
+          id: lineId,
+          color: "#8844aa",
+          size: 10,
+          opacity: 1,
+        });
+        await nextFrame();
+        for (const point of [
+          { x: 198, y: 658 },
+          { x: 229, y: 663 },
+          { x: 325, y: 697 },
+          { x: 198, y: 658 },
+        ]) {
+          window.WBOApp.writes.drawAndSend({
+            tool: pencilTool,
+            type: appendType,
+            parent: lineId,
+            x: point.x,
+            y: point.y,
+          });
+          await nextFrame();
+        }
+      },
+      {
+        pencilTool: Pencil.id,
+        createType: MutationType.CREATE,
+        appendType: MutationType.APPEND,
+      },
+    );
+
+    await server.waitForStoredBoard(
+      server.dataPath,
+      "reconnect-pencil-replay",
+      (storedBoard) => storedBoard["reconnect-pencil-path"] != null,
+    );
+    await expect(page.locator("path#reconnect-pencil-path")).toBeVisible();
+    const initialPathData = await page
+      .locator("path#reconnect-pencil-path")
+      .getAttribute("d");
+    expect(initialPathData).toBeTruthy();
+
+    await boardPage.forceSocketDisconnect();
+    await boardPage.waitForAuthoritativeResync();
+
+    await expect(page.locator("path#reconnect-pencil-path")).toBeVisible();
+    await expect(page.locator("path#reconnect-pencil-path")).toHaveAttribute(
+      "d",
+      initialPathData ?? "",
+    );
+    await expect(page.locator("path#reconnect-pencil-path")).toHaveCount(1);
+  });
+
+  test("slow board boot stabilizes with persisted shapes and an active peer", async ({
+    boardPage,
+    page,
+    server,
+    context,
+  }) => {
+    const boardName = "slow-start-stability";
+    const serverOrigin = new URL(server.serverUrl).origin;
+    const delayedAssetPaths = new Set([
+      "/js/board_main.js",
+      "/js/board.js",
+      "/js/board_viewport.js",
+      "/js/path-data-polyfill.js",
+      "/socket.io/socket.io.js",
+    ]);
+
+    await server.writeBoard(server.dataPath, boardName, {
+      "slow-pencil": {
+        tool: "pencil",
+        type: "line",
+        id: "slow-pencil",
+        color: "#8844aa",
+        size: 4,
+        opacity: 1,
+        _children: [
+          { x: 60, y: 80 },
+          { x: 120, y: 130 },
+          { x: 180, y: 100 },
+          { x: 230, y: 170 },
+        ],
+      },
+      "slow-rect": {
+        tool: "rectangle",
+        type: "rect",
+        id: "slow-rect",
+        x: 100,
+        y: 100,
+        x2: 160,
+        y2: 140,
+        color: "#123456",
+        size: 4,
+        transform: { a: 1, b: 0, c: 0, d: 1, e: 25, f: 30 },
+      },
+      "slow-ellipse": {
+        tool: "ellipse",
+        type: "ellipse",
+        id: "slow-ellipse",
+        x: 260,
+        y: 120,
+        x2: 320,
+        y2: 180,
+        color: "#228855",
+        size: 5,
+      },
+      "slow-line": {
+        tool: "straight-line",
+        type: "straight",
+        id: "slow-line",
+        x: 440,
+        y: 120,
+        x2: 500,
+        y2: 170,
+        color: "#aa5500",
+        size: 3,
+      },
+      "slow-text": {
+        tool: "text",
+        type: "new",
+        id: "slow-text",
+        x: 360,
+        y: 180,
+        color: "#111111",
+        size: 18,
+        txt: "Slow sync",
+      },
+    });
+
+    const peerPage = await context.newPage();
+    const peerBoard = createBoardPage(peerPage, server);
+
+    await peerBoard.gotoBoard(boardName);
+    await peerBoard.waitForSocketConnected();
+    await peerBoard.waitForAuthoritativeResync();
+
+    await page.route("**/*", async (route) => {
+      const request = route.request();
+      const url = new URL(request.url());
+      if (
+        url.origin === serverOrigin &&
+        (request.resourceType() === "document" ||
+          delayedAssetPaths.has(url.pathname))
+      ) {
+        await delay(120);
+      }
+      await route.continue();
+    });
+
+    await boardPage.gotoBoard(boardName);
+    await boardPage.waitForSocketConnected();
+    await boardPage.waitForAuthoritativeResync();
+
+    await peerBoard.emitBroadcast({
+      tool: Cursor.id,
+      type: MutationType.UPDATE,
+      x: 640,
+      y: 210,
+      color: "#00ff66",
+      size: 12,
+    });
+
+    await boardPage.connectedUsersToggle.click();
+    await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+
+    await expect(page.locator("#slow-pencil")).toHaveCount(1);
+    await expect(page.locator("#slow-rect")).toBeVisible();
+    await expect(page.locator("#slow-ellipse")).toBeVisible();
+    await expect(page.locator("line#slow-line")).toBeVisible();
+    await expect(page.locator("#slow-text")).toHaveText("Slow sync");
+
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const remoteCursor = document.querySelector(
+            ".opcursor-html:not(#cursor-me)",
+          );
+          if (!(remoteCursor instanceof HTMLElement)) return null;
+          const style = window.getComputedStyle(remoteCursor);
+          return {
+            color: style.getPropertyValue("--opcursor-color").trim(),
+            name:
+              remoteCursor.querySelector(".opcursor-name")?.textContent ?? "",
+            icon: (
+              remoteCursor.querySelector(
+                ".opcursor-toolIcon",
+              ) as HTMLImageElement | null
+            )?.getAttribute("src"),
+            oldSvgCursorCount:
+              document.querySelectorAll("#cursors .opcursor").length,
+          };
+        }),
+      )
+      .toMatchObject({
+        color: "#00ff66",
+        oldSvgCursorCount: 0,
+      });
+
+    const finalState = await page.evaluate(() => {
+      const rect = document.getElementById("slow-rect");
+      const transformValues = (
+        rect?.getAttribute("transform")?.match(/matrix\(([^)]+)\)/)?.[1] ?? ""
+      )
+        .split(/[ ,]+/)
+        .filter(Boolean)
+        .map(Number);
+      const drawingIds = Array.from(
+        document.querySelectorAll("#drawingArea [id]"),
+      ).map((element) => element.id);
+      const pencilPath = document.querySelector("#slow-pencil");
+      const statusIndicator = document.getElementById("boardStatusIndicator");
+      const remoteCursor = document.querySelector(
+        ".opcursor-html:not(#cursor-me)",
+      );
+
+      return {
+        boardPhase: document.documentElement.dataset.boardPhase,
+        connectionState: String(window.WBOApp.connection.state ?? ""),
+        awaitingBoardSnapshot: !!window.WBOApp.replay.awaitingSnapshot,
+        statusHidden: statusIndicator?.hidden ?? true,
+        pencilCount: document.querySelectorAll("#drawingArea path#slow-pencil")
+          .length,
+        pencilPathData:
+          pencilPath instanceof SVGPathElement
+            ? (pencilPath.getAttribute("d") ?? "")
+            : "",
+        rectTransformE: transformValues[4] ?? null,
+        rectTransformF: transformValues[5] ?? null,
+        ellipseCount: document.querySelectorAll(
+          "#drawingArea ellipse#slow-ellipse",
+        ).length,
+        lineCount: document.querySelectorAll("#drawingArea line#slow-line")
+          .length,
+        textContent: document.getElementById("slow-text")?.textContent ?? "",
+        drawingIdsUnique: drawingIds.length === new Set(drawingIds).size,
+        remoteCursorPresent: remoteCursor instanceof HTMLElement,
+      };
+    });
+
+    expect(finalState).toMatchObject({
+      boardPhase: "ready",
+      connectionState: "connected",
+      awaitingBoardSnapshot: false,
+      statusHidden: true,
+      pencilCount: 1,
+      rectTransformE: 250,
+      rectTransformF: 300,
+      ellipseCount: 1,
+      lineCount: 1,
+      textContent: "Slow sync",
+      drawingIdsUnique: true,
+      remoteCursorPresent: true,
+    });
+    expect(finalState.pencilPathData).toBeTruthy();
+
+    await peerPage.close();
+  });
+
+  rateLimitTest(
+    "rate limit disconnect uses a non-blocking notice",
+    async ({ boardPage, page }) => {
+      await boardPage.setSocketHeaders({
+        "X-Forwarded-For": "198.51.100.200",
+      });
+      await boardPage.gotoBoard("rate-limit-test");
+      await expect(boardPage.tool("eraser")).toBeVisible();
+      await boardPage.waitForSocketConnected();
+
+      await page.evaluate(() => {
+        (window as any).__lastAlert = null;
+        window.alert = (message?: string) => {
+          (window as any).__lastAlert = message ?? null;
+        };
+      });
+      await page.evaluate(
+        ({ deleteType, tool }) => {
+          for (let index = 0; index < 101; index += 1) {
+            window.WBOApp.connection.socket?.emit("broadcast", {
+              tool,
+              type: deleteType,
+              id: `rate-limit-${index}`,
+            });
+          }
+        },
+        { deleteType: MutationType.DELETE, tool: Eraser.id },
+      );
+
+      await expect
+        .poll(() =>
+          page.evaluate(() => ({
+            alert: (window as any).__lastAlert as string | null,
+            notice: (
+              document.getElementById("boardStatusNotice")?.textContent ?? ""
+            ).trim(),
+            indicatorClass:
+              document.getElementById("boardStatusIndicator")?.className ?? "",
+          })),
+        )
+        .toMatchObject({
+          alert: null,
+          notice:
+            "You're sending changes too quickly, so we paused your connection to protect the board. Please wait a minute and try again.",
+          indicatorClass: expect.stringContaining("board-status-paused"),
+        });
+    },
+  );
+
+  bufferedRateLimitTest(
+    "client buffers anonymous constructive writes before hitting the server limit",
+    async ({ boardPage, context, server, page }) => {
+      await boardPage.gotoBoardShell("anonymous");
+      await boardPage.waitForSocketConnected();
+      await boardPage.waitForAuthoritativeResync();
+      await Promise.all([
+        boardPage.waitForToolBooted("rectangle"),
+        expect(boardPage.tool("rectangle")).toBeVisible(),
+      ]);
+
+      await page.evaluate(
+        async ({ createType, tool }) => {
+          const rectangle =
+            await window.WBOApp.toolRegistry.bootTool("rectangle");
+          if (!rectangle) throw new Error("rectangle tool is unavailable");
+          window.WBOApp.writes.drawAndSend({
+            tool,
+            type: createType,
+            id: "buffered-rect-1",
+            x: 40,
+            y: 40,
+            x2: 90,
+            y2: 90,
+            color: "#aa0000",
+            size: 10,
+            opacity: 1,
+          });
+          window.WBOApp.writes.drawAndSend({
+            tool,
+            type: createType,
+            id: "buffered-rect-2",
+            x: 120,
+            y: 40,
+            x2: 170,
+            y2: 90,
+            color: "#00aa00",
+            size: 10,
+            opacity: 1,
+          });
+        },
+        { createType: MutationType.CREATE, tool: Rectangle.id },
+      );
+
+      await expect
+        .poll(() => boardPage.readWriteStatus())
+        .toMatchObject({
+          bufferedWrites: 1,
+          indicatorClass: expect.stringContaining("board-status-paused"),
+        });
+
+      await page.bringToFront();
+      await server.waitForStoredBoard(
+        server.dataPath,
+        "anonymous",
+        (storedBoard) =>
+          storedBoard["buffered-rect-1"] != null &&
+          storedBoard["buffered-rect-2"] == null,
+        5_000,
+      );
+      await boardPage.waitForBufferedWritesDrained();
+      await server.waitForStoredBoard(
+        server.dataPath,
+        "anonymous",
+        (storedBoard) => storedBoard["buffered-rect-2"] != null,
+        10_000,
+      );
+      await boardPage.waitForSocketConnected();
+      await boardPage.waitForAuthoritativeResync();
+      await expect
+        .poll(() => boardPage.readWriteStatus(), { timeout: 5_000 })
+        .toMatchObject({
+          bufferedWrites: 0,
+          connectionState: "connected",
+        });
+      await expect
+        .poll(() => boardPage.readWriteStatus(), { timeout: 5_000 })
+        .toMatchObject({
+          bufferedWrites: 0,
+          awaitingBoardSnapshot: false,
+          connectionState: "connected",
+          noticeText: "",
+        });
+
+      const peerPage = await context.newPage();
+      const peerBoard = createBoardPage(peerPage, server);
+      await peerBoard.gotoBoardShell("anonymous");
+      await peerBoard.waitForSocketConnected();
+      await peerBoard.waitForAuthoritativeResync();
+      await expect(peerPage.locator("rect#buffered-rect-1")).toBeVisible();
+      await expect(peerPage.locator("rect#buffered-rect-2")).toBeVisible();
+      await peerPage.close();
+    },
+  );
+
+  bufferedRateLimitTest(
+    "disconnect clears unsent optimistic writes and restores server truth",
+    async ({ boardPage, page, server }) => {
+      await boardPage.gotoBoard("anonymous");
+      await boardPage.waitForSocketConnected();
+      await boardPage.waitForAuthoritativeResync();
+
+      await page.evaluate(
+        async ({ createType, tool }) => {
+          const rectangle =
+            await window.WBOApp.toolRegistry.bootTool("rectangle");
+          if (!rectangle) throw new Error("rectangle tool is unavailable");
+          window.WBOApp.writes.drawAndSend({
+            tool,
+            type: createType,
+            id: "persisted-before-disconnect",
+            x: 40,
+            y: 120,
+            x2: 90,
+            y2: 170,
+            color: "#112233",
+            size: 10,
+            opacity: 1,
+          });
+          window.WBOApp.writes.drawAndSend({
+            tool,
+            type: createType,
+            id: "local-only-before-disconnect",
+            x: 120,
+            y: 120,
+            x2: 170,
+            y2: 170,
+            color: "#445566",
+            size: 10,
+            opacity: 1,
+          });
+        },
+        { createType: MutationType.CREATE, tool: Rectangle.id },
+      );
+
+      await expect(
+        page.locator("rect#local-only-before-disconnect"),
+      ).toBeVisible();
+      await expect
+        .poll(() => boardPage.readWriteStatus())
+        .toMatchObject({
+          bufferedWrites: 1,
+        });
+      await server.waitForStoredBoard(
+        server.dataPath,
+        "anonymous",
+        (storedBoard) => storedBoard["persisted-before-disconnect"] != null,
+      );
+
+      await boardPage.forceSocketDisconnect();
+      await boardPage.waitForAuthoritativeResync();
+
+      await expect(
+        page.locator("rect#persisted-before-disconnect"),
+      ).toBeVisible();
+      await expect(
+        page.locator("rect#local-only-before-disconnect"),
+      ).not.toBeVisible();
+    },
+  );
+});
+
+for (const language of Object.keys(
+  translations,
+) as (keyof typeof translations)[]) {
+  moderatorPresenceTest(
+    `moderation choices and rules fit short screens in ${language}`,
+    async ({ boardPage, browser, page, server }, testInfo) => {
+      const peerContext = await browser.newContext();
+      const peerPage = await peerContext.newPage();
+      const peerBoard = createBoardPage(peerPage, server);
+      const catalog = translations[language];
+
+      try {
+        await Promise.all([
+          boardPage.gotoBoard("moderation-layout", {
+            token: TOKENS.globalModerator,
+            lang: language,
+          }),
+          peerBoard.gotoBoard("moderation-layout", {
+            token: TOKENS.globalEditor,
+          }),
+        ]);
+        await Promise.all([
+          boardPage.waitForSocketConnected(),
+          peerBoard.waitForSocketConnected(),
+        ]);
+        await boardPage.connectedUsersToggle.click();
+        await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+
+        for (const viewport of [
+          { width: 800, height: 360 },
+          { width: 360, height: 320 },
+        ]) {
+          await page.setViewportSize(viewport);
+          await boardPage.reportFirstRemoteUser();
+          const dialog = page.locator(".moderation-action-dialog");
+          const rules = dialog.locator(".moderation-action-rule");
+          await expect(dialog).toBeVisible();
+          await expect(
+            dialog.locator(".moderation-action-title"),
+          ).toBeInViewport({
+            ratio: 1,
+          });
+          await expect(rules).toHaveCount(MODERATION_RULES.length);
+          await expect(
+            dialog.locator(".moderation-action-rule-label"),
+          ).toHaveText(
+            MODERATION_RULES.map(
+              (rule: { titleKey: string }) =>
+                catalog[rule.titleKey as keyof typeof catalog],
+            ),
+          );
+          const bounds = await dialog.evaluate((element) => {
+            const rect = element.getBoundingClientRect();
+            return {
+              top: rect.top,
+              bottom: rect.bottom,
+              client: element.clientWidth,
+              scroll: element.scrollWidth,
+            };
+          });
+          expect(bounds.top).toBeGreaterThanOrEqual(0);
+          expect(bounds.bottom).toBeLessThanOrEqual(viewport.height);
+          expect(bounds.scroll).toBeLessThanOrEqual(bounds.client);
+          if (["en", "ar", "de", "my"].includes(language)) {
+            await page.screenshot({
+              path: testInfo.outputPath(`dialog-open-${viewport.width}.png`),
+            });
+          }
+          const durationLabelsFit = await dialog
+            .locator(".moderation-action-choice-label")
+            .evaluateAll((labels) =>
+              labels.every((label) => {
+                const text = label.getBoundingClientRect();
+                const button = label.parentElement?.getBoundingClientRect();
+                return (
+                  button !== undefined &&
+                  text.left >= button.left &&
+                  text.right <= button.right
+                );
+              }),
+            );
+          expect(durationLabelsFit).toBe(true);
+          for (const rule of await rules.all()) {
+            await rule.click({ trial: true });
+          }
+          const cancel = dialog.locator(".moderation-action-cancel");
+          await cancel.scrollIntoViewIfNeeded();
+          if (["en", "ar", "de", "my"].includes(language)) {
+            await page.screenshot({
+              path: testInfo.outputPath(`dialog-${viewport.width}.png`),
+            });
+          }
+          await cancel.click();
+          await expect(dialog).toHaveCount(0);
+        }
+
+        await page.goto(`${server.serverUrl}/rules?lang=${language}`);
+        await expect(page.locator(".rules-list > li")).toHaveCount(
+          MODERATION_RULES.length,
+        );
+        await expect(page.locator(".rules-enforcement")).toHaveText([
+          catalog.community_rules_warnings,
+          catalog.community_rules_bans,
+        ]);
+        const pageWidth = await page.evaluate(() => ({
+          scroll: document.documentElement.scrollWidth,
+          client: document.documentElement.clientWidth,
+        }));
+        expect(pageWidth.scroll).toBeLessThanOrEqual(pageWidth.client);
+      } finally {
+        await peerContext.close();
+      }
+    },
+  );
+}

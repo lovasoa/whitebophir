@@ -1,10 +1,10 @@
 {
-  "name": "WBO Online Whiteboard",
+  "name": "WBO — {{translations.collaborative_whiteboard}}",
   "short_name": "WBO",
   "display": "standalone",
-  "background_color": "#8FA2BC",
-  "theme_color": "#C4DFFF",
-  "description": "A free and opensource online collaborative drawing tool.",
+  "background_color": "#ffffff",
+  "theme_color": "#ccdfdf",
+  "description": "{{translations.tagline}}",
   "icons": [
     {
       "src": "favicon.svg",

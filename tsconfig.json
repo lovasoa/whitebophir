@@ -1,0 +1,26 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "preserve",
+    "moduleResolution": "bundler"
+  },
+  "include": [
+    "types/**/*.d.ts",
+    "client-data/js/**/*.js",
+    "client-data/tools/**/*.js",
+    "server/**/*.js",
+    "server/**/*.mjs",
+    "scripts/**/*.js",
+    "scripts/**/*.mjs",
+    "test-node/**/*.js",
+    "playwright/**/*.ts",
+    "playwright/**/*.d.ts",
+    "playwright.config.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "server-data",
+    "test-node/create_svg.test.js",
+    "test-node/templating.test.js"
+  ]
+}

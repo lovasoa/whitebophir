@@ -1,0 +1,2924 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const path = require("node:path");
+const { installTestConsole } = require("./test_console.js");
+const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js");
+const {
+  getToolModuleImportPath,
+  getToolRuntimeAssetPath,
+} = require("../client-data/tools/tool-defaults.js");
+const {
+  VIEWPORT_LAYOUT_EVENT,
+} = require("../client-data/js/board_viewport.js");
+const { TOOL_CODE_BY_ID } = require("../client-data/tools/tool-order.js");
+const {
+  installBrowserHarnessForTest,
+} = require("./helpers/browser_harness.js");
+const { MessageModule } = require("../client-data/js/board_message_module.js");
+const PencilTool = require("../client-data/tools/pencil/index.js");
+const RectangleTool = require("../client-data/tools/rectangle/index.js");
+const ShapeTool = require("../client-data/tools/shape_tool.js");
+installTestConsole();
+const { MutationType } = MessageToolMetadata;
+/** @typedef {import("../types/app-runtime").ToolModule} ToolModule */
+/** @typedef {import("../types/app-runtime").ToolRuntimeModules} ToolRuntimeModules */
+
+/**
+ * @typedef {{type: string, values: number[]}} PathSegment
+ * @typedef {{a: number, b: number, c: number, d: number, e: number, f: number}} MatrixState
+ * @typedef {{baseVal: {value: number}}} AnimatedLength
+ * @typedef {{type: number, matrix: MatrixState}} TransformEntry
+ * @typedef {{
+ *   items: TransformEntry[],
+ *   numberOfItems: number,
+ *   [index: number]: TransformEntry | undefined,
+ *   createSVGTransformFromMatrix(matrix: MatrixState): TransformEntry,
+ *   appendItem(transform: TransformEntry): TransformEntry,
+ * }} TransformList
+ * @typedef {{set(id: string, element: any): void, get(id: string): any, delete(id: string): void}} ElementStore
+ * @typedef {{elementsById: Map<string, any>, clock: {now: number}, time: ReturnType<typeof getBrowserHarness>, loadTool(toolName: string): any}} ReplayHarness
+ */
+
+const globalAny = /** @type {any} */ (global);
+const getBrowserHarness = installBrowserHarnessForTest(test);
+
+/**
+ * @param {PathSegment[]} pathData
+ * @returns {PathSegment[]}
+ */
+function clonePathData(pathData) {
+  return pathData.map((seg) => ({
+    type: seg.type,
+    values: seg.values.slice(),
+  }));
+}
+
+/** @returns {AnimatedLength} */
+function createAnimatedLength() {
+  return { baseVal: { value: 0 } };
+}
+
+/** @returns {MatrixState} */
+function createMatrix() {
+  return { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
+}
+
+/** @returns {TransformList} */
+function createTransformList() {
+  return {
+    /** @type {TransformEntry[]} */
+    items: [],
+    get numberOfItems() {
+      return this.items.length;
+    },
+    /**
+     * @param {MatrixState} matrix
+     * @returns {TransformEntry}
+     */
+    createSVGTransformFromMatrix: (matrix) => ({
+      type: globalAny.SVGTransform.SVG_TRANSFORM_MATRIX,
+      matrix: matrix,
+    }),
+    /**
+     * @param {TransformEntry} transform
+     * @returns {TransformEntry}
+     */
+    appendItem: function (transform) {
+      this.items.push(transform);
+      this[this.items.length - 1] = transform;
+      return transform;
+    },
+  };
+}
+
+/**
+ * @param {Map<string, any>} elementsById
+ * @returns {ElementStore}
+ */
+function createElementStore(elementsById) {
+  return {
+    /**
+     * @param {string} id
+     * @param {any} element
+     */
+    set: (id, element) => {
+      if (id) elementsById.set(id, element);
+    },
+    /**
+     * @param {string} id
+     * @returns {any}
+     */
+    get: (id) => elementsById.get(id) || null,
+    /**
+     * @param {string} id
+     * @returns {void}
+     */
+    delete: (id) => {
+      elementsById.delete(id);
+    },
+  };
+}
+
+/**
+ * @param {any} element
+ * @param {ElementStore} store
+ */
+function attachElementId(element, store) {
+  Object.defineProperty(element, "id", {
+    get: function () {
+      return this._id;
+    },
+    set: function (value) {
+      this._id = value;
+      store.set(value, this);
+    },
+    configurable: true,
+    enumerable: true,
+  });
+}
+
+/**
+ * @param {any} element
+ */
+function createElementClassList(element) {
+  const readNames = () =>
+    String(element.attributes.class || "")
+      .split(/\s+/)
+      .filter(Boolean);
+  /** @param {string[]} names */
+  const writeNames = (names) => {
+    element.attributes.class = names.join(" ");
+  };
+  return {
+    /** @param {string} name */
+    add(name) {
+      const names = readNames();
+      if (!names.includes(name)) {
+        names.push(name);
+        writeNames(names);
+      }
+    },
+    /** @param {string} name */
+    remove(name) {
+      writeNames(readNames().filter((candidate) => candidate !== name));
+    },
+    /** @param {string} name */
+    contains(name) {
+      return readNames().includes(name);
+    },
+    /**
+     * @param {string} name
+     * @param {boolean} [force]
+     */
+    toggle(name, force) {
+      const enabled = force === undefined ? !this.contains(name) : force;
+      if (enabled) this.add(name);
+      else this.remove(name);
+      return enabled;
+    },
+  };
+}
+
+/**
+ * @param {ElementStore} store
+ * @param {string} tagName
+ * @returns {any}
+ */
+function createBaseElement(store, tagName) {
+  const listeners = new Map();
+  const element = /** @type {any} */ ({
+    _id: "",
+    tagName: tagName,
+    style: /** @type {{[key: string]: any}} */ ({}),
+    attributes: /** @type {{[key: string]: any}} */ ({}),
+    parentNode: null,
+    parentElement: null,
+    children: /** @type {any[]} */ ([]),
+    textContent: "",
+    appendChild: function (/** @type {any} */ child) {
+      child.parentNode = this;
+      child.parentElement = this;
+      this.children.push(child);
+      if (child.id) store.set(child.id, child);
+      return child;
+    },
+    removeChild: function (/** @type {any} */ child) {
+      this.children = this.children.filter(
+        (/** @type {any} */ candidate) => candidate !== child,
+      );
+      child.parentNode = null;
+      child.parentElement = null;
+      if (child.id && store.get(child.id) === child) store.delete(child.id);
+      return child;
+    },
+    setAttribute: function (
+      /** @type {string} */ name,
+      /** @type {any} */ value,
+    ) {
+      this.attributes[name] = value;
+      if (name === "id") this.id = String(value);
+    },
+    setAttributeNS: function (
+      /** @type {string | null} */ namespace,
+      /** @type {string} */ name,
+      /** @type {any} */ value,
+    ) {
+      void namespace;
+      this.setAttribute(name, value);
+    },
+    getAttribute: function (/** @type {string} */ name) {
+      return this.attributes[name];
+    },
+    removeAttribute: function (/** @type {string} */ name) {
+      delete this.attributes[name];
+    },
+    addEventListener: (
+      /** @type {string} */ eventName,
+      /** @type {Function} */ listener,
+    ) => {
+      const eventListeners = listeners.get(eventName) || [];
+      eventListeners.push(listener);
+      listeners.set(eventName, eventListeners);
+    },
+    removeEventListener: (
+      /** @type {string} */ eventName,
+      /** @type {Function} */ listener,
+    ) => {
+      const eventListeners = listeners.get(eventName);
+      if (!eventListeners) return;
+      listeners.set(
+        eventName,
+        eventListeners.filter(
+          (/** @type {Function} */ candidate) => candidate !== listener,
+        ),
+      );
+    },
+    dispatchEvent: (/** @type {{type: string}} */ event) => {
+      const eventListeners = listeners.get(event.type) || [];
+      for (const listener of eventListeners) listener(event);
+      return true;
+    },
+    focus: () => {},
+    blur: () => {},
+    contains: function (/** @type {any} */ target) {
+      while (target) {
+        if (target === this) return true;
+        target = target.parentNode;
+      }
+      return false;
+    },
+    getBoundingClientRect: () => ({ left: 0, top: 0, height: 0 }),
+    cloneNode: function () {
+      const clone = createSVGElement(store, this.tagName);
+      clone.style = { ...this.style };
+      clone.attributes = { ...this.attributes };
+      clone.textContent = this.textContent;
+      [
+        "x",
+        "y",
+        "width",
+        "height",
+        "x1",
+        "y1",
+        "x2",
+        "y2",
+        "cx",
+        "cy",
+        "rx",
+        "ry",
+      ].forEach((name) => {
+        if (this[name] && clone[name]) {
+          clone[name].baseVal.value = this[name].baseVal.value;
+        }
+      });
+      if (this.transform && clone.transform) {
+        const matrix = this.transform.baseVal.numberOfItems
+          ? this.transform.baseVal[0].matrix
+          : createMatrix();
+        clone.transform.baseVal.appendItem(
+          clone.transform.baseVal.createSVGTransformFromMatrix({
+            a: matrix.a,
+            b: matrix.b,
+            c: matrix.c,
+            d: matrix.d,
+            e: matrix.e,
+            f: matrix.f,
+          }),
+        );
+      }
+      if (this.pathData && clone.setPathData) clone.setPathData(this.pathData);
+      return clone;
+    },
+  });
+  element.classList = createElementClassList(element);
+  attachElementId(element, store);
+  return element;
+}
+
+/**
+ * @param {ElementStore} store
+ * @param {string} tagName
+ * @returns {any}
+ */
+function createBBoxElement(store, tagName) {
+  const element = createBaseElement(store, tagName);
+  element.transform = { baseVal: createTransformList() };
+  element.getBBox = function () {
+    const x = this.x ? this.x.baseVal.value : 0;
+    const y = this.y ? this.y.baseVal.value : 0;
+    const width = this.width ? this.width.baseVal.value : 0;
+    const height = this.height ? this.height.baseVal.value : 0;
+    return { x, y, width, height };
+  };
+  element.transformedBBox = function () {
+    const matrix = this.transform.baseVal.numberOfItems
+      ? this.transform.baseVal[0].matrix
+      : createMatrix();
+    const x = this.x ? this.x.baseVal.value : 0;
+    const y = this.y ? this.y.baseVal.value : 0;
+    const width = this.width ? this.width.baseVal.value : 0;
+    const height = this.height ? this.height.baseVal.value : 0;
+    return {
+      r: [x + matrix.e, y + matrix.f],
+      a: [width * matrix.a, 0],
+      b: [0, height * matrix.d],
+    };
+  };
+  return element;
+}
+
+/**
+ * @param {ElementStore} store
+ * @param {string} tagName
+ * @param {Record<string, string | number>} [attrs]
+ * @returns {any}
+ */
+function createSVGElement(store, tagName, attrs) {
+  const element = createBBoxElement(store, tagName);
+  if (tagName === "path") {
+    if (globalAny.SVGPathElement) {
+      Object.setPrototypeOf(element, globalAny.SVGPathElement.prototype);
+    }
+    /** @type {PathSegment[]} */
+    element.pathData = [];
+    element.getPathData = function () {
+      return clonePathData(this.pathData);
+    };
+    /**
+     * @param {PathSegment[]} pathData
+     */
+    element.setPathData = function (pathData) {
+      this.pathData = clonePathData(pathData);
+    };
+  }
+  if (tagName === "line") {
+    element.x1 = createAnimatedLength();
+    element.y1 = createAnimatedLength();
+    element.x2 = createAnimatedLength();
+    element.y2 = createAnimatedLength();
+  }
+  if (tagName === "rect") {
+    element.x = createAnimatedLength();
+    element.y = createAnimatedLength();
+    element.width = createAnimatedLength();
+    element.height = createAnimatedLength();
+  }
+  if (tagName === "ellipse") {
+    element.cx = createAnimatedLength();
+    element.cy = createAnimatedLength();
+    element.rx = createAnimatedLength();
+    element.ry = createAnimatedLength();
+  }
+  if (tagName === "text" && globalAny.SVGTextElement) {
+    Object.setPrototypeOf(element, globalAny.SVGTextElement.prototype);
+  }
+  if (tagName === "image") {
+    element.x = createAnimatedLength();
+    element.y = createAnimatedLength();
+    element.width = createAnimatedLength();
+    element.height = createAnimatedLength();
+  }
+  if (attrs) {
+    Object.entries(attrs).forEach(([name, value]) => {
+      element.setAttribute(name, value);
+      if (name === "width" && element.width)
+        element.width.baseVal.value = Number(value);
+      if (name === "height" && element.height) {
+        element.height.baseVal.value = Number(value);
+      }
+    });
+  }
+  return element;
+}
+
+/** @returns {ReplayHarness} */
+function createHarness() {
+  const elementsById = /** @type {Map<string, any>} */ (new Map());
+  const store = createElementStore(elementsById);
+  const drawingArea = createBaseElement(store, "g");
+  drawingArea.appendChild = function (/** @type {any} */ child) {
+    child.parentNode = this;
+    child.parentElement = this;
+    this.children.push(child);
+    if (child.id) store.set(child.id, child);
+    return child;
+  };
+  const svg = createBaseElement(store, "svg");
+  svg.width = createAnimatedLength();
+  svg.width.baseVal.value = 1000;
+  svg.height = createAnimatedLength();
+  svg.height.baseVal.value = 1000;
+  svg.appendChild = drawingArea.appendChild.bind(svg);
+  svg.getElementById = (/** @type {string} */ id) => store.get(id);
+  svg.namespaceURI = "http://www.w3.org/2000/svg";
+  svg.createSVGMatrix = () => createMatrix();
+
+  const board = createBaseElement(store, "div");
+  board.appendChild = function (/** @type {any} */ child) {
+    child.parentNode = this;
+    child.parentElement = this;
+    this.children.push(child);
+    if (child.id) store.set(child.id, child);
+    return child;
+  };
+
+  const tools = /** @type {{[name: string]: any}} */ ({});
+  const browser = getBrowserHarness();
+  const clock = browser.clock;
+  browser.installClientDom({
+    createElement(tagName) {
+      return createBaseElement(store, tagName);
+    },
+    createElementNS(namespace, tagName) {
+      void namespace;
+      return createSVGElement(store, tagName);
+    },
+    getElementById(id) {
+      return store.get(id);
+    },
+  });
+
+  const app = {
+    dom: {
+      status: "attached",
+      board: board,
+      svg: svg,
+      drawingArea: drawingArea,
+      createSVGElement: (
+        /** @type {string} */ tagName,
+        /** @type {Record<string, string | number>} */ attrs,
+      ) => createSVGElement(store, tagName, attrs),
+      positionElement: (
+        /** @type {HTMLElement} */ elem,
+        /** @type {number} */ x,
+        /** @type {number} */ y,
+      ) => {
+        elem.style.left = `${x}px`;
+        elem.style.top = `${y}px`;
+      },
+      clearBoardCursors: () => {},
+      resetBoardViewport: () => {},
+    },
+    svg: svg,
+    board: board,
+    drawingArea: drawingArea,
+    access: {
+      boardState: {
+        readonly: false,
+        canEdit: true,
+        canClear: false,
+        canWrite: true,
+      },
+      readOnly: false,
+      canEdit: true,
+      canClear: false,
+      canWrite: true,
+    },
+    interaction: createTestInteraction(),
+    sentMessages: [],
+    config: {
+      serverConfig: {
+        RATE_LIMITS: {
+          general: {
+            limit: 10,
+            periodMs: 1000,
+          },
+        },
+        AUTO_FINGER_WHITEOUT: false,
+        BLOCKED_SELECTION_BUTTONS: [],
+      },
+    },
+    toolRegistry: {
+      current: { secondary: { active: false } },
+      change: (/** @type {string} */ toolName) => {
+        globalAny.Tools.toolRegistry.current = tools[toolName];
+        return true;
+      },
+    },
+    preferences: {
+      getColor: () => "#123456",
+      getSize: () => 4,
+      setSize: (/** @type {number | string | null | undefined} */ size) =>
+        Number(size) || 4,
+      getOpacity: () => 1,
+    },
+    ids: {
+      generateUID: (/** @type {string} */ prefix) => `${prefix}-1`,
+    },
+    coordinates: {
+      toBoardCoordinate: (/** @type {unknown} */ value) =>
+        Math.round(Number(value) || 0),
+      pageCoordinateToBoard: (/** @type {unknown} */ value) =>
+        Math.round(Number(value) || 0),
+    },
+    rateLimits: {
+      getEffectiveRateLimit: (/** @type {string} */ kind) => {
+        const definition =
+          globalAny.Tools.config.serverConfig.RATE_LIMITS[kind];
+        if (!definition) throw new Error(`Missing rate limit for ${kind}`);
+        return definition;
+      },
+    },
+    viewportState: {
+      scale: 1,
+      drawToolsAllowed: null,
+      controller: {
+        ensuredBounds: /** @type {any[]} */ ([]),
+        setScale: (/** @type {number} */ scale) => {
+          globalAny.Tools.viewportState.scale = scale;
+          return scale;
+        },
+        getScale: () => globalAny.Tools.viewportState.scale,
+        syncLayoutSize: () => {},
+        setTouchPolicy: () => {},
+        ensureBoardExtentAtLeast: () => true,
+        ensureBoardExtentForPoint: () => true,
+        ensureBoardExtentForBounds: function (/** @type {any} */ bounds) {
+          this.ensuredBounds.push(bounds);
+          return true;
+        },
+        boardCoordinateToLayout: (/** @type {unknown} */ value) =>
+          (Number(value) || 0) * globalAny.Tools.viewportState.scale,
+        pageCoordinateToBoard: (/** @type {unknown} */ value) =>
+          globalAny.Tools.coordinates.pageCoordinateToBoard(value),
+        boardRectToLayoutRect: (
+          /** @type {{x: number, y: number, width: number, height: number}} */ rect,
+        ) => {
+          const scale = globalAny.Tools.viewportState.scale;
+          return {
+            left: rect.x * scale,
+            top: rect.y * scale,
+            width: rect.width * scale,
+            height: rect.height * scale,
+          };
+        },
+        boardRectToViewportRect: (
+          /** @type {{x: number, y: number, width: number, height: number}} */ rect,
+        ) => {
+          const scale = globalAny.Tools.viewportState.scale;
+          const scrollLeft =
+            Number(globalAny.document?.documentElement?.scrollLeft) || 0;
+          const scrollTop =
+            Number(globalAny.document?.documentElement?.scrollTop) || 0;
+          const left = rect.x * scale - scrollLeft;
+          const top = rect.y * scale - scrollTop;
+          const width = rect.width * scale;
+          const height = rect.height * scale;
+          return {
+            left,
+            top,
+            right: left + width,
+            bottom: top + height,
+            width,
+            height,
+          };
+        },
+        clientRectToLayoutRect: (
+          /** @type {{left?: unknown, top?: unknown, right?: unknown, bottom?: unknown, width?: unknown, height?: unknown}} */ rect,
+        ) => {
+          const left = Number(rect.left) || 0;
+          const top = Number(rect.top) || 0;
+          const width = Number.isFinite(Number(rect.width))
+            ? Math.max(0, Number(rect.width))
+            : Math.max(0, (Number(rect.right) || left) - left);
+          const height = Number.isFinite(Number(rect.height))
+            ? Math.max(0, Number(rect.height))
+            : Math.max(0, (Number(rect.bottom) || top) - top);
+          return { left, top, width, height };
+        },
+        clientRectToBoardRect: (
+          /** @type {{left?: unknown, top?: unknown, right?: unknown, bottom?: unknown, width?: unknown, height?: unknown}} */ rect,
+        ) => {
+          const scale = globalAny.Tools.viewportState.scale;
+          const layoutRect =
+            globalAny.Tools.viewportState.controller.clientRectToLayoutRect(
+              rect,
+            );
+          return {
+            x: layoutRect.left / scale,
+            y: layoutRect.top / scale,
+            width: layoutRect.width / scale,
+            height: layoutRect.height / scale,
+          };
+        },
+        panBy: () => {},
+        panTo: () => {},
+        zoomAt: (/** @type {number} */ scale) => {
+          globalAny.Tools.viewportState.scale = scale;
+          return scale;
+        },
+        zoomAtBoardPoint: (/** @type {number} */ scale) => {
+          globalAny.Tools.viewportState.scale = scale;
+          return scale;
+        },
+        zoomBy: (/** @type {number} */ factor) => {
+          globalAny.Tools.viewportState.scale *= factor;
+          return globalAny.Tools.viewportState.scale;
+        },
+        beginPan: () => {},
+        movePan: () => {},
+        endPan: () => {},
+        install: () => {},
+        installHashObservers: () => {},
+        applyFromHash: () => {},
+      },
+    },
+    writes: {
+      drawAndSend: (/** @type {any} */ data) => {
+        const toolName = MessageToolMetadata.getToolId(data.tool);
+        if (!toolName) throw new Error(`Unknown tool '${data.tool}'.`);
+        const mountedTool =
+          tools[toolName] ||
+          (globalAny.Tools.toolRegistry.current?.name === toolName
+            ? globalAny.Tools.toolRegistry.current
+            : null);
+        if (!mountedTool)
+          throw new Error(`Missing mounted tool '${toolName}'.`);
+        mountedTool.draw(data, true);
+        globalAny.Tools.sentMessages.push({
+          toolName,
+          data,
+        });
+        return true;
+      },
+      send: (/** @type {any} */ data) => {
+        const toolName = MessageToolMetadata.getToolId(data.tool);
+        if (!toolName) throw new Error(`Unknown tool '${data.tool}'.`);
+        globalAny.Tools.sentMessages.push({
+          toolName,
+          data,
+        });
+        return true;
+      },
+      canBufferWrites: () => true,
+      whenBoardWritable: () => Promise.resolve(),
+    },
+    messages: {
+      messageForTool: (/** @type {any} */ data) => {
+        const toolName = MessageToolMetadata.getToolId(data.tool);
+        if (!toolName) throw new Error(`Unknown tool '${data.tool}'.`);
+        const mountedTool = tools[toolName];
+        if (!mountedTool)
+          throw new Error(`Missing mounted tool '${toolName}'.`);
+        mountedTool.draw(data, false);
+      },
+    },
+    identity: {
+      boardName: "test-board",
+      token: null,
+    },
+    connection: {
+      socket: {
+        id: "socket-self",
+      },
+    },
+    presence: {
+      users: new Map([
+        [
+          "socket-self",
+          {
+            socketId: "socket-self",
+            name: "Local User",
+            lastTool: "pencil",
+          },
+        ],
+        [
+          "socket-peer",
+          {
+            socketId: "socket-peer",
+            name: "Peer User",
+            lastTool: "hand",
+            canClear: true,
+            canBan: true,
+          },
+        ],
+      ]),
+    },
+  };
+  browser.setTools(app);
+
+  return {
+    elementsById: elementsById,
+    clock: clock,
+    time: browser,
+    loadTool: async (toolName) => {
+      const toolPath = path.resolve(
+        __dirname,
+        "..",
+        "client-data",
+        "tools",
+        getToolModuleImportPath(toolName),
+      );
+      const moduleNamespace = /** @type {ToolModule} */ (require(toolPath));
+      const toolState = await moduleNamespace.boot(
+        createToolBootContext(
+          createHarnessToolRuntime(globalAny.Tools),
+          (assetFile) => getToolRuntimeAssetPath(toolName, assetFile),
+        ),
+      );
+      const stateMetadata =
+        /** @type {{shortcut?: string, oneTouch?: boolean, alwaysOn?: boolean, mouseCursor?: string, helpText?: string, showMarker?: boolean, secondary?: import("../types/app-runtime").ToolSecondaryMode | null}} */ (
+          toolState && typeof toolState === "object" ? toolState : {}
+        );
+      const press = moduleNamespace.press;
+      const move = moduleNamespace.move;
+      const release = moduleNamespace.release;
+      const onstart = moduleNamespace.onstart;
+      const onMessage = moduleNamespace.onMessage;
+      const onSocketDisconnect = moduleNamespace.onSocketDisconnect;
+      const onPresenceDisplayChange = moduleNamespace.onPresenceDisplayChange;
+      const onMutationRejected = moduleNamespace.onMutationRejected;
+      const onSizeChange = moduleNamespace.onSizeChange;
+      const getTouchPolicy = moduleNamespace.getTouchPolicy;
+      const tool = /** @type {any} */ ({
+        name: toolName,
+        shortcut: moduleNamespace.shortcut || stateMetadata.shortcut,
+        oneTouch: moduleNamespace.oneTouch ?? stateMetadata.oneTouch,
+        alwaysOn: moduleNamespace.alwaysOn ?? stateMetadata.alwaysOn,
+        mouseCursor: moduleNamespace.mouseCursor || stateMetadata.mouseCursor,
+        helpText: moduleNamespace.helpText || stateMetadata.helpText,
+        showMarker: moduleNamespace.showMarker ?? stateMetadata.showMarker,
+        secondary: stateMetadata.secondary || moduleNamespace.secondary || null,
+        draw: (/** @type {any} */ data, /** @type {boolean} */ isLocal) =>
+          moduleNamespace.draw(toolState, data, isLocal),
+        press: press
+          ? (
+              /** @type {number} */ x,
+              /** @type {number} */ y,
+              /** @type {any} */ evt,
+              /** @type {boolean} */ isTouchEvent,
+            ) => press(toolState, x, y, evt, isTouchEvent)
+          : undefined,
+        move: move
+          ? (
+              /** @type {number} */ x,
+              /** @type {number} */ y,
+              /** @type {any} */ evt,
+              /** @type {boolean} */ isTouchEvent,
+            ) => move(toolState, x, y, evt, isTouchEvent)
+          : undefined,
+        release: release
+          ? (
+              /** @type {number} */ x,
+              /** @type {number} */ y,
+              /** @type {any} */ evt,
+              /** @type {boolean} */ isTouchEvent,
+            ) => release(toolState, x, y, evt, isTouchEvent)
+          : undefined,
+        onstart: onstart
+          ? (/** @type {any} */ oldTool) => onstart(toolState, oldTool)
+          : undefined,
+        onMessage: onMessage
+          ? (/** @type {any} */ message) => onMessage(toolState, message)
+          : undefined,
+        onSocketDisconnect: onSocketDisconnect
+          ? () => onSocketDisconnect(toolState)
+          : undefined,
+        onPresenceDisplayChange: onPresenceDisplayChange
+          ? () => onPresenceDisplayChange(toolState)
+          : undefined,
+        onMutationRejected: onMutationRejected
+          ? (/** @type {any} */ message, /** @type {string} */ reason) =>
+              onMutationRejected(toolState, message, reason)
+          : undefined,
+        onSizeChange: onSizeChange
+          ? (/** @type {number} */ size) => onSizeChange(toolState, size)
+          : undefined,
+        getTouchPolicy: getTouchPolicy
+          ? () => getTouchPolicy(toolState)
+          : undefined,
+      });
+      if (!tool.listeners) {
+        tool.listeners = {
+          press: tool.press,
+          move: tool.move,
+          release: tool.release,
+        };
+      }
+      tools[tool.name] = tool;
+      return tool;
+    },
+  };
+}
+
+function createTestInteraction() {
+  return {
+    drawingEvent: false,
+    showMarker: true,
+    showOtherCursors: true,
+    showMyCursor: true,
+    ownCursorSuppressionCount: 0,
+    suppressOwnCursor() {
+      this.ownCursorSuppressionCount += 1;
+      let released = false;
+      return {
+        release: () => {
+          if (released) return;
+          released = true;
+          this.ownCursorSuppressionCount -= 1;
+        },
+      };
+    },
+    isOwnCursorSuppressed() {
+      return this.ownCursorSuppressionCount > 0;
+    },
+  };
+}
+
+/**
+ * @param {any} element
+ * @param {string} className
+ * @returns {any}
+ */
+function findElementByClass(element, className) {
+  if (!element) return null;
+  if (element.classList?.contains(className)) return element;
+  for (const child of element.children || []) {
+    const match = findElementByClass(child, className);
+    if (match) return match;
+  }
+  return null;
+}
+
+/**
+ * @param {Partial<any>} [overrides]
+ * @returns {any}
+ */
+function createInputTools(overrides = {}) {
+  const tools = {
+    sentMessages:
+      /** @type {{toolName: string | undefined, data: any}[]} */ ([]),
+    writes: /** @type {ToolRuntimeModules["writes"] | undefined} */ (undefined),
+    config: {
+      serverConfig: {
+        RATE_LIMITS: {
+          general: {
+            limit: 10,
+            periodMs: 1000,
+          },
+        },
+        AUTO_FINGER_WHITEOUT: false,
+      },
+    },
+    access: {
+      boardState: {
+        readonly: false,
+        canEdit: true,
+        canClear: false,
+        canWrite: true,
+      },
+      readOnly: false,
+      canEdit: true,
+      canClear: false,
+      canWrite: true,
+    },
+    preferences: {
+      getColor: () => "#123456",
+      getSize: () => 4,
+      setSize: (/** @type {number | string | null | undefined} */ size) =>
+        Number(size) || 4,
+      getOpacity: () => 1,
+    },
+    ids: {
+      generateUID: (/** @type {string} */ prefix) => `${prefix}-1`,
+    },
+    interaction: createTestInteraction(),
+    coordinates: {
+      toBoardCoordinate: (/** @type {number} */ value) => Math.round(value),
+      pageCoordinateToBoard: (/** @type {number} */ value) => Math.round(value),
+    },
+    rateLimits: {
+      getEffectiveRateLimit: (/** @type {string} */ kind) => {
+        const definition = {
+          general: {
+            limit: 10,
+            periodMs: 1000,
+          },
+        }[kind];
+        if (!definition) throw new Error(`Missing rate limit for ${kind}`);
+        return definition;
+      },
+    },
+    toolRegistry: {
+      current: null,
+      change: () => true,
+    },
+    connection: {
+      socket: {
+        id: "input-socket",
+      },
+    },
+    presence: {
+      users: new Map(),
+    },
+    ...overrides,
+  };
+  tools.writes = {
+    drawAndSend: (/** @type {any} */ data) => {
+      const toolName = MessageToolMetadata.getToolId(data.tool);
+      tools.sentMessages.push({
+        toolName,
+        data,
+      });
+      return true;
+    },
+    send: () => unavailableCapability("writes.send"),
+    canBufferWrites: () => true,
+    whenBoardWritable: () => Promise.resolve(),
+    ...tools.writes,
+  };
+  return tools;
+}
+
+/**
+ * @param {string} capability
+ * @returns {never}
+ */
+function unavailableCapability(capability) {
+  throw new Error(`${capability} is not available in this test runtime`);
+}
+
+/**
+ * @returns {ToolRuntimeModules["board"]}
+ */
+function createUnavailableBoardRuntime() {
+  const unavailableElement = /** @type {any} */ ({});
+  return {
+    status: "attached",
+    board: unavailableElement,
+    svg: unavailableElement,
+    drawingArea: unavailableElement,
+    createSVGElement: () => unavailableCapability("board.createSVGElement"),
+    positionElement: () => unavailableCapability("board.positionElement"),
+    clearBoardCursors: () => unavailableCapability("board.clearBoardCursors"),
+    resetBoardViewport: () => unavailableCapability("board.resetBoardViewport"),
+  };
+}
+
+/**
+ * @returns {ToolRuntimeModules["coordinates"]}
+ */
+function createUnavailableCoordinateRuntime() {
+  return {
+    toBoardCoordinate: () =>
+      unavailableCapability("coordinates.toBoardCoordinate"),
+    pageCoordinateToBoard: () =>
+      unavailableCapability("coordinates.pageCoordinateToBoard"),
+  };
+}
+
+/**
+ * @returns {ToolRuntimeModules["viewport"]}
+ */
+function createUnavailableViewportRuntime() {
+  return {
+    setScale: () => unavailableCapability("viewport.setScale"),
+    getScale: () => unavailableCapability("viewport.getScale"),
+    syncLayoutSize: () => unavailableCapability("viewport.syncLayoutSize"),
+    setTouchPolicy: () => unavailableCapability("viewport.setTouchPolicy"),
+    ensureBoardExtentAtLeast: () =>
+      unavailableCapability("viewport.ensureBoardExtentAtLeast"),
+    ensureBoardExtentForPoint: () =>
+      unavailableCapability("viewport.ensureBoardExtentForPoint"),
+    ensureBoardExtentForBounds: () =>
+      unavailableCapability("viewport.ensureBoardExtentForBounds"),
+    boardCoordinateToLayout: () =>
+      unavailableCapability("viewport.boardCoordinateToLayout"),
+    pageCoordinateToBoard: () =>
+      unavailableCapability("viewport.pageCoordinateToBoard"),
+    boardRectToLayoutRect: () =>
+      unavailableCapability("viewport.boardRectToLayoutRect"),
+    boardRectToViewportRect: () =>
+      unavailableCapability("viewport.boardRectToViewportRect"),
+    clientRectToLayoutRect: () =>
+      unavailableCapability("viewport.clientRectToLayoutRect"),
+    clientRectToBoardRect: () =>
+      unavailableCapability("viewport.clientRectToBoardRect"),
+    panBy: () => unavailableCapability("viewport.panBy"),
+    panTo: () => unavailableCapability("viewport.panTo"),
+    zoomAt: () => unavailableCapability("viewport.zoomAt"),
+    zoomAtBoardPoint: () => unavailableCapability("viewport.zoomAtBoardPoint"),
+    zoomBy: () => unavailableCapability("viewport.zoomBy"),
+    beginPan: () => unavailableCapability("viewport.beginPan"),
+    movePan: () => unavailableCapability("viewport.movePan"),
+    endPan: () => unavailableCapability("viewport.endPan"),
+    install: () => unavailableCapability("viewport.install"),
+    installTemporaryPan: () =>
+      unavailableCapability("viewport.installTemporaryPan"),
+    installHashObservers: () =>
+      unavailableCapability("viewport.installHashObservers"),
+    applyFromHash: () => unavailableCapability("viewport.applyFromHash"),
+  };
+}
+
+function createUnavailableUiRuntime() {
+  return {
+    positionAnchoredPanel: () =>
+      unavailableCapability("ui.positionAnchoredPanel"),
+    createFloatingPanelController: () =>
+      unavailableCapability("ui.createFloatingPanelController"),
+    createModalShell: () => unavailableCapability("ui.createModalShell"),
+    confirm: () => unavailableCapability("ui.confirm"),
+  };
+}
+
+/**
+ * @param {any} tools
+ * @returns {ToolRuntimeModules}
+ */
+function createInputToolRuntime(tools) {
+  return {
+    board: createUnavailableBoardRuntime(),
+    coordinates: tools.coordinates || createUnavailableCoordinateRuntime(),
+    viewport: createUnavailableViewportRuntime(),
+    writes: {
+      drawAndSend: tools.writes.drawAndSend,
+      send: () => unavailableCapability("writes.send"),
+      canBufferWrites: () => unavailableCapability("writes.canBufferWrites"),
+      whenBoardWritable: () =>
+        unavailableCapability("writes.whenBoardWritable"),
+    },
+    identity: {
+      boardName: "input-test",
+      token: null,
+    },
+    preferences: tools.preferences,
+    rateLimits: tools.rateLimits,
+    toolRegistry: tools.toolRegistry,
+    interaction: tools.interaction,
+    connection: tools.connection,
+    presence: tools.presence,
+    config: tools.config,
+    i18n: tools.i18n || {
+      t: (s) => s,
+    },
+    ui: tools.ui || createUnavailableUiRuntime(),
+    ids: tools.ids,
+    messages: {
+      messageForTool: () => unavailableCapability("messages.messageForTool"),
+    },
+    permissions: tools.access,
+  };
+}
+
+/**
+ * @param {any} app
+ * @returns {ToolRuntimeModules}
+ */
+function createHarnessToolRuntime(app) {
+  if (app.dom?.status !== "attached") {
+    throw new Error("Tool test runtime requires attached board DOM");
+  }
+  return {
+    board: app.dom,
+    coordinates: app.coordinates,
+    viewport: app.viewportState.controller,
+    writes: app.writes,
+    identity: app.identity,
+    preferences: app.preferences,
+    rateLimits: app.rateLimits,
+    toolRegistry: app.toolRegistry,
+    interaction: app.interaction,
+    connection: app.connection,
+    presence: app.presence,
+    config: app.config,
+    i18n: app.i18n || { t: (s) => s },
+    ui: app.ui,
+    ids: app.ids,
+    messages: app.messages,
+    permissions: app.access,
+  };
+}
+
+/**
+ * @param {ToolRuntimeModules} runtime
+ * @param {(assetFile: string) => string} assetUrl
+ * @returns {import("../types/app-runtime").ToolBootContext}
+ */
+function createToolBootContext(runtime, assetUrl) {
+  return {
+    runtime,
+    assetUrl,
+  };
+}
+
+/**
+ * @param {any} [target]
+ * @param {Record<string, unknown>} [eventInit]
+ * @returns {any}
+ */
+function createToolEvent(target = null, eventInit = {}) {
+  let preventDefaultCount = 0;
+  return {
+    ...eventInit,
+    target,
+    get defaultPrevented() {
+      return preventDefaultCount > 0;
+    },
+    get preventDefaultCount() {
+      return preventDefaultCount;
+    },
+    preventDefault() {
+      preventDefaultCount += 1;
+    },
+  };
+}
+
+/**
+ * @param {(x: number, y: number, evt: any) => any} listener
+ * @param {number} x
+ * @param {number} y
+ * @param {any} [target]
+ * @param {Record<string, unknown>} [eventInit]
+ * @returns {any}
+ */
+function dispatchToolEvent(listener, x, y, target = null, eventInit = {}) {
+  return listener(x, y, createToolEvent(target, eventInit));
+}
+
+function expectedTwoPointStroke() {
+  return [
+    { type: "M", values: [100, 200] },
+    { type: "L", values: [100, 200] },
+    { type: "C", values: [100, 200, 300, 400, 300, 400] },
+  ];
+}
+
+/** @returns {any | null} */
+function getPencilLiveOverlay() {
+  const board = globalAny.Tools.dom.board;
+  return (
+    board.children.find((/** @type {any} */ child) =>
+      child.classList?.contains("wbo-pencil-live-overlay"),
+    ) || null
+  );
+}
+
+/** @returns {any | null} */
+function getPencilLiveOverlayPath() {
+  return getPencilLiveOverlay()?.children?.[0] || null;
+}
+
+/** @returns {any[]} */
+function drawingAreaChildren() {
+  return globalAny.Tools.dom.drawingArea.children;
+}
+
+/** @returns {any[]} */
+function drawingAreaPaths() {
+  return drawingAreaChildren().filter(
+    (/** @type {any} */ child) => child.tagName === "path",
+  );
+}
+
+/**
+ * @param {any} pencilTool
+ */
+function drawReplayStroke(pencilTool) {
+  pencilTool.draw({
+    tool: TOOL_CODE_BY_ID.pencil,
+    type: MutationType.CREATE,
+    id: "line-1",
+    color: "#123456",
+    size: 4,
+    opacity: 1,
+  });
+  pencilTool.draw({
+    tool: TOOL_CODE_BY_ID.pencil,
+    type: MutationType.APPEND,
+    parent: "line-1",
+    x: 100,
+    y: 200,
+  });
+  pencilTool.draw({
+    tool: TOOL_CODE_BY_ID.pencil,
+    type: MutationType.APPEND,
+    parent: "line-1",
+    x: 300,
+    y: 400,
+  });
+}
+
+test("Pencil replay stays canonical with a cached boot context and resets existing paths", async () => {
+  const harness = createHarness();
+  const pencilTool = await harness.loadTool("pencil");
+  pencilTool.onstart(null);
+
+  drawReplayStroke(pencilTool);
+  const line = harness.elementsById.get("line-1");
+  assert.equal(line.parentNode, globalAny.Tools.dom.drawingArea);
+  assert.deepEqual(line.pathData, expectedTwoPointStroke());
+
+  drawReplayStroke(pencilTool);
+
+  assert.deepEqual(line.pathData, expectedTwoPointStroke());
+});
+
+test("Pencil replay drops stale cached path data after the DOM node is replaced", async () => {
+  const harness = createHarness();
+  const pencilTool = await harness.loadTool("pencil");
+
+  drawReplayStroke(pencilTool);
+  const originalLine = harness.elementsById.get("line-1");
+  originalLine.parentNode.removeChild(originalLine);
+
+  drawReplayStroke(pencilTool);
+
+  const replayedLine = harness.elementsById.get("line-1");
+  assert.notEqual(replayedLine, originalLine);
+  assert.deepEqual(replayedLine.pathData, expectedTwoPointStroke());
+});
+
+test("Pencil replay reuses baseline paths found via document lookup when svg lookup misses", async () => {
+  const harness = createHarness();
+  const pencilTool = await harness.loadTool("pencil");
+
+  drawReplayStroke(pencilTool);
+  const originalLine = harness.elementsById.get("line-1");
+  harness.elementsById.delete("line-1");
+  harness.elementsById.set("line-1", originalLine);
+  globalAny.Tools.svg.getElementById = () => null;
+
+  drawReplayStroke(pencilTool);
+
+  assert.equal(harness.elementsById.get("line-1"), originalLine);
+  assert.deepEqual(originalLine.pathData, expectedTwoPointStroke());
+});
+
+test("Pencil child messages build a missing line from scratch", async () => {
+  const harness = createHarness();
+  const pencilTool = await harness.loadTool("pencil");
+
+  pencilTool.draw({
+    tool: TOOL_CODE_BY_ID.pencil,
+    type: MutationType.APPEND,
+    parent: "line-1",
+    x: 100,
+    y: 200,
+  });
+  pencilTool.draw({
+    tool: TOOL_CODE_BY_ID.pencil,
+    type: MutationType.APPEND,
+    parent: "line-1",
+    x: 300,
+    y: 400,
+  });
+
+  assert.deepEqual(
+    harness.elementsById.get("line-1").pathData,
+    expectedTwoPointStroke(),
+  );
+});
+
+test("Pencil replay updates stroke styling on the reused DOM node", async () => {
+  const harness = createHarness();
+  const pencilTool = await harness.loadTool("pencil");
+
+  pencilTool.draw({
+    tool: TOOL_CODE_BY_ID.pencil,
+    type: MutationType.CREATE,
+    id: "line-1",
+    color: "#123456",
+    size: 4,
+    opacity: 0.5,
+  });
+
+  pencilTool.draw({
+    tool: TOOL_CODE_BY_ID.pencil,
+    type: MutationType.CREATE,
+    id: "line-1",
+    color: "#abcdef",
+    size: 7,
+    opacity: 0.8,
+  });
+
+  const line = harness.elementsById.get("line-1");
+  assert.equal(line.attributes.stroke, "#abcdef");
+  assert.equal(line.attributes["stroke-width"], "7");
+  assert.equal(line.attributes.opacity, "0.8");
+  assert.deepEqual(line.pathData, []);
+});
+
+test("Pencil input sends its initial and final point without DOM setup", () => {
+  const tools = createInputTools();
+  const state = PencilTool.boot(
+    createToolBootContext(
+      createInputToolRuntime(tools),
+      (assetFile) => assetFile,
+    ),
+  );
+  state.lastTime = 0;
+  state.minPencilIntervalMs = 70;
+  const event = createToolEvent();
+
+  PencilTool.press(state, 100, 100, event);
+  PencilTool.release(state, 200, 200);
+
+  assert.equal(event.preventDefaultCount, 2);
+  assert.deepEqual(
+    tools.sentMessages.map((/** @type {any} */ message) => message.data.type),
+    [MutationType.CREATE, MutationType.APPEND, MutationType.APPEND],
+  );
+  assert.deepEqual(tools.sentMessages[1].data, {
+    tool: TOOL_CODE_BY_ID.pencil,
+    type: MutationType.APPEND,
+    parent: "l-1",
+    x: 100,
+    y: 100,
+  });
+  assert.equal(tools.sentMessages[2].data.x, 200);
+  assert.equal(tools.sentMessages[2].data.y, 200);
+  getBrowserHarness().advanceTime(1000);
+  assert.equal(tools.sentMessages.length, 3);
+});
+
+test("Pencil renders trailing movement without waiting for release and cancels pending work", async () => {
+  const harness = createHarness();
+  globalAny.Tools.config.serverConfig.RATE_LIMITS.general.limit = 50;
+  const pencil = await harness.loadTool("pencil");
+  const event = createToolEvent();
+  globalAny.Tools.toolRegistry.current = pencil;
+  harness.clock.now = 0;
+  pencil.listeners.press(100, 100, event);
+  harness.clock.now = 5;
+  pencil.listeners.move(150, 150, event);
+  harness.clock.now = 10;
+  pencil.listeners.move(200, 200, event);
+  assert.equal(globalAny.Tools.sentMessages.length, 2);
+
+  harness.time.advanceTime(16);
+  harness.time.flushAsync();
+  assert.equal(globalAny.Tools.sentMessages.length, 3);
+  assert.equal(globalAny.Tools.sentMessages[2].data.x, 200);
+  assert.deepEqual(
+    getPencilLiveOverlayPath()?.pathData.at(-1)?.values.slice(-2),
+    [200, 200],
+  );
+  assert.equal(drawingAreaPaths().length, 0);
+
+  harness.clock.now = 30;
+  pencil.listeners.move(250, 250, event);
+  pencil.onSocketDisconnect();
+  harness.time.advanceTime(1000);
+  assert.equal(globalAny.Tools.sentMessages.length, 3);
+  assert.deepEqual(getPencilLiveOverlayPath()?.pathData, []);
+
+  pencil.listeners.press(300, 300, event);
+  harness.time.advanceTime(1000);
+  assert.equal(globalAny.Tools.sentMessages.length, 5);
+  pencil.listeners.release(300, 300, event);
+  assert.deepEqual(
+    harness.elementsById.get("l-1")?.pathData.at(-1)?.values.slice(-2),
+    [300, 300],
+  );
+});
+
+test("Pencil onMessage discards the active stroke deleted inside a hand batch", () => {
+  const tools = createInputTools();
+  const state = PencilTool.boot(
+    createToolBootContext(
+      createInputToolRuntime(tools),
+      (assetFile) => assetFile,
+    ),
+  );
+  state.curLineId = "l-7";
+
+  PencilTool.onMessage(state, {
+    tool: TOOL_CODE_BY_ID.hand,
+    _children: [
+      { type: MutationType.DELETE, id: "l-other" },
+      { type: MutationType.DELETE, id: "l-7" },
+    ],
+  });
+  assert.equal(state.curLineId, "");
+
+  state.curLineId = "l-8";
+  PencilTool.onMessage(state, {
+    tool: TOOL_CODE_BY_ID.hand,
+    _children: [{ type: MutationType.DELETE, id: "l-other" }],
+  });
+  assert.equal(state.curLineId, "l-8");
+});
+
+test("Pencil move logic sends the first point and throttles follow-ups", () => {
+  const tools = createInputTools();
+  const state = PencilTool.boot(
+    createToolBootContext(
+      createInputToolRuntime(tools),
+      (assetFile) => assetFile,
+    ),
+  );
+  state.curLineId = "l-1";
+  state.hasSentPoint = false;
+  state.currentLineChildCount = 0;
+  state.minPencilIntervalMs = 70;
+  state.lastTime = 0;
+
+  const first = PencilTool.createPencilMoveEffect(state, 100, 100, 0);
+  state.currentLineChildCount = first.nextChildCount;
+  state.hasSentPoint = first.nextHasSentPoint;
+  state.lastTime = first.nextLastTime;
+  const throttled = PencilTool.createPencilMoveEffect(state, 200, 200, 10);
+  const ready = PencilTool.createPencilMoveEffect(state, 300, 300, 71);
+
+  assert.deepEqual(first.appendMessage, {
+    tool: TOOL_CODE_BY_ID.pencil,
+    type: MutationType.APPEND,
+    parent: "l-1",
+    x: 100,
+    y: 100,
+  });
+  assert.equal(throttled.appendMessage, null);
+  assert.deepEqual(ready.appendMessage, {
+    tool: TOOL_CODE_BY_ID.pencil,
+    type: MutationType.APPEND,
+    parent: "l-1",
+    x: 300,
+    y: 300,
+  });
+});
+
+test("Pencil keeps active local drawing out of the board SVG until release", async () => {
+  const harness = createHarness();
+  const pencilTool = await harness.loadTool("pencil");
+  const event = createToolEvent();
+  harness.time.rejectDocumentScrollReads(
+    "should not be read during overlay flush",
+  );
+
+  globalAny.Tools.toolRegistry.current = pencilTool;
+  harness.clock.now = 0;
+  pencilTool.listeners.press(100, 100, event);
+  harness.clock.now = 101;
+  pencilTool.listeners.move(150, 150, event);
+  harness.clock.now = 202;
+  pencilTool.listeners.move(200, 200, event);
+
+  assert.equal(harness.elementsById.has("l-1"), false);
+  assert.equal(drawingAreaPaths().length, 0);
+  assert.equal(globalAny.Tools.interaction.ownCursorSuppressionCount, 1);
+  assert.doesNotThrow(() => harness.time.flushAsync());
+
+  const overlayPath = getPencilLiveOverlayPath();
+  assert.ok(overlayPath?.pathData.length > 0);
+  assert.equal(overlayPath.attributes.stroke, "#123456");
+  assert.equal(getPencilLiveOverlay()?.style.transform, "scale(1)");
+
+  harness.clock.now = 303;
+  pencilTool.listeners.release(250, 250, event);
+
+  assert.ok(harness.elementsById.get("l-1")?.pathData.length > 0);
+  assert.equal(globalAny.Tools.interaction.ownCursorSuppressionCount, 0);
+  assert.deepEqual(getPencilLiveOverlayPath()?.pathData, []);
+});
+
+test("Cursor renders presence as a viewport-scaled HTML overlay", async () => {
+  const harness = createHarness();
+  const cursorTool = await harness.loadTool("cursor");
+  const lease = globalAny.Tools.interaction.suppressOwnCursor();
+
+  cursorTool.draw({
+    tool: TOOL_CODE_BY_ID.cursor,
+    type: MutationType.UPDATE,
+    x: 10,
+    y: 20,
+    color: "#123456",
+    size: 4,
+  });
+
+  assert.equal(harness.elementsById.has("cursor-me"), false);
+
+  lease.release();
+  globalAny.Tools.viewportState.controller.setScale(2);
+  globalAny.Tools.toolRegistry.current = { name: "rectangle" };
+  cursorTool.draw({
+    tool: TOOL_CODE_BY_ID.cursor,
+    type: MutationType.UPDATE,
+    x: 10,
+    y: 20,
+    color: "#123456",
+    size: 12,
+    opacity: 0.5,
+    activeTool: "rectangle",
+  });
+
+  const ownCursor = harness.elementsById.get("cursor-me");
+  assert.ok(ownCursor);
+  assert.equal(ownCursor.getAttribute("class"), "opcursor-html");
+  assert.equal(ownCursor.getAttribute("aria-hidden"), "true");
+  assert.equal(ownCursor.parentNode, globalAny.Tools.board);
+  assert.equal(ownCursor.style.transform, "translate3d(20px, 40px, 0)");
+  assert.equal(ownCursor.style.left, "0px");
+  assert.equal(ownCursor.style.top, "0px");
+  assert.equal(ownCursor.style.width, "0px");
+  assert.equal(ownCursor.style.height, "0px");
+  assert.equal(ownCursor.style["--opcursor-color"], "#123456");
+  assert.equal(ownCursor.style["--opcursor-opacity"], "0.5");
+  assert.equal(ownCursor.style["--opcursor-sample-size"], "24px");
+  assert.equal(findElementByClass(ownCursor, "opcursor-pill"), null);
+  assert.equal(findElementByClass(ownCursor, "opcursor-name"), null);
+  assert.equal(findElementByClass(ownCursor, "opcursor-toolIcon"), null);
+
+  cursorTool.draw({
+    tool: TOOL_CODE_BY_ID.cursor,
+    type: MutationType.UPDATE,
+    socket: "socket-peer",
+    x: 30,
+    y: 40,
+    color: "#00ff66",
+    size: 2,
+    activeTool: "hand",
+  });
+
+  harness.time.advanceTime(16);
+
+  const peerCursor = harness.elementsById.get("cursor-socket-peer");
+  assert.ok(peerCursor);
+  assert.equal(peerCursor.style.transform, "translate3d(60px, 80px, 0)");
+  assert.equal(peerCursor.style["--opcursor-color"], "#00ff66");
+  assert.equal(peerCursor.style["--opcursor-opacity"], "1");
+  assert.equal(peerCursor.style["--opcursor-sample-size"], "4px");
+  assert.ok(findElementByClass(peerCursor, "opcursor-pill"));
+  assert.equal(
+    findElementByClass(peerCursor, "opcursor-name")?.textContent,
+    "\u{1F338} Peer User",
+  );
+  const peerUser = globalAny.Tools.presence.users.get("socket-peer");
+  peerUser.friend = true;
+  cursorTool.onPresenceDisplayChange();
+  assert.equal(
+    findElementByClass(peerCursor, "opcursor-name")?.textContent,
+    "\u2764\uFE0F \u{1F338} Peer User",
+  );
+  assert.equal(
+    findElementByClass(peerCursor, "opcursor-toolIcon")?.src,
+    "../tools/hand/icon.svg",
+  );
+  assert.equal(findElementByClass(peerCursor, "opcursor-styleSwatch"), null);
+  assert.equal(harness.elementsById.has("cursors"), false);
+
+  cursorTool.draw({
+    tool: TOOL_CODE_BY_ID.cursor,
+    type: MutationType.UPDATE,
+    socket: "socket-overflow",
+    x: 1001,
+    y: 40,
+    color: "#ff0066",
+    size: 2,
+    activeTool: "hand",
+  });
+  assert.equal(harness.elementsById.has("cursor-socket-overflow"), false);
+
+  globalAny.Tools.viewportState.controller.setScale(3);
+  globalAny.Tools.board.dispatchEvent({ type: VIEWPORT_LAYOUT_EVENT });
+  assert.equal(peerCursor.style.transform, "translate3d(90px, 120px, 0)");
+  assert.equal(peerCursor.style["--opcursor-sample-size"], "6px");
+
+  cursorTool.onSocketDisconnect();
+  assert.equal(harness.elementsById.has("cursor-me"), false);
+  assert.equal(harness.elementsById.has("cursor-socket-peer"), false);
+});
+
+test("Cursor follows peer drawing activity messages", async () => {
+  const harness = createHarness();
+  const cursorTool = await harness.loadTool("cursor");
+  const peerUser = globalAny.Tools.presence.users.get("socket-peer");
+  peerUser.color = "#445566";
+  peerUser.size = 9;
+
+  cursorTool.onMessage({
+    tool: TOOL_CODE_BY_ID.pencil,
+    type: MutationType.APPEND,
+    socket: "socket-peer",
+    x: 12,
+    y: 34,
+  });
+
+  harness.time.advanceTime(16);
+
+  const peerCursor = harness.elementsById.get("cursor-socket-peer");
+  assert.ok(peerCursor);
+  assert.equal(peerCursor.style.transform, "translate3d(12px, 34px, 0)");
+  assert.equal(peerCursor.style["--opcursor-color"], "#445566");
+  assert.equal(peerCursor.style["--opcursor-sample-size"], "9px");
+  assert.equal(
+    findElementByClass(peerCursor, "opcursor-name")?.textContent,
+    "\u{1F338} Peer User",
+  );
+  assert.equal(
+    findElementByClass(peerCursor, "opcursor-toolIcon")?.src,
+    "../tools/pencil/icon.svg",
+  );
+
+  cursorTool.onMessage({
+    tool: TOOL_CODE_BY_ID.rectangle,
+    type: MutationType.UPDATE,
+    socket: "socket-peer",
+    x: 10,
+    y: 20,
+    x2: 200,
+    y2: 220,
+  });
+
+  harness.time.advanceTime(16);
+
+  assert.equal(peerCursor.style.transform, "translate3d(200px, 220px, 0)");
+  assert.equal(
+    findElementByClass(peerCursor, "opcursor-toolIcon")?.src,
+    "../tools/rectangle/icon.svg",
+  );
+});
+
+test("Pencil input logic stops at the configured child limit", () => {
+  const tools = createInputTools({
+    config: {
+      serverConfig: {
+        RATE_LIMITS: {
+          general: {
+            limit: 10,
+            periodMs: 1000,
+          },
+        },
+        AUTO_FINGER_WHITEOUT: false,
+        MAX_CHILDREN: 2,
+      },
+    },
+  });
+  const state = PencilTool.boot(
+    createToolBootContext(
+      createInputToolRuntime(tools),
+      (assetFile) => assetFile,
+    ),
+  );
+  state.curLineId = "l-1";
+  state.hasSentPoint = true;
+  state.currentLineChildCount = 1;
+  state.minPencilIntervalMs = 70;
+  state.lastTime = 0;
+
+  const finalAppend = PencilTool.createPencilMoveEffect(state, 200, 200, 101);
+
+  assert.deepEqual(finalAppend.appendMessage, {
+    tool: TOOL_CODE_BY_ID.pencil,
+    type: MutationType.APPEND,
+    parent: "l-1",
+    x: 200,
+    y: 200,
+  });
+  assert.equal(finalAppend.stopAfter, true);
+  state.currentLineChildCount = finalAppend.nextChildCount;
+  state.hasSentPoint = finalAppend.nextHasSentPoint;
+  state.lastTime = finalAppend.nextLastTime;
+
+  const overflow = PencilTool.createPencilMoveEffect(state, 300, 300, 202);
+
+  assert.equal(overflow.appendMessage, null);
+  assert.equal(overflow.stopBefore, true);
+});
+
+test("Pencil disconnect aborts the active stroke and removes the local line", async () => {
+  const harness = createHarness();
+  const pencilTool = await harness.loadTool("pencil");
+  const event = createToolEvent();
+
+  globalAny.Tools.toolRegistry.current = pencilTool;
+  harness.clock.now = 0;
+  pencilTool.listeners.press(100, 100, event);
+
+  assert.equal(harness.elementsById.has("l-1"), false);
+  assert.equal(drawingAreaPaths().length, 0);
+
+  pencilTool.onSocketDisconnect();
+
+  harness.clock.now = 101;
+  pencilTool.listeners.move(200, 200, event);
+
+  assert.equal(globalAny.Tools.interaction.ownCursorSuppressionCount, 0);
+  assert.equal(harness.elementsById.has("l-1"), false);
+  assert.deepEqual(getPencilLiveOverlayPath()?.pathData, []);
+  assert.deepEqual(
+    globalAny.Tools.sentMessages.map(
+      (/** @type {any} */ message) => message.data.type,
+    ),
+    [MutationType.CREATE, MutationType.APPEND],
+  );
+});
+
+test("Pencil rejection aborts the active stroke and sends one cleanup delete", async () => {
+  const harness = createHarness();
+  const pencilTool = await harness.loadTool("pencil");
+  const event = createToolEvent();
+
+  globalAny.Tools.toolRegistry.current = pencilTool;
+  harness.clock.now = 0;
+  pencilTool.listeners.press(100, 100, event);
+
+  assert.equal(harness.elementsById.has("l-1"), false);
+
+  pencilTool.onMutationRejected(
+    { tool: TOOL_CODE_BY_ID.pencil, type: MutationType.APPEND, parent: "l-1" },
+    "shape too large",
+  );
+
+  harness.clock.now = 101;
+  pencilTool.listeners.move(200, 200, event);
+
+  assert.equal(globalAny.Tools.interaction.ownCursorSuppressionCount, 0);
+  assert.equal(harness.elementsById.has("l-1"), false);
+  assert.deepEqual(getPencilLiveOverlayPath()?.pathData, []);
+  assert.deepEqual(
+    globalAny.Tools.sentMessages.map(
+      (/** @type {any} */ message) => message.data.type,
+    ),
+    [MutationType.CREATE, MutationType.APPEND, MutationType.DELETE],
+  );
+  assert.equal(globalAny.Tools.sentMessages[2].toolName, "eraser");
+});
+
+test("Pencil rejection after release removes the materialized stroke once", async () => {
+  const harness = createHarness();
+  const pencilTool = await harness.loadTool("pencil");
+  const event = createToolEvent();
+
+  globalAny.Tools.toolRegistry.current = pencilTool;
+  harness.clock.now = 0;
+  pencilTool.listeners.press(100, 100, event);
+  harness.clock.now = 101;
+  pencilTool.listeners.release(200, 200, event);
+
+  assert.equal(harness.elementsById.has("l-1"), true);
+
+  const rejectedAppend = {
+    tool: TOOL_CODE_BY_ID.pencil,
+    type: MutationType.APPEND,
+    parent: "l-1",
+  };
+  pencilTool.onMutationRejected(rejectedAppend, "shape too large");
+  pencilTool.onMutationRejected(rejectedAppend, "shape too large");
+
+  assert.equal(harness.elementsById.has("l-1"), false);
+  assert.deepEqual(
+    globalAny.Tools.sentMessages.map(
+      (/** @type {any} */ message) => message.data.type,
+    ),
+    [
+      MutationType.CREATE,
+      MutationType.APPEND,
+      MutationType.APPEND,
+      MutationType.DELETE,
+    ],
+  );
+});
+
+test("Pencil replay is idempotent for the same persisted stroke", async () => {
+  const harness = createHarness();
+  const pencilTool = await harness.loadTool("pencil");
+  const replayStroke = [
+    {
+      tool: TOOL_CODE_BY_ID.pencil,
+      type: MutationType.CREATE,
+      id: "line-1",
+      color: "#123456",
+      size: 4,
+      opacity: 1,
+    },
+    {
+      tool: TOOL_CODE_BY_ID.pencil,
+      type: MutationType.APPEND,
+      parent: "line-1",
+      x: 10,
+      y: 20,
+    },
+    {
+      tool: TOOL_CODE_BY_ID.pencil,
+      type: MutationType.APPEND,
+      parent: "line-1",
+      x: 25,
+      y: 35,
+    },
+    {
+      tool: TOOL_CODE_BY_ID.pencil,
+      type: MutationType.APPEND,
+      parent: "line-1",
+      x: 40,
+      y: 15,
+    },
+  ];
+
+  replayStroke.forEach((message) => {
+    pencilTool.draw(/** @type {any} */ (message));
+  });
+  const line = harness.elementsById.get("line-1");
+  const firstPathData = line.getPathData();
+
+  replayStroke.forEach((message) => {
+    pencilTool.draw(/** @type {any} */ (message));
+  });
+  const secondPathData = line.getPathData();
+
+  assert.deepEqual(secondPathData, firstPathData);
+});
+
+test("Pencil delete of the active line aborts the active stroke", async () => {
+  const harness = createHarness();
+  const pencilTool = await harness.loadTool("pencil");
+  const event = createToolEvent();
+
+  globalAny.Tools.toolRegistry.current = pencilTool;
+  harness.clock.now = 0;
+  pencilTool.listeners.press(100, 100, event);
+
+  pencilTool.onMessage({
+    tool: TOOL_CODE_BY_ID.eraser,
+    type: MutationType.DELETE,
+    id: "l-1",
+  });
+
+  harness.clock.now = 101;
+  pencilTool.listeners.move(200, 200, event);
+
+  assert.equal(globalAny.Tools.interaction.ownCursorSuppressionCount, 0);
+  assert.deepEqual(
+    globalAny.Tools.sentMessages.map(
+      (/** @type {any} */ message) => message.data.type,
+    ),
+    [MutationType.CREATE, MutationType.APPEND],
+  );
+});
+
+test("Pencil clear aborts the active stroke", async () => {
+  const harness = createHarness();
+  const pencilTool = await harness.loadTool("pencil");
+  const event = createToolEvent();
+
+  globalAny.Tools.toolRegistry.current = pencilTool;
+  harness.clock.now = 0;
+  pencilTool.listeners.press(100, 100, event);
+
+  pencilTool.onMessage({
+    tool: TOOL_CODE_BY_ID.clear,
+    type: MutationType.CLEAR,
+  });
+
+  harness.clock.now = 101;
+  pencilTool.listeners.move(200, 200, event);
+
+  assert.equal(globalAny.Tools.interaction.ownCursorSuppressionCount, 0);
+  assert.deepEqual(
+    globalAny.Tools.sentMessages.map(
+      (/** @type {any} */ message) => message.data.type,
+    ),
+    [MutationType.CREATE, MutationType.APPEND],
+  );
+});
+
+test("Straight line replay refreshes endpoints and styling on an existing node", async () => {
+  const harness = createHarness();
+  const lineTool = await harness.loadTool("straight-line");
+
+  lineTool.draw({
+    tool: TOOL_CODE_BY_ID["straight-line"],
+    type: MutationType.CREATE,
+    id: "line-1",
+    color: "#111111",
+    size: 3,
+    opacity: 0.5,
+    x: 10,
+    y: 20,
+    x2: 30,
+    y2: 40,
+  });
+  lineTool.draw({
+    tool: TOOL_CODE_BY_ID["straight-line"],
+    type: MutationType.CREATE,
+    id: "line-1",
+    color: "#abcdef",
+    size: 7,
+    opacity: 0.8,
+    x: 100,
+    y: 200,
+    x2: 300,
+    y2: 400,
+  });
+
+  const line = harness.elementsById.get("line-1");
+  assert.equal(line.x1.baseVal.value, 100);
+  assert.equal(line.y1.baseVal.value, 200);
+  assert.equal(line.x2.baseVal.value, 300);
+  assert.equal(line.y2.baseVal.value, 400);
+  assert.equal(line.attributes.stroke, "#abcdef");
+  assert.equal(line.attributes["stroke-width"], "7");
+  assert.equal(line.attributes.opacity, "0.8");
+});
+
+test("Straight line update recreates a missing line before applying endpoints", async () => {
+  const harness = createHarness();
+  const lineTool = await harness.loadTool("straight-line");
+
+  lineTool.draw({
+    tool: TOOL_CODE_BY_ID["straight-line"],
+    type: MutationType.UPDATE,
+    id: "line-1",
+    x2: 300,
+    y2: 400,
+  });
+
+  const line = harness.elementsById.get("line-1");
+  assert.equal(line.x1.baseVal.value, 300);
+  assert.equal(line.y1.baseVal.value, 400);
+  assert.equal(line.x2.baseVal.value, 300);
+  assert.equal(line.y2.baseVal.value, 400);
+});
+
+[
+  {
+    toolName: "straight-line",
+    updateMessage: {
+      tool: TOOL_CODE_BY_ID["straight-line"],
+      type: MutationType.UPDATE,
+      id: "line-1",
+      x2: 300,
+      y2: 400,
+    },
+    assertElement: (
+      /** @type {{x1: any, y1: any, x2: any, y2: any}} */ element,
+    ) => {
+      assert.equal(element.x1.baseVal.value, 300);
+      assert.equal(element.y1.baseVal.value, 400);
+      assert.equal(element.x2.baseVal.value, 300);
+      assert.equal(element.y2.baseVal.value, 400);
+    },
+  },
+  {
+    toolName: "rectangle",
+    updateMessage: {
+      tool: TOOL_CODE_BY_ID.rectangle,
+      type: MutationType.UPDATE,
+      id: "rect-1",
+      x: 60,
+      y: 30,
+      x2: 120,
+      y2: 90,
+    },
+    assertElement: (
+      /** @type {{x: any, y: any, width: any, height: any}} */ element,
+    ) => {
+      assert.equal(element.x.baseVal.value, 60);
+      assert.equal(element.y.baseVal.value, 30);
+      assert.equal(element.width.baseVal.value, 60);
+      assert.equal(element.height.baseVal.value, 60);
+    },
+  },
+  {
+    toolName: "ellipse",
+    updateMessage: {
+      tool: TOOL_CODE_BY_ID.ellipse,
+      type: MutationType.UPDATE,
+      id: "ellipse-1",
+      x: 0,
+      y: 30,
+      x2: 60,
+      y2: 90,
+    },
+    assertElement: (
+      /** @type {{cx: any, cy: any, rx: any, ry: any}} */ element,
+    ) => {
+      assert.equal(element.cx.baseVal.value, 30);
+      assert.equal(element.cy.baseVal.value, 60);
+      assert.equal(element.rx.baseVal.value, 30);
+      assert.equal(element.ry.baseVal.value, 30);
+    },
+  },
+].forEach((caseDef) => {
+  test(`${caseDef.toolName} update recreates a missing shape before applying updates`, async () => {
+    const harness = createHarness();
+    const tool = await harness.loadTool(caseDef.toolName);
+
+    tool.draw(/** @type {any} */ (caseDef.updateMessage));
+
+    const element = harness.elementsById.get(
+      /** @type {any} */ (caseDef.updateMessage.id),
+    );
+    caseDef.assertElement(element);
+  });
+});
+
+test("Rectangle replay normalizes reverse-drag bounds on a reused node", async () => {
+  const harness = createHarness();
+  const rectangleTool = await harness.loadTool("rectangle");
+
+  rectangleTool.draw({
+    tool: TOOL_CODE_BY_ID.rectangle,
+    type: MutationType.CREATE,
+    id: "rect-1",
+    color: "#123456",
+    size: 4,
+    opacity: 1,
+    x: 200,
+    y: 150,
+    x2: 80,
+    y2: 20,
+  });
+
+  const rect = harness.elementsById.get("rect-1");
+  assert.equal(rect.x.baseVal.value, 80);
+  assert.equal(rect.y.baseVal.value, 20);
+  assert.equal(rect.width.baseVal.value, 120);
+  assert.equal(rect.height.baseVal.value, 130);
+});
+
+test("Rectangle press creates the seed message without DOM setup", () => {
+  const tools = createInputTools();
+  const state = RectangleTool.boot(
+    createToolBootContext(
+      createInputToolRuntime(tools),
+      (assetFile) => assetFile,
+    ),
+  );
+  const event = createToolEvent();
+
+  RectangleTool.press(state, 80, 20, event);
+
+  assert.equal(event.preventDefaultCount, 1);
+  assert.deepEqual(tools.sentMessages[0].data, {
+    tool: TOOL_CODE_BY_ID.rectangle,
+    type: MutationType.CREATE,
+    id: "r-1",
+    color: "#123456",
+    size: 4,
+    opacity: 1,
+    x: 80,
+    y: 20,
+    x2: 80,
+    y2: 20,
+  });
+});
+
+/** @type {[string, string][]} */
+const equalSpanToolCases = [
+  ["rectangle", "r-1"],
+  ["ellipse", "e-1"],
+];
+
+equalSpanToolCases.forEach(([toolName, id]) => {
+  test(`${toolName} equal-span mode keeps update endpoints on the board`, async () => {
+    const harness = createHarness();
+    const tool = await harness.loadTool(toolName);
+
+    dispatchToolEvent(tool.listeners.press, 17136, 9240);
+    tool.secondary.active = true;
+    harness.clock.now = 100;
+    dispatchToolEvent(tool.listeners.move, 5105, 0);
+
+    const updateMessage = globalAny.Tools.sentMessages[1].data;
+    assert.deepEqual(updateMessage, {
+      tool:
+        toolName === "rectangle"
+          ? TOOL_CODE_BY_ID.rectangle
+          : TOOL_CODE_BY_ID.ellipse,
+      type: MutationType.UPDATE,
+      id,
+      x: 17136,
+      y: 9240,
+      x2: 7896,
+      y2: 0,
+    });
+  });
+});
+
+test("Rectangle move logic separates throttled local draw from forced send", () => {
+  const tools = createInputTools();
+  const state = RectangleTool.boot(
+    createToolBootContext(
+      createInputToolRuntime(tools),
+      (assetFile) => assetFile,
+    ),
+  );
+  state.lastTime = 0;
+  state.currentShape = ShapeTool.createShapePressEffect(state, 80, 20).message;
+
+  const throttled = ShapeTool.createShapeMoveEffect(
+    state,
+    120,
+    90,
+    undefined,
+    false,
+    10,
+  );
+  const forced = ShapeTool.createShapeMoveEffect(
+    state,
+    120,
+    90,
+    undefined,
+    true,
+    10,
+  );
+
+  assert.equal(throttled.shouldSend, false);
+  assert.deepEqual(throttled.update, {
+    tool: TOOL_CODE_BY_ID.rectangle,
+    type: MutationType.UPDATE,
+    id: "r-1",
+    x: 80,
+    y: 20,
+    x2: 120,
+    y2: 90,
+  });
+  assert.equal(forced.shouldSend, true);
+  assert.equal(forced.nextLastTime, 10);
+});
+
+test("Rectangle update recreates a missing shape before applying bounds", async () => {
+  const harness = createHarness();
+  const rectangleTool = await harness.loadTool("rectangle");
+
+  rectangleTool.draw({
+    tool: TOOL_CODE_BY_ID.rectangle,
+    type: MutationType.UPDATE,
+    id: "rect-1",
+    x: 60,
+    y: 90,
+    x2: 0,
+    y2: 30,
+  });
+
+  const rect = harness.elementsById.get("rect-1");
+  assert.equal(rect.x.baseVal.value, 0);
+  assert.equal(rect.y.baseVal.value, 30);
+  assert.equal(rect.width.baseVal.value, 60);
+  assert.equal(rect.height.baseVal.value, 60);
+});
+
+test("Ellipse replay updates center and radii on a reused node", async () => {
+  const harness = createHarness();
+  const ellipseTool = await harness.loadTool("ellipse");
+
+  ellipseTool.draw({
+    tool: TOOL_CODE_BY_ID.ellipse,
+    type: MutationType.CREATE,
+    id: "ellipse-1",
+    color: "#123456",
+    size: 4,
+    opacity: 1,
+    x: 10,
+    y: 20,
+    x2: 110,
+    y2: 220,
+  });
+  ellipseTool.draw({
+    tool: TOOL_CODE_BY_ID.ellipse,
+    type: MutationType.UPDATE,
+    id: "ellipse-1",
+    x: 0,
+    y: 30,
+    x2: 60,
+    y2: 90,
+  });
+
+  const ellipse = harness.elementsById.get("ellipse-1");
+  assert.equal(ellipse.cx.baseVal.value, 30);
+  assert.equal(ellipse.cy.baseVal.value, 60);
+  assert.equal(ellipse.rx.baseVal.value, 30);
+  assert.equal(ellipse.ry.baseVal.value, 30);
+});
+
+test("Ellipse update recreates a missing shape before applying radii", async () => {
+  const harness = createHarness();
+  const ellipseTool = await harness.loadTool("ellipse");
+
+  ellipseTool.draw({
+    tool: TOOL_CODE_BY_ID.ellipse,
+    type: MutationType.UPDATE,
+    id: "ellipse-1",
+    x: 0,
+    y: 30,
+    x2: 60,
+    y2: 90,
+  });
+
+  const ellipse = harness.elementsById.get("ellipse-1");
+  assert.equal(ellipse.cx.baseVal.value, 30);
+  assert.equal(ellipse.cy.baseVal.value, 60);
+  assert.equal(ellipse.rx.baseVal.value, 30);
+  assert.equal(ellipse.ry.baseVal.value, 30);
+});
+
+async function bootTextEditorHarness() {
+  const textPath = path.resolve(
+    __dirname,
+    "..",
+    "client-data",
+    "tools",
+    getToolModuleImportPath("text"),
+  );
+  const textModule = require(textPath);
+  const textState = await textModule.boot(
+    createToolBootContext(
+      createHarnessToolRuntime(globalAny.Tools),
+      (assetFile) => getToolRuntimeAssetPath("text", assetFile),
+    ),
+  );
+  globalAny.Tools.toolRegistry.current = {
+    name: "text",
+    draw: (/** @type {any} */ data, /** @type {boolean} */ isLocal) =>
+      textModule.draw(textState, data, isLocal),
+  };
+  return { textModule, textState };
+}
+
+test("Text replay creates and then updates the same text field", async () => {
+  const harness = createHarness();
+  const textTool = await harness.loadTool("text");
+
+  textTool.draw({
+    tool: TOOL_CODE_BY_ID.text,
+    type: MutationType.CREATE,
+    id: "text-1",
+    color: "#123456",
+    size: 24,
+    opacity: 0.7,
+    x: 100,
+    y: 120,
+  });
+  textTool.draw({
+    tool: TOOL_CODE_BY_ID.text,
+    type: MutationType.UPDATE,
+    id: "text-1",
+    txt: "hello replay",
+  });
+
+  const text = harness.elementsById.get("text-1");
+  assert.equal(text.getAttribute("x"), "100");
+  assert.equal(text.getAttribute("y"), "120");
+  assert.equal(text.getAttribute("font-size"), "24");
+  assert.equal(text.getAttribute("fill"), "#123456");
+  assert.equal(text.getAttribute("opacity"), "0.7");
+  assert.equal(text.textContent, "hello replay");
+});
+
+test("Text create sends an integer baseline coordinate", async () => {
+  const harness = createHarness();
+  const { textModule, textState } = await bootTextEditorHarness();
+  globalAny.Tools.preferences.getSize = () => 70;
+
+  textModule.press(textState, 100, 200, createToolEvent(), false);
+  textState.input.value = "hello";
+  harness.clock.now = 200;
+  textState.boundTextChangeHandler({});
+
+  const createMessage = globalAny.Tools.sentMessages[0].data;
+  assert.equal(createMessage.type, MutationType.CREATE);
+  assert.equal(createMessage.size, 225);
+  assert.equal(createMessage.y, 313);
+});
+
+test("Text create clamps the derived font size before sending", async () => {
+  const harness = createHarness();
+  const { textModule, textState } = await bootTextEditorHarness();
+  globalAny.Tools.preferences.getSize = () => 310;
+
+  textModule.press(textState, 100, 200, createToolEvent(), false);
+  textState.input.value = "hello";
+  harness.clock.now = 200;
+  textState.boundTextChangeHandler({});
+
+  const createMessage = globalAny.Tools.sentMessages[0].data;
+  assert.equal(createMessage.type, MutationType.CREATE);
+  assert.equal(createMessage.size, 500);
+});
+
+test("Text remote update refreshes the active editor for the same field", async () => {
+  const harness = createHarness();
+  const { textModule, textState } = await bootTextEditorHarness();
+
+  textModule.press(textState, 100, 200, createToolEvent(), false);
+  textState.input.value = "local draft";
+  harness.clock.now = 200;
+  textState.boundTextChangeHandler({});
+
+  textModule.draw(
+    textState,
+    {
+      tool: TOOL_CODE_BY_ID.text,
+      type: MutationType.UPDATE,
+      id: "t-1",
+      txt: "remote draft",
+    },
+    false,
+  );
+
+  assert.equal(textState.input.value, "remote draft");
+  assert.equal(textState.curText.sentText, "remote draft");
+  assert.equal(harness.elementsById.get("t-1").textContent, "remote draft");
+});
+
+test("Text rejection stops the active editor from resending its draft", async () => {
+  const harness = createHarness();
+  const { textModule, textState } = await bootTextEditorHarness();
+  const event = createToolEvent();
+
+  textModule.press(textState, 100, 100, event, false);
+  textState.input.value = "hello";
+
+  harness.clock.now = 200;
+  textState.boundTextChangeHandler({});
+
+  textState.input.value = "hello again";
+  harness.clock.now = 250;
+  textState.boundTextChangeHandler({});
+
+  assert.deepEqual(
+    globalAny.Tools.sentMessages.map(
+      (/** @type {any} */ message) => message.data.type,
+    ),
+    [MutationType.CREATE, MutationType.UPDATE],
+  );
+  const textId = globalAny.Tools.sentMessages[0].data.id;
+
+  textModule.onMutationRejected(
+    textState,
+    { tool: TOOL_CODE_BY_ID.text, type: MutationType.UPDATE, id: textId },
+    "shape too large",
+  );
+
+  harness.time.flushUntilIdle();
+  harness.time.advanceTime(1000);
+  harness.time.flushUntilIdle();
+
+  assert.equal(textState.active, false);
+  assert.equal(textState.input.value, "");
+  assert.deepEqual(
+    globalAny.Tools.sentMessages.map(
+      (/** @type {any} */ message) => message.data.type,
+    ),
+    [MutationType.CREATE, MutationType.UPDATE],
+  );
+});
+
+test("Hand selector sends a final transform on quick release", async () => {
+  const harness = createHarness();
+  const handTool = await harness.loadTool("hand");
+
+  const rect = globalAny.Tools.dom.createSVGElement("rect");
+  rect.id = "seed-rect";
+  rect.x.baseVal.value = 100;
+  rect.y.baseVal.value = 100;
+  rect.width.baseVal.value = 60;
+  rect.height.baseVal.value = 40;
+  globalAny.Tools.drawingArea.appendChild(rect);
+
+  handTool.secondary.active = true;
+  harness.clock.now = 10;
+  dispatchToolEvent(handTool.listeners.press, 110, 110, rect);
+  dispatchToolEvent(handTool.listeners.move, 150, 135, rect);
+  dispatchToolEvent(handTool.listeners.release, 150, 135, rect);
+
+  assert.equal(globalAny.Tools.sentMessages.length, 1);
+  assert.equal(globalAny.Tools.sentMessages[0].toolName, "hand");
+  assert.deepEqual(globalAny.Tools.sentMessages[0].data, {
+    tool: TOOL_CODE_BY_ID.hand,
+    _children: [
+      {
+        type: MessageToolMetadata.MutationType.UPDATE,
+        id: "seed-rect",
+        transform: {
+          a: 1,
+          b: 0,
+          c: 0,
+          d: 1,
+          e: 40,
+          f: 25,
+        },
+      },
+    ],
+  });
+  const ensuredBounds = globalAny.Tools.viewportState.controller.ensuredBounds;
+  assert.deepEqual(ensuredBounds[ensuredBounds.length - 1], {
+    minX: 140,
+    minY: 125,
+    maxX: 200,
+    maxY: 165,
+  });
+});
+
+test("large Hand replay completes transforms before the next message", async () => {
+  const harness = createHarness();
+  const handTool = await harness.loadTool("hand");
+
+  const rect = globalAny.Tools.dom.createSVGElement("rect");
+  rect.id = "remote-rect";
+  rect.x.baseVal.value = 100;
+  rect.y.baseVal.value = 100;
+  rect.width.baseVal.value = 60;
+  rect.height.baseVal.value = 40;
+  globalAny.Tools.drawingArea.appendChild(rect);
+  rect.getBBox = () => {
+    // Measuring between writes would repeatedly force browser layout. Every
+    // transform in the batch must already be applied before the first read.
+    assert.equal(rect.transform.baseVal[0].matrix.e, 1424);
+    return { x: 100, y: 100, width: 60, height: 40 };
+  };
+
+  const messages = new MessageModule(
+    /** @type {any} */ ({ mounted: { hand: handTool } }),
+    globalAny.Tools.identity,
+  );
+  await messages.messageForTool({
+    tool: TOOL_CODE_BY_ID.hand,
+    _children: Array.from({ length: 1025 }, (_, index) => ({
+      type: MessageToolMetadata.MutationType.UPDATE,
+      id: "remote-rect",
+      transform: {
+        a: 1,
+        b: 0,
+        c: 0,
+        d: 1,
+        e: 400 + index,
+        f: 250,
+      },
+    })),
+  });
+
+  const ensuredBounds = globalAny.Tools.viewportState.controller.ensuredBounds;
+  assert.equal(ensuredBounds.length, 1);
+  assert.deepEqual(ensuredBounds.at(-1), {
+    minX: 500,
+    minY: 350,
+    maxX: 1584,
+    maxY: 390,
+  });
+  rect.getBBox = () => ({ x: 100, y: 100, width: 60, height: 40 });
+  await messages.messageForTool({
+    tool: TOOL_CODE_BY_ID.hand,
+    type: MutationType.UPDATE,
+    id: rect.id,
+    transform: { a: 1, b: 0, c: 0, d: 1, e: 2000, f: 0 },
+  });
+  harness.time.flushUntilIdle();
+  await Promise.resolve();
+  assert.equal(rect.transform.baseVal[0].matrix.e, 2000);
+
+  // A mixed batch may transform a copy created earlier in that same batch.
+  // Its final geometry still grows the viewport after the source is deleted.
+  await messages.messageForTool({
+    tool: TOOL_CODE_BY_ID.hand,
+    _children: [
+      { type: MutationType.COPY, id: rect.id, newid: "moved-copy" },
+      {
+        type: MutationType.UPDATE,
+        id: "moved-copy",
+        transform: { a: 1, b: 0, c: 0, d: 1, e: 3000, f: 50 },
+      },
+      { type: MutationType.DELETE, id: rect.id },
+    ],
+  });
+  assert.equal(globalAny.Tools.dom.svg.getElementById(rect.id), null);
+  const copy = globalAny.Tools.dom.svg.getElementById("moved-copy");
+  assert.equal(copy.transform.baseVal[0].matrix.e, 3000);
+  assert.deepEqual(ensuredBounds.at(-1), {
+    minX: 3100,
+    minY: 150,
+    maxX: 3160,
+    maxY: 190,
+  });
+});
+
+test("Hand batch deletes complete synchronously and preserve the SVG shell", async () => {
+  const harness = createHarness();
+  const handTool = await harness.loadTool("hand");
+  const svg = globalAny.Tools.dom.svg;
+  svg.id = "board-svg";
+  globalAny.Tools.drawingArea.id = "drawingArea";
+  svg.appendChild(globalAny.Tools.drawingArea);
+  const defs = globalAny.Tools.dom.createSVGElement("defs");
+  defs.id = "defs";
+  svg.appendChild(defs);
+  const cursors = globalAny.Tools.dom.createSVGElement("g");
+  cursors.id = "cursors";
+  svg.appendChild(cursors);
+  const nested = globalAny.Tools.dom.createSVGElement("path");
+  nested.id = "nested-path";
+  defs.appendChild(nested);
+
+  const rect = globalAny.Tools.dom.createSVGElement("rect");
+  rect.id = "doomed-rect";
+  globalAny.Tools.drawingArea.appendChild(rect);
+  assert.ok(globalAny.Tools.dom.svg.getElementById("doomed-rect"));
+
+  // Spy on the generic async message pipeline. A hand child delete must not
+  // re-enter it (no derived child op, no duplicate generic side effects).
+  let messageForToolCalls = 0;
+  const originalMessageForTool = globalAny.Tools.messages.messageForTool;
+  globalAny.Tools.messages.messageForTool = (/** @type {any} */ data) => {
+    messageForToolCalls += 1;
+    return originalMessageForTool(data);
+  };
+
+  try {
+    const result = handTool.draw(
+      {
+        tool: TOOL_CODE_BY_ID.hand,
+        _children: [
+          "board-svg",
+          "drawingArea",
+          "defs",
+          "cursors",
+          "nested-path",
+          "missing-target",
+          "doomed-rect",
+          "doomed-rect",
+        ].map((id) => ({ type: MutationType.DELETE, id })),
+      },
+      false,
+    );
+
+    // draw() returned and the element is already gone: applied synchronously
+    // before any sequence-advancing await could resolve.
+    assert.equal(result instanceof Promise, false);
+    assert.ok(!svg.getElementById("doomed-rect"));
+    assert.equal(svg.getElementById("board-svg"), svg);
+    assert.equal(
+      svg.getElementById("drawingArea"),
+      globalAny.Tools.drawingArea,
+    );
+    assert.equal(svg.getElementById("defs"), defs);
+    assert.equal(svg.getElementById("cursors"), cursors);
+    assert.equal(svg.getElementById("nested-path"), nested);
+    assert.equal(globalAny.Tools.drawingArea.parentNode, svg);
+    assert.equal(defs.parentNode, svg);
+    assert.equal(cursors.parentNode, svg);
+    assert.equal(nested.parentNode, defs);
+    assert.equal(messageForToolCalls, 0);
+  } finally {
+    globalAny.Tools.messages.messageForTool = originalMessageForTool;
+  }
+});
+
+test("Hand selector cancels a transform after same-ID element replacement", async () => {
+  const harness = createHarness();
+  const handTool = await harness.loadTool("hand");
+  const rect = globalAny.Tools.dom.createSVGElement("rect");
+  rect.id = "replaced-rect";
+  rect.x.baseVal.value = 100;
+  rect.y.baseVal.value = 100;
+  rect.width.baseVal.value = 60;
+  rect.height.baseVal.value = 40;
+  globalAny.Tools.drawingArea.appendChild(rect);
+  handTool.secondary.active = true;
+  dispatchToolEvent(handTool.listeners.press, 110, 110, rect);
+
+  globalAny.Tools.drawingArea.removeChild(rect);
+  const replacement = globalAny.Tools.dom.createSVGElement("rect");
+  replacement.id = rect.id;
+  replacement.x.baseVal.value = 500;
+  replacement.y.baseVal.value = 500;
+  replacement.width.baseVal.value = 20;
+  replacement.height.baseVal.value = 20;
+  globalAny.Tools.drawingArea.appendChild(replacement);
+  dispatchToolEvent(handTool.listeners.move, 150, 135, replacement);
+  dispatchToolEvent(handTool.listeners.release, 150, 135, replacement);
+
+  assert.equal(globalAny.Tools.sentMessages.length, 0);
+  assert.equal(replacement.transform.baseVal.numberOfItems, 0);
+  assert.equal(replacement.x.baseVal.value, 500);
+  assert.equal(replacement.y.baseVal.value, 500);
+});
+
+test("Hand selector stops at the last valid transform", async () => {
+  const harness = createHarness();
+  const handTool = await harness.loadTool("hand");
+
+  globalAny.Tools.config.serverConfig.MAX_BOARD_SIZE = 220;
+
+  const rect = globalAny.Tools.dom.createSVGElement("rect");
+  rect.id = "bounded-rect";
+  rect.x.baseVal.value = 100;
+  rect.y.baseVal.value = 100;
+  rect.width.baseVal.value = 60;
+  rect.height.baseVal.value = 40;
+  globalAny.Tools.drawingArea.appendChild(rect);
+
+  handTool.secondary.active = true;
+  dispatchToolEvent(handTool.listeners.press, 110, 110, rect);
+  dispatchToolEvent(handTool.listeners.move, 200, 135, rect);
+  dispatchToolEvent(handTool.listeners.release, 200, 135, rect);
+
+  assert.equal(globalAny.Tools.sentMessages.length, 0);
+  assert.equal(rect.transform.baseVal.numberOfItems, 1);
+  assert.deepEqual(rect.transform.baseVal[0].matrix, {
+    a: 1,
+    b: 0,
+    c: 0,
+    d: 1,
+    e: 0,
+    f: 0,
+  });
+});
+
+test("Hand selector keeps the original element selected after duplicate", async () => {
+  const harness = createHarness();
+  const handTool = await harness.loadTool("hand");
+  harness.time.installIntersectionObserver(
+    (/** @type {any} */ target) => target.id === "r-1",
+  );
+  let nextId = 1;
+
+  globalAny.Tools.ids.generateUID = (/** @type {string} */ prefix) => {
+    nextId += 1;
+    return `${prefix}-${nextId}`;
+  };
+  const rect = globalAny.Tools.dom.createSVGElement("rect");
+  rect.id = "r-1";
+  rect.x.baseVal.value = 100;
+  rect.y.baseVal.value = 100;
+  rect.width.baseVal.value = 60;
+  rect.height.baseVal.value = 40;
+  globalAny.Tools.drawingArea.appendChild(rect);
+
+  handTool.secondary.active = true;
+  handTool.secondary.switch();
+
+  const outsideTarget = {
+    parentNode: null,
+    matches: () => false,
+  };
+
+  dispatchToolEvent(handTool.listeners.press, 50, 50, outsideTarget);
+  dispatchToolEvent(handTool.listeners.move, 200, 200, outsideTarget);
+  await dispatchToolEvent(handTool.listeners.release, 200, 200, outsideTarget);
+
+  harness.time.dispatchWindowEvent("keydown", {
+    key: "d",
+    target: outsideTarget,
+  });
+
+  assert.equal(globalAny.Tools.sentMessages.length, 1);
+  assert.deepEqual(globalAny.Tools.sentMessages[0].data, {
+    tool: TOOL_CODE_BY_ID.hand,
+    _children: [
+      {
+        type: MessageToolMetadata.MutationType.COPY,
+        id: "r-1",
+        newid: "r-2",
+      },
+    ],
+  });
+
+  const originalRect = harness.elementsById.get("r-1");
+  dispatchToolEvent(handTool.listeners.press, 110, 110, originalRect);
+  dispatchToolEvent(handTool.listeners.move, 150, 135, originalRect);
+  dispatchToolEvent(handTool.listeners.release, 150, 135, originalRect);
+
+  assert.equal(globalAny.Tools.sentMessages.length, 2);
+  assert.deepEqual(globalAny.Tools.sentMessages[1].data, {
+    tool: TOOL_CODE_BY_ID.hand,
+    _children: [
+      {
+        type: MessageToolMetadata.MutationType.UPDATE,
+        id: "r-1",
+        transform: {
+          a: 1,
+          b: 0,
+          c: 0,
+          d: 1,
+          e: 40,
+          f: 25,
+        },
+      },
+    ],
+  });
+});
+
+test("Hand selector ignores stale async selection after transform starts", async () => {
+  const harness = createHarness();
+  const handTool = await harness.loadTool("hand");
+  harness.time.installIntersectionObserver(
+    (/** @type {any} */ target) => target.id === "r-1",
+  );
+
+  const rect = globalAny.Tools.dom.createSVGElement("rect");
+  rect.id = "r-1";
+  rect.x.baseVal.value = 100;
+  rect.y.baseVal.value = 100;
+  rect.width.baseVal.value = 60;
+  rect.height.baseVal.value = 40;
+  globalAny.Tools.drawingArea.appendChild(rect);
+
+  handTool.secondary.active = true;
+  handTool.secondary.switch();
+
+  const outsideTarget = {
+    parentNode: null,
+    matches: () => false,
+  };
+
+  dispatchToolEvent(handTool.listeners.press, 50, 50, outsideTarget);
+  dispatchToolEvent(handTool.listeners.move, 200, 200, outsideTarget);
+  const pendingSelection = dispatchToolEvent(
+    handTool.listeners.release,
+    200,
+    200,
+    outsideTarget,
+  );
+
+  dispatchToolEvent(handTool.listeners.press, 110, 110, outsideTarget);
+  await pendingSelection;
+
+  assert.doesNotThrow(() => {
+    dispatchToolEvent(handTool.listeners.move, 150, 135, outsideTarget);
+  });
+});
+
+test("Hand box selection can use IntersectionObserver without target bbox reads", async () => {
+  const harness = createHarness();
+  const handTool = await harness.loadTool("hand");
+  harness.time.installIntersectionObserver(
+    (/** @type {any} */ target) => target.id === "io-selected",
+  );
+  let nextId = 1;
+  globalAny.Tools.ids.generateUID = (/** @type {string} */ prefix) => {
+    nextId += 1;
+    return `${prefix}-${nextId}`;
+  };
+
+  const selectedRect = globalAny.Tools.dom.createSVGElement("rect");
+  selectedRect.id = "io-selected";
+  selectedRect.x.baseVal.value = 100;
+  selectedRect.y.baseVal.value = 100;
+  selectedRect.width.baseVal.value = 60;
+  selectedRect.height.baseVal.value = 40;
+  selectedRect.getBBox = () => {
+    throw new Error("target getBBox should not be called");
+  };
+  selectedRect.transformedBBox = () => {
+    throw new Error("target transformedBBox should not be called");
+  };
+  globalAny.Tools.drawingArea.appendChild(selectedRect);
+
+  const rejectedRect = globalAny.Tools.dom.createSVGElement("rect");
+  rejectedRect.id = "io-rejected";
+  globalAny.Tools.drawingArea.appendChild(rejectedRect);
+
+  handTool.secondary.active = true;
+  handTool.secondary.switch();
+  const outsideTarget = {
+    parentNode: null,
+    matches: () => false,
+  };
+
+  dispatchToolEvent(handTool.listeners.press, 50, 50, outsideTarget);
+  dispatchToolEvent(handTool.listeners.move, 200, 200, outsideTarget);
+  await dispatchToolEvent(handTool.listeners.release, 200, 200, outsideTarget);
+
+  harness.time.dispatchWindowEvent("keydown", {
+    key: "d",
+    target: outsideTarget,
+  });
+
+  assert.deepEqual(globalAny.Tools.sentMessages[0].data, {
+    tool: TOOL_CODE_BY_ID.hand,
+    _children: [
+      {
+        type: MessageToolMetadata.MutationType.COPY,
+        id: "io-selected",
+        newid: "i-2",
+      },
+    ],
+  });
+});
+
+test("Hand box selection does not fall back to target bbox reads without IntersectionObserver", async () => {
+  const harness = createHarness();
+  const handTool = await harness.loadTool("hand");
+  harness.time.disableIntersectionObserver();
+
+  const rect = globalAny.Tools.dom.createSVGElement("rect");
+  rect.id = "no-io-rect";
+  rect.x.baseVal.value = 100;
+  rect.y.baseVal.value = 100;
+  rect.width.baseVal.value = 60;
+  rect.height.baseVal.value = 40;
+  rect.getBBox = () => {
+    throw new Error("target getBBox should not be called");
+  };
+  rect.transformedBBox = () => {
+    throw new Error("target transformedBBox should not be called");
+  };
+  globalAny.Tools.drawingArea.appendChild(rect);
+
+  handTool.secondary.active = true;
+  handTool.secondary.switch();
+  const outsideTarget = {
+    parentNode: null,
+    matches: () => false,
+  };
+
+  dispatchToolEvent(handTool.listeners.press, 50, 50, outsideTarget);
+  dispatchToolEvent(handTool.listeners.move, 200, 200, outsideTarget);
+  await dispatchToolEvent(handTool.listeners.release, 200, 200, outsideTarget);
+
+  harness.time.dispatchWindowEvent("keydown", {
+    key: "d",
+    target: outsideTarget,
+  });
+  assert.equal(globalAny.Tools.sentMessages.length, 0);
+});
+
+test("Hand tool declares native touch scrolling when selector mode is off", async () => {
+  const harness = createHarness();
+  const handTool = await harness.loadTool("hand");
+
+  assert.equal(globalAny.Tools.board.style.touchAction, undefined);
+  assert.equal(globalAny.Tools.svg.style.touchAction, undefined);
+
+  handTool.onstart?.(null);
+  assert.equal(handTool.getTouchPolicy?.(), "native-pan");
+  assert.equal(globalAny.Tools.board.style.touchAction, undefined);
+  assert.equal(globalAny.Tools.svg.style.touchAction, undefined);
+
+  handTool.secondary.active = true;
+  handTool.secondary.switch();
+  assert.equal(handTool.getTouchPolicy?.(), "app-gesture");
+  assert.equal(globalAny.Tools.board.style.touchAction, undefined);
+  assert.equal(globalAny.Tools.svg.style.touchAction, undefined);
+
+  handTool.secondary.active = false;
+  handTool.secondary.switch();
+  assert.equal(handTool.getTouchPolicy?.(), "native-pan");
+  assert.equal(globalAny.Tools.board.style.touchAction, undefined);
+  assert.equal(globalAny.Tools.svg.style.touchAction, undefined);
+});
+
+test("Hand tool touch gestures do not run synthetic drag panning", async () => {
+  const harness = createHarness();
+  const handTool = await harness.loadTool("hand");
+  const pressEvent = createToolEvent(null, {
+    touches: [{ clientX: 100, clientY: 100 }],
+    changedTouches: [{ clientX: 100, clientY: 100 }],
+    cancelable: true,
+  });
+  const moveEvent = createToolEvent(null, {
+    touches: [{ clientX: 120, clientY: 120 }],
+    changedTouches: [{ clientX: 120, clientY: 120 }],
+    cancelable: true,
+  });
+  const releaseEvent = createToolEvent(null, {
+    touches: [],
+    changedTouches: [{ clientX: 120, clientY: 120 }],
+    cancelable: true,
+  });
+
+  handTool.onstart?.(null);
+  handTool.listeners.press(0, 0, pressEvent, true);
+  handTool.listeners.move(0, 0, moveEvent, true);
+  handTool.listeners.release(0, 0, releaseEvent, true);
+
+  assert.equal(
+    pressEvent.preventDefaultCount +
+      moveEvent.preventDefaultCount +
+      releaseEvent.preventDefaultCount,
+    0,
+  );
+});
+
+test("Eraser replay removes only the targeted stable id", async () => {
+  const harness = createHarness();
+  const eraserTool = await harness.loadTool("eraser");
+
+  const rect1 = globalAny.Tools.dom.createSVGElement("rect");
+  rect1.id = "r-1";
+  globalAny.Tools.drawingArea.appendChild(rect1);
+
+  const rect2 = globalAny.Tools.dom.createSVGElement("rect");
+  rect2.id = "r-2";
+  globalAny.Tools.drawingArea.appendChild(rect2);
+
+  eraserTool.draw({
+    tool: TOOL_CODE_BY_ID.eraser,
+    type: MutationType.DELETE,
+    id: "r-1",
+  });
+
+  assert.equal(harness.elementsById.get("r-1"), undefined);
+  assert.equal(harness.elementsById.get("r-2"), rect2);
+});

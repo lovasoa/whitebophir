@@ -1,51 +1,133 @@
 name: deploy
 on:
+  workflow_run:
+    workflows: [Node.js CI]
+    types: [completed]
   push:
     tags:
       - v*
 
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
+  validate-tag:
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/CI.yml
+
+  prepare:
+    needs: validate-tag
+    if: >-
+      !cancelled() &&
+      (needs.validate-tag.result == 'success' ||
+        (github.event.workflow_run.conclusion == 'success' &&
+         github.event.workflow_run.head_repository.full_name == github.repository &&
+         github.event.workflow_run.head_branch == 'master' &&
+         (github.event.workflow_run.event == 'push' ||
+          github.event.workflow_run.event == 'workflow_dispatch')))
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      commit: ${{ steps.version.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26.x
+      - name: Prepare release version
+        id: version
+        env:
+          TESTED_COMMIT: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_run ]; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            sh bin/prepare-release "$TESTED_COMMIT"
+          else
+            sh bin/ci-pre-deploy
+            echo "tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          fi
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Publish GitHub release
+        if: steps.version.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: gh release view "$RELEASE_TAG" || gh release create "$RELEASE_TAG" --verify-tag --generate-notes
+
   build:
+    needs: prepare
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.prepare.outputs.tag != '' }}
     name: deploy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
+          ref: ${{ needs.prepare.outputs.tag }}
           fetch-depth: 0
       - name: Dokku
-        uses: dokku/github-action@036bf9c07f1b40707a16201bc7a349074c3ec554
+        uses: dokku/github-action@v1.10.0
         with:
+          ci_commit: ${{ needs.prepare.outputs.commit }}
+          ci_branch_name: ${{ needs.prepare.outputs.tag }}
           git_remote_url: ssh://dokku@${{ secrets.SSH_SERVER }}:22/wbo
           ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           git_push_flags: --force
           trace: 1
+          branch: main
   push_to_registry:
-    name: Push Docker image to Docker Hub
+    needs: prepare
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.prepare.outputs.tag != '' }}
+    name: Push Docker image to Docker Hub and GHCR
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v4
-      - name: Set env
-        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
       - name: Set up Docker Buildx
         id: buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
       - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
         with:
-          username: ${{ github.repository_owner }}
+          username: lovasoa
           password: ${{ secrets.DOCKER_PASSWORD }}
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
         with:
           registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password:  ${{ secrets.GITHUB_TOKEN }}
-      - name: Push to Docker Hub
-        uses: docker/build-push-action@v2
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         with:
+          context: git
+          images: |
+            lovasoa/wbo
+            ghcr.io/${{ github.repository_owner }}/wbo
+          # workflow_run refers to master; use the prepared release tag explicitly.
+          tags: |
+            type=raw,value=${{ needs.prepare.outputs.tag }}
+            type=raw,value=latest
+      - name: Build and push to Docker Hub and GHCR
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
           push: true
-          tags: lovasoa/wbo:latest,lovasoa/wbo:${{ env.RELEASE_VERSION }}
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64

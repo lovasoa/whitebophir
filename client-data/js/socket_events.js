@@ -1,0 +1,24 @@
+export const SocketEvents = Object.freeze({
+  ACTIVE_BANS: "active_bans",
+  UNBAN_USER: "unban_user",
+  BOARDSTATE: "boardstate",
+  BROADCAST: "broadcast",
+  CONNECT: "connect",
+  CONNECT_ERROR: "connect_error",
+  DISCONNECT: "disconnect",
+  ERROR: "error",
+  MODERATION_DISCONNECT: "moderation_disconnect",
+  MUTATION_REJECTED: "mutation_rejected",
+  RATE_LIMITED: "rate-limited",
+  REPORT_USER: "report_user",
+  SET_TEMPORARY_MODERATOR: "set_temporary_moderator",
+  TURNSTILE_TOKEN: "turnstile_token",
+  USER_REPORTED: "user_reported",
+  USER_JOINED: "user_joined",
+  USER_LEFT: "user_left",
+});
+
+export const ModerationDisconnectSources = Object.freeze({
+  MODERATOR: "moderator",
+  PEER_REPORT: "peer_report",
+});

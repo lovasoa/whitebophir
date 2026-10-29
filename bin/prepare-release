@@ -1,0 +1,20 @@
+#!/bin/sh
+set -eu
+
+# Never publish an older successful CI run over newer master changes.
+tested_commit=$1
+git fetch origin master --tags
+if [ "$(git rev-parse origin/master)" != "$tested_commit" ]; then
+  echo "Skipping release: master has moved since this CI run."
+  exit 0
+fi
+test "$(git rev-parse HEAD)" = "$tested_commit"
+
+npm version patch --no-git-tag-version --ignore-scripts
+release_tag=v$(node -p 'require("./package.json").version')
+git add package.json package-lock.json
+git -c core.hooksPath=/dev/null commit -m "Release $release_tag"
+git tag "$release_tag"
+# A concurrent master update rejects the entire push, including the tag.
+git push --atomic origin HEAD:master "refs/tags/$release_tag"
+echo "tag=$release_tag" >> "$GITHUB_OUTPUT"

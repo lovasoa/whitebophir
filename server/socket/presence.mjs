@@ -1,0 +1,298 @@
+import WBOMessageCommon from "../../client-data/js/message_common.js";
+import {
+  extractMessageColor,
+  extractMessagePosition,
+  extractMessageSize,
+} from "../../client-data/js/message_shape.js";
+import { getToolId } from "../../client-data/js/message_tool_metadata.js";
+import { SocketEvents } from "../../client-data/js/socket_events.js";
+import { TOOL_CODE_BY_ID } from "../../client-data/tools/manifest.js";
+import { buildPronounceableName } from "../shared/pronounceable_name.mjs";
+import {
+  getSocketHeaderValue,
+  getSocketQueryValue,
+  getSocketUserSecret,
+} from "./request.mjs";
+
+/** @import { AppSocket, ConnectedUserPayload, NormalizedMessageData, ServerConfig } from "../../types/server-runtime.d.ts" */
+/** @typedef {{socketId: string, userId: string, userSecret: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number, joinedAt: number, position: {x: number, y: number}, canEdit: boolean, canClear: boolean, canBan: boolean, canGrantTemporaryModerator: boolean}} BoardUser */
+/** @typedef {(socket: AppSocket, boardName: string, config: ServerConfig) => string} ResolveClientIp */
+/** @typedef {{canEdit?: boolean, canClear?: boolean, canBan?: boolean, canGrantTemporaryModerator?: boolean}} UserCapabilities */
+
+/** @type {Map<string, Map<string, BoardUser>>} */
+const boardUsers = new Map();
+
+/**
+ * @param {string} userSecret
+ * @returns {string}
+ */
+function buildUserId(userSecret) {
+  return buildPronounceableName(userSecret || "anonymous", 2, 3);
+}
+
+/**
+ * @param {string} ip
+ * @param {string} userSecret
+ * @returns {string}
+ */
+function buildUserName(ip, userSecret) {
+  return `${buildPronounceableName(ip || "unknown", 2, 2)} ${buildUserId(
+    userSecret,
+  )}`;
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @param {ServerConfig} config
+ * @param {ResolveClientIp} resolveClientIp
+ * @param {UserCapabilities} capabilities
+ * @param {number} [now]
+ * @returns {BoardUser}
+ */
+function buildBoardUserRecord(
+  socket,
+  boardName,
+  config,
+  resolveClientIp,
+  capabilities,
+  now,
+) {
+  const userSecret = getSocketUserSecret(socket);
+  const ip = resolveClientIp(socket, boardName, config);
+  const size = WBOMessageCommon.clampSize(
+    parseInt(getSocketQueryValue(socket, "size"), 10),
+  );
+  const color = WBOMessageCommon.normalizeColor(
+    getSocketQueryValue(socket, "color"),
+  );
+  return {
+    socketId: socket.id,
+    userId: buildUserId(userSecret),
+    userSecret,
+    name: buildUserName(ip, userSecret),
+    ip,
+    userAgent: getSocketHeaderValue(socket, "user-agent"),
+    language: getSocketHeaderValue(socket, "accept-language"),
+    color: color || "#001f3f",
+    size,
+    lastTool: getToolId(getSocketQueryValue(socket, "tool")) || "hand",
+    lastSeen: now || Date.now(),
+    joinedAt: now || Date.now(),
+    position: { x: 0, y: 0 },
+    canEdit: capabilities.canEdit === true,
+    canClear: capabilities.canClear === true,
+    canBan: capabilities.canBan === true,
+    canGrantTemporaryModerator:
+      capabilities.canGrantTemporaryModerator === true,
+  };
+}
+
+/**
+ * @param {string} boardName
+ * @returns {Map<string, BoardUser>}
+ */
+function getBoardUserMap(boardName) {
+  let users = boardUsers.get(boardName);
+  if (users) return users;
+  users = new Map();
+  boardUsers.set(boardName, users);
+  return users;
+}
+
+/**
+ * @param {string} boardName
+ * @returns {void}
+ */
+function cleanupBoardUserMap(boardName) {
+  const users = boardUsers.get(boardName);
+  if (users && users.size === 0) boardUsers.delete(boardName);
+}
+
+/**
+ * @param {string} boardName
+ * @returns {void}
+ */
+function clearBoardUsers(boardName) {
+  const users = boardUsers.get(boardName);
+  if (!users) return;
+  users.clear();
+  cleanupBoardUserMap(boardName);
+}
+
+/**
+ * @param {BoardUser} user
+ * @returns {ConnectedUserPayload}
+ */
+function serializeBoardUser(user) {
+  return {
+    socketId: user.socketId,
+    userId: user.userId,
+    name: user.name,
+    color: user.color,
+    size: user.size,
+    lastTool: user.lastTool,
+    joinedAt: user.joinedAt,
+    position: user.position,
+    canEdit: user.canEdit,
+    canClear: user.canClear,
+    canBan: user.canBan,
+    canGrantTemporaryModerator: user.canGrantTemporaryModerator,
+  };
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @param {ServerConfig} config
+ * @param {ResolveClientIp} resolveClientIp
+ * @param {UserCapabilities} capabilities
+ * @returns {BoardUser}
+ */
+function ensureBoardUser(
+  socket,
+  boardName,
+  config,
+  resolveClientIp,
+  capabilities,
+) {
+  const users = getBoardUserMap(boardName);
+  const existing = users.get(socket.id);
+  if (existing) return existing;
+
+  const user = buildBoardUserRecord(
+    socket,
+    boardName,
+    config,
+    resolveClientIp,
+    capabilities,
+  );
+  users.set(socket.id, user);
+  return user;
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @returns {void}
+ */
+function emitBoardUsersToSocket(socket, boardName) {
+  const users = getBoardUserMap(boardName);
+  users.forEach(function emitUserJoined(user) {
+    socket.emit(SocketEvents.USER_JOINED, serializeBoardUser(user));
+  });
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @param {BoardUser} user
+ * @returns {void}
+ */
+function emitUserJoinedToBoard(socket, boardName, user) {
+  socket.broadcast
+    .to(boardName)
+    .emit(SocketEvents.USER_JOINED, serializeBoardUser(user));
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @param {BoardUser} user
+ * @returns {void}
+ */
+function emitUserUpdatedToBoard(socket, boardName, user) {
+  const payload = serializeBoardUser(user);
+  socket.emit(SocketEvents.USER_JOINED, payload);
+  socket.broadcast.to(boardName).emit(SocketEvents.USER_JOINED, payload);
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @returns {void}
+ */
+function removeBoardUser(socket, boardName) {
+  const users = getBoardUserMap(boardName);
+  if (!users.delete(socket.id)) return;
+  socket.broadcast.to(boardName).emit(SocketEvents.USER_LEFT, {
+    socketId: socket.id,
+  });
+  cleanupBoardUserMap(boardName);
+}
+
+/**
+ * @param {string} boardName
+ * @param {string} socketId
+ * @returns {BoardUser | undefined}
+ */
+function getBoardUser(boardName, socketId) {
+  return getBoardUserMap(boardName).get(socketId);
+}
+
+/**
+ * @param {string} boardName
+ * @param {string} socketId
+ * @returns {{[key: string]: unknown}}
+ */
+function boardUserDebugFields(boardName, socketId) {
+  const user = getBoardUser(boardName, socketId);
+  if (!user) return {};
+  return {
+    "user.name": user.name,
+    "client.address": user.ip,
+  };
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @param {NormalizedMessageData} data
+ * @param {number} now
+ * @returns {BoardUser | undefined}
+ */
+function updateBoardUserFromMessage(socket, boardName, data, now) {
+  const user = getBoardUser(boardName, socket.id);
+  if (!user) return undefined;
+
+  user.lastSeen = now;
+  const color = extractMessageColor(data);
+  if (color) user.color = color;
+  const size = extractMessageSize(data);
+  if (size) user.size = size;
+  const toolId =
+    data.tool === TOOL_CODE_BY_ID.cursor && "activeTool" in data
+      ? getToolId(data.activeTool)
+      : getToolId(data.tool);
+  if (toolId && (data.tool !== TOOL_CODE_BY_ID.cursor || toolId !== "cursor")) {
+    user.lastTool = toolId;
+  }
+  const position = extractMessagePosition(data);
+  if (position) user.position = position;
+  return user;
+}
+
+/**
+ * @returns {void}
+ */
+function resetBoardUserMaps() {
+  boardUsers.clear();
+}
+
+export {
+  boardUserDebugFields,
+  buildBoardUserRecord,
+  buildUserId,
+  buildUserName,
+  cleanupBoardUserMap,
+  clearBoardUsers,
+  emitBoardUsersToSocket,
+  emitUserJoinedToBoard,
+  emitUserUpdatedToBoard,
+  ensureBoardUser,
+  getBoardUser,
+  getBoardUserMap,
+  removeBoardUser,
+  resetBoardUserMaps,
+  updateBoardUserFromMessage,
+};

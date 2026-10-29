@@ -1,9 +1,11 @@
 # WBO
 
 WBO is an online collaborative whiteboard that allows many users to draw simultaneously on a large virtual board.
-The board is updated in real time for all connected users, and its state is always persisted. It can be used for many different purposes, including art, entertainment, design, teaching.
+Connected users see edits in real time; the server saves boards as SVG files.
+Use it for drawing, design, teaching, or collaborative diagrams.
 
-A demonstration server is available at [wbo.ophir.dev](https://wbo.ophir.dev)
+Try [wbo.ophir.dev](https://wbo.ophir.dev). For contributors, see the short
+[architecture guide](./ARCHITECTURE.md) and [engineering policies](./AGENTS.md).
 
 ## Screenshots
 
@@ -23,12 +25,9 @@ A demonstration server is available at [wbo.ophir.dev](https://wbo.ophir.dev)
 
 ## Running your own instance of WBO
 
-If you have your own web server, and want to run a private instance of WBO on it, you can. It should be very easy to get it running on your own server.
+### Docker
 
-### Running the code in a container (safer)
-
-If you use the [docker](https://www.docker.com/) containerization service, you can easily run WBO as a container.
-An official docker image for WBO is hosted on dockerhub as [`lovasoa/wbo`](https://hub.docker.com/r/lovasoa/wbo): [![WBO 1M docker pulls](https://img.shields.io/docker/pulls/lovasoa/wbo?style=flat)](https://hub.docker.com/repository/docker/lovasoa/wbo).
+The Docker image is available as [`lovasoa/wbo`](https://hub.docker.com/r/lovasoa/wbo).
 
 You can run the following bash command to launch WBO on port 5001, while persisting the boards outside of docker:
 
@@ -40,127 +39,124 @@ docker run -it --publish 5001:80 --volume "$(pwd)/wbo-boards:/opt/app/server-dat
 
 You can then access WBO at `http://localhost:5001`.
 
-### Running the code without a container
+The official Docker image does not force an IP source. By default the application uses `WBO_IP_SOURCE=remoteAddress`. If you run the container behind a trusted proxy or CDN, set `-e WBO_IP_SOURCE=...` explicitly, for example `X-Forwarded-For`, `Forwarded`, or `CF-Connecting-IP`.
 
-Alternatively, you can run the code with [node.js](https://nodejs.org/) directly, without docker.
+### Node.js
 
-First, download the sources:
+Install Node.js 26, then:
 
-```
+```sh
 git clone https://github.com/lovasoa/whitebophir.git
 cd whitebophir
-```
-
-Then [install node.js](https://nodejs.org/en/download/) (v10.0 or superior)
-if you don't have it already, then install WBO's dependencies:
-
-```
-npm install --production
-```
-
-Finally, you can start the server:
-
-```
+npm ci --omit=dev
 PORT=5001 npm start
 ```
 
-This will run WBO directly on your machine, on port 5001, without any isolation from the other services. You can also use an invokation like
-
-```
-PORT=5001 HOST=127.0.0.1 npm start
-```
-
-to make whitebophir only listen on the loopback device. This is useful if you want to put whitebophir behind a reverse proxy.
+Set `HOST=127.0.0.1` to listen only on loopback when using a reverse proxy.
+For development, use `npm ci` to include test and lint dependencies.
 
 ### Running WBO on a subfolder
 
 By default, WBO launches its own web server and serves all of its content at the root of the server (on `/`).
 If you want to make the server accessible with a different path like `https://your.domain.com/wbo/` you have to setup a reverse proxy.
+Set `WBO_BASE_PATH=/wbo` so generated links, redirects, and canonical URLs point at the external subfolder.
 See instructions on our Wiki about [how to setup a reverse proxy for WBO](https://github.com/lovasoa/whitebophir/wiki/Setup-behind-Reverse-Proxies).
 
 ## Translations
 
-WBO is available in multiple languages. The translations are stored in [`server/translations.json`](./server/translations.json).
+WBO is available in multiple languages. The translations are stored in [`server/http/translations.json`](./server/http/translations.json).
 If you feel like contributing to this collaborative project, you can [translate WBO into your own language](https://github.com/lovasoa/whitebophir/wiki/How-to-translate-WBO-into-your-own-language).
 
 ## Authentication
 
-WBO supports authentication using [Json Web Tokens](https://jwt.io/introduction). This should be passed in as a query with the key `token`, eg, `http://myboard.com/boards/test?token={token}`
+Set `AUTH_SECRET_KEY` to require a signed JSON Web Token. Pass it in the
+`token` query parameter, such as `/boards/team?token=...`. With JWT authentication
+disabled, anyone with a valid board URL can open it and edit writable boards.
 
-The `AUTH_SECRET_KEY` variable in [`configuration.js`](./server/configuration.js) should be filled with the secret key for the JWT.
-
-Within the payload, you can declare the user's roles as an array.
-Currently the only accepted roles are `moderator` and `editor`.
-
-- `moderator` will give the user an additional tool to wipe all data from the board. To declare this role, see the example below.
-- `editor` will give the user the ability to edit the board. This is the default role for all users.
+Tokens may contain global roles or board-scoped roles:
 
 ```json
 {
-  "iat": 1516239022,
-  "exp": 1516298489,
-  "roles": ["moderator"]
+  "roles": ["editor:team", "moderator:planning", "reader:archive"]
 }
 ```
 
-Moderators have access to the Clear tool, which will wipe all content from the board.
+When any role names a board, the token can open only the named boards. Use
+standard JWT expiry claims to limit token lifetime.
 
-## Board name verification in the JWT
+| Access | Writable board | Read-only board | Clear and moderation |
+| --- | --- | --- | --- |
+| Public visitor, JWT disabled | Edit | View | No |
+| Board-scoped reader | Edit | View | No |
+| Editor | Edit | Edit | No |
+| Moderator | Edit | Edit | Yes |
 
-WBO supports verification of the board with a JWT.
+A reader role only enforces viewing on a board that is itself read-only.
+Permission resolution is defined in
+[board_capabilities.mjs](./server/auth/board_capabilities.mjs).
 
-To check for a valid board name just add the board name to the role with a ":". With this you can set a moderator for a specific board.
+### Moderators
 
-```json
-{
-  "roles": [
-    "moderator:<boardName1>",
-    "moderator:<boardName2>",
-    "editor:<boardName3>",
-    "editor:<boardName4>"
-  ]
-}
-```
+`WBO_BOARD_MODERATORS` grants moderator access through the user's
+`wbo-user-secret-v1` cookie, including on instances without JWT authentication.
+Configure space-separated groups in the form `team:<secret1>,<secret2>` using
+the actual cookie values. Treat these values as credentials.
 
-eg, `http://myboard.com/boards/mySecretBoardName?token={token}`
+Permanent moderators can grant temporary moderator access from the users menu.
+Temporary grants and bans are local to the board and process and disappear on
+restart. Temporary moderators cannot delegate their role. Ordinary user reports
+disconnect the reporter and target without creating a ban; moderator actions
+can warn, ban, and revoke bans.
 
-```json
-{
-  "iat": 1516239022,
-  "exp": 1516298489,
-  "roles": ["moderator:mySecretBoardName"]
-}
-```
+### Read-only boards
 
-You can now be sure that only users who have the correct token have access to the board with the specific name.
+Stop the server before editing stored board files so an in-memory save cannot
+overwrite the change. Back up `board-<boardName>.svg` in `WBO_HISTORY_DIR`, set
+`data-wbo-readonly="true"` on its root `<svg>`, then restart the server. Set it to
+`false` to make the board writable again. Editors and moderators can still edit
+read-only boards. Legacy JSON boards are migrated to SVG when loaded.
 
 ## Configuration
 
 When you start a WBO server, it loads its configuration from several environment variables.
-You can see a list of these variables in [`configuration.js`](./server/configuration.js).
-Some important environment variables are :
+You can see a list of these variables in [`configuration.mjs`](./server/configuration.mjs).
+Common settings:
 
 - `WBO_HISTORY_DIR` : configures the directory where the boards are saved. Defaults to `./server-data/`.
-- `WBO_MAX_EMIT_COUNT` : the maximum number of messages that a client can send per unit of time. Increase this value if you want smoother drawings, at the expense of being susceptible to denial of service attacks if your server does not have enough processing power. By default, the units of this quantity are messages per 4 seconds, and the default value is `192`.
+- `WBO_BASE_PATH` : optional external URL path prefix, such as `/wbo`, for deployments mounted under a reverse-proxy subfolder.
+- `WBO_HTML_HEAD_SNIPPET_PATH` : trusted HTML inserted before `</head>`, read once at startup. Scripts can read the package version from `document.documentElement.dataset.wboVersion`.
+- `WBO_MAX_EMIT_COUNT` : the general per-IP socket write limit profile. Use compact entries such as `*:250/5s anonymous:125/5s`. Increase this if you want smoother drawings, at the expense of making denial-of-service bursts cheaper for clients. The default is `*:250/5s`.
+- `WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP` : the constructive per-IP write limit profile. Use compact entries such as `*:40/10s anonymous:20/10s`.
+- `WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP` : the destructive per-IP write limit profile. Use compact entries such as `*:190/60s anonymous:95/60s`.
+- `WBO_IP_SOURCE` : `remoteAddress` (default) ignores forwarded headers. Behind a trusted proxy, set `X-Forwarded-For`, `Forwarded`, or a custom header such as `CF-Connecting-IP` to trust forwarded client IP, host, and protocol.
 - `AUTH_SECRET_KEY` : If you would like to authenticate your boards using jwt, this declares the secret key.
-
-## Troubleshooting
-
-If you experience an issue or want to propose a new feature in WBO, please [open a github issue](https://github.com/lovasoa/whitebophir/issues/new).
 
 ## Monitoring
 
-If you are self-hosting a WBO instance, you may want to monitor its load,
-the number of connected users, and various other metrics.
+Server logs use stdout/stderr and `LOG_LEVEL`. Set
+`OTEL_EXPORTER_OTLP_ENDPOINT` for OTLP export; `OTEL_*` settings control
+resources and sampling.
 
-You can start WBO with the `STATSD_URL` environment variable to send it to a statsd-compatible
-metrics collection agent.
+Browser telemetry uses User Timing entries named `wbo.*`; measures carry `detail` diagnostics.
 
-Example: `docker run -e STATSD_URL=udp://127.0.0.1:8125 lovasoa/wbo`.
+## Storage and recovery
 
-- If you use **prometheus**, you can collect the metrics with [statsd-exporter](https://hub.docker.com/r/prom/statsd-exporter).
-- If you use **datadog**, you can collect the metrics with [dogstatsd](https://docs.datadoghq.com/developers/dogstatsd).
+Back up `WBO_HISTORY_DIR`. Accepted edits are saved asynchronously, so a crash
+can lose changes since the last completed save. Run one server process per
+history directory; independent writers are not supported.
 
-## Download SVG preview
+Failed loads leave unreadable SVGs in place; a validated `.svg.bak` replaces
+them after quarantine. This staging file is not a durable backup. See the
+[architecture guide](./ARCHITECTURE.md) for persistence and replay boundaries.
 
-To download a preview of a board in SVG format you can got to `/preview/{boardName}`, e.g. change https://wbo.ophir.dev/board/anonymous to https://wbo.ophir.dev/preview/anonymous. The renderer is not 100% faithful, but it's often good enough.
+## SVG preview
+
+Open `/preview/<boardName>` to download a standalone SVG preview, for example
+[the anonymous board preview](https://wbo.ophir.dev/preview/anonymous).
+
+## Releases
+
+Dependabot opens daily dependency update PRs. Successful CI merges them and tests
+master before the release workflow bumps the package and lockfile patch version,
+tags, and deploys. Manual version tags also run CI before deployment. Retry failed
+deployment jobs to reuse their release tag.
