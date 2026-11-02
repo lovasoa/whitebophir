@@ -142,9 +142,16 @@ async function respondWithBoardDownload(ctx, boardName) {
       });
     },
   );
+  const filename = `${boardName}.svg`;
+  const fallbackFilename = filename.replace(/[^\x20-\x7e]/g, "_");
+  // RFC 8187 encodes Unicode and parameter delimiters in an ASCII header value.
+  const encodedFilename = encodeURIComponent(filename).replace(
+    /['()*]/g,
+    (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
   ctx.response.writeHead(200, {
     "Content-Type": "image/svg+xml",
-    "Content-Disposition": `attachment; filename="${boardName}.svg"`,
+    "Content-Disposition": `attachment; filename="${fallbackFilename}"; filename*=UTF-8''${encodedFilename}`,
     "Content-Length": data.length,
   });
   ctx.response.end(data);
