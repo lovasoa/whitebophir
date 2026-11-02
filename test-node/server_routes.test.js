@@ -1344,20 +1344,20 @@ test("board pages render JWT-disabled writable capability state without Clear", 
   }
 });
 
-test("board downloads preserve Unicode filenames using ASCII-safe headers", async (t) => {
+test("board downloads use safe ASCII filenames", async (t) => {
   const dirs = await createServerDirs();
   const svg =
     '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="3" data-wbo-readonly="false"><defs id="defs"></defs><g id="drawingArea"><line id="line-1" x1="0" y1="0" x2="10" y2="20" stroke="#000000" stroke-width="2" fill="none"></line></g><g id="cursors"></g></svg>';
   const app = await createTestServer(createServerConfig(dirs));
   try {
-    for (const boardName of [
-      "sample-board_~(1)",
-      "café",
-      "доска",
-      "白板",
-      "𠮷-board",
-      "白板(1)",
-    ]) {
+    for (const [boardName, filename] of Object.entries({
+      "sample-board_~(1)": "sample-board_~(1).svg",
+      café: "caf_.svg",
+      доска: "_____.svg",
+      白板: "__.svg",
+      "𠮷-board": "__-board.svg",
+      "白板(1)": "__(1).svg",
+    })) {
       await t.test(boardName, async () => {
         await fs.writeFile(
           boardSvgFile(dirs.historyDir, boardName),
@@ -1376,18 +1376,10 @@ test("board downloads preserve Unicode filenames using ASCII-safe headers", asyn
           response.headers["content-length"],
           String(Buffer.byteLength(svg)),
         );
-        const disposition = String(response.headers["content-disposition"]);
-        assert.match(disposition, /^[\x20-\x7e]+$/);
-        assert.match(disposition, /^attachment; filename="[^"]+\.svg";/);
-        if (boardName === "sample-board_~(1)") {
-          assert.ok(
-            disposition.startsWith(`attachment; filename="${boardName}.svg";`),
-          );
-        }
-        const encodedFilename = disposition.split("; filename*=UTF-8''")[1];
-        assert.ok(encodedFilename);
-        assert.doesNotMatch(encodedFilename, /['()*]/);
-        assert.equal(decodeURIComponent(encodedFilename), `${boardName}.svg`);
+        assert.equal(
+          response.headers["content-disposition"],
+          `attachment; filename="${filename}"`,
+        );
       });
     }
   } finally {
