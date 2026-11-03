@@ -142,9 +142,11 @@ async function respondWithBoardDownload(ctx, boardName) {
       });
     },
   );
+  const filename = `${boardName}.svg`;
+  const fallbackFilename = filename.replace(/[^\w.~()-]/g, "_");
   ctx.response.writeHead(200, {
     "Content-Type": "image/svg+xml",
-    "Content-Disposition": `attachment; filename="${boardName}.svg"`,
+    "Content-Disposition": `attachment; filename="${fallbackFilename}"`,
     "Content-Length": data.length,
   });
   ctx.response.end(data);

@@ -1344,6 +1344,49 @@ test("board pages render JWT-disabled writable capability state without Clear", 
   }
 });
 
+test("board downloads use safe ASCII filenames", async (t) => {
+  const dirs = await createServerDirs();
+  const svg =
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="3" data-wbo-readonly="false"><defs id="defs"></defs><g id="drawingArea"><line id="line-1" x1="0" y1="0" x2="10" y2="20" stroke="#000000" stroke-width="2" fill="none"></line></g><g id="cursors"></g></svg>';
+  const app = await createTestServer(createServerConfig(dirs));
+  try {
+    for (const [boardName, filename] of Object.entries({
+      "sample-board_~(1)": "sample-board_~(1).svg",
+      café: "caf_.svg",
+      доска: "_____.svg",
+      白板: "__.svg",
+      "𠮷-board": "__-board.svg",
+      "白板(1)": "__(1).svg",
+    })) {
+      await t.test(boardName, async () => {
+        await fs.writeFile(
+          boardSvgFile(dirs.historyDir, boardName),
+          svg,
+          "utf8",
+        );
+        const response = await request(
+          app,
+          `/download/${encodeURIComponent(boardName)}`,
+        );
+
+        assert.equal(response.statusCode, 200);
+        assert.equal(response.headers["content-type"], "image/svg+xml");
+        assert.equal(response.body, svg);
+        assert.equal(
+          response.headers["content-length"],
+          String(Buffer.byteLength(svg)),
+        );
+        assert.equal(
+          response.headers["content-disposition"],
+          `attachment; filename="${filename}"`,
+        );
+      });
+    }
+  } finally {
+    await closeServer(app);
+  }
+});
+
 test("canonical board svg endpoint serves the authoritative baseline with short cache headers", async () => {
   const dirs = await createServerDirs();
   await fs.writeFile(
