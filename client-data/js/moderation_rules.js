@@ -23,6 +23,12 @@ export const MODERATION_RULES = Object.freeze([
     bodyKeys: ["rules_harassment_body"],
   },
   {
+    id: "personal_information",
+    iconFile: "no-personal-information.svg",
+    titleKey: "rules_personal_information_title",
+    bodyKeys: ["rules_personal_information_body"],
+  },
+  {
     id: "violence",
     iconFile: "no-violence-or-hate-speech.svg",
     titleKey: "rules_violence_title",
