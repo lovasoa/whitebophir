@@ -1064,6 +1064,7 @@ test("board pages validate both their shell and drawing sequence", async () => {
 
     assert.equal(firstResponse.statusCode, 200);
     assert.ok(firstResponse.headers.etag);
+    assert.equal(firstResponse.headers["cache-control"], "no-cache");
     assert.match(firstResponse.headers.etag, /^W\/"wbo-seq-3-[a-f0-9]{16}"$/);
 
     const cachedResponse = await request(app, "/boards/etag-board", {
@@ -1532,6 +1533,46 @@ test("board html svg and preview routes negotiate compression when requested", a
     }
   } finally {
     observability.metrics.recordHttpRequest = originalRecordHttpRequest;
+    await closeServer(app);
+  }
+});
+
+test("board asset URLs pin HTML, modules, and styles to the released version", async () => {
+  const dirs = await createServerDirs();
+  const app = await createTestServer(
+    createServerConfig(dirs, {
+      WEBROOT: CLIENT_WEBROOT,
+      IS_DEVELOPMENT: false,
+    }),
+  );
+  try {
+    const prefix = `/assets/${packageJson.version}/`;
+    const page = await request(app, "/boards/release-assets");
+    assert.ok(page.body.includes(`data-asset-base="..${prefix}"`));
+    for (const asset of [
+      "board.css",
+      "js/board_boot.js",
+      "tools/pencil/icon.svg",
+    ]) {
+      assert.ok(page.body.includes(`..${prefix}${asset}`));
+      const response = await request(app, `${prefix}${asset}`);
+      assert.equal(response.statusCode, 200);
+      assert.equal(
+        response.headers["cache-control"],
+        "public, max-age=31536000, immutable",
+      );
+    }
+    for (const suffix of [
+      "js/board_boot.js",
+      "js/board.js",
+      "tools/pencil/index.js",
+    ]) {
+      const obsolete = await request(app, `/assets/0.0.0/${suffix}`);
+      assert.equal(obsolete.statusCode, 409);
+      assert.equal(obsolete.headers["cache-control"], "no-store");
+      assert.equal(obsolete.body, "");
+    }
+  } finally {
     await closeServer(app);
   }
 });

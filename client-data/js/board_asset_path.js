@@ -10,5 +10,5 @@ export function normalizeBoardAssetPath(assetPath) {
   ) {
     return assetPath;
   }
-  return `../${assetPath}`;
+  return new URL(`../${assetPath}`, import.meta.url).href;
 }
