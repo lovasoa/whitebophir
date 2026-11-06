@@ -123,7 +123,13 @@
     "rules_gore_detail": "لا ترسم أعضاء داخلية مكشوفة أو أوصالًا مقطّعة، ولا تصوّر الإصابات الخطيرة أو التعذيب بتفاصيل دقيقة.",
     "rules_illegal_responsibility": "كما تتحمل المسؤولية عن أفعالك على اللوحة بموجب أي قوانين أخرى تسري عليك.",
     "community_rules_warnings": "قد يوجّه المشرفون تحذيرًا إلى من يخالف هذه القواعد أو يحظرونه مؤقتًا. وقد تؤدي المخالفات الجسيمة إلى الحظر دون تحذير.",
-    "community_rules_bans": "لكل حظر موعد انتهاء. يمكنك العودة عند انتهائه. إذا خالفت القواعد مجددًا، فقد تُحظر مرة أخرى على الفور دون تحذير إضافي. وقد تؤدي المخالفات المتكررة إلى حظر مؤقت لمدة أطول."
+    "community_rules_bans": "لكل حظر موعد انتهاء. يمكنك العودة عند انتهائه. إذا خالفت القواعد مجددًا، فقد تُحظر مرة أخرى على الفور دون تحذير إضافي. وقد تؤدي المخالفات المتكررة إلى حظر مؤقت لمدة أطول.",
+    "anonymous_welcome_title": "أهلًا! هذه اللوحة متاحة للجميع.",
+    "anonymous_welcome_rules": "كن لطيفًا واحترم رسومات الآخرين. لا تتنمّر، ولا ترسل رسائل مزعجة أو متكررة، ولا تنشر محتوى جنسيًا. لا تشارك أرقام الهواتف أو العناوين أو أي معلومات خاصة أخرى.",
+    "anonymous_welcome_safety": "قد لا يكون الناس كما يعرّفون أنفسهم. إذا طلب منك أحد أن تتحدث معه سرًا أو ترسل صورًا بلا ملابس، فتوقّف عن الرد وأخبر شخصًا بالغًا تثق به.",
+    "anonymous_welcome_read_rules": "اقرأ كل القواعد",
+    "anonymous_welcome_dismiss": "فهمت",
+    "rules_safety_link": "القواعد والسلامة"
   },
   "be": {
     "personal_information_warning": "Магчыма, вы дзеліцеся асабістымі данымі: нумарам тэлефона, хатнім адрасам ці электроннай поштай. Іншыя на дошцы бачаць тое, што вы пішаце.",
@@ -249,7 +255,13 @@
     "rules_gore_detail": "Не малюйце аголеныя ўнутраныя органы, расчляненне цела, а таксама падрабязныя выявы цяжкіх раненняў або катаванняў.",
     "rules_illegal_responsibility": "Акрамя таго, вы адказваеце за свае дзеянні на дошцы паводле любога іншага заканадаўства, якое на вас распаўсюджваецца.",
     "community_rules_warnings": "Мадэратары могуць папярэджваць або часова блакіраваць карыстальнікаў, якія парушаюць гэтыя правілы. За сур'ёзныя парушэнні могуць заблакіраваць без папярэджання.",
-    "community_rules_bans": "У кожнай блакіроўкі ёсць тэрмін заканчэння. Калі ён скончыцца, можна вярнуцца. Калі вы зноў парушыце правілы, вас могуць адразу заблакіраваць паўторна, без новага папярэджання. За паўторныя парушэнні тэрмін часовай блакіроўкі можа быць даўжэйшым."
+    "community_rules_bans": "У кожнай блакіроўкі ёсць тэрмін заканчэння. Калі ён скончыцца, можна вярнуцца. Калі вы зноў парушыце правілы, вас могуць адразу заблакіраваць паўторна, без новага папярэджання. За паўторныя парушэнні тэрмін часовай блакіроўкі можа быць даўжэйшым.",
+    "anonymous_welcome_title": "Вітаем! Гэтая дошка адкрытая для ўсіх.",
+    "anonymous_welcome_rules": "Будзь добразычлівым. Паважай малюнкі іншых. Тут нельга цкаваць іншых, спаміць або публікаваць сексуальны кантэнт. Не дзяліся нумарамі тэлефонаў, адрасамі ці іншымі асабістымі звесткамі.",
+    "anonymous_welcome_safety": "Людзі могуць быць не тымі, за каго сябе выдаюць. Калі хтосьці просіць перапісвацца ўпотай або даслаць фота без адзення, перастань адказваць і раскажы даросламу, якому давяраеш.",
+    "anonymous_welcome_read_rules": "Чытаць усе правілы",
+    "anonymous_welcome_dismiss": "Зразумела",
+    "rules_safety_link": "Правілы і бяспека"
   },
   "ca": {
     "personal_information_warning": "Potser estàs compartint dades personals, com ara un telèfon, una adreça de casa o un correu electrònic. Les altres persones del tauler poden veure el que escrius.",
@@ -375,7 +387,13 @@
     "rules_gore_detail": "No dibuixeu òrgans exposats, esquarteraments ni representacions detallades de ferides greus o tortures.",
     "rules_illegal_responsibility": "A més, sou responsables dels vostres actes a la pissarra en qualsevol jurisdicció que us sigui aplicable.",
     "community_rules_warnings": "Els moderadors poden avisar o bloquejar temporalment els usuaris que incompleixin aquestes normes. Les infraccions greus poden comportar un bloqueig sense avís previ.",
-    "community_rules_bans": "Tots els bloquejos tenen una data de finalització. Podeu tornar quan el bloqueig hagi vençut. Si torneu a infringir les normes, us poden tornar a bloquejar immediatament sense cap altre avís. Les infraccions reiterades poden comportar bloquejos temporals més llargs."
+    "community_rules_bans": "Tots els bloquejos tenen una data de finalització. Podeu tornar quan el bloqueig hagi vençut. Si torneu a infringir les normes, us poden tornar a bloquejar immediatament sense cap altre avís. Les infraccions reiterades poden comportar bloquejos temporals més llargs.",
+    "anonymous_welcome_title": "Et donem la benvinguda! Aquesta pissarra és pública.",
+    "anonymous_welcome_rules": "Tracta bé els altres. Respecta els seus dibuixos. No assetgis ningú ni enviïs spam o contingut sexual. No comparteixis números de telèfon, adreces ni altres dades privades.",
+    "anonymous_welcome_safety": "Les persones poden no ser qui diuen que són. Si algú et demana que parleu en secret o que enviïs fotos de persones despullades, deixa de respondre i explica-ho a una persona adulta de confiança.",
+    "anonymous_welcome_read_rules": "Llegeix totes les normes",
+    "anonymous_welcome_dismiss": "Entesos",
+    "rules_safety_link": "Normes i seguretat"
   },
   "de": {
     "personal_information_warning": "Du teilst möglicherweise persönliche Daten wie eine Telefonnummer, Wohnadresse oder E-Mail-Adresse. Andere auf dem Board können sehen, was du schreibst.",
@@ -501,7 +519,13 @@
     "rules_gore_detail": "Zeichne keine freiliegenden Organe oder zerstückelten Körper und keine detaillierten Darstellungen schwerer Verletzungen oder Folter.",
     "rules_illegal_responsibility": "Darüber hinaus bist du für deine Handlungen auf dem Board auch nach allen anderen Rechtsordnungen verantwortlich, die für dich gelten.",
     "community_rules_warnings": "Moderatoren können Nutzer bei Regelverstößen verwarnen oder vorübergehend sperren. Bei schweren Verstößen ist eine Sperre ohne Vorwarnung möglich.",
-    "community_rules_bans": "Jede Sperre hat ein Enddatum. Nach ihrem Ablauf darfst du zurückkehren. Wenn du erneut gegen die Regeln verstößt, kannst du sofort und ohne weitere Warnung wieder gesperrt werden. Wiederholte Verstöße können zu längeren befristeten Sperren führen."
+    "community_rules_bans": "Jede Sperre hat ein Enddatum. Nach ihrem Ablauf darfst du zurückkehren. Wenn du erneut gegen die Regeln verstößt, kannst du sofort und ohne weitere Warnung wieder gesperrt werden. Wiederholte Verstöße können zu längeren befristeten Sperren führen.",
+    "anonymous_welcome_title": "Willkommen! Diese Tafel ist öffentlich.",
+    "anonymous_welcome_rules": "Sei freundlich. Respektiere die Zeichnungen anderer. Kein Mobbing, kein Spam und keine sexuellen Inhalte. Teile keine Telefonnummern, Adressen oder andere private Informationen.",
+    "anonymous_welcome_safety": "Menschen sind vielleicht nicht die, für die sie sich ausgeben. Wenn dich jemand bittet, heimlich zu chatten oder Nacktfotos zu schicken, antworte nicht mehr und erzähle es einer erwachsenen Person, der du vertraust.",
+    "anonymous_welcome_read_rules": "Alle Regeln lesen",
+    "anonymous_welcome_dismiss": "Verstanden",
+    "rules_safety_link": "Regeln & Sicherheit"
   },
   "en": {
     "personal_information_warning": "You may be sharing personal information, such as a phone number, home address or email. Others on this board can see what you type.",
@@ -627,7 +651,13 @@
     "rules_gore_detail": "Do not draw exposed organs, dismemberment, or detailed depictions of severe injuries or torture.",
     "rules_illegal_responsibility": "In addition to that, you are responsible for your actions on the board in any jurisdiction that applies to you.",
     "community_rules_warnings": "Moderators may warn or temporarily ban users who break these rules. Serious violations can lead to a ban without warning.",
-    "community_rules_bans": "Every ban has an end date. You may return when it expires. If you break the rules again, you may be banned again immediately without another warning. Repeated violations can lead to longer temporary bans."
+    "community_rules_bans": "Every ban has an end date. You may return when it expires. If you break the rules again, you may be banned again immediately without another warning. Repeated violations can lead to longer temporary bans.",
+    "anonymous_welcome_title": "Welcome! This board is public.",
+    "anonymous_welcome_rules": "Be kind. Respect others’ drawings. No bullying, spam, or sexual content. Don’t share phone numbers, addresses, or other private details.",
+    "anonymous_welcome_safety": "People may not be who they say they are. If someone asks for secret chats or naked pictures, stop replying and tell an adult you trust.",
+    "anonymous_welcome_read_rules": "Read all rules",
+    "anonymous_welcome_dismiss": "Got it",
+    "rules_safety_link": "Rules & safety"
   },
   "es": {
     "personal_information_warning": "Puede que estés compartiendo datos personales, como un teléfono, una dirección particular o un correo electrónico. Las demás personas de la pizarra pueden ver lo que escribes.",
@@ -753,7 +783,13 @@
     "rules_gore_detail": "No dibujes órganos expuestos, desmembramientos ni representaciones detalladas de lesiones graves o torturas.",
     "rules_illegal_responsibility": "Además, eres responsable de tus acciones en la pizarra conforme a la legislación de cualquier jurisdicción que te sea aplicable.",
     "community_rules_warnings": "Los moderadores pueden advertir o bloquear temporalmente a los usuarios que incumplan estas normas. Las infracciones graves pueden dar lugar a un bloqueo sin previo aviso.",
-    "community_rules_bans": "Todos los bloqueos tienen una fecha de finalización. Puedes volver cuando termine el tuyo. Si vuelves a infringir las normas, se te podrá bloquear de nuevo de inmediato y sin otra advertencia. Las infracciones reiteradas pueden dar lugar a bloqueos temporales más largos."
+    "community_rules_bans": "Todos los bloqueos tienen una fecha de finalización. Puedes volver cuando termine el tuyo. Si vuelves a infringir las normas, se te podrá bloquear de nuevo de inmediato y sin otra advertencia. Las infracciones reiteradas pueden dar lugar a bloqueos temporales más largos.",
+    "anonymous_welcome_title": "¡Te damos la bienvenida! Esta pizarra es pública.",
+    "anonymous_welcome_rules": "Trata bien a los demás. Respeta sus dibujos. Nada de acoso, spam ni contenido sexual. No compartas números de teléfono, direcciones ni otros datos privados.",
+    "anonymous_welcome_safety": "Las personas pueden no ser quienes dicen ser. Si alguien te pide hablar en secreto o enviar fotos de personas desnudas, deja de responder y cuéntaselo a una persona adulta de confianza.",
+    "anonymous_welcome_read_rules": "Lee todas las normas",
+    "anonymous_welcome_dismiss": "Entendido",
+    "rules_safety_link": "Normas y seguridad"
   },
   "fr": {
     "personal_information_warning": "Vous partagez peut-être des informations personnelles : numéro de téléphone, adresse du domicile ou e-mail. Les autres personnes sur ce tableau peuvent voir ce que vous écrivez.",
@@ -879,7 +915,13 @@
     "rules_gore_detail": "Ne dessinez pas d’organes exposés ni de démembrements. Ne représentez pas en détail des blessures graves ou des scènes de torture.",
     "rules_illegal_responsibility": "Vous êtes également responsable de vos actes sur le tableau au regard de toute autre législation qui vous est applicable.",
     "community_rules_warnings": "Les modérateurs peuvent avertir ou bannir temporairement les utilisateurs qui enfreignent ces règles. Les infractions graves peuvent entraîner un bannissement sans avertissement.",
-    "community_rules_bans": "Chaque bannissement a une date de fin. Vous pouvez revenir à son expiration. Si vous enfreignez à nouveau les règles, vous pouvez être immédiatement banni à nouveau, sans autre avertissement. Des infractions répétées peuvent entraîner des bannissements temporaires plus longs."
+    "community_rules_bans": "Chaque bannissement a une date de fin. Vous pouvez revenir à son expiration. Si vous enfreignez à nouveau les règles, vous pouvez être immédiatement banni à nouveau, sans autre avertissement. Des infractions répétées peuvent entraîner des bannissements temporaires plus longs.",
+    "anonymous_welcome_title": "Bienvenue ! Ce tableau est public.",
+    "anonymous_welcome_rules": "Sois sympa. Respecte les dessins des autres. Pas de harcèlement, de spam ni de contenu sexuel. Ne partage pas de numéros de téléphone, d’adresses ou d’autres informations privées.",
+    "anonymous_welcome_safety": "Les gens ne sont pas toujours ceux qu’ils prétendent être. Si quelqu’un te demande de discuter en secret ou d’envoyer des photos de personnes nues, arrête de répondre et parles-en à un adulte en qui tu as confiance.",
+    "anonymous_welcome_read_rules": "Lire toutes les règles",
+    "anonymous_welcome_dismiss": "J’ai compris",
+    "rules_safety_link": "Règles et sécurité"
   },
   "hu": {
     "personal_information_warning": "Lehet, hogy személyes adatot osztasz meg, például telefonszámot, lakcímet vagy e-mail-címet. A tábla többi résztvevője látja, amit írsz.",
@@ -1005,7 +1047,13 @@
     "rules_gore_detail": "Ne rajzolj kilátszó belső szerveket vagy feldarabolt testeket, és ne ábrázolj részletesen súlyos sérüléseket vagy kínzást.",
     "rules_illegal_responsibility": "A táblán végzett tevékenységedért emellett minden más, rád vonatkozó jogszabály szerint is felelősséggel tartozol.",
     "community_rules_warnings": "A moderátorok figyelmeztethetik vagy ideiglenesen kitilthatják azokat a felhasználókat, akik megszegik ezeket a szabályokat. Súlyos szabálysértés esetén figyelmeztetés nélkül is kitilthatnak.",
-    "community_rules_bans": "Minden kitiltásnak van lejárati ideje. A lejárta után visszatérhetsz. Ha újra megszeged a szabályokat, további figyelmeztetés nélkül, azonnal újra kitilthatnak. Ismételt szabálysértések esetén hosszabb ideiglenes kitiltást is kaphatsz."
+    "community_rules_bans": "Minden kitiltásnak van lejárati ideje. A lejárta után visszatérhetsz. Ha újra megszeged a szabályokat, további figyelmeztetés nélkül, azonnal újra kitilthatnak. Ismételt szabálysértések esetén hosszabb ideiglenes kitiltást is kaphatsz.",
+    "anonymous_welcome_title": "Üdv! Ez a tábla nyilvános.",
+    "anonymous_welcome_rules": "Légy kedves! Tartsd tiszteletben mások rajzait! Ne bánts másokat, ne küldj spamet, és ne ossz meg szexuális tartalmat! Ne ossz meg telefonszámot, lakcímet vagy más személyes adatot!",
+    "anonymous_welcome_safety": "Az emberek nem mindig azok, akiknek mondják magukat. Ha valaki titkos beszélgetésre kér vagy meztelen képeket kér tőled, ne válaszolj többé, és szólj egy felnőttnek, akiben megbízol!",
+    "anonymous_welcome_read_rules": "Az összes szabály",
+    "anonymous_welcome_dismiss": "Értem",
+    "rules_safety_link": "Szabályok és biztonság"
   },
   "id": {
     "personal_information_warning": "Anda mungkin sedang membagikan informasi pribadi, seperti nomor telepon, alamat rumah, atau email. Orang lain di papan ini dapat melihat apa yang Anda ketik.",
@@ -1131,7 +1179,13 @@
     "rules_gore_detail": "Jangan menggambar organ dalam yang terlihat, tubuh yang terpotong-potong, atau penggambaran terperinci tentang luka parah maupun penyiksaan.",
     "rules_illegal_responsibility": "Selain itu, Anda bertanggung jawab atas tindakan Anda di papan menurut hukum di setiap wilayah hukum yang berlaku bagi Anda.",
     "community_rules_warnings": "Moderator dapat memperingatkan atau memblokir sementara pengguna yang melanggar aturan ini. Pelanggaran serius dapat mengakibatkan pemblokiran tanpa peringatan.",
-    "community_rules_bans": "Setiap pemblokiran memiliki tanggal berakhir. Anda boleh kembali setelah masa pemblokiran berakhir. Jika Anda melanggar aturan lagi, Anda dapat langsung diblokir kembali tanpa peringatan tambahan. Pelanggaran berulang dapat mengakibatkan pemblokiran sementara yang lebih lama."
+    "community_rules_bans": "Setiap pemblokiran memiliki tanggal berakhir. Anda boleh kembali setelah masa pemblokiran berakhir. Jika Anda melanggar aturan lagi, Anda dapat langsung diblokir kembali tanpa peringatan tambahan. Pelanggaran berulang dapat mengakibatkan pemblokiran sementara yang lebih lama.",
+    "anonymous_welcome_title": "Selamat datang! Papan ini terbuka untuk semua orang.",
+    "anonymous_welcome_rules": "Bersikaplah baik. Hargai gambar orang lain. Jangan merundung, mengirim spam, atau membagikan konten seksual. Jangan bagikan nomor telepon, alamat, atau informasi pribadi lainnya.",
+    "anonymous_welcome_safety": "Orang bisa berpura-pura menjadi orang lain. Jika seseorang mengajakmu mengobrol diam-diam atau meminta foto tanpa pakaian, berhenti membalas dan beri tahu orang dewasa yang kamu percaya.",
+    "anonymous_welcome_read_rules": "Baca semua aturan",
+    "anonymous_welcome_dismiss": "Mengerti",
+    "rules_safety_link": "Aturan & keselamatan"
   },
   "it": {
     "personal_information_warning": "Potresti condividere informazioni personali, come un numero di telefono, un indirizzo di casa o un’e-mail. Le altre persone sulla lavagna possono vedere ciò che scrivi.",
@@ -1257,7 +1311,13 @@
     "rules_gore_detail": "Non disegnare organi esposti o corpi smembrati, né raffigurare nei dettagli ferite gravi o torture.",
     "rules_illegal_responsibility": "Inoltre, rispondi delle tue azioni sulla lavagna anche ai sensi delle leggi di ogni altra giurisdizione a cui sei soggetto.",
     "community_rules_warnings": "I moderatori possono avvertire o bloccare temporaneamente gli utenti che violano queste regole. Le violazioni gravi possono comportare un blocco senza preavviso.",
-    "community_rules_bans": "Ogni blocco ha una data di scadenza. Puoi tornare quando scade. Se violi di nuovo le regole, puoi essere bloccato di nuovo immediatamente, senza un ulteriore avvertimento. Le violazioni ripetute possono comportare blocchi temporanei più lunghi."
+    "community_rules_bans": "Ogni blocco ha una data di scadenza. Puoi tornare quando scade. Se violi di nuovo le regole, puoi essere bloccato di nuovo immediatamente, senza un ulteriore avvertimento. Le violazioni ripetute possono comportare blocchi temporanei più lunghi.",
+    "anonymous_welcome_title": "Ti diamo il benvenuto! Questa lavagna è pubblica.",
+    "anonymous_welcome_rules": "Sii gentile. Rispetta i disegni degli altri. Niente bullismo, spam o contenuti sessuali. Non condividere numeri di telefono, indirizzi o altri dati privati.",
+    "anonymous_welcome_safety": "Le persone potrebbero non essere chi dicono di essere. Se qualcuno ti chiede di parlare in segreto o di inviare foto di persone nude, smetti di rispondere e parlane con un adulto di cui ti fidi.",
+    "anonymous_welcome_read_rules": "Leggi tutte le regole",
+    "anonymous_welcome_dismiss": "Ho capito",
+    "rules_safety_link": "Regole e sicurezza"
   },
   "ja": {
     "personal_information_warning": "電話番号、自宅の住所、メールアドレスなどの個人情報を共有しようとしている可能性があります。このボードの他の人にも入力内容が見えます。",
@@ -1383,7 +1443,13 @@
     "rules_gore_detail": "露出した内臓、切断された身体、重傷や拷問の詳細な描写は描かないでください。",
     "rules_illegal_responsibility": "また、あなたに適用される他の国や地域の法律においても、ボード上での自分の行動に責任を負います。",
     "community_rules_warnings": "モデレーターは、これらのルールに違反したユーザーに警告したり、一時的に利用を停止したりすることがあります。重大な違反では、警告なしで利用停止になることがあります。",
-    "community_rules_bans": "すべての利用停止には終了日時があります。期間が終われば戻ることができます。再びルールに違反すると、追加の警告なしに直ちに利用停止になることがあります。違反を繰り返すと、利用停止期間が長くなる場合があります。"
+    "community_rules_bans": "すべての利用停止には終了日時があります。期間が終われば戻ることができます。再びルールに違反すると、追加の警告なしに直ちに利用停止になることがあります。違反を繰り返すと、利用停止期間が長くなる場合があります。",
+    "anonymous_welcome_title": "ようこそ！このボードはだれでも見たり使ったりできます。",
+    "anonymous_welcome_rules": "みんなにやさしくしよう。ほかの人の絵を大切にしよう。いじめ、迷惑な投稿、性的な内容は禁止です。電話番号や住所など、自分やほかの人の個人情報は書かないでね。",
+    "anonymous_welcome_safety": "本当の自分とはちがう人のふりをしている人もいます。だれかに「ひみつで話そう」と言われたり、はだかの写真を求められたりしたら、返事をやめて、信頼できる大人に話してね。",
+    "anonymous_welcome_read_rules": "すべてのルールを読む",
+    "anonymous_welcome_dismiss": "わかった",
+    "rules_safety_link": "ルールと安全"
   },
   "my": {
     "personal_information_warning": "ဖုန်းနံပါတ်၊ အိမ်လိပ်စာ သို့မဟုတ် အီးမေးလ်ကဲ့သို့ ကိုယ်ရေးအချက်အလက်များကို မျှဝေနေခြင်း ဖြစ်နိုင်ပါသည်။ ဤဘုတ်ပေါ်ရှိ အခြားသူများက သင်ရိုက်ထည့်သည့်စာကို မြင်နိုင်ပါသည်။",
@@ -1509,7 +1575,13 @@
     "rules_gore_detail": "အပြင်သို့ ထွက်နေသော ကိုယ်တွင်းအင်္ဂါများ သို့မဟုတ် ဖြတ်တောက်ထားသော ကိုယ်အင်္ဂါများကို မဆွဲပါနှင့်။ ပြင်းထန်သော ဒဏ်ရာများနှင့် နှိပ်စက်ညှဉ်းပန်းမှုများကိုလည်း အသေးစိတ် ဖော်ပြသည့်ပုံများ မဆွဲပါနှင့်။",
     "rules_illegal_responsibility": "ထို့အပြင် သင်နှင့် အကျုံးဝင်သည့် အခြားဥပဒေစီရင်ပိုင်ခွင့်နယ်မြေတိုင်း၏ ဥပဒေအရလည်း ဘုတ်ပေါ်ရှိ သင့်လုပ်ရပ်များအတွက် သင်ကိုယ်တိုင် တာဝန်ရှိသည်။",
     "community_rules_warnings": "ဤစည်းမျဉ်းများကို ချိုးဖောက်သော အသုံးပြုသူများကို ကြီးကြပ်သူများက သတိပေးနိုင်သည် သို့မဟုတ် ယာယီပိတ်ပင်နိုင်သည်။ ပြင်းထန်သော ချိုးဖောက်မှုများအတွက် သတိပေးချက်မပေးဘဲ ပိတ်ပင်နိုင်သည်။",
-    "community_rules_bans": "ပိတ်ပင်မှုတိုင်းတွင် သက်တမ်းကုန်ဆုံးရက် ရှိသည်။ သက်တမ်းကုန်လျှင် ပြန်လာနိုင်သည်။ စည်းမျဉ်းကို ထပ်မံချိုးဖောက်လျှင် နောက်ထပ်သတိပေးချက်မပေးဘဲ ချက်ချင်း ပြန်လည်ပိတ်ပင်ခံရနိုင်သည်။ ထပ်ခါတလဲလဲ ချိုးဖောက်ပါက ယာယီပိတ်ပင်သည့် ကာလ ပိုမိုကြာရှည်နိုင်သည်။"
+    "community_rules_bans": "ပိတ်ပင်မှုတိုင်းတွင် သက်တမ်းကုန်ဆုံးရက် ရှိသည်။ သက်တမ်းကုန်လျှင် ပြန်လာနိုင်သည်။ စည်းမျဉ်းကို ထပ်မံချိုးဖောက်လျှင် နောက်ထပ်သတိပေးချက်မပေးဘဲ ချက်ချင်း ပြန်လည်ပိတ်ပင်ခံရနိုင်သည်။ ထပ်ခါတလဲလဲ ချိုးဖောက်ပါက ယာယီပိတ်ပင်သည့် ကာလ ပိုမိုကြာရှည်နိုင်သည်။",
+    "anonymous_welcome_title": "ကြိုဆိုပါတယ်။ ဒီဘုတ်ကို လူတိုင်း ကြည့်ပြီး သုံးနိုင်ပါတယ်။",
+    "anonymous_welcome_rules": "တစ်ယောက်နဲ့တစ်ယောက် ကြင်နာပါ။ သူများရဲ့ ပုံတွေကို လေးစားပါ။ အနိုင်ကျင့်တာ၊ မလိုလားအပ်တဲ့ စာတွေ ထပ်ခါထပ်ခါပို့တာ၊ လိင်ပိုင်းဆိုင်ရာ အကြောင်းအရာတွေ တင်တာ မလုပ်ပါနဲ့။ ဖုန်းနံပါတ်၊ လိပ်စာနဲ့ တခြားကိုယ်ရေးအချက်အလက်တွေ မမျှဝေပါနဲ့။",
+    "anonymous_welcome_safety": "တချို့လူတွေက သူတို့ကိုယ်သူတို့ ပြောပြထားသလို တကယ်မဟုတ်နိုင်ပါဘူး။ တစ်ယောက်ယောက်က လျှို့ဝှက်စကားပြောဖို့ ဒါမှမဟုတ် အဝတ်မပါတဲ့ပုံတွေ ပို့ဖို့ တောင်းဆိုလာရင် စာပြန်မပို့တော့ဘဲ ကိုယ်ယုံကြည်ရတဲ့ လူကြီးတစ်ယောက်ကို ပြောပြပါ။",
+    "anonymous_welcome_read_rules": "စည်းကမ်းအားလုံးကို ဖတ်ရန်",
+    "anonymous_welcome_dismiss": "နားလည်ပါပြီ",
+    "rules_safety_link": "စည်းကမ်းနှင့် ဘေးကင်းရေး"
   },
   "pt": {
     "personal_information_warning": "Você pode estar compartilhando informações pessoais, como telefone, endereço residencial ou e-mail. Outras pessoas neste quadro podem ver o que você digita.",
@@ -1635,7 +1707,13 @@
     "rules_gore_detail": "Não desenhe órgãos expostos, desmembramentos ou representações detalhadas de ferimentos graves ou tortura.",
     "rules_illegal_responsibility": "Além disso, você é responsável por suas ações no quadro perante a legislação de qualquer outra jurisdição que se aplique a você.",
     "community_rules_warnings": "Os moderadores podem advertir ou banir temporariamente usuários que infringirem estas regras. Infrações graves podem levar a um banimento sem aviso prévio.",
-    "community_rules_bans": "Todo banimento tem uma data de término. Você pode voltar quando ele expirar. Se infringir as regras novamente, poderá ser banido de novo imediatamente, sem outro aviso. Infrações repetidas podem levar a banimentos temporários mais longos."
+    "community_rules_bans": "Todo banimento tem uma data de término. Você pode voltar quando ele expirar. Se infringir as regras novamente, poderá ser banido de novo imediatamente, sem outro aviso. Infrações repetidas podem levar a banimentos temporários mais longos.",
+    "anonymous_welcome_title": "Boas-vindas! Este quadro é público.",
+    "anonymous_welcome_rules": "Seja gentil. Respeite os desenhos dos outros. Nada de bullying, spam ou conteúdo sexual. Não compartilhe números de telefone, endereços ou outros dados pessoais.",
+    "anonymous_welcome_safety": "As pessoas podem não ser quem dizem ser. Se alguém pedir para conversar em segredo ou enviar fotos de pessoas sem roupa, pare de responder e conte a um adulto em quem você confia.",
+    "anonymous_welcome_read_rules": "Leia todas as regras",
+    "anonymous_welcome_dismiss": "Entendi",
+    "rules_safety_link": "Regras e segurança"
   },
   "ru": {
     "personal_information_warning": "Возможно, вы делитесь личными данными: номером телефона, домашним адресом или электронной почтой. Другие участники доски видят то, что вы пишете.",
@@ -1761,7 +1839,13 @@
     "rules_gore_detail": "Не изображайте обнажённые внутренние органы, расчленение, а также тяжёлые ранения или пытки в подробностях.",
     "rules_illegal_responsibility": "Кроме того, вы несёте ответственность за свои действия на доске по любому другому применимому к вам законодательству.",
     "community_rules_warnings": "Модераторы могут предупреждать пользователей или временно блокировать их за нарушение этих правил. Серьёзные нарушения могут привести к блокировке без предупреждения.",
-    "community_rules_bans": "У каждой блокировки есть срок окончания. После его истечения можно вернуться. Если вы снова нарушите правила, вас могут сразу заблокировать повторно, без дополнительного предупреждения. Повторные нарушения могут привести к более длительным временным блокировкам."
+    "community_rules_bans": "У каждой блокировки есть срок окончания. После его истечения можно вернуться. Если вы снова нарушите правила, вас могут сразу заблокировать повторно, без дополнительного предупреждения. Повторные нарушения могут привести к более длительным временным блокировкам.",
+    "anonymous_welcome_title": "Добро пожаловать! Эта доска открыта для всех.",
+    "anonymous_welcome_rules": "Будь доброжелательным. Уважай чужие рисунки. Здесь нельзя травить других, спамить или публиковать сексуальный контент. Не делись номерами телефонов, адресами или другими личными данными.",
+    "anonymous_welcome_safety": "Люди могут быть не теми, за кого себя выдают. Если кто-то просит тайно переписываться или прислать фотографии без одежды, перестань отвечать и расскажи взрослому, которому доверяешь.",
+    "anonymous_welcome_read_rules": "Прочитать все правила",
+    "anonymous_welcome_dismiss": "Понятно",
+    "rules_safety_link": "Правила и безопасность"
   },
   "sw": {
     "personal_information_warning": "Huenda unashiriki taarifa binafsi, kama nambari ya simu, anwani ya nyumbani au barua pepe. Wengine kwenye ubao huu wanaweza kuona unachoandika.",
@@ -1887,7 +1971,13 @@
     "rules_gore_detail": "Usichore viungo vya ndani vilivyo wazi, miili iliyokatwakatwa, au majeraha makubwa au mateso kwa undani.",
     "rules_illegal_responsibility": "Pia unawajibika kwa matendo yako ubaoni chini ya sheria za eneo lolote zinazokuhusu.",
     "community_rules_warnings": "Wasimamizi wanaweza kuwaonya au kuwafungia kwa muda watumiaji wanaokiuka kanuni hizi. Ukiukaji mkubwa unaweza kusababisha kufungiwa bila onyo.",
-    "community_rules_bans": "Kila kipindi cha kufungiwa kina tarehe ya kuisha. Unaweza kurudi muda wake ukiisha. Ukikiuka kanuni tena, unaweza kufungiwa tena mara moja bila onyo jingine. Ukiukaji wa mara kwa mara unaweza kusababisha kufungiwa kwa muda mrefu zaidi."
+    "community_rules_bans": "Kila kipindi cha kufungiwa kina tarehe ya kuisha. Unaweza kurudi muda wake ukiisha. Ukikiuka kanuni tena, unaweza kufungiwa tena mara moja bila onyo jingine. Ukiukaji wa mara kwa mara unaweza kusababisha kufungiwa kwa muda mrefu zaidi.",
+    "anonymous_welcome_title": "Karibu! Ubao huu uko wazi kwa kila mtu.",
+    "anonymous_welcome_rules": "Kuwa mwema. Heshimu michoro ya wengine. Usiwaonee wengine, usitume ujumbe taka, wala usiweke maudhui ya ngono. Usishiriki namba za simu, anwani au taarifa nyingine za faragha.",
+    "anonymous_welcome_safety": "Watu wanaweza kujifanya kuwa watu wengine. Mtu akikuomba mzungumze kwa siri au umtumie picha za uchi, acha kumjibu na umwambie mtu mzima unayemwamini.",
+    "anonymous_welcome_read_rules": "Soma sheria zote",
+    "anonymous_welcome_dismiss": "Nimeelewa",
+    "rules_safety_link": "Sheria na usalama"
   },
   "th": {
     "personal_information_warning": "คุณอาจกำลังแชร์ข้อมูลส่วนตัว เช่น หมายเลขโทรศัพท์ ที่อยู่บ้าน หรืออีเมล คนอื่นบนกระดานนี้สามารถเห็นสิ่งที่คุณพิมพ์ได้",
@@ -2013,7 +2103,13 @@
     "rules_gore_detail": "ห้ามวาดอวัยวะภายในที่โผล่ออกมา การตัดแยกชิ้นส่วนร่างกาย หรือภาพที่แสดงรายละเอียดของบาดแผลร้ายแรงหรือการทรมาน",
     "rules_illegal_responsibility": "นอกจากนี้ คุณต้องรับผิดชอบต่อการกระทำของตนบนกระดานตามกฎหมายของทุกเขตอำนาจศาลที่ใช้บังคับกับคุณ",
     "community_rules_warnings": "ผู้ดูแลอาจตักเตือนหรือแบนผู้ใช้ที่ฝ่าฝืนกฎเหล่านี้เป็นการชั่วคราว การฝ่าฝืนอย่างร้ายแรงอาจนำไปสู่การแบนโดยไม่มีการเตือนล่วงหน้า",
-    "community_rules_bans": "การแบนทุกครั้งมีวันสิ้นสุด คุณสามารถกลับมาได้เมื่อการแบนสิ้นสุดลง หากคุณฝ่าฝืนกฎอีก คุณอาจถูกแบนซ้ำทันทีโดยไม่มีการเตือนอีก การฝ่าฝืนซ้ำอาจทำให้ถูกแบนชั่วคราวนานขึ้น"
+    "community_rules_bans": "การแบนทุกครั้งมีวันสิ้นสุด คุณสามารถกลับมาได้เมื่อการแบนสิ้นสุดลง หากคุณฝ่าฝืนกฎอีก คุณอาจถูกแบนซ้ำทันทีโดยไม่มีการเตือนอีก การฝ่าฝืนซ้ำอาจทำให้ถูกแบนชั่วคราวนานขึ้น",
+    "anonymous_welcome_title": "ยินดีต้อนรับ! ทุกคนเข้ามาดูและใช้กระดานนี้ได้",
+    "anonymous_welcome_rules": "ใจดีต่อกัน และเคารพภาพวาดของคนอื่น ห้ามกลั่นแกล้ง ส่งข้อความรบกวนซ้ำ ๆ หรือโพสต์เนื้อหาทางเพศ อย่าแชร์เบอร์โทร ที่อยู่ หรือข้อมูลส่วนตัวอื่น ๆ",
+    "anonymous_welcome_safety": "บางคนอาจไม่ได้เป็นอย่างที่บอก ถ้ามีใครชวนคุยแบบปิดเป็นความลับ หรือขอรูปเปลือย ให้หยุดตอบและบอกผู้ใหญ่ที่ไว้ใจได้",
+    "anonymous_welcome_read_rules": "อ่านกฎทั้งหมด",
+    "anonymous_welcome_dismiss": "เข้าใจแล้ว",
+    "rules_safety_link": "กฎและความปลอดภัย"
   },
   "uk": {
     "personal_information_warning": "Можливо, ви ділитеся особистими даними: номером телефону, домашньою адресою чи електронною поштою. Інші учасники дошки бачать те, що ви пишете.",
@@ -2139,7 +2235,13 @@
     "rules_gore_detail": "Не зображуйте оголені внутрішні органи, розчленування, а також тяжкі поранення чи катування в подробицях.",
     "rules_illegal_responsibility": "Крім того, ви несете відповідальність за свої дії на дошці за законодавством будь-якої іншої юрисдикції, яке на вас поширюється.",
     "community_rules_warnings": "Модератори можуть попереджати або тимчасово блокувати користувачів, які порушують ці правила. Серйозні порушення можуть призвести до блокування без попередження.",
-    "community_rules_bans": "Кожне блокування має дату завершення. Після закінчення його строку можна повернутися. Якщо ви знову порушите правила, вас можуть одразу заблокувати повторно, без нового попередження. Повторні порушення можуть призвести до триваліших тимчасових блокувань."
+    "community_rules_bans": "Кожне блокування має дату завершення. Після закінчення його строку можна повернутися. Якщо ви знову порушите правила, вас можуть одразу заблокувати повторно, без нового попередження. Повторні порушення можуть призвести до триваліших тимчасових блокувань.",
+    "anonymous_welcome_title": "Вітаємо! Ця дошка відкрита для всіх.",
+    "anonymous_welcome_rules": "Будь доброзичливим. Поважай чужі малюнки. Тут не можна цькувати інших, спамити чи публікувати сексуальний контент. Не ділися номерами телефонів, адресами або іншими особистими даними.",
+    "anonymous_welcome_safety": "Люди можуть бути не тими, за кого себе видають. Якщо хтось просить таємно листуватися або надіслати фото без одягу, припини відповідати й розкажи дорослому, якому довіряєш.",
+    "anonymous_welcome_read_rules": "Прочитати всі правила",
+    "anonymous_welcome_dismiss": "Зрозуміло",
+    "rules_safety_link": "Правила й безпека"
   },
   "vi": {
     "personal_information_warning": "Bạn có thể đang chia sẻ thông tin cá nhân như số điện thoại, địa chỉ nhà hoặc email. Những người khác trên bảng này có thể thấy nội dung bạn nhập.",
@@ -2265,7 +2367,13 @@
     "rules_gore_detail": "Không vẽ nội tạng lộ ra ngoài, cảnh phân thây, hoặc mô tả chi tiết những vết thương nghiêm trọng hay cảnh tra tấn.",
     "rules_illegal_responsibility": "Ngoài ra, bạn phải chịu trách nhiệm về hành động của mình trên bảng theo mọi hệ thống pháp luật áp dụng đối với bạn.",
     "community_rules_warnings": "Người kiểm duyệt có thể cảnh cáo hoặc tạm thời cấm những người dùng vi phạm các quy định này. Vi phạm nghiêm trọng có thể bị cấm mà không cần cảnh cáo trước.",
-    "community_rules_bans": "Mọi lệnh cấm đều có ngày hết hiệu lực. Bạn có thể quay lại khi lệnh cấm hết hiệu lực. Nếu tiếp tục vi phạm quy định, bạn có thể bị cấm lại ngay lập tức mà không được cảnh cáo thêm. Vi phạm nhiều lần có thể dẫn đến các lệnh cấm tạm thời dài hơn."
+    "community_rules_bans": "Mọi lệnh cấm đều có ngày hết hiệu lực. Bạn có thể quay lại khi lệnh cấm hết hiệu lực. Nếu tiếp tục vi phạm quy định, bạn có thể bị cấm lại ngay lập tức mà không được cảnh cáo thêm. Vi phạm nhiều lần có thể dẫn đến các lệnh cấm tạm thời dài hơn.",
+    "anonymous_welcome_title": "Chào bạn! Ai cũng có thể xem và dùng bảng này.",
+    "anonymous_welcome_rules": "Hãy đối xử tốt với nhau. Tôn trọng tranh của người khác. Không bắt nạt, gửi tin rác hay đăng nội dung tình dục. Đừng chia sẻ số điện thoại, địa chỉ hay thông tin riêng tư khác.",
+    "anonymous_welcome_safety": "Có người có thể giả vờ là người khác. Nếu ai đó rủ bạn trò chuyện bí mật hoặc xin ảnh không mặc quần áo, hãy ngừng trả lời và kể với một người lớn mà bạn tin tưởng.",
+    "anonymous_welcome_read_rules": "Đọc tất cả quy tắc",
+    "anonymous_welcome_dismiss": "Đã hiểu",
+    "rules_safety_link": "Quy tắc và an toàn"
   },
   "zh-CN": {
     "personal_information_warning": "你可能正在分享电话号码、家庭住址或电子邮箱等个人信息。此白板上的其他人可以看到你输入的内容。",
@@ -2391,7 +2499,13 @@
     "rules_gore_detail": "不要绘制外露的内脏、肢解的身体，也不要详细描绘严重伤势或酷刑。",
     "rules_illegal_responsibility": "此外，你还须根据其他适用于你的司法管辖区的法律，对自己在白板上的行为负责。",
     "community_rules_warnings": "管理员可以对违反这些规则的用户发出警告或实施临时封禁。严重违规可能直接导致封禁，不另行警告。",
-    "community_rules_bans": "每次封禁都有到期时间。封禁到期后，你可以回来。如果再次违规，你可能会立即被重新封禁，不再另行警告。反复违规可能导致更长时间的临时封禁。"
+    "community_rules_bans": "每次封禁都有到期时间。封禁到期后，你可以回来。如果再次违规，你可能会立即被重新封禁，不再另行警告。反复违规可能导致更长时间的临时封禁。",
+    "anonymous_welcome_title": "欢迎！所有人都能查看和使用这个画板。",
+    "anonymous_welcome_rules": "请友善相待，尊重别人的画作。不要欺负别人、刷屏或发布色情内容。不要分享电话号码、住址或其他私人信息。",
+    "anonymous_welcome_safety": "有些人可能会假装成别人。如果有人要求你瞒着别人聊天，或向你索要没穿衣服的照片，请停止回复，并告诉你信任的大人。",
+    "anonymous_welcome_read_rules": "阅读全部规则",
+    "anonymous_welcome_dismiss": "知道了",
+    "rules_safety_link": "规则与安全"
   },
   "zh-TW": {
     "personal_information_warning": "你可能正在分享電話號碼、住家地址或電子郵件等個人資訊。此白板上的其他人可以看到你輸入的內容。",
@@ -2517,7 +2631,13 @@
     "rules_gore_detail": "請勿繪製外露的內臟、肢解畫面，或詳細描繪重傷或酷刑。",
     "rules_illegal_responsibility": "此外，你也須依據所有對你適用的司法管轄區的法律，為自己在白板上的行為負責。",
     "community_rules_warnings": "管理員可以警告或暫時封鎖違反這些規則的使用者。嚴重違規可能在未經警告的情況下直接被封鎖。",
-    "community_rules_bans": "每次封鎖都有到期日。到期後，你可以回來使用白板。如果再次違規，你可能立即再次被封鎖，不會另行警告。屢次違規可能導致更長的暫時封鎖。"
+    "community_rules_bans": "每次封鎖都有到期日。到期後，你可以回來使用白板。如果再次違規，你可能立即再次被封鎖，不會另行警告。屢次違規可能導致更長的暫時封鎖。",
+    "anonymous_welcome_title": "歡迎！所有人都能查看和使用這個畫板。",
+    "anonymous_welcome_rules": "請友善相待，尊重別人的畫作。不要霸凌、洗版或張貼色情內容。不要分享電話號碼、住址或其他私人資訊。",
+    "anonymous_welcome_safety": "有些人可能會假裝成別人。如果有人要求你瞞著別人聊天，或向你索取沒穿衣服的照片，請停止回覆，並告訴你信任的大人。",
+    "anonymous_welcome_read_rules": "閱讀所有規則",
+    "anonymous_welcome_dismiss": "知道了",
+    "rules_safety_link": "規則與安全"
   },
   "pl": {
     "personal_information_warning": "Być może udostępniasz dane osobowe, takie jak numer telefonu, adres domowy lub e-mail. Inne osoby na tej tablicy widzą to, co piszesz.",
@@ -2643,6 +2763,12 @@
     "rules_gore_detail": "Nie rysuj odsłoniętych narządów wewnętrznych ani rozczłonkowanych ciał. Nie przedstawiaj szczegółowo ciężkich obrażeń ani tortur.",
     "rules_illegal_responsibility": "Ponadto ponosisz odpowiedzialność za swoje działania na tablicy na podstawie wszelkich innych przepisów prawa, które mają do ciebie zastosowanie.",
     "community_rules_warnings": "Moderatorzy mogą ostrzegać lub tymczasowo blokować użytkowników, którzy łamią te zasady. Poważne naruszenia mogą skutkować blokadą bez ostrzeżenia.",
-    "community_rules_bans": "Każda blokada ma termin zakończenia. Po jego upływie możesz wrócić. Jeśli ponownie złamiesz zasady, możesz od razu otrzymać kolejną blokadę bez dodatkowego ostrzeżenia. Kolejne naruszenia mogą skutkować dłuższymi blokadami tymczasowymi."
+    "community_rules_bans": "Każda blokada ma termin zakończenia. Po jego upływie możesz wrócić. Jeśli ponownie złamiesz zasady, możesz od razu otrzymać kolejną blokadę bez dodatkowego ostrzeżenia. Kolejne naruszenia mogą skutkować dłuższymi blokadami tymczasowymi.",
+    "anonymous_welcome_title": "Witaj! Ta tablica jest publiczna.",
+    "anonymous_welcome_rules": "Bądź życzliwy. Szanuj rysunki innych. Nie dokuczaj innym, nie spamuj i nie zamieszczaj treści seksualnych. Nie udostępniaj numerów telefonów, adresów ani innych prywatnych informacji.",
+    "anonymous_welcome_safety": "Ludzie mogą nie być tymi, za których się podają. Jeśli ktoś prosi o rozmowy w tajemnicy lub o nagie zdjęcia, przestań odpowiadać i powiedz o tym dorosłej osobie, której ufasz.",
+    "anonymous_welcome_read_rules": "Przeczytaj wszystkie zasady",
+    "anonymous_welcome_dismiss": "Rozumiem",
+    "rules_safety_link": "Zasady i bezpieczeństwo"
   }
 }

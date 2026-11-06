@@ -75,6 +75,7 @@ export class BoardShellModule {
 
   initializePageChrome() {
     document.documentElement.dataset.activeToolSecondary = "false";
+    this.bindAnonymousWelcome();
     this.trackRecentBoardsOnPageShow();
     this.bindRenderedTools();
     this.applyInitialBoardState();
@@ -88,6 +89,42 @@ export class BoardShellModule {
     window.addEventListener("pageshow", () => {
       this.saveBoardNameToLocalStorage();
     });
+  }
+
+  bindAnonymousWelcome() {
+    const Tools = this.getTools();
+    if (Tools.identity.boardName !== "anonymous") return;
+
+    const rulesLink = getRequiredElement("rulesSafetyLink");
+    rulesLink.textContent = Tools.i18n.t("rules_safety_link");
+    rulesLink.hidden = false;
+
+    const cookieName = "wbo_anonymous_welcome_v1";
+    const dismissed = document.cookie
+      .split(";")
+      .some((cookie) => cookie.trim() === `${cookieName}=dismissed`);
+    if (dismissed) return;
+
+    const welcome = getRequiredElement("anonymousWelcome");
+    for (const key of [
+      "anonymous_welcome_title",
+      "anonymous_welcome_rules",
+      "anonymous_welcome_safety",
+      "anonymous_welcome_read_rules",
+      "anonymous_welcome_dismiss",
+    ]) {
+      getRequiredElement(key).textContent = Tools.i18n.t(key);
+    }
+    getRequiredElement("anonymous_welcome_dismiss").addEventListener(
+      "click",
+      () => {
+        // biome-ignore lint/suspicious/noDocumentCookie: One fixed acknowledgement cookie; works without the Cookie Store API.
+        document.cookie = `${cookieName}=dismissed; Max-Age=2592000; Path=/; SameSite=Lax; Secure`;
+        welcome.hidden = true;
+        rulesLink.focus();
+      },
+    );
+    welcome.hidden = false;
   }
 
   saveBoardNameToLocalStorage() {

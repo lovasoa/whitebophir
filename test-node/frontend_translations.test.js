@@ -28,6 +28,12 @@ test("frontend translation catalog covers rendered and runtime UI keys", async (
   const requiredKeys = [
     "personal_information_warning",
     "personal_information_dismiss",
+    "anonymous_welcome_title",
+    "anonymous_welcome_rules",
+    "anonymous_welcome_safety",
+    "anonymous_welcome_read_rules",
+    "anonymous_welcome_dismiss",
+    "rules_safety_link",
     "board_name_placeholder",
     "active_bans_count",
     "banned_at",
