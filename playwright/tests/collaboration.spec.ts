@@ -591,7 +591,7 @@ test.describe("collaboration and rate limiting", () => {
         ).toBeVisible();
         await boardPage.page
           .getByRole("button", {
-            name: translations.en.rules_harassment_title,
+            name: translations.en.rules_personal_information_title,
             exact: true,
           })
           .click();
@@ -604,6 +604,9 @@ test.describe("collaboration and rate limiting", () => {
             title: "Moderator warning",
             acknowledgeLabel: "I understand",
           });
+        await expect(
+          targetPage.locator(".moderation-disconnect-rule"),
+        ).toContainText(translations.en.rules_personal_information_title);
         await expect
           .poll(() => targetBoard.readConnectionAccessState())
           .toMatchObject({

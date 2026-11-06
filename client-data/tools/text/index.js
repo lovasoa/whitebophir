@@ -34,6 +34,7 @@ import {
 import { MutationType } from "../../js/mutation_type.js";
 import { TextContract } from "../contracts.js";
 import { TOOL_CODE_BY_ID } from "../tool-order.js";
+import { createPrivacyWarning } from "./privacy_warning.js";
 
 /** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
 /** @typedef {(evt: Event | KeyboardEvent | FocusEvent) => void} TextChangeHandler */
@@ -74,6 +75,7 @@ function createInitialState(ctx, input) {
     ids: ctx.runtime.ids,
     interaction: ctx.runtime.interaction,
     input,
+    privacyWarning: createPrivacyWarning(ctx.runtime.i18n, input),
     editorOverlay: createBoardHtmlOverlay({
       board: ctx.runtime.board,
       viewport: ctx.runtime.viewport,
@@ -363,6 +365,7 @@ function blurEditor(state) {
 
 /** @param {TextState} state */
 function stopEdit(state) {
+  state.privacyWarning.reset();
   state.input.removeEventListener("input", state.boundTextChangeHandler);
   state.input.removeEventListener("keyup", state.boundTextChangeHandler);
   state.input.removeEventListener("blur", state.boundTextChangeHandler);
@@ -390,6 +393,7 @@ function stopEdit(state) {
 /** @param {TextState} state */
 function startEdit(state) {
   state.active = true;
+  state.privacyWarning.update(state.input.value);
   syncEditorLayoutNow(state);
   state.input.focus();
   state.input.addEventListener("input", state.boundTextChangeHandler);
@@ -457,6 +461,7 @@ function textChangeHandler(state, evt) {
   }
   const nextText = truncateText(state.input.value);
   if (state.input.value !== nextText) state.input.value = nextText;
+  if (evt.type === "input") state.privacyWarning.update(nextText);
   if (state.curText.id === "" && nextText !== "") {
     state.curText.id = state.ids.generateUID("t");
     state.writes.drawAndSend(createTextMessage(state));
@@ -486,6 +491,7 @@ function updateActiveEditorText(state, id, text) {
   if (!state.active || state.curText.id !== id) return;
   state.input.value = text;
   state.curText.sentText = text;
+  state.privacyWarning.update(text);
   scheduleEditorLayout(state);
 }
 

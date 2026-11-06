@@ -51,6 +51,16 @@
 					<summary id="activeBansSummary"></summary>
 					<ul id="activeBansList" class="active-bans-list"></ul>
 				</details>
+				<div class="connected-users-footer">
+					<a id="rulesSafetyLink" class="board-rules-link" href="../rules?lang={{language}}"
+						target="_blank" rel="noopener">
+						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+							stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+							<path d="M12 3 3 7v5c0 5 9 9 9 9s9-4 9-9V7l-9-4Z" />
+							<path d="m8 12 3 3 5-6" />
+						</svg>
+					</a>
+				</div>
 			</div>
 		</div>
 		<div id="boardStatusIndicator" class="board-status-card board-status-reconnecting" role="status"
@@ -61,6 +71,17 @@
 				<div id="boardStatusNotice" class="board-status-detail board-status-detail-hidden"></div>
 			</div>
 		</div>
+		<section id="anonymousWelcome" class="anonymous-welcome" dir="{{direction}}"
+			aria-labelledby="anonymous_welcome_title" hidden>
+			<h2 id="anonymous_welcome_title"></h2>
+			<p id="anonymous_welcome_rules"></p>
+			<p id="anonymous_welcome_safety"></p>
+			<div class="anonymous-welcome-actions">
+				<a id="anonymous_welcome_read_rules" href="../rules?lang={{language}}" target="_blank" rel="noopener"></a>
+				<span aria-hidden="true">·</span>
+				<button id="anonymous_welcome_dismiss" type="button"></button>
+			</div>
+		</section>
 	</div>
 
 	<div id="menu" tabindex="0" {{#hideMenu}}style="display:none;"{{/hideMenu}}>

@@ -5,18 +5,19 @@ const test = require("node:test");
 
 const RULES_DIR = path.join(__dirname, "..", "client-data", "rules");
 
-test("MODERATION_RULES defines eight rules in order with required metadata", async () => {
+test("MODERATION_RULES defines nine rules in order with required metadata", async () => {
   const { MODERATION_RULES } = await import(
     "../client-data/js/moderation_rules.js"
   );
 
-  assert.equal(MODERATION_RULES.length, 8);
+  assert.equal(MODERATION_RULES.length, 9);
 
   const ruleIds = MODERATION_RULES.map((rule) => rule.id);
   assert.deepEqual(ruleIds, [
     "drawings",
     "spam",
     "harassment",
+    "personal_information",
     "violence",
     "pornography",
     "gore",
@@ -35,12 +36,12 @@ test("MODERATION_RULES defines eight rules in order with required metadata", asy
   }
 });
 
-test("MODERATION_RULE_IDS contains all eight rule IDs", async () => {
+test("MODERATION_RULE_IDS contains all nine rule IDs", async () => {
   const { MODERATION_RULE_IDS, MODERATION_RULES } = await import(
     "../client-data/js/moderation_rules.js"
   );
 
-  assert.equal(MODERATION_RULE_IDS.size, 8);
+  assert.equal(MODERATION_RULE_IDS.size, 9);
   for (const rule of MODERATION_RULES) {
     assert.ok(MODERATION_RULE_IDS.has(rule.id));
   }

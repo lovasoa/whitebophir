@@ -457,6 +457,7 @@ function createHarness() {
       return store.get(id);
     },
   });
+  globalAny.document.body = createBaseElement(store, "body");
 
   const app = {
     dom: {

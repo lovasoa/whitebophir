@@ -577,6 +577,63 @@ select {
   max-width: 100%;
 }
 
+.anonymous-welcome {
+  box-sizing: border-box;
+  border: 1px solid var(--board-control-border);
+  background: var(--board-control-bg);
+  color: #374151;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.anonymous-welcome {
+  width: min(360px, var(--board-hud-max-width));
+  min-width: 0;
+  max-height: calc(100dvh - 140px);
+  overflow: auto;
+  overflow-wrap: anywhere;
+  padding: 12px;
+  border-radius: 4px;
+  box-shadow: var(--board-control-shadow);
+}
+
+.anonymous-welcome h2 {
+  margin: 0;
+  color: #111827;
+  font-size: 14px;
+}
+
+.anonymous-welcome p {
+  margin: 10px 0;
+}
+
+.anonymous-welcome-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.anonymous-welcome a {
+  color: inherit;
+}
+
+.anonymous-welcome button {
+  padding: 4px 10px;
+  border: 1px solid var(--board-control-border-strong);
+  border-radius: var(--board-control-radius);
+  background: var(--board-control-bg-active);
+  color: #111827;
+  font: inherit;
+  cursor: pointer;
+}
+
+.board-rules-link:focus-visible,
+.anonymous-welcome :is(a, button):focus-visible {
+  outline: 2px solid var(--board-accent-strong);
+  outline-offset: 2px;
+}
+
 #menu .tool,
 .board-presence-toggle,
 .board-status-card {
@@ -795,6 +852,28 @@ select {
   list-style: none;
   margin: 0;
   padding: 2px 0;
+}
+
+.connected-users-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 1px 4px;
+  border-top: 1px solid var(--board-control-border);
+}
+
+.board-rules-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--board-control-radius);
+  color: #6b7280;
+}
+
+.board-rules-link:hover {
+  background: var(--board-control-bg-active);
+  color: #374151;
 }
 
 .active-bans-section {
