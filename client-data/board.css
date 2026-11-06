@@ -577,7 +577,6 @@ select {
   max-width: 100%;
 }
 
-.board-rules-link,
 .anonymous-welcome {
   box-sizing: border-box;
   border: 1px solid var(--board-control-border);
@@ -585,11 +584,6 @@ select {
   color: #374151;
   font-size: 13px;
   line-height: 1.45;
-}
-
-.board-rules-link {
-  padding: 4px 8px;
-  border-radius: var(--board-control-radius);
 }
 
 .anonymous-welcome {
@@ -858,6 +852,28 @@ select {
   list-style: none;
   margin: 0;
   padding: 2px 0;
+}
+
+.connected-users-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 1px 4px;
+  border-top: 1px solid var(--board-control-border);
+}
+
+.board-rules-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--board-control-radius);
+  color: #6b7280;
+}
+
+.board-rules-link:hover {
+  background: var(--board-control-bg-active);
+  color: #374151;
 }
 
 .active-bans-section {

@@ -95,10 +95,6 @@ export class BoardShellModule {
     const Tools = this.getTools();
     if (Tools.identity.boardName !== "anonymous") return;
 
-    const rulesLink = getRequiredElement("rulesSafetyLink");
-    rulesLink.textContent = Tools.i18n.t("rules_safety_link");
-    rulesLink.hidden = false;
-
     const cookieName = "wbo_anonymous_welcome_v1";
     const dismissed = document.cookie
       .split(";")
@@ -121,7 +117,7 @@ export class BoardShellModule {
         // biome-ignore lint/suspicious/noDocumentCookie: One fixed acknowledgement cookie; works without the Cookie Store API.
         document.cookie = `${cookieName}=dismissed; Max-Age=2592000; Path=/; SameSite=Lax; Secure`;
         welcome.hidden = true;
-        rulesLink.focus();
+        getRequiredElement("connectedUsersToggle").focus();
       },
     );
     welcome.hidden = false;
@@ -158,7 +154,12 @@ export class BoardShellModule {
   }
 
   bindPresencePanel() {
-    this.getTools().presence.initConnectedUsersUI();
+    const Tools = this.getTools();
+    const rulesLink = getRequiredElement("rulesSafetyLink");
+    const rulesLabel = Tools.i18n.t("rules_safety_link");
+    rulesLink.setAttribute("aria-label", rulesLabel);
+    rulesLink.title = rulesLabel;
+    Tools.presence.initConnectedUsersUI();
   }
 
   bindPreferenceControls() {

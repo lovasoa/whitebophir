@@ -22,6 +22,11 @@ test("anonymous welcome is dismissed for 30 days only after acknowledgement", as
   await welcome.getByRole("link", { name: "Read all rules" }).click();
   const rules = await popupPromise;
   await expect(rules).toHaveURL(`${server.serverUrl}/rules?lang=en`);
+  await expect(
+    rules.locator('[data-rule-id="personal_information"]'),
+  ).toContainText(
+    "Do not post phone numbers, email addresses, full names, home or school addresses, social media info.",
+  );
   await rules.close();
   await expect(welcome).toBeVisible();
   expect(
@@ -42,12 +47,31 @@ test("anonymous welcome is dismissed for 30 days only after acknowledgement", as
   });
   expect(dismissal?.expires).toBeGreaterThanOrEqual(dismissedAt + 2592000 - 1);
   expect(dismissal?.expires).toBeLessThanOrEqual(Date.now() / 1000 + 2592000);
-  await expect(
-    page.getByRole("link", { name: "Rules & safety" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: "Rules & safety" }),
-  ).toBeFocused();
+  await expect(page.locator("#connectedUsersToggle")).toBeFocused();
+  const rulesIcon = page.getByRole("link", { name: "Rules & safety" });
+  await expect(rulesIcon).toBeHidden();
+  await page.locator("#connectedUsersToggle").click();
+  await expect(rulesIcon).toBeVisible();
+  await expect(rulesIcon).toHaveText("");
+  await expect(rulesIcon).toHaveAttribute("title", "Rules & safety");
+  const footer = page.locator(".connected-users-footer");
+  const footerBounds = await footer.boundingBox();
+  const listBounds = await page.locator("#connectedUsersList").boundingBox();
+  if (!footerBounds || !listBounds)
+    throw new Error("User list footer must be visible");
+  expect(footerBounds.y).toBeGreaterThanOrEqual(
+    listBounds.y + listBounds.height,
+  );
+  expect(footerBounds.height).toBeLessThanOrEqual(30);
+  await page.screenshot({
+    path: testInfo.outputPath("rules-footer-desktop.png"),
+    animations: "disabled",
+  });
+  const footerPopup = page.waitForEvent("popup");
+  await rulesIcon.click();
+  const footerRules = await footerPopup;
+  await expect(footerRules).toHaveURL(`${server.serverUrl}/rules?lang=en`);
+  await footerRules.close();
 
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute(
@@ -58,9 +82,7 @@ test("anonymous welcome is dismissed for 30 days only after acknowledgement", as
   expect((await context.cookies()).find((c) => c.name === cookieName)).toEqual(
     dismissal,
   );
-  await expect(
-    page.getByRole("link", { name: "Rules & safety" }),
-  ).toBeVisible();
+  await expect(rulesIcon).toBeHidden();
 });
 
 test("old, invalid and expired dismissals do not hide the welcome; named boards never show it", async ({
@@ -123,6 +145,16 @@ for (const language of ["ar", "fr", "ja", "my"]) {
     });
     await welcome.locator("button").click();
     await expect(welcome).toBeHidden();
+    await expect(page.locator("#rulesSafetyLink")).toBeHidden();
+    await page.locator("#connectedUsersToggle").click();
     await expect(page.locator("#rulesSafetyLink")).toBeVisible();
+    await expect(page.locator("#rulesSafetyLink")).toHaveAttribute(
+      "href",
+      `../rules?lang=${language}`,
+    );
+    await page.screenshot({
+      path: testInfo.outputPath(`rules-footer-${language}-mobile.png`),
+      animations: "disabled",
+    });
   });
 }
