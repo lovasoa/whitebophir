@@ -60,9 +60,9 @@ HTTP and sockets use one permission resolver, with live moderation state read
 when capabilities are queried.
 
 **Staged boot protects interaction latency.** The small initial runtime supports
-viewport restoration and pan. Full runtime hydration and lazy tool loading add
-editing and collaboration afterward. Consolidating these stages would put tool
-and network dependencies on the path to the first usable viewport.
+viewport restoration and pan. Board asset URLs contain the release version;
+relative imports preserve it. Unavailable versions refresh before connecting or
+ask for a refresh afterward, preventing mixed assets across deployments.
 
 ## Operational limits
 

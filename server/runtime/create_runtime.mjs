@@ -95,7 +95,9 @@ function createSingleRootStaticFileServer(config, root) {
     setHeaders: (res, /** @type {string} */ filePath) => {
       res.setHeader("Content-Security-Policy", CSP);
       const cacheValue = staticFileCacheControl(config, filePath || "");
-      if (cacheValue !== undefined) res.setHeader("Cache-Control", cacheValue);
+      if (cacheValue !== undefined && !res.hasHeader("Cache-Control")) {
+        res.setHeader("Cache-Control", cacheValue);
+      }
     },
   });
 }

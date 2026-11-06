@@ -129,6 +129,9 @@ export class ToolRegistryModule {
     this.bootPromises[toolName] = promise;
     try {
       return await promise;
+    } catch (error) {
+      Tools.status.showUnknownMutationError("");
+      throw error;
     } finally {
       delete this.bootPromises[toolName];
     }
