@@ -1,6 +1,6 @@
 {
   "ar": {
-    "personal_information_warning": "قد تشارك معلومات شخصية، مثل رقم هاتف أو عنوان منزل أو بريد إلكتروني. يمكن للآخرين على اللوحة رؤية ما تكتبه.",
+    "personal_information_warning": "يمكن لأي شخص قراءة ما على هذه اللوحة. لا تشارك رقم هاتفك أو عنوان منزلك أو اسم مدرستك أو أي وسيلة للتواصل معك. إذا طلب منك أحد هذه المعلومات أو أراد التحدث معك في محادثة خاصة، فتوقّف عن الرد وأخبر شخصًا بالغًا تثق به.",
     "personal_information_dismiss": "إخفاء تنبيه المعلومات الشخصية",
     "white-out": "مزيل الحبر",
     "board_name_placeholder": "اسم اللوحة",
@@ -132,7 +132,7 @@
     "rules_safety_link": "القواعد والسلامة"
   },
   "be": {
-    "personal_information_warning": "Магчыма, вы дзеліцеся асабістымі данымі: нумарам тэлефона, хатнім адрасам ці электроннай поштай. Іншыя на дошцы бачаць тое, што вы пішаце.",
+    "personal_information_warning": "Усё на гэтай дошцы можа прачытаць хто заўгодна. Не дзяліся сваім нумарам тэлефона, хатнім адрасам, тым, у якой школе ты вучышся, або тым, як з табой звязацца. Калі хтосьці просіць гэтыя звесткі або хоча перапісвацца з табой у асабістых паведамленнях, перастань адказваць і раскажы даросламу, якому давяраеш.",
     "personal_information_dismiss": "Закрыць папярэджанне пра асабістыя даныя",
     "white-out": "Замазка",
     "board_name_placeholder": "Назва дошкі…",
@@ -264,7 +264,7 @@
     "rules_safety_link": "Правілы і бяспека"
   },
   "ca": {
-    "personal_information_warning": "Potser estàs compartint dades personals, com ara un telèfon, una adreça de casa o un correu electrònic. Les altres persones del tauler poden veure el que escrius.",
+    "personal_information_warning": "Qualsevol persona pot llegir aquesta pissarra. No comparteixis el teu número de telèfon, l’adreça de casa, a quina escola vas ni com contactar amb tu. Si algú et demana aquestes dades o vol parlar amb tu en privat, deixa de respondre i explica-ho a una persona adulta de confiança.",
     "personal_information_dismiss": "Tanca l’avís de dades personals",
     "white-out": "Corrector blanc",
     "board_name_placeholder": "Nom de la pissarra...",
@@ -396,7 +396,7 @@
     "rules_safety_link": "Normes i seguretat"
   },
   "de": {
-    "personal_information_warning": "Du teilst möglicherweise persönliche Daten wie eine Telefonnummer, Wohnadresse oder E-Mail-Adresse. Andere auf dem Board können sehen, was du schreibst.",
+    "personal_information_warning": "Alle können lesen, was auf diesem Board steht. Gib deine Telefonnummer und deine Wohnadresse nicht weiter. Verrate auch nicht, auf welche Schule du gehst oder wie man dich erreichen kann. Wenn dich jemand danach fragt oder privat mit dir chatten möchte, antworte nicht mehr und erzähle es einer erwachsenen Person, der du vertraust.",
     "personal_information_dismiss": "Hinweis zu persönlichen Daten schließen",
     "board_name_placeholder": "Name des Whiteboards…",
     "circle": "Kreis",
@@ -528,7 +528,7 @@
     "rules_safety_link": "Regeln & Sicherheit"
   },
   "en": {
-    "personal_information_warning": "You may be sharing personal information, such as a phone number, home address or email. Others on this board can see what you type.",
+    "personal_information_warning": "Anyone can read this board. Don't share your phone number, address, school, or how to contact you. If someone asks for these or wants to chat privately, stop replying and tell an adult you trust.",
     "personal_information_dismiss": "Dismiss personal information warning",
     "white-out": "White-out",
     "board_name_placeholder": "Name of the board…",
@@ -660,7 +660,7 @@
     "rules_safety_link": "Rules & safety"
   },
   "es": {
-    "personal_information_warning": "Puede que estés compartiendo datos personales, como un teléfono, una dirección particular o un correo electrónico. Las demás personas de la pizarra pueden ver lo que escribes.",
+    "personal_information_warning": "Cualquiera puede leer esta pizarra. No compartas tu número de teléfono, la dirección de tu casa, a qué escuela vas ni cómo contactar contigo. Si alguien te pide estos datos o quiere hablar contigo en privado, deja de responder y cuéntaselo a una persona adulta de confianza.",
     "personal_information_dismiss": "Cerrar el aviso de datos personales",
     "board_name_placeholder": "Nombre de la pizarra…",
     "circle": "Círculo",
@@ -792,7 +792,7 @@
     "rules_safety_link": "Normas y seguridad"
   },
   "fr": {
-    "personal_information_warning": "Vous partagez peut-être des informations personnelles : numéro de téléphone, adresse du domicile ou e-mail. Les autres personnes sur ce tableau peuvent voir ce que vous écrivez.",
+    "personal_information_warning": "Tout le monde peut lire ce tableau. Ne partage pas ton numéro de téléphone, l’adresse où tu habites, le nom de ton école ni les moyens de te contacter. Si quelqu’un te demande ces informations ou veut discuter avec toi en privé, arrête de lui répondre et parles-en à un adulte de confiance.",
     "personal_information_dismiss": "Fermer l’avertissement sur les informations personnelles",
     "board_name_placeholder": "Nom du tableau…",
     "circle": "Cercle",
@@ -924,7 +924,7 @@
     "rules_safety_link": "Règles et sécurité"
   },
   "hu": {
-    "personal_information_warning": "Lehet, hogy személyes adatot osztasz meg, például telefonszámot, lakcímet vagy e-mail-címet. A tábla többi résztvevője látja, amit írsz.",
+    "personal_information_warning": "Ezt a táblát bárki elolvashatja. Ne oszd meg a telefonszámodat, a lakcímedet, hogy melyik iskolába jársz, vagy azt, hogyan lehet veled kapcsolatba lépni. Ha valaki ezeket az adatokat kéri, vagy privátban szeretne beszélgetni veled, ne válaszolj többé, és szólj egy felnőttnek, akiben megbízol.",
     "personal_information_dismiss": "Személyes adatokra figyelmeztető üzenet bezárása",
     "white-out": "Lefedő",
     "board_name_placeholder": "Tábla neve…",
@@ -1056,7 +1056,7 @@
     "rules_safety_link": "Szabályok és biztonság"
   },
   "id": {
-    "personal_information_warning": "Anda mungkin sedang membagikan informasi pribadi, seperti nomor telepon, alamat rumah, atau email. Orang lain di papan ini dapat melihat apa yang Anda ketik.",
+    "personal_information_warning": "Siapa pun bisa membaca isi papan ini. Jangan bagikan nomor telepon, alamat rumah, nama sekolahmu, atau cara menghubungimu. Kalau ada yang meminta informasi ini atau mengajakmu mengobrol secara pribadi, berhenti membalas dan beri tahu orang dewasa yang kamu percaya.",
     "personal_information_dismiss": "Tutup peringatan informasi pribadi",
     "white-out": "Cairan koreksi",
     "board_name_placeholder": "Nama papan…",
@@ -1188,7 +1188,7 @@
     "rules_safety_link": "Aturan & keselamatan"
   },
   "it": {
-    "personal_information_warning": "Potresti condividere informazioni personali, come un numero di telefono, un indirizzo di casa o un’e-mail. Le altre persone sulla lavagna possono vedere ciò che scrivi.",
+    "personal_information_warning": "Chiunque può leggere questa lavagna. Non condividere il tuo numero di telefono, il tuo indirizzo di casa, quale scuola frequenti o come contattarti. Se qualcuno ti chiede queste informazioni o vuole chattare con te in privato, smetti di rispondere e parlane con una persona adulta di cui ti fidi.",
     "personal_information_dismiss": "Chiudi l’avviso sui dati personali",
     "board_name_placeholder": "Nome della lavagna…",
     "circle": "Cerchio",
@@ -1320,7 +1320,7 @@
     "rules_safety_link": "Regole e sicurezza"
   },
   "ja": {
-    "personal_information_warning": "電話番号、自宅の住所、メールアドレスなどの個人情報を共有しようとしている可能性があります。このボードの他の人にも入力内容が見えます。",
+    "personal_information_warning": "このボードに書いたことは、だれでも読むことができます。電話番号、家の住所、通っている学校、連絡先を教えないでください。だれかにこうした情報を聞かれたり、個別に話そうと誘われたりしたら、返事をやめて、信頼できる大人に話してください。",
     "personal_information_dismiss": "個人情報の警告を閉じる",
     "board_name_placeholder": "ボードの名前",
     "circle": "円",
@@ -1452,7 +1452,7 @@
     "rules_safety_link": "ルールと安全"
   },
   "my": {
-    "personal_information_warning": "ဖုန်းနံပါတ်၊ အိမ်လိပ်စာ သို့မဟုတ် အီးမေးလ်ကဲ့သို့ ကိုယ်ရေးအချက်အလက်များကို မျှဝေနေခြင်း ဖြစ်နိုင်ပါသည်။ ဤဘုတ်ပေါ်ရှိ အခြားသူများက သင်ရိုက်ထည့်သည့်စာကို မြင်နိုင်ပါသည်။",
+    "personal_information_warning": "ဒီဘုတ်ပေါ်က စာတွေကို ဘယ်သူမဆို ဖတ်နိုင်ပါတယ်။ ကိုယ့်ဖုန်းနံပါတ်၊ အိမ်လိပ်စာ၊ ကိုယ်တက်နေတဲ့ကျောင်း ဒါမှမဟုတ် ကိုယ့်ကို ဆက်သွယ်နိုင်မယ့် နည်းလမ်းတွေကို မမျှဝေပါနဲ့။ တစ်ယောက်ယောက်က ဒီအချက်အလက်တွေကို တောင်းလာရင် ဒါမှမဟုတ် သီးသန့်စကားပြောဖို့ ပြောလာရင် စာပြန်မပို့တော့ဘဲ ကိုယ်ယုံကြည်ရတဲ့ လူကြီးတစ်ယောက်ကို ပြောပြပါ။",
     "personal_information_dismiss": "ကိုယ်ရေးအချက်အလက် သတိပေးချက်ကို ပိတ်ရန်",
     "board_name_placeholder": "ဝှိုက်ဘုတ်အမည် ... ",
     "circle": "စက်ဝိုင်း",
@@ -1584,7 +1584,7 @@
     "rules_safety_link": "စည်းကမ်းနှင့် ဘေးကင်းရေး"
   },
   "pt": {
-    "personal_information_warning": "Você pode estar compartilhando informações pessoais, como telefone, endereço residencial ou e-mail. Outras pessoas neste quadro podem ver o que você digita.",
+    "personal_information_warning": "Qualquer pessoa pode ler este quadro. Não compartilhe seu número de telefone, seu endereço de casa, em qual escola você estuda nem como entrar em contato com você. Se alguém pedir essas informações ou quiser conversar com você em particular, pare de responder e conte a um adulto em quem você confia.",
     "personal_information_dismiss": "Fechar aviso de informações pessoais",
     "white-out": "Corretivo",
     "board_name_placeholder": "Nome do quadro...",
@@ -1716,7 +1716,7 @@
     "rules_safety_link": "Regras e segurança"
   },
   "ru": {
-    "personal_information_warning": "Возможно, вы делитесь личными данными: номером телефона, домашним адресом или электронной почтой. Другие участники доски видят то, что вы пишете.",
+    "personal_information_warning": "Всё на этой доске может прочитать кто угодно. Не сообщай свой номер телефона, домашний адрес, в какой школе ты учишься или как с тобой связаться. Если кто-то просит эти сведения или хочет общаться с тобой в личных сообщениях, перестань отвечать и расскажи взрослому, которому доверяешь.",
     "personal_information_dismiss": "Закрыть предупреждение о личных данных",
     "board_name_placeholder": "Название доски",
     "circle": "Круг",
@@ -1848,7 +1848,7 @@
     "rules_safety_link": "Правила и безопасность"
   },
   "sw": {
-    "personal_information_warning": "Huenda unashiriki taarifa binafsi, kama nambari ya simu, anwani ya nyumbani au barua pepe. Wengine kwenye ubao huu wanaweza kuona unachoandika.",
+    "personal_information_warning": "Mtu yeyote anaweza kusoma yaliyo kwenye ubao huu. Usishiriki namba yako ya simu, anwani ya nyumbani, shule unayosoma au njia ya kuwasiliana nawe. Mtu akikuomba taarifa hizi au akitaka kuzungumza nawe faraghani, acha kumjibu na umwambie mtu mzima unayemwamini.",
     "personal_information_dismiss": "Funga onyo la taarifa binafsi",
     "board_name_placeholder": "Jina la ubao mweupe ...",
     "circle": "mduara",
@@ -1980,7 +1980,7 @@
     "rules_safety_link": "Sheria na usalama"
   },
   "th": {
-    "personal_information_warning": "คุณอาจกำลังแชร์ข้อมูลส่วนตัว เช่น หมายเลขโทรศัพท์ ที่อยู่บ้าน หรืออีเมล คนอื่นบนกระดานนี้สามารถเห็นสิ่งที่คุณพิมพ์ได้",
+    "personal_information_warning": "ทุกคนอ่านสิ่งที่เขียนบนกระดานนี้ได้ อย่าแชร์เบอร์โทรศัพท์ ที่อยู่บ้าน โรงเรียนที่เรียนอยู่ หรือวิธีติดต่อคุณ ถ้ามีใครขอข้อมูลเหล่านี้หรือชวนคุยส่วนตัว ให้หยุดตอบและบอกผู้ใหญ่ที่คุณไว้ใจ",
     "personal_information_dismiss": "ปิดคำเตือนข้อมูลส่วนตัว",
     "board_name_placeholder": "ชื่อไวท์บอร์ด ...",
     "circle": "วงกลม",
@@ -2112,7 +2112,7 @@
     "rules_safety_link": "กฎและความปลอดภัย"
   },
   "uk": {
-    "personal_information_warning": "Можливо, ви ділитеся особистими даними: номером телефону, домашньою адресою чи електронною поштою. Інші учасники дошки бачать те, що ви пишете.",
+    "personal_information_warning": "Усе на цій дошці може прочитати будь-хто. Не повідомляй свій номер телефону, домашню адресу, у якій школі ти навчаєшся або як із тобою зв’язатися. Якщо хтось просить ці відомості або хоче спілкуватися з тобою в приватних повідомленнях, припини відповідати й розкажи дорослому, якому довіряєш.",
     "personal_information_dismiss": "Закрити попередження про особисті дані",
     "white-out": "Коректор",
     "board_name_placeholder": "Назва дошки…",
@@ -2244,7 +2244,7 @@
     "rules_safety_link": "Правила й безпека"
   },
   "vi": {
-    "personal_information_warning": "Bạn có thể đang chia sẻ thông tin cá nhân như số điện thoại, địa chỉ nhà hoặc email. Những người khác trên bảng này có thể thấy nội dung bạn nhập.",
+    "personal_information_warning": "Ai cũng có thể đọc nội dung trên bảng này. Đừng chia sẻ số điện thoại, địa chỉ nhà, trường bạn đang học hay cách liên lạc với bạn. Nếu có ai hỏi những thông tin này hoặc muốn trò chuyện riêng với bạn, hãy ngừng trả lời và kể với một người lớn mà bạn tin tưởng.",
     "personal_information_dismiss": "Đóng cảnh báo thông tin cá nhân",
     "white-out": "Bút xóa",
     "board_name_placeholder": "Tên bảng…",
@@ -2376,7 +2376,7 @@
     "rules_safety_link": "Quy tắc và an toàn"
   },
   "zh-CN": {
-    "personal_information_warning": "你可能正在分享电话号码、家庭住址或电子邮箱等个人信息。此白板上的其他人可以看到你输入的内容。",
+    "personal_information_warning": "任何人都能看到这个画板上的内容。不要透露你的电话号码、家庭住址、就读的学校或联系方式。如果有人向你打听这些信息，或想和你私聊，请停止回复，并告诉你信任的大人。",
     "personal_information_dismiss": "关闭个人信息警告",
     "board_name_placeholder": "白板名称",
     "circle": "圆",
@@ -2508,7 +2508,7 @@
     "rules_safety_link": "规则与安全"
   },
   "zh-TW": {
-    "personal_information_warning": "你可能正在分享電話號碼、住家地址或電子郵件等個人資訊。此白板上的其他人可以看到你輸入的內容。",
+    "personal_information_warning": "任何人都能看到這個畫板上的內容。不要透露你的電話號碼、住家地址、就讀的學校或聯絡方式。如果有人向你打聽這些資料，或想和你私下聊天，請停止回覆，並告訴你信任的大人。",
     "personal_information_dismiss": "關閉個人資訊警告",
     "board_name_placeholder": "白板名稱",
     "circle": "圓形",
@@ -2640,7 +2640,7 @@
     "rules_safety_link": "規則與安全"
   },
   "pl": {
-    "personal_information_warning": "Być może udostępniasz dane osobowe, takie jak numer telefonu, adres domowy lub e-mail. Inne osoby na tej tablicy widzą to, co piszesz.",
+    "personal_information_warning": "Każdy może przeczytać to, co jest na tej tablicy. Nie podawaj swojego numeru telefonu, adresu zamieszkania, szkoły, do której chodzisz, ani sposobów kontaktu z tobą. Jeśli ktoś prosi o te informacje lub chce rozmawiać z tobą na prywatnym czacie, przestań odpowiadać i powiedz o tym dorosłej osobie, której ufasz.",
     "personal_information_dismiss": "Zamknij ostrzeżenie o danych osobowych",
     "board_name_placeholder": "Nazwa tablicy",
     "circle": "Okrąg",

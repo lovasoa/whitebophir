@@ -393,6 +393,7 @@ function stopEdit(state) {
 /** @param {TextState} state */
 function startEdit(state) {
   state.active = true;
+  state.privacyWarning.update(state.input.value);
   syncEditorLayoutNow(state);
   state.input.focus();
   state.input.addEventListener("input", state.boundTextChangeHandler);
@@ -490,6 +491,7 @@ function updateActiveEditorText(state, id, text) {
   if (!state.active || state.curText.id !== id) return;
   state.input.value = text;
   state.curText.sentText = text;
+  state.privacyWarning.update(text);
   scheduleEditorLayout(state);
 }
 

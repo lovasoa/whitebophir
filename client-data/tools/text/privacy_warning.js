@@ -1,4 +1,4 @@
-import { mayContainPersonalInformation } from "./personal_information.js";
+import { privateInfoKind } from "./personal_information.js";
 
 /**
  * @param {{t(key: string): string}} i18n
@@ -9,6 +9,7 @@ export function createPrivacyWarning(i18n, input) {
   panel.id = "textPrivacyWarning";
   panel.hidden = true;
   const message = document.createElement("p");
+  message.dir = "auto";
   message.setAttribute("role", "status");
   message.setAttribute("aria-live", "polite");
   panel.appendChild(message);
@@ -30,7 +31,9 @@ export function createPrivacyWarning(i18n, input) {
   return {
     /** @param {string} text */
     update(text) {
-      const show = !dismissed && mayContainPersonalInformation(text);
+      const detected = privateInfoKind(text) !== null;
+      if (!detected) dismissed = false;
+      const show = !dismissed && detected;
       if (show === !panel.hidden) return;
       panel.hidden = !show;
       message.textContent = show ? i18n.t("personal_information_warning") : "";
