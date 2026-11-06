@@ -26,6 +26,8 @@ test("frontend translation catalog covers rendered and runtime UI keys", async (
     ...rule.bodyKeys,
   ]);
   const requiredKeys = [
+    "personal_information_warning",
+    "personal_information_dismiss",
     "board_name_placeholder",
     "active_bans_count",
     "banned_at",
@@ -171,6 +173,8 @@ test("frontend translation catalog covers rendered and runtime UI keys", async (
     );
     if (language !== "en") {
       for (const key of [
+        "personal_information_warning",
+        "personal_information_dismiss",
         ...ruleKeys,
         "community_rules_intro",
         "community_rules_warnings",

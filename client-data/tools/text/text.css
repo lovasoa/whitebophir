@@ -24,3 +24,47 @@ text {
   user-select: none;
   -moz-user-select: none;
 }
+
+#textPrivacyWarning {
+  position: fixed;
+  inset-inline-end: 16px;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 20;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  box-sizing: border-box;
+  width: min(380px, calc(100vw - 84px));
+  padding: 12px;
+  border: 1px solid #d1d5db;
+  border-inline-start: 4px solid #a56b16;
+  border-radius: 4px;
+  background: #fffdf7;
+  color: #374151;
+  box-shadow: 0 2px 8px #00000014;
+  font:
+    13px / 1.45 Arial,
+    Helvetica,
+    sans-serif;
+}
+
+#textPrivacyWarning[hidden] {
+  display: none;
+}
+
+#textPrivacyWarning p {
+  flex: 1;
+  margin: 0;
+}
+
+#textPrivacyWarning button {
+  flex: none;
+  min-width: 28px;
+  min-height: 28px;
+  border: 1px solid #d1d5db;
+  border-radius: 2px;
+  background: white;
+  color: #374151;
+  font-size: 20px;
+  cursor: pointer;
+}
