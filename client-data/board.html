@@ -1,30 +1,30 @@
 <!DOCTYPE html>
-<html lang="{{language}}" dir="ltr" data-wbo-version="{{appVersion}}" data-ui-direction="{{direction}}" data-asset-base="../{{assetPrefix}}"{{#moderator}} data-moderator="true"{{/moderator}}>
+<html lang="{{language}}" dir="ltr" data-wbo-version="{{appVersion}}" data-ui-direction="{{direction}}"{{#moderator}} data-moderator="true"{{/moderator}}>
 
 <head>
 	<meta charset="utf-8" />
 	<title>{{board}} | WBO | {{translations.collaborative_whiteboard}}</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-	<link rel="stylesheet" type="text/css" href="../{{assetPrefix}}board.css" />
-	<link rel="modulepreload" href="../{{assetPrefix}}js/board_boot.js" />
-	<link rel="modulepreload" href="../{{assetPrefix}}js/board_bootstrap.js" />
-	<link rel="modulepreload" href="../{{assetPrefix}}js/app_tools_core.js" />
-	<link rel="modulepreload" href="../{{assetPrefix}}js/board_dom_bootstrap.js" />
-	<link rel="modulepreload" href="../{{assetPrefix}}js/board_message_replay.js" />
-	<link rel="modulepreload" href="../{{assetPrefix}}js/board_name.js" />
-	<link rel="modulepreload" href="../{{assetPrefix}}js/board_page_state.js" />
-	<link rel="modulepreload" href="../{{assetPrefix}}js/board_preferences.js" />
-	<link rel="modulepreload" href="../{{assetPrefix}}js/board_runtime_core.js" />
-	<link rel="modulepreload" href="../{{assetPrefix}}js/board_viewport.js" />
-	<link rel="modulepreload" href="../{{assetPrefix}}js/frontend_logging.js" />
-	<link rel="modulepreload" href="../{{assetPrefix}}js/performance_metrics.js" />
-	<link rel="modulepreload" href="../{{assetPrefix}}js/message_limits.js" />
+	<link rel="stylesheet" type="text/css" href="{{assetBase}}board.css" />
+	<link rel="modulepreload" href="{{assetBase}}js/board_boot.js" />
+	<link rel="modulepreload" href="{{assetBase}}js/board_bootstrap.js" />
+	<link rel="modulepreload" href="{{assetBase}}js/app_tools_core.js" />
+	<link rel="modulepreload" href="{{assetBase}}js/board_dom_bootstrap.js" />
+	<link rel="modulepreload" href="{{assetBase}}js/board_message_replay.js" />
+	<link rel="modulepreload" href="{{assetBase}}js/board_name.js" />
+	<link rel="modulepreload" href="{{assetBase}}js/board_page_state.js" />
+	<link rel="modulepreload" href="{{assetBase}}js/board_preferences.js" />
+	<link rel="modulepreload" href="{{assetBase}}js/board_runtime_core.js" />
+	<link rel="modulepreload" href="{{assetBase}}js/board_viewport.js" />
+	<link rel="modulepreload" href="{{assetBase}}js/frontend_logging.js" />
+	<link rel="modulepreload" href="{{assetBase}}js/performance_metrics.js" />
+	<link rel="modulepreload" href="{{assetBase}}js/message_limits.js" />
 	<script id="socketio-client" async src="../socket.io/socket.io.js"></script>
 	<meta name="description" content="{{translations.tagline}}" />
 	<meta name="keywords"
 		content="{{translations.collaborative_whiteboard}},online,draw,paint,shared,realtime,wbo,whitebophir" />
-	<link rel="apple-touch-icon" href="../{{assetPrefix}}favicon.svg">
-	<link rel="icon" type="image/x-icon" sizes="16x16" href="../{{assetPrefix}}favicon.ico">
+	<link rel="apple-touch-icon" href="{{assetBase}}favicon.svg">
+	<link rel="icon" type="image/x-icon" sizes="16x16" href="{{assetBase}}favicon.ico">
 	<link rel="manifest" href="../manifest.json" />
 	<meta property="og:title" content="{{board}} | WBO | {{translations.collaborative_whiteboard}}" />
 	<meta property="og:url" content="{{baseUrl}}/boards/{{boardUriComponent}}" />
@@ -41,7 +41,7 @@
 		<div class="board-presence">
 			<button id="connectedUsersToggle" class="board-presence-toggle" type="button"
 				aria-controls="connectedUsersPanel" aria-expanded="false">
-				<img class="board-presence-icon" width="18" height="18" src="../{{assetPrefix}}users.svg" alt="" />
+				<img class="board-presence-icon" width="18" height="18" src="{{assetBase}}users.svg" alt="" />
 				<span class="tool-name" hidden></span>
 			</button>
 			<div id="connectedUsersPanel" class="connected-users-panel connected-users-panel-hidden"

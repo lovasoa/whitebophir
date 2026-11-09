@@ -95,6 +95,8 @@ function createSingleRootStaticFileServer(config, root) {
     setHeaders: (res, /** @type {string} */ filePath) => {
       res.setHeader("Content-Security-Policy", CSP);
       const cacheValue = staticFileCacheControl(config, filePath || "");
+      // The versioned /assets/ route owns Cache-Control for release-pinned
+      // files; apply the default policy only where it has not set one.
       if (cacheValue !== undefined && !res.hasHeader("Cache-Control")) {
         res.setHeader("Cache-Control", cacheValue);
       }

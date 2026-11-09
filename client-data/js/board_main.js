@@ -1,9 +1,11 @@
-// Keep this loader independent of the versioned runtime so it can recover even
-// when a deployment happens between loading the HTML and its first module.
+// Keep this loader independent of the release-pinned runtime so a stale page
+// can still recover when a deployment removes its release.
 const root = document.documentElement;
-const assetBase =
-  root.dataset.assetBase || `../assets/${root.dataset.wboVersion}/`;
-const entry = new URL(`${assetBase}js/board_boot.js`, document.baseURI);
+const release = root.dataset.wboVersion || "";
+const entry = new URL(
+  `../assets/${release}/js/board_boot.js`,
+  document.baseURI,
+);
 let runtimeLoaded = false;
 
 void import(entry.href)
@@ -11,8 +13,9 @@ void import(entry.href)
     runtimeLoaded = true;
     return runtime.boardReady;
   })
-  .catch(async (error) => {
-    const canReload = !["connecting", "ready"].includes(
+  .catch((error) => {
+    // Refresh only before connecting, where no queued edit can be lost.
+    const canRefresh = !["connecting", "ready"].includes(
       root.dataset.boardPhase || "",
     );
     root.dataset.boardPhase = "error";
@@ -24,36 +27,42 @@ void import(entry.href)
         errorMessage: String(error),
       });
     }
-    try {
-      const response = await fetch(entry, {
-        method: "HEAD",
-        cache: "no-store",
-      });
-      if (response.status !== 409) return;
-      try {
-        const key = "wbo.asset-reload-version";
-        if (
-          canReload &&
-          sessionStorage.getItem(key) !== root.dataset.wboVersion
-        ) {
-          sessionStorage.setItem(key, root.dataset.wboVersion || "");
-          location.reload();
-          return;
-        }
-      } catch {
-        // Without session storage, ask for a refresh rather than risk a loop.
-      }
-      const tools = window.WBOApp;
-      if (tools?.status) {
-        tools.status.showUnknownMutationError("");
-      } else {
-        const translations = JSON.parse(
-          document.getElementById("translations")?.textContent || "{}",
-        );
-        const title = document.getElementById("boardStatusTitle");
-        if (title) title.textContent = translations.unknown_error_reload_page;
-      }
-    } catch {
-      // Only a confirmed version mismatch warrants a refresh.
-    }
+    if (canRefresh && claimRefresh()) return;
+    showReloadNotice();
   });
+
+/**
+ * Starts at most one reload per release, so a page that still fails after
+ * reloading asks for a refresh instead of looping.
+ *
+ * @returns {boolean} whether a reload was started
+ */
+function claimRefresh() {
+  const key = "wbo.asset-reload-version";
+  try {
+    if (sessionStorage.getItem(key) === release) return false;
+    sessionStorage.setItem(key, release);
+  } catch {
+    return false; // Ask for a refresh rather than risk a reload loop.
+  }
+  location.reload();
+  return true;
+}
+
+function showReloadNotice() {
+  const tools = window.WBOApp;
+  if (tools?.status) {
+    tools.status.showUnknownMutationError("");
+    return;
+  }
+  // Before hydration, set the notice from this page's own translations.
+  try {
+    const translations = JSON.parse(
+      document.getElementById("translations")?.textContent || "{}",
+    );
+    const title = document.getElementById("boardStatusTitle");
+    if (title) title.textContent = translations.unknown_error_reload_page;
+  } catch {
+    // Keep the rendered title when translations cannot be read.
+  }
+}

@@ -323,15 +323,16 @@ window.turnstile = {
   }
 
   async waitForBoardWritable() {
+    // The shell publishes WBOApp before hydration attaches connection, replay,
+    // and writes, so tolerate the incomplete object while booting.
     await expect
       .poll(() =>
         this.page.evaluate(() => {
           const tools = window.WBOApp;
           return !!(
-            tools &&
-            tools.connection.state === "connected" &&
-            tools.replay.awaitingSnapshot === false &&
-            !tools.writes.isWritePaused()
+            tools?.connection?.state === "connected" &&
+            tools.replay?.awaitingSnapshot === false &&
+            tools.writes?.isWritePaused() === false
           );
         }),
       )

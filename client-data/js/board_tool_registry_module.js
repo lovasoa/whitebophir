@@ -130,6 +130,8 @@ export class ToolRegistryModule {
     try {
       return await promise;
     } catch (error) {
+      // A deployment can remove a tool's release while a board is open; ask
+      // for the same refresh the boot loader asks for.
       Tools.status.showUnknownMutationError("");
       throw error;
     } finally {

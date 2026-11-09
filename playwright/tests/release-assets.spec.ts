@@ -43,15 +43,29 @@ for (const alwaysStale of [false, true]) {
     server,
   }) => {
     let documents = 0;
+    // Captured when each document commits: after boot the app rewrites the
+    // viewport hash from the live scroll position, which races the browser
+    // restoring history scroll state.
+    const navigations: string[] = [];
+    page.on("framenavigated", (frame) => {
+      if (
+        frame === page.mainFrame() &&
+        frame.url().includes("/boards/stale-release")
+      ) {
+        navigations.push(frame.url());
+      }
+    });
     await page.route("**/boards/stale-release?*", async (route) => {
       const response = await route.fetch();
       documents++;
       let body = await response.text();
       if (alwaysStale || documents === 1) {
-        // Includes HTML predating the asset-base attribute, as on first rollout.
-        body = body
-          .replace(/data-asset-base="[^"]*"/, "")
-          .replace(/data-wbo-version="[^"]*"/, 'data-wbo-version="0.0.0"');
+        // The release version pins every asset; a page from another release
+        // requests files this server no longer has.
+        body = body.replace(
+          /data-wbo-version="[^"]*"/,
+          'data-wbo-version="0.0.0"',
+        );
       }
       await route.fulfill({ response, body });
     });
@@ -73,7 +87,7 @@ for (const alwaysStale of [false, true]) {
       );
     }
     expect(documents).toBe(2);
-    expect(page.url()).toContain("?lang=fr#100,200,1");
+    expect(navigations[1]).toContain("?lang=fr#100,200,1");
   });
 }
 
@@ -82,20 +96,13 @@ test("a rollout during deferred boot refreshes before connecting", async ({
   server,
 }) => {
   let documents = 0;
-  let deployed = false;
   page.on("request", (request) => {
     if (request.isNavigationRequest()) documents++;
   });
+  // The release disappears between loading the boot module and the runtime.
   await page.route("**/js/board.js", async (route) => {
-    if (documents === 1) {
-      deployed = true;
-      await route.fulfill({ status: 409 });
-    } else await route.continue();
-  });
-  await page.route("**/js/board_boot.js", async (route) => {
-    if (deployed && documents === 1 && route.request().method() === "HEAD") {
-      await route.fulfill({ status: 409 });
-    } else await route.continue();
+    if (documents === 1) await route.fulfill({ status: 409 });
+    else await route.continue();
   });
   await page.goto(`${server.serverUrl}/boards/deferred-release`);
   await expect(page.locator("html")).toHaveAttribute(
@@ -130,11 +137,6 @@ test("a late asset failure asks for refresh without losing queued edits", async 
   await page.route("**/tools/rectangle/index.js", async (route) => {
     await toolCanFail;
     await route.fulfill({ status: 409 });
-  });
-  await page.route("**/js/board_boot.js", async (route) => {
-    if (route.request().method() === "HEAD")
-      await route.fulfill({ status: 409 });
-    else await route.continue();
   });
   await page.goto(`${server.serverUrl}/boards/late-release`, {
     waitUntil: "domcontentloaded",

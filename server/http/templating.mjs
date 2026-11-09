@@ -473,15 +473,15 @@ class BoardTemplate extends Template {
         blockedTools: blockedTools,
       })
     );
-    params.assetPrefix = this.serverConfig.IS_DEVELOPMENT
-      ? ""
-      : `assets/${packageJson.version}/`;
+    // Board assets are pinned to this release: relative imports keep the whole
+    // module graph on the same version.
+    params.assetBase = `../assets/${packageJson.version}/`;
     params.tools = renderedTools.map((tool) => {
       const visible = boardStateGrantsCapability(
         params.boardState,
         tool.requiredCapability,
       );
-      const iconUrl = `../${params.assetPrefix}${tool.iconPath}`;
+      const iconUrl = `${params.assetBase}${tool.iconPath}`;
       return {
         id: tool.toolId,
         label: params.translations[tool.translationKey] || tool.label,
