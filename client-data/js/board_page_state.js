@@ -56,10 +56,7 @@ export function normalizeBoardState(value) {
   if (!value || typeof value !== "object") {
     return DEFAULT_BOARD_STATE;
   }
-  const state =
-    /** @type {{readonly?: boolean, canEdit?: boolean, canClear?: boolean, canBan?: boolean, canGrantTemporaryModerator?: boolean, canReport?: boolean, canWrite?: boolean, accessRefreshAfterMs?: number}} */ (
-      value
-    );
+  const state = /** @type {Partial<BoardState>} */ (value);
   const canEdit = state.canEdit === true || state.canWrite === true;
   const accessRefreshAfterMs =
     typeof state.accessRefreshAfterMs === "number" &&
@@ -75,6 +72,9 @@ export function normalizeBoardState(value) {
     canGrantTemporaryModerator: state.canGrantTemporaryModerator === true,
     canReport: state.canReport !== false,
     canWrite: canEdit,
+    ...(state.moderationUnavailable === true
+      ? { moderationUnavailable: true }
+      : {}),
     ...(accessRefreshAfterMs === undefined ? {} : { accessRefreshAfterMs }),
   };
 }

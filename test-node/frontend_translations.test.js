@@ -33,6 +33,9 @@ test("frontend translation catalog covers rendered and runtime UI keys", async (
     "anonymous_welcome_safety",
     "anonymous_welcome_read_rules",
     "anonymous_welcome_dismiss",
+    "moderation_unavailable_title",
+    "moderation_unavailable_message",
+    "personal_information_auto_report",
     "rules_safety_link",
     "board_name_placeholder",
     "active_bans_count",
@@ -177,10 +180,18 @@ test("frontend translation catalog covers rendered and runtime UI keys", async (
       /\{count\}/,
       `${language}.users_count must include {count}`,
     );
+    assert.match(
+      catalog.personal_information_auto_report,
+      /\{reported\}/,
+      `${language}.personal_information_auto_report must include {reported}`,
+    );
     if (language !== "en") {
       for (const key of [
         "personal_information_warning",
         "personal_information_dismiss",
+        "moderation_unavailable_title",
+        "moderation_unavailable_message",
+        "personal_information_auto_report",
         ...ruleKeys,
         "community_rules_intro",
         "community_rules_warnings",

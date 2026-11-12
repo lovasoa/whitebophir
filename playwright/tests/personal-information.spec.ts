@@ -1,5 +1,54 @@
 import translations from "../../server/http/translations.json";
-import { expect, test } from "../fixtures/test";
+import { createBoardPage, expect, test } from "../fixtures/test";
+
+const moderatorSecret = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const alertsTest = test.extend({
+  serverOptions: {
+    useJWT: false,
+    env: {
+      WBO_MODERATOR_REQUIRED_BOARDS: "",
+      WBO_BOARD_MODERATORS: `privacy-reports:${moderatorSecret}`,
+    },
+  },
+});
+
+alertsTest(
+  "personal-info alerts do not require the moderator presence gate",
+  async ({ page, boardPage, browser, server }) => {
+    await boardPage.gotoBoard("privacy-reports");
+    await expect
+      .poll(() => page.evaluate(() => window.WBOApp?.access.canEdit))
+      .toBe(true);
+    const moderatorContext = await browser.newContext();
+    try {
+      await moderatorContext.addCookies([
+        {
+          name: "wbo-user-secret-v1",
+          value: moderatorSecret,
+          url: server.serverUrl,
+        },
+      ]);
+      const moderatorPage = await moderatorContext.newPage();
+      const moderatorBoard = createBoardPage(moderatorPage, server);
+      await moderatorBoard.gotoBoard("privacy-reports");
+      await boardPage.selectTool("text");
+      await page.mouse.click(260, 240);
+      await page.locator("#textToolInput").fill("alex@example.org");
+      await expect(page.locator("#textPrivacyWarning")).toBeVisible();
+      await expect(moderatorBoard.statusTitle).toContainText(
+        "Automatic report:",
+      );
+      await expect(moderatorPage.locator("#drawingArea text")).toHaveText(
+        "alex@example.org",
+      );
+    } finally {
+      await moderatorContext.close();
+    }
+    await expect
+      .poll(() => page.evaluate(() => window.WBOApp?.access.canEdit))
+      .toBe(true);
+  },
+);
 
 test("personal information warning preserves typing, dismisses for the edit and resets", async ({
   page,

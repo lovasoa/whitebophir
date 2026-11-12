@@ -8,6 +8,7 @@ import { getToolId } from "../../client-data/js/message_tool_metadata.js";
 import { SocketEvents } from "../../client-data/js/socket_events.js";
 import { TOOL_CODE_BY_ID } from "../../client-data/tools/manifest.js";
 import { buildPronounceableName } from "../shared/pronounceable_name.mjs";
+import { getTemporaryModeratorExpiresAt } from "./temporary_moderators.mjs";
 import {
   getSocketHeaderValue,
   getSocketQueryValue,
@@ -21,6 +22,56 @@ import {
 
 /** @type {Map<string, Map<string, BoardUser>>} */
 const boardUsers = new Map();
+
+// Index only moderator candidates: drawing authorization must not scan every viewer.
+/** @type {Map<string, Map<string, BoardUser>>} */
+const boardModerators = new Map();
+
+/** @param {string} boardName @param {BoardUser} user @param {UserCapabilities} capabilities */
+export function updateBoardUserCapabilities(boardName, user, capabilities) {
+  const changed =
+    user.canEdit !== (capabilities.canEdit === true) ||
+    user.canClear !== (capabilities.canClear === true) ||
+    user.canBan !== (capabilities.canBan === true) ||
+    user.canGrantTemporaryModerator !==
+      (capabilities.canGrantTemporaryModerator === true);
+  user.canEdit = capabilities.canEdit === true;
+  user.canClear = capabilities.canClear === true;
+  user.canBan = capabilities.canBan === true;
+  user.canGrantTemporaryModerator =
+    capabilities.canGrantTemporaryModerator === true;
+  let moderators = boardModerators.get(boardName);
+  if (user.canBan) {
+    if (!moderators) {
+      moderators = new Map();
+      boardModerators.set(boardName, moderators);
+    }
+    moderators.set(user.socketId, user);
+  } else {
+    moderators?.delete(user.socketId);
+  }
+  return changed;
+}
+
+/** Returns Infinity for permanent coverage, zero for none, or the last temporary expiry.
+ * @param {string} boardName @param {number} [now]
+ */
+export function boardModeratorExpiresAt(boardName, now = Date.now()) {
+  let expiresAt = 0;
+  for (const user of boardModerators.get(boardName)?.values() || []) {
+    if (user.canGrantTemporaryModerator) return Infinity;
+    expiresAt = Math.max(
+      expiresAt,
+      getTemporaryModeratorExpiresAt(boardName, user.userSecret, now) || 0,
+    );
+  }
+  return expiresAt;
+}
+
+/** @param {string} boardName */
+export function hasOnlineModerator(boardName) {
+  return boardModeratorExpiresAt(boardName) > Date.now();
+}
 
 /**
  * @param {string} userSecret
@@ -114,6 +165,7 @@ function cleanupBoardUserMap(boardName) {
  * @returns {void}
  */
 function clearBoardUsers(boardName) {
+  boardModerators.delete(boardName);
   const users = boardUsers.get(boardName);
   if (!users) return;
   users.clear();
@@ -168,6 +220,7 @@ function ensureBoardUser(
     capabilities,
   );
   users.set(socket.id, user);
+  updateBoardUserCapabilities(boardName, user, capabilities);
   return user;
 }
 
@@ -213,8 +266,11 @@ function emitUserUpdatedToBoard(socket, boardName, user) {
  * @returns {void}
  */
 function removeBoardUser(socket, boardName) {
-  const users = getBoardUserMap(boardName);
-  if (!users.delete(socket.id)) return;
+  const moderators = boardModerators.get(boardName);
+  moderators?.delete(socket.id);
+  if (moderators?.size === 0) boardModerators.delete(boardName);
+  const users = boardUsers.get(boardName);
+  if (!users?.delete(socket.id)) return;
   socket.broadcast.to(boardName).emit(SocketEvents.USER_LEFT, {
     socketId: socket.id,
   });
@@ -277,6 +333,7 @@ function updateBoardUserFromMessage(socket, boardName, data, now) {
  */
 function resetBoardUserMaps() {
   boardUsers.clear();
+  boardModerators.clear();
 }
 
 export {

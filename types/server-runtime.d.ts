@@ -103,6 +103,7 @@ export type SocketBoardPermissionContext = {
 };
 
 export type AppSocket = import("socket.io").Socket & {
+  personalInfoReportAt?: number;
   boardName?: string;
   boardPermissionContext?: SocketBoardPermissionContext;
   replayBootstrap?: unknown;

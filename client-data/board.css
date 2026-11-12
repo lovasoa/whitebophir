@@ -577,7 +577,7 @@ select {
   max-width: 100%;
 }
 
-.anonymous-welcome {
+.board-notice {
   box-sizing: border-box;
   border: 1px solid var(--board-control-border);
   background: var(--board-control-bg);
@@ -586,7 +586,7 @@ select {
   line-height: 1.45;
 }
 
-.anonymous-welcome {
+.board-notice {
   width: min(360px, var(--board-hud-max-width));
   min-width: 0;
   max-height: calc(100dvh - 140px);
@@ -597,28 +597,28 @@ select {
   box-shadow: var(--board-control-shadow);
 }
 
-.anonymous-welcome h2 {
+.board-notice h2 {
   margin: 0;
   color: #111827;
   font-size: 14px;
 }
 
-.anonymous-welcome p {
+.board-notice p {
   margin: 10px 0;
 }
 
-.anonymous-welcome-actions {
+.board-notice-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
 
-.anonymous-welcome a {
+.board-notice a {
   color: inherit;
 }
 
-.anonymous-welcome button {
+.board-notice button {
   padding: 4px 10px;
   border: 1px solid var(--board-control-border-strong);
   border-radius: var(--board-control-radius);
@@ -629,7 +629,7 @@ select {
 }
 
 .board-rules-link:focus-visible,
-.anonymous-welcome :is(a, button):focus-visible {
+.board-notice :is(a, button):focus-visible {
   outline: 2px solid var(--board-accent-strong);
   outline-offset: 2px;
 }

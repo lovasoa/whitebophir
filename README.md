@@ -106,7 +106,8 @@ Permanent moderators can grant temporary moderator access from the users menu.
 Temporary grants and bans are local to the board and process and disappear on
 restart. Temporary moderators cannot delegate their role. Ordinary user reports
 disconnect the reporter and target without creating a ban; moderator actions
-can warn, ban, and revoke bans.
+can warn, ban, and revoke bans. Published text matching the personal-information
+warning automatically alerts online moderators on every board, without banning.
 
 ### Read-only boards
 
@@ -118,14 +119,12 @@ read-only boards. Legacy JSON boards are migrated to SVG when loaded.
 
 ## Configuration
 
-When you start a WBO server, it loads its configuration from several environment variables.
-You can see a list of these variables in [`configuration.mjs`](./server/configuration.mjs).
-Common settings:
+Environment variables are read at startup; see [`configuration.mjs`](./server/configuration.mjs). Common settings:
 
 - `WBO_HISTORY_DIR` : configures the directory where the boards are saved. Defaults to `./server-data/`.
 - `WBO_BASE_PATH` : optional external URL path prefix, such as `/wbo`, for deployments mounted under a reverse-proxy subfolder.
 - `WBO_HTML_HEAD_SNIPPET_PATH` : trusted HTML inserted before `</head>`, read once at startup. Scripts can read the package version from `document.documentElement.dataset.wboVersion`.
-- `WBO_MAX_EMIT_COUNT` : the general per-IP socket write limit profile. Use compact entries such as `*:250/5s anonymous:125/5s`. Increase this if you want smoother drawings, at the expense of making denial-of-service bursts cheaper for clients. The default is `*:250/5s`.
+- `WBO_MODERATOR_REQUIRED_BOARDS` : comma-separated board names (e.g. `anonymous`), empty/disabled by default. Listed boards pause editing and show a safety/recruitment notice while no permanent or unexpired temporary moderator is online.
 - `WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP` : the constructive per-IP write limit profile. Use compact entries such as `*:40/10s anonymous:20/10s`.
 - `WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP` : the destructive per-IP write limit profile. Use compact entries such as `*:190/60s anonymous:95/60s`.
 - `WBO_IP_SOURCE` : `remoteAddress` (default) ignores forwarded headers. Behind a trusted proxy, set `X-Forwarded-For`, `Forwarded`, or a custom header such as `CF-Connecting-IP` to trust forwarded client IP, host, and protocol.

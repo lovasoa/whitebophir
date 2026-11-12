@@ -8,7 +8,7 @@ test("anonymous welcome is dismissed for 30 days only after acknowledgement", as
   server,
 }, testInfo) => {
   await page.goto(`${server.serverUrl}/boards/anonymous?lang=en`);
-  const welcome = page.locator("#anonymousWelcome");
+  const welcome = page.locator("#boardNotice");
   await expect(welcome).toBeVisible();
   await expect(welcome).toContainText("Welcome! This board is public.");
   await expect(welcome).toContainText("secret chats or naked pictures");
@@ -99,18 +99,18 @@ test("old, invalid and expired dismissals do not hide the welcome; named boards 
     { name: cookieName, value: "invalid", url: server.serverUrl },
   ]);
   await page.goto(`${server.serverUrl}/boards/anonymous?lang=en`);
-  await expect(page.locator("#anonymousWelcome")).toBeVisible();
+  await expect(page.locator("#boardNotice")).toBeVisible();
   await context.addCookies([
     { name: cookieName, value: "dismissed", url: server.serverUrl, expires: 1 },
   ]);
   await page.reload();
-  await expect(page.locator("#anonymousWelcome")).toBeVisible();
+  await expect(page.locator("#boardNotice")).toBeVisible();
   await page.goto(`${server.serverUrl}/boards/welcome-private-test?lang=en`);
   await expect(page.locator("html")).toHaveAttribute(
     "data-board-phase",
     "ready",
   );
-  await expect(page.locator("#anonymousWelcome")).toBeHidden();
+  await expect(page.locator("#boardNotice")).toBeHidden();
   await expect(page.locator("#rulesSafetyLink")).toBeHidden();
 });
 
@@ -121,7 +121,7 @@ for (const language of ["ar", "fr", "ja", "my"]) {
   }, testInfo) => {
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto(`${server.serverUrl}/boards/anonymous?lang=${language}`);
-    const welcome = page.locator("#anonymousWelcome");
+    const welcome = page.locator("#boardNotice");
     await expect(welcome).toBeVisible();
     await expect(welcome).toHaveAttribute(
       "dir",

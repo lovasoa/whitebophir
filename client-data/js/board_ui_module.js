@@ -841,7 +841,51 @@ export function showModerationDisconnectNotice(options) {
   });
 }
 
+/** @typedef {{title: string, paragraphs: string[], onDismiss?: () => void}} NoticeContent */
+/** @typedef {{panel: HTMLElement, title: HTMLElement, body: HTMLElement, dismissButton: HTMLElement, restoreFocusElement: HTMLElement}} NoticePanelOptions */
+
+/** Renders one notice at a time. Content and acknowledgement policies belong to callers.
+ * @param {NoticePanelOptions} elements
+ */
+export function createNoticePanel(elements) {
+  /** @type {NoticeContent | null} */
+  let current = null;
+  let dismissed = false;
+  elements.dismissButton.addEventListener("click", () => {
+    if (!current) return;
+    dismissed = true;
+    elements.panel.hidden = true;
+    current.onDismiss?.();
+    elements.restoreFocusElement.focus();
+  });
+  return {
+    /** @param {NoticeContent | null} notice */
+    show(notice) {
+      if (notice !== current) {
+        current = notice;
+        dismissed = false;
+        if (notice) {
+          elements.title.textContent = notice.title;
+          elements.body.replaceChildren(
+            ...notice.paragraphs.map((text) => {
+              const paragraph = document.createElement("p");
+              paragraph.textContent = text;
+              return paragraph;
+            }),
+          );
+        }
+      }
+      elements.panel.hidden = !notice || dismissed;
+    },
+  };
+}
+
 export class UiModule {
+  /** @param {NoticePanelOptions} options */
+  createNoticePanel(options) {
+    return createNoticePanel(options);
+  }
+
   /** @param {AnchoredPanelPositionOptions} options */
   positionAnchoredPanel(options) {
     return positionAnchoredPanel(options);

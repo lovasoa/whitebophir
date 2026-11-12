@@ -1,4 +1,5 @@
 import { attachBoardDomToRuntime } from "./board_dom_bootstrap.js";
+import { createBoardNotices } from "./board_notices.js";
 import { updateDocumentTitle } from "./board_message_module.js";
 import {
   DEFAULT_BOARD_STATE,
@@ -15,7 +16,7 @@ import { addToolShortcut } from "./board_tool_buttons.js";
 import { clampOpacity, LIMITS } from "./message_limits.js";
 import { isTextEntryTarget } from "./text_entry_target.js";
 
-/** @import { AppToolsState, ColorPreset } from "../../types/app-runtime" */
+/** @import { AppBoardState, AppToolsState, ColorPreset } from "../../types/app-runtime" */
 
 export { createInitialPreferences, DEFAULT_COLOR_PRESETS };
 
@@ -59,6 +60,9 @@ export class BoardShellModule {
   constructor(getTools, logBoardEvent) {
     this.getTools = getTools;
     this.logBoardEvent = logBoardEvent;
+    this.syncBoardNotice = /** @type {(state: AppBoardState) => void} */ (
+      () => {}
+    );
   }
 
   /**
@@ -75,7 +79,7 @@ export class BoardShellModule {
 
   initializePageChrome() {
     document.documentElement.dataset.activeToolSecondary = "false";
-    this.bindAnonymousWelcome();
+    this.bindBoardNotice();
     this.trackRecentBoardsOnPageShow();
     this.bindRenderedTools();
     this.applyInitialBoardState();
@@ -91,36 +95,25 @@ export class BoardShellModule {
     });
   }
 
-  bindAnonymousWelcome() {
+  bindBoardNotice() {
     const Tools = this.getTools();
-    if (Tools.identity.boardName !== "anonymous") return;
-
-    const cookieName = "wbo_anonymous_welcome_v1";
-    const dismissed = document.cookie
-      .split(";")
-      .some((cookie) => cookie.trim() === `${cookieName}=dismissed`);
-    if (dismissed) return;
-
-    const welcome = getRequiredElement("anonymousWelcome");
-    for (const key of [
-      "anonymous_welcome_title",
-      "anonymous_welcome_rules",
-      "anonymous_welcome_safety",
+    const dismissButton = getRequiredElement("boardNoticeDismiss");
+    dismissButton.textContent = Tools.i18n.t("anonymous_welcome_dismiss");
+    getRequiredElement("boardNoticeRules").textContent = Tools.i18n.t(
       "anonymous_welcome_read_rules",
-      "anonymous_welcome_dismiss",
-    ]) {
-      getRequiredElement(key).textContent = Tools.i18n.t(key);
-    }
-    getRequiredElement("anonymous_welcome_dismiss").addEventListener(
-      "click",
-      () => {
-        // biome-ignore lint/suspicious/noDocumentCookie: One fixed acknowledgement cookie; works without the Cookie Store API.
-        document.cookie = `${cookieName}=dismissed; Max-Age=2592000; Path=/; SameSite=Lax; Secure`;
-        welcome.hidden = true;
-        getRequiredElement("connectedUsersToggle").focus();
-      },
     );
-    welcome.hidden = false;
+    const panel = Tools.ui.createNoticePanel({
+      panel: getRequiredElement("boardNotice"),
+      title: getRequiredElement("boardNoticeTitle"),
+      body: getRequiredElement("boardNoticeBody"),
+      dismissButton,
+      restoreFocusElement: getRequiredElement("connectedUsersToggle"),
+    });
+    this.syncBoardNotice = createBoardNotices({
+      boardName: Tools.identity.boardName,
+      i18n: Tools.i18n,
+      show: panel.show,
+    });
   }
 
   saveBoardNameToLocalStorage() {
