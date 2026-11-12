@@ -151,7 +151,7 @@ function assertSnippetBeforeHeadEnd(body, snippet) {
 
 /**
  * @param {string} body
- * @returns {{readonly: boolean, canEdit: boolean, canClear: boolean, canBan: boolean, canReport?: boolean, canWrite?: boolean, accessRefreshAfterMs?: number}}
+ * @returns {import("../types/app-runtime.d.ts").AppBoardState}
  */
 function parseRenderedBoardState(body) {
   const match = body.match(
@@ -1708,6 +1708,30 @@ test("board-scoped JWTs can access their authorized board pages", async () => {
       canWrite: true,
     });
     assert.match(moderatorResponse.body, /toolID-clear/);
+  } finally {
+    await closeServer(app);
+  }
+});
+
+test("moderator-required boards render read-only before connecting, without affecting other boards", async () => {
+  const dirs = await createServerDirs();
+  const app = await createTestServer(
+    createServerConfig(dirs, {
+      WEBROOT: CLIENT_WEBROOT,
+      MODERATOR_REQUIRED_BOARDS: ["moderated-http"],
+    }),
+  );
+  try {
+    const response = await request(app, "/boards/moderated-http");
+    assert.equal(response.statusCode, 200);
+    const state = parseRenderedBoardState(response.body);
+    assert.equal(state.moderationUnavailable, true);
+    assert.equal(state.readonly, true);
+    assert.equal(state.canEdit, false);
+    assert.equal(state.canWrite, false);
+    assert.match(response.body, /id="toolID-pencil"[^>]*hidden/);
+    const other = await request(app, "/boards/unmoderated-http");
+    assert.equal(parseRenderedBoardState(other.body).canEdit, true);
   } finally {
     await closeServer(app);
   }

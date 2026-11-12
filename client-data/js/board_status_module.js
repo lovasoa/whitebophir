@@ -82,7 +82,7 @@ export class StatusModule {
   }
 
   /**
-   * @param {{reporterName?: string, reportedName?: string}} payload
+   * @param {{reporterName?: string, reportedName?: string, automatic?: boolean}} payload
    */
   showUserReportNotice(payload) {
     const Tools = this.getTools();
@@ -90,16 +90,21 @@ export class StatusModule {
       typeof payload?.reporterName === "string" ? payload.reporterName : "";
     const reportedName =
       typeof payload?.reportedName === "string" ? payload.reportedName : "";
-    if (!reporterName || !reportedName) return;
+    if ((!reporterName && payload?.automatic !== true) || !reportedName) return;
 
     this.showBoardStatus(
       {
         hidden: false,
         state: "paused",
-        title: Tools.i18n.format("user_report_notice", {
-          reporter: reporterName,
-          reported: reportedName,
-        }),
+        title: Tools.i18n.format(
+          payload.automatic === true
+            ? "personal_information_auto_report"
+            : "user_report_notice",
+          {
+            reporter: reporterName,
+            reported: reportedName,
+          },
+        ),
         detail: "",
       },
       8000,
@@ -165,6 +170,14 @@ export class StatusModule {
         hidden: false,
         state: "buffering",
         title: Tools.i18n.t("loading"),
+        detail: "",
+      };
+    }
+    if (Tools.access.boardState.moderationUnavailable) {
+      return {
+        hidden: false,
+        state: "paused",
+        title: Tools.i18n.t("moderation_unavailable_title"),
         detail: "",
       };
     }

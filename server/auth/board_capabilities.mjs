@@ -11,7 +11,7 @@ import { forbidden } from "../http/boundary_errors.mjs";
 import { roleInBoard } from "./board_jwt.mjs";
 import { isConfiguredModerator } from "./board_moderators.mjs";
 
-/** @typedef {{AUTH_SECRET_KEY: string, BOARD_MODERATORS?: Map<string, Set<string>>}} BoardCapabilityConfig */
+/** @typedef {{AUTH_SECRET_KEY: string, BOARD_MODERATORS?: Map<string, Set<string>>, MODERATOR_REQUIRED_BOARDS?: string[]}} BoardCapabilityConfig */
 /** @typedef {{name: string, readonly?: boolean, isReadOnly?: () => boolean}} BoardCapabilityBoard */
 /** @typedef {{token?: string | null, userSecret?: string | null}} BoardCapabilityUserInfo */
 /** @typedef {() => boolean} IsBannedPredicate */
@@ -23,6 +23,13 @@ import { isConfiguredModerator } from "./board_moderators.mjs";
 /** @typedef {{tool?: unknown, type?: unknown, _children?: unknown}} CapabilityMessage */
 
 const CURSOR_TOOL_CODE = TOOL_CODE_BY_ID.cursor;
+
+/** @param {BoardCapabilityConfig} config @param {string} boardName */
+export function requiresOnlineModerator(config, boardName) {
+  return (
+    config.MODERATOR_REQUIRED_BOARDS?.includes(boardName.toLowerCase()) === true
+  );
+}
 
 /**
  * @param {BoardCapabilityBoard} board
@@ -82,7 +89,7 @@ function capabilitiesGrant(capabilities, capability) {
  * access once. `isBanned` remains supported for ban sources without an expiry.
  * Moderators bypass both. Defaults to never-banned.
  *
- * @param {{config: BoardCapabilityConfig, boardName: string, userInfo?: BoardCapabilityUserInfo, isBanned?: IsBannedPredicate, getBanExpiresAt?: GetBanExpiresAt, getTemporaryModeratorExpiresAt?: GetTemporaryModeratorExpiresAt}} input
+ * @param {{config: BoardCapabilityConfig, boardName: string, userInfo?: BoardCapabilityUserInfo, isBanned?: IsBannedPredicate, getBanExpiresAt?: GetBanExpiresAt, getTemporaryModeratorExpiresAt?: GetTemporaryModeratorExpiresAt, hasOnlineModerator?: () => boolean}} input
  * @returns {{
  *   canOpen: () => boolean,
  *   canBan: () => boolean,
@@ -98,7 +105,15 @@ function forBoard(input) {
   const jwtEnabled = input.config.AUTH_SECRET_KEY !== "";
   const role = roleForBoard(input.config, input.boardName, input.userInfo);
   const permanentModerator = isClearCapableRole(role);
+  const moderatorRequired = requiresOnlineModerator(
+    input.config,
+    input.boardName,
+  );
   const fallbackIsBanned = input.isBanned || (() => false);
+
+  function moderationUnavailable() {
+    return moderatorRequired && !input.hasOnlineModerator?.();
+  }
 
   /**
    * Reads one coherent ban snapshot for a capability response. Expiry-aware
@@ -159,14 +174,19 @@ function forBoard(input) {
   /**
    * @param {BoardCapabilityBoard} board
    * @param {{moderator: boolean, banned: boolean}} accessState
+   * @param {boolean} [unavailable]
    * @returns {BoardCapabilities}
    */
-  function resolveCapabilitiesForAccessState(board, accessState) {
+  function resolveCapabilitiesForAccessState(
+    board,
+    accessState,
+    unavailable = moderationUnavailable(),
+  ) {
     const readonly = isBoardReadOnly(board);
     if (!jwtEnabled && !accessState.moderator) {
       return {
         canOpen: true,
-        canEdit: !readonly && !accessState.banned,
+        canEdit: !unavailable && !readonly && !accessState.banned,
         canClear: false,
       };
     }
@@ -177,9 +197,10 @@ function forBoard(input) {
       canOpen: open,
       canEdit:
         open &&
+        !unavailable &&
         !accessState.banned &&
         (!readonly || accessState.moderator || isEditCapableRole(role)),
-      canClear: accessState.moderator,
+      canClear: !unavailable && accessState.moderator,
     };
   }
 
@@ -197,9 +218,15 @@ function forBoard(input) {
    */
   function boardState(board) {
     const accessState = readAccessState();
-    const capabilities = resolveCapabilitiesForAccessState(board, accessState);
+    const unavailable = moderationUnavailable();
+    const capabilities = resolveCapabilitiesForAccessState(
+      board,
+      accessState,
+      unavailable,
+    );
     return {
       ...boardStateForCapabilities(board, capabilities),
+      ...(unavailable ? { readonly: true, moderationUnavailable: true } : {}),
       canBan: accessState.moderator,
       canGrantTemporaryModerator: permanentModerator,
       canReport: capabilities.canOpen && !accessState.banned,

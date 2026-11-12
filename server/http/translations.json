@@ -1,5 +1,9 @@
 {
   "ar": {
+    "moderation_unavailable_title": "اللوحة للقراءة فقط: لا يوجد مشرف متصل",
+    "moderation_unavailable_safety": "لا يوجد مشرف متصل حاليًا، لذا يمكنك مشاهدة اللوحة ولكن لا يمكنك تعديلها. رُصد على الموقع أشخاص يستدرجون الأطفال، وقدرتنا الحالية على الإشراف محدودة.",
+    "moderation_unavailable_recruitment": "إذا كنت بالغًا وتستخدم الموقع منذ مدة طويلة وتريد استمراره، فتواصل مع أحد المشرفين للانضمام إلى فريق الإشراف. نعتذر، لكننا نفضّل أن يقل عدد المستخدمين على أن نعرّض الأطفال للاستغلال.",
+    "personal_information_auto_report": "بلاغ تلقائي: نشر {reported} نصًا قد يتضمن معلومات شخصية أو طلبًا لها رغم التحذير. يُرجى مراجعته.",
     "personal_information_warning": "يمكن لأي شخص قراءة ما على هذه اللوحة. لا تشارك رقم هاتفك أو عنوان منزلك أو اسم مدرستك أو أي وسيلة للتواصل معك. إذا طلب منك أحد هذه المعلومات أو أراد التحدث معك في محادثة خاصة، فتوقّف عن الرد وأخبر شخصًا بالغًا تثق به.",
     "personal_information_dismiss": "إخفاء تنبيه المعلومات الشخصية",
     "white-out": "مزيل الحبر",
@@ -132,6 +136,10 @@
     "rules_safety_link": "القواعد والسلامة"
   },
   "be": {
+    "moderation_unavailable_title": "Толькі прагляд: няма мадэратара анлайн",
+    "moderation_unavailable_safety": "Зараз няма мадэратара анлайн, таму дошку можна праглядаць, але нельга змяняць. На сайце былі заўважаныя людзі, якія спрабуюць уцягнуць дзяцей у небяспечныя адносіны. Нашы магчымасці мадэрацыі пакуль абмежаваныя.",
+    "moderation_unavailable_recruitment": "Калі вы паўналетні, даўно карыстаецеся сайтам і хочаце, каб ён працягваў працаваць, звяжыцеся з адным з мадэратараў, каб далучыцца да каманды. Прабачце, але мы лепш страцім частку карыстальнікаў, чым падвергнем дзяцей небяспецы.",
+    "personal_information_auto_report": "Аўтаматычная скарга: {reported} апублікаваў(-ла) тэкст з магчымымі асабістымі звесткамі або просьбай іх даць, нягледзячы на папярэджанне. Праверце яго.",
     "personal_information_warning": "Усё на гэтай дошцы можа прачытаць хто заўгодна. Не дзяліся сваім нумарам тэлефона, хатнім адрасам, тым, у якой школе ты вучышся, або тым, як з табой звязацца. Калі хтосьці просіць гэтыя звесткі або хоча перапісвацца з табой у асабістых паведамленнях, перастань адказваць і раскажы даросламу, якому давяраеш.",
     "personal_information_dismiss": "Закрыць папярэджанне пра асабістыя даныя",
     "white-out": "Замазка",
@@ -264,6 +272,10 @@
     "rules_safety_link": "Правілы і бяспека"
   },
   "ca": {
+    "moderation_unavailable_title": "Només lectura: no hi ha cap moderador connectat",
+    "moderation_unavailable_safety": "Ara no hi ha cap moderador connectat: pots veure la pissarra, però no modificar-la. S’han detectat al lloc persones que intenten captar menors amb finalitats sexuals i la nostra capacitat de moderació és limitada.",
+    "moderation_unavailable_recruitment": "Si ets major d’edat, fa temps que utilitzes el lloc i vols que continuï, contacta amb un moderador per unir-te a l’equip. Ens sap greu, però preferim tenir menys usuaris que exposar els infants a depredadors sexuals.",
+    "personal_information_auto_report": "Avís automàtic: {reported} ha publicat text que podria compartir o demanar dades personals malgrat l’advertiment. Revisa’l.",
     "personal_information_warning": "Qualsevol persona pot llegir aquesta pissarra. No comparteixis el teu número de telèfon, l’adreça de casa, a quina escola vas ni com contactar amb tu. Si algú et demana aquestes dades o vol parlar amb tu en privat, deixa de respondre i explica-ho a una persona adulta de confiança.",
     "personal_information_dismiss": "Tanca l’avís de dades personals",
     "white-out": "Corrector blanc",
@@ -396,6 +408,10 @@
     "rules_safety_link": "Normes i seguretat"
   },
   "de": {
+    "moderation_unavailable_title": "Nur Lesen: Niemand aus dem Moderationsteam ist online",
+    "moderation_unavailable_safety": "Zurzeit ist niemand aus dem Moderationsteam online. Du kannst das Board ansehen, aber nicht bearbeiten. Auf der Website wurden Personen beobachtet, die Kinder gezielt für sexuelle Übergriffe ansprechen. Unsere Moderationsmöglichkeiten sind derzeit begrenzt.",
+    "moderation_unavailable_recruitment": "Du bist volljährig, nutzt die Website schon lange und möchtest, dass sie weiterbesteht? Kontaktiere ein Mitglied des Moderationsteams, um mitzuhelfen. Es tut uns leid, aber wir nehmen lieber weniger Nutzende in Kauf, als Kinder solchen Gefahren auszusetzen.",
+    "personal_information_auto_report": "Automatische Meldung: {reported} hat trotz Warnung Text veröffentlicht, der möglicherweise persönliche Daten enthält oder danach fragt. Bitte prüfen.",
     "personal_information_warning": "Alle können lesen, was auf diesem Board steht. Gib deine Telefonnummer und deine Wohnadresse nicht weiter. Verrate auch nicht, auf welche Schule du gehst oder wie man dich erreichen kann. Wenn dich jemand danach fragt oder privat mit dir chatten möchte, antworte nicht mehr und erzähle es einer erwachsenen Person, der du vertraust.",
     "personal_information_dismiss": "Hinweis zu persönlichen Daten schließen",
     "board_name_placeholder": "Name des Whiteboards…",
@@ -528,6 +544,10 @@
     "rules_safety_link": "Regeln & Sicherheit"
   },
   "en": {
+    "moderation_unavailable_title": "Read-only: no moderator is online",
+    "moderation_unavailable_safety": "No moderator is online, so you can view this board but cannot change it. Predators targeting children have been seen on the site, and our moderation capacity is currently limited.",
+    "moderation_unavailable_recruitment": "If you are an adult, have used the site for a long time, and want it to continue, please contact an existing moderator about joining the moderation team. We are sorry, but we would rather have fewer users than expose children to predators.",
+    "personal_information_auto_report": "Automatic report: {reported} published text that may share or request personal information despite the warning. Please review it.",
     "personal_information_warning": "Anyone can read this board. Don't share your phone number, address, school, or how to contact you. If someone asks for these or wants to chat privately, stop replying and tell an adult you trust.",
     "personal_information_dismiss": "Dismiss personal information warning",
     "white-out": "White-out",
@@ -660,6 +680,10 @@
     "rules_safety_link": "Rules & safety"
   },
   "es": {
+    "moderation_unavailable_title": "Solo lectura: no hay ningún moderador conectado",
+    "moderation_unavailable_safety": "Ahora no hay ningún moderador conectado: puedes ver la pizarra, pero no modificarla. Se ha detectado en el sitio a personas que intentan captar a menores con fines sexuales y nuestra capacidad de moderación es limitada.",
+    "moderation_unavailable_recruitment": "Si eres mayor de edad, llevas mucho tiempo usando el sitio y quieres que continúe, contacta con un moderador para unirte al equipo. Lo sentimos, pero preferimos tener menos usuarios que exponer a los niños a depredadores sexuales.",
+    "personal_information_auto_report": "Aviso automático: {reported} ha publicado texto que podría compartir o solicitar datos personales pese a la advertencia. Revísalo.",
     "personal_information_warning": "Cualquiera puede leer esta pizarra. No compartas tu número de teléfono, la dirección de tu casa, a qué escuela vas ni cómo contactar contigo. Si alguien te pide estos datos o quiere hablar contigo en privado, deja de responder y cuéntaselo a una persona adulta de confianza.",
     "personal_information_dismiss": "Cerrar el aviso de datos personales",
     "board_name_placeholder": "Nombre de la pizarra…",
@@ -792,6 +816,10 @@
     "rules_safety_link": "Normas y seguridad"
   },
   "fr": {
+    "moderation_unavailable_title": "Lecture seule : aucun modérateur en ligne",
+    "moderation_unavailable_safety": "Aucun modérateur n’est en ligne : vous pouvez consulter ce tableau, mais pas le modifier. Des prédateurs ciblant des enfants ont été repérés sur le site et nos capacités de modération sont actuellement limitées.",
+    "moderation_unavailable_recruitment": "Si vous êtes adulte, fréquentez le site depuis longtemps et souhaitez qu’il continue, contactez un modérateur pour rejoindre l’équipe. Nous sommes désolés, mais nous préférons avoir moins d’utilisateurs plutôt que d’exposer des enfants à des prédateurs.",
+    "personal_information_auto_report": "Signalement automatique : {reported} a publié un texte susceptible de partager ou de demander des informations personnelles malgré l’avertissement. Merci de le vérifier.",
     "personal_information_warning": "Tout le monde peut lire ce tableau. Ne partage pas ton numéro de téléphone, l’adresse où tu habites, le nom de ton école ni les moyens de te contacter. Si quelqu’un te demande ces informations ou veut discuter avec toi en privé, arrête de lui répondre et parles-en à un adulte de confiance.",
     "personal_information_dismiss": "Fermer l’avertissement sur les informations personnelles",
     "board_name_placeholder": "Nom du tableau…",
@@ -924,6 +952,10 @@
     "rules_safety_link": "Règles et sécurité"
   },
   "hu": {
+    "moderation_unavailable_title": "Csak olvasható: nincs moderátor online",
+    "moderation_unavailable_safety": "Most nincs moderátor online, ezért a táblát megtekintheted, de nem módosíthatod. Az oldalon gyermekeket behálózó személyeket észleltünk, és jelenleg korlátozottak a moderálási lehetőségeink.",
+    "moderation_unavailable_recruitment": "Ha nagykorú vagy, régóta használod az oldalt, és szeretnéd, hogy tovább működjön, lépj kapcsolatba egy moderátorral, hogy csatlakozhass a csapathoz. Sajnáljuk, de inkább legyen kevesebb felhasználónk, mint hogy gyermekeket tegyünk ki ilyen veszélynek.",
+    "personal_information_auto_report": "Automatikus bejelentés: {reported} a figyelmeztetés ellenére személyes adatokat esetleg megosztó vagy kérő szöveget tett közzé. Kérjük, ellenőrizd.",
     "personal_information_warning": "Ezt a táblát bárki elolvashatja. Ne oszd meg a telefonszámodat, a lakcímedet, hogy melyik iskolába jársz, vagy azt, hogyan lehet veled kapcsolatba lépni. Ha valaki ezeket az adatokat kéri, vagy privátban szeretne beszélgetni veled, ne válaszolj többé, és szólj egy felnőttnek, akiben megbízol.",
     "personal_information_dismiss": "Személyes adatokra figyelmeztető üzenet bezárása",
     "white-out": "Lefedő",
@@ -1056,6 +1088,10 @@
     "rules_safety_link": "Szabályok és biztonság"
   },
   "id": {
+    "moderation_unavailable_title": "Hanya baca: tidak ada moderator yang daring",
+    "moderation_unavailable_safety": "Saat ini tidak ada moderator yang daring, jadi papan ini dapat dilihat tetapi tidak dapat diubah. Predator yang mengincar anak-anak telah ditemukan di situs ini, sementara kemampuan moderasi kami masih terbatas.",
+    "moderation_unavailable_recruitment": "Jika Anda sudah dewasa, telah lama menggunakan situs ini, dan ingin situs ini terus berjalan, hubungi moderator yang ada untuk bergabung dengan tim. Kami mohon maaf, tetapi kami lebih memilih pengguna yang lebih sedikit daripada membahayakan anak-anak dengan paparan predator.",
+    "personal_information_auto_report": "Laporan otomatis: {reported} menerbitkan teks yang mungkin membagikan atau meminta informasi pribadi meskipun sudah diperingatkan. Harap periksa.",
     "personal_information_warning": "Siapa pun bisa membaca isi papan ini. Jangan bagikan nomor telepon, alamat rumah, nama sekolahmu, atau cara menghubungimu. Kalau ada yang meminta informasi ini atau mengajakmu mengobrol secara pribadi, berhenti membalas dan beri tahu orang dewasa yang kamu percaya.",
     "personal_information_dismiss": "Tutup peringatan informasi pribadi",
     "white-out": "Cairan koreksi",
@@ -1188,6 +1224,10 @@
     "rules_safety_link": "Aturan & keselamatan"
   },
   "it": {
+    "moderation_unavailable_title": "Sola lettura: nessun moderatore online",
+    "moderation_unavailable_safety": "Al momento non c’è nessun moderatore online: puoi vedere la lavagna, ma non modificarla. Sul sito sono state individuate persone che cercano di adescare minori e le nostre capacità di moderazione sono attualmente limitate.",
+    "moderation_unavailable_recruitment": "Se sei maggiorenne, frequenti il sito da molto tempo e vuoi che continui, contatta un moderatore per unirti al gruppo. Ci dispiace, ma preferiamo avere meno utenti piuttosto che esporre i bambini ai predatori.",
+    "personal_information_auto_report": "Segnalazione automatica: {reported} ha pubblicato un testo che potrebbe condividere o richiedere dati personali nonostante l’avviso. Controllalo.",
     "personal_information_warning": "Chiunque può leggere questa lavagna. Non condividere il tuo numero di telefono, il tuo indirizzo di casa, quale scuola frequenti o come contattarti. Se qualcuno ti chiede queste informazioni o vuole chattare con te in privato, smetti di rispondere e parlane con una persona adulta di cui ti fidi.",
     "personal_information_dismiss": "Chiudi l’avviso sui dati personali",
     "board_name_placeholder": "Nome della lavagna…",
@@ -1320,6 +1360,10 @@
     "rules_safety_link": "Regole e sicurezza"
   },
   "ja": {
+    "moderation_unavailable_title": "閲覧のみ：モデレーターが不在です",
+    "moderation_unavailable_safety": "現在オンラインのモデレーターがいないため、このボードは閲覧できますが編集できません。サイト上で子どもを性的な目的で誘い出そうとする人が確認されており、現在の管理体制には限りがあります。",
+    "moderation_unavailable_recruitment": "成人で、このサイトを長く利用しており、今後も存続してほしい方は、既存のモデレーターに連絡して運営チームへの参加をご相談ください。申し訳ありませんが、子どもを危険にさらすよりも、利用者が減ることを選びます。",
+    "personal_information_auto_report": "自動通報：{reported} が警告後も、個人情報の共有や要求に当たる可能性のある文章を投稿しました。確認してください。",
     "personal_information_warning": "このボードに書いたことは、だれでも読むことができます。電話番号、家の住所、通っている学校、連絡先を教えないでください。だれかにこうした情報を聞かれたり、個別に話そうと誘われたりしたら、返事をやめて、信頼できる大人に話してください。",
     "personal_information_dismiss": "個人情報の警告を閉じる",
     "board_name_placeholder": "ボードの名前",
@@ -1452,6 +1496,10 @@
     "rules_safety_link": "ルールと安全"
   },
   "my": {
+    "moderation_unavailable_title": "ကြည့်ရှုရန်သာ — ထိန်းသိမ်းသူ အွန်လိုင်းတွင် မရှိပါ",
+    "moderation_unavailable_safety": "ယခု ထိန်းသိမ်းသူ အွန်လိုင်းတွင် မရှိသောကြောင့် ဘုတ်ကို ကြည့်ရှုနိုင်သော်လည်း ပြင်ဆင်၍ မရပါ။ ကလေးများကို လိင်ပိုင်းဆိုင်ရာ အမြတ်ထုတ်ရန် ချဉ်းကပ်သူများကို ဆိုက်ပေါ်တွင် တွေ့ရှိခဲ့ပြီး ကျွန်ုပ်တို့၏ ထိန်းသိမ်းစောင့်ကြည့်နိုင်မှုမှာ လောလောဆယ် အကန့်အသတ်ရှိပါသည်။",
+    "moderation_unavailable_recruitment": "သင်သည် အရွယ်ရောက်ပြီးသူဖြစ်၍ ဆိုက်ကို အချိန်ကြာကြာ အသုံးပြုခဲ့ကာ ဆက်လက်လည်ပတ်စေလိုပါက ထိန်းသိမ်းရေးအဖွဲ့တွင် ပါဝင်ရန် လက်ရှိထိန်းသိမ်းသူတစ်ဦးကို ဆက်သွယ်ပါ။ ဝမ်းနည်းပါသည်။ ကလေးများကို အန္တရာယ်ရှိသူများနှင့် ထိတွေ့စေမည့်အစား အသုံးပြုသူ နည်းပါးခြင်းကိုသာ ရွေးချယ်လိုပါသည်။",
+    "personal_information_auto_report": "အလိုအလျောက် တိုင်ကြားချက် — {reported} သည် သတိပေးချက်ရှိသော်လည်း ကိုယ်ရေးအချက်အလက် မျှဝေခြင်း သို့မဟုတ် တောင်းဆိုခြင်း ဖြစ်နိုင်သည့် စာသားကို တင်ခဲ့ပါသည်။ စစ်ဆေးပေးပါ။",
     "personal_information_warning": "ဒီဘုတ်ပေါ်က စာတွေကို ဘယ်သူမဆို ဖတ်နိုင်ပါတယ်။ ကိုယ့်ဖုန်းနံပါတ်၊ အိမ်လိပ်စာ၊ ကိုယ်တက်နေတဲ့ကျောင်း ဒါမှမဟုတ် ကိုယ့်ကို ဆက်သွယ်နိုင်မယ့် နည်းလမ်းတွေကို မမျှဝေပါနဲ့။ တစ်ယောက်ယောက်က ဒီအချက်အလက်တွေကို တောင်းလာရင် ဒါမှမဟုတ် သီးသန့်စကားပြောဖို့ ပြောလာရင် စာပြန်မပို့တော့ဘဲ ကိုယ်ယုံကြည်ရတဲ့ လူကြီးတစ်ယောက်ကို ပြောပြပါ။",
     "personal_information_dismiss": "ကိုယ်ရေးအချက်အလက် သတိပေးချက်ကို ပိတ်ရန်",
     "board_name_placeholder": "ဝှိုက်ဘုတ်အမည် ... ",
@@ -1584,6 +1632,10 @@
     "rules_safety_link": "စည်းကမ်းနှင့် ဘေးကင်းရေး"
   },
   "pt": {
+    "moderation_unavailable_title": "Só leitura: não há moderadores online",
+    "moderation_unavailable_safety": "Não há moderadores online neste momento: podes ver o quadro, mas não o podes alterar. Foram detetados no site predadores que procuram aliciar crianças e a nossa capacidade de moderação é atualmente limitada.",
+    "moderation_unavailable_recruitment": "Se és adulto, utilizas o site há muito tempo e queres que continue, contacta um moderador para te juntares à equipa. Pedimos desculpa, mas preferimos ter menos utilizadores a expor crianças a predadores.",
+    "personal_information_auto_report": "Denúncia automática: {reported} publicou texto que pode partilhar ou pedir dados pessoais apesar do aviso. Verifica-o, por favor.",
     "personal_information_warning": "Qualquer pessoa pode ler este quadro. Não compartilhe seu número de telefone, seu endereço de casa, em qual escola você estuda nem como entrar em contato com você. Se alguém pedir essas informações ou quiser conversar com você em particular, pare de responder e conte a um adulto em quem você confia.",
     "personal_information_dismiss": "Fechar aviso de informações pessoais",
     "white-out": "Corretivo",
@@ -1716,6 +1768,10 @@
     "rules_safety_link": "Regras e segurança"
   },
   "ru": {
+    "moderation_unavailable_title": "Только просмотр: нет модератора онлайн",
+    "moderation_unavailable_safety": "Сейчас ни одного модератора нет онлайн, поэтому доску можно просматривать, но нельзя изменять. На сайте были замечены люди, которые пытаются втянуть детей в опасное общение с сексуальными целями. Наши возможности модерации сейчас ограничены.",
+    "moderation_unavailable_recruitment": "Если вы совершеннолетний, давно пользуетесь сайтом и хотите, чтобы он продолжал работать, свяжитесь с одним из модераторов, чтобы присоединиться к команде. Простите, но мы предпочитаем потерять часть пользователей, а не подвергать детей опасности.",
+    "personal_information_auto_report": "Автоматическая жалоба: {reported} опубликовал(а) текст, который может содержать личные данные или просьбу ими поделиться, несмотря на предупреждение. Пожалуйста, проверьте.",
     "personal_information_warning": "Всё на этой доске может прочитать кто угодно. Не сообщай свой номер телефона, домашний адрес, в какой школе ты учишься или как с тобой связаться. Если кто-то просит эти сведения или хочет общаться с тобой в личных сообщениях, перестань отвечать и расскажи взрослому, которому доверяешь.",
     "personal_information_dismiss": "Закрыть предупреждение о личных данных",
     "board_name_placeholder": "Название доски",
@@ -1848,6 +1904,10 @@
     "rules_safety_link": "Правила и безопасность"
   },
   "sw": {
+    "moderation_unavailable_title": "Kusoma tu: hakuna msimamizi aliye mtandaoni",
+    "moderation_unavailable_safety": "Kwa sasa hakuna msimamizi mtandaoni, kwa hiyo unaweza kutazama ubao huu lakini huwezi kuubadilisha. Watu wanaowalenga watoto kwa unyanyasaji wa kingono wameonekana kwenye tovuti, na uwezo wetu wa usimamizi una mipaka kwa sasa.",
+    "moderation_unavailable_recruitment": "Ikiwa wewe ni mtu mzima, umetumia tovuti kwa muda mrefu, na unataka iendelee, tafadhali wasiliana na msimamizi aliyepo ili ujiunge na timu. Samahani, lakini tunapendelea kuwa na watumiaji wachache kuliko kuwaweka watoto katika hatari ya watu hao.",
+    "personal_information_auto_report": "Ripoti ya kiotomatiki: {reported} amechapisha maandishi yanayoweza kushiriki au kuomba taarifa binafsi licha ya onyo. Tafadhali yakague.",
     "personal_information_warning": "Mtu yeyote anaweza kusoma yaliyo kwenye ubao huu. Usishiriki namba yako ya simu, anwani ya nyumbani, shule unayosoma au njia ya kuwasiliana nawe. Mtu akikuomba taarifa hizi au akitaka kuzungumza nawe faraghani, acha kumjibu na umwambie mtu mzima unayemwamini.",
     "personal_information_dismiss": "Funga onyo la taarifa binafsi",
     "board_name_placeholder": "Jina la ubao mweupe ...",
@@ -1980,6 +2040,10 @@
     "rules_safety_link": "Sheria na usalama"
   },
   "th": {
+    "moderation_unavailable_title": "อ่านได้อย่างเดียว: ไม่มีผู้ดูแลออนไลน์",
+    "moderation_unavailable_safety": "ขณะนี้ไม่มีผู้ดูแลออนไลน์ คุณจึงดูบอร์ดได้แต่แก้ไขไม่ได้ เราพบผู้ที่พยายามล่อลวงเด็กเพื่อแสวงหาประโยชน์ทางเพศบนเว็บไซต์ และขณะนี้เรามีกำลังดูแลจำกัด",
+    "moderation_unavailable_recruitment": "หากคุณเป็นผู้ใหญ่ ใช้เว็บไซต์มานาน และต้องการให้เว็บไซต์ดำเนินต่อไป โปรดติดต่อผู้ดูแลที่มีอยู่เพื่อขอเข้าร่วมทีม ขออภัยด้วย แต่เรายอมมีผู้ใช้น้อยลง ดีกว่าปล่อยให้เด็กเสี่ยงต่อผู้ล่อลวง",
+    "personal_information_auto_report": "รายงานอัตโนมัติ: {reported} เผยแพร่ข้อความที่อาจเปิดเผยหรือขอข้อมูลส่วนตัวแม้มีคำเตือนแล้ว โปรดตรวจสอบ",
     "personal_information_warning": "ทุกคนอ่านสิ่งที่เขียนบนกระดานนี้ได้ อย่าแชร์เบอร์โทรศัพท์ ที่อยู่บ้าน โรงเรียนที่เรียนอยู่ หรือวิธีติดต่อคุณ ถ้ามีใครขอข้อมูลเหล่านี้หรือชวนคุยส่วนตัว ให้หยุดตอบและบอกผู้ใหญ่ที่คุณไว้ใจ",
     "personal_information_dismiss": "ปิดคำเตือนข้อมูลส่วนตัว",
     "board_name_placeholder": "ชื่อไวท์บอร์ด ...",
@@ -2112,6 +2176,10 @@
     "rules_safety_link": "กฎและความปลอดภัย"
   },
   "uk": {
+    "moderation_unavailable_title": "Лише перегляд: немає модератора онлайн",
+    "moderation_unavailable_safety": "Зараз жодного модератора немає онлайн, тому дошку можна переглядати, але не можна змінювати. На сайті помічали людей, які намагаються втягнути дітей у небезпечне спілкування із сексуальною метою. Наші можливості модерації наразі обмежені.",
+    "moderation_unavailable_recruitment": "Якщо ви повнолітні, давно користуєтеся сайтом і хочете, щоб він працював далі, зв’яжіться з одним із модераторів, щоб долучитися до команди. Перепрошуємо, але ми краще втратимо частину користувачів, ніж наражатимемо дітей на небезпеку.",
+    "personal_information_auto_report": "Автоматична скарга: {reported} опублікував(-ла) текст, що може містити особисті дані або прохання ними поділитися, попри попередження. Будь ласка, перевірте.",
     "personal_information_warning": "Усе на цій дошці може прочитати будь-хто. Не повідомляй свій номер телефону, домашню адресу, у якій школі ти навчаєшся або як із тобою зв’язатися. Якщо хтось просить ці відомості або хоче спілкуватися з тобою в приватних повідомленнях, припини відповідати й розкажи дорослому, якому довіряєш.",
     "personal_information_dismiss": "Закрити попередження про особисті дані",
     "white-out": "Коректор",
@@ -2244,6 +2312,10 @@
     "rules_safety_link": "Правила й безпека"
   },
   "vi": {
+    "moderation_unavailable_title": "Chỉ xem: không có kiểm duyệt viên trực tuyến",
+    "moderation_unavailable_safety": "Hiện không có kiểm duyệt viên trực tuyến, nên bạn có thể xem nhưng không thể chỉnh sửa bảng. Chúng tôi đã phát hiện những kẻ nhắm vào trẻ em để dụ dỗ, xâm hại trên trang web, trong khi khả năng kiểm duyệt hiện còn hạn chế.",
+    "moderation_unavailable_recruitment": "Nếu bạn đã trưởng thành, sử dụng trang web lâu năm và muốn trang tiếp tục hoạt động, hãy liên hệ với một kiểm duyệt viên để tham gia nhóm. Chúng tôi xin lỗi, nhưng thà có ít người dùng hơn còn hơn để trẻ em gặp nguy hiểm từ những kẻ săn mồi.",
+    "personal_information_auto_report": "Báo cáo tự động: {reported} đã đăng văn bản có thể chia sẻ hoặc yêu cầu thông tin cá nhân dù đã có cảnh báo. Vui lòng kiểm tra.",
     "personal_information_warning": "Ai cũng có thể đọc nội dung trên bảng này. Đừng chia sẻ số điện thoại, địa chỉ nhà, trường bạn đang học hay cách liên lạc với bạn. Nếu có ai hỏi những thông tin này hoặc muốn trò chuyện riêng với bạn, hãy ngừng trả lời và kể với một người lớn mà bạn tin tưởng.",
     "personal_information_dismiss": "Đóng cảnh báo thông tin cá nhân",
     "white-out": "Bút xóa",
@@ -2376,6 +2448,10 @@
     "rules_safety_link": "Quy tắc và an toàn"
   },
   "zh-CN": {
+    "moderation_unavailable_title": "只读：目前没有版主在线",
+    "moderation_unavailable_safety": "目前没有版主在线，因此你可以查看白板，但不能修改。我们已在网站上发现试图诱骗、侵害儿童的人，而目前的管理能力有限。",
+    "moderation_unavailable_recruitment": "如果你已成年、长期使用本网站，并希望网站继续运营，请联系现有版主，申请加入管理团队。很抱歉，但我们宁可减少用户，也不愿让儿童面临被诱骗和侵害的危险。",
+    "personal_information_auto_report": "自动举报：{reported} 在收到警告后仍发布了可能分享或索取个人信息的文字。请核查。",
     "personal_information_warning": "任何人都能看到这个画板上的内容。不要透露你的电话号码、家庭住址、就读的学校或联系方式。如果有人向你打听这些信息，或想和你私聊，请停止回复，并告诉你信任的大人。",
     "personal_information_dismiss": "关闭个人信息警告",
     "board_name_placeholder": "白板名称",
@@ -2508,6 +2584,10 @@
     "rules_safety_link": "规则与安全"
   },
   "zh-TW": {
+    "moderation_unavailable_title": "唯讀：目前沒有版主在線上",
+    "moderation_unavailable_safety": "目前沒有版主在線上，因此你可以查看白板，但無法修改。我們已在網站上發現試圖誘騙、侵害兒童的人，而目前的管理能力有限。",
+    "moderation_unavailable_recruitment": "如果你已成年、長期使用本網站，並希望網站繼續營運，請聯絡現有版主，申請加入管理團隊。很抱歉，但我們寧可減少使用者，也不願讓兒童面臨被誘騙和侵害的危險。",
+    "personal_information_auto_report": "自動檢舉：{reported} 在收到警告後仍發布了可能分享或索取個人資訊的文字。請查核。",
     "personal_information_warning": "任何人都能看到這個畫板上的內容。不要透露你的電話號碼、住家地址、就讀的學校或聯絡方式。如果有人向你打聽這些資料，或想和你私下聊天，請停止回覆，並告訴你信任的大人。",
     "personal_information_dismiss": "關閉個人資訊警告",
     "board_name_placeholder": "白板名稱",
@@ -2640,6 +2720,10 @@
     "rules_safety_link": "規則與安全"
   },
   "pl": {
+    "moderation_unavailable_title": "Tylko odczyt: brak moderatora online",
+    "moderation_unavailable_safety": "Obecnie żaden moderator nie jest online, więc tablicę można przeglądać, ale nie można jej zmieniać. Na stronie zauważono osoby próbujące nakłaniać dzieci do kontaktów o charakterze seksualnym, a nasze możliwości moderacji są obecnie ograniczone.",
+    "moderation_unavailable_recruitment": "Jeśli jesteś osobą pełnoletnią, od dawna korzystasz ze strony i chcesz, aby działała dalej, skontaktuj się z jednym z moderatorów, aby dołączyć do zespołu. Przepraszamy, ale wolimy mieć mniej użytkowników, niż narażać dzieci na takie niebezpieczeństwo.",
+    "personal_information_auto_report": "Zgłoszenie automatyczne: {reported} mimo ostrzeżenia opublikował(a) tekst, który może zawierać dane osobowe lub prośbę o nie. Prosimy o sprawdzenie.",
     "personal_information_warning": "Każdy może przeczytać to, co jest na tej tablicy. Nie podawaj swojego numeru telefonu, adresu zamieszkania, szkoły, do której chodzisz, ani sposobów kontaktu z tobą. Jeśli ktoś prosi o te informacje lub chce rozmawiać z tobą na prywatnym czacie, przestań odpowiadać i powiedz o tym dorosłej osobie, której ufasz.",
     "personal_information_dismiss": "Zamknij ostrzeżenie o danych osobowych",
     "board_name_placeholder": "Nazwa tablicy",

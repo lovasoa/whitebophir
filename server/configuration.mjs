@@ -3,6 +3,7 @@ import path from "node:path";
 import {
   parseBasePathEnv,
   parseBoardModeratorsEnv,
+  parseBoardNamesEnv,
   parseCommaSeparatedEnv,
   parseDisabledFlagEnv,
   parseEnumEnv,
@@ -126,6 +127,11 @@ export const AUTO_FINGER_WHITEOUT = parseDisabledFlagEnv(
  * The user secret is the value of their wbo-user-secret-v1 cookie.
  */
 export const BOARD_MODERATORS = parseBoardModeratorsEnv("WBO_BOARD_MODERATORS");
+
+/** Boards requiring an online moderator; empty by default. */
+export const MODERATOR_REQUIRED_BOARDS = parseBoardNamesEnv(
+  "WBO_MODERATOR_REQUIRED_BOARDS",
+);
 
 /** Shared JWT secret used by board auth helpers. Empty disables JWT auth. */
 export const AUTH_SECRET_KEY = parseStringEnv("AUTH_SECRET_KEY", "");

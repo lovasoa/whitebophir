@@ -332,6 +332,7 @@ export type AppBoardState = {
   canReport?: boolean;
   canWrite: boolean;
   accessRefreshAfterMs?: number;
+  moderationUnavailable?: boolean;
 };
 
 export type MutationRejectedPayload = {
@@ -384,6 +385,7 @@ export type UserLeftPayload = {
 export type UserReportedPayload = {
   reporterName: string;
   reportedName: string;
+  automatic?: boolean;
 };
 
 export type ClientSocketIncomingEventMap = {

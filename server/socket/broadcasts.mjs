@@ -3,6 +3,7 @@ import {
   formatMessageTypeTag,
   getMutationType,
   getToolId,
+  MutationType,
 } from "../../client-data/js/message_tool_metadata.js";
 import { SocketEvents } from "../../client-data/js/socket_events.js";
 import { TOOL_CODE_BY_ID } from "../../client-data/tools/manifest.js";
@@ -20,6 +21,7 @@ import {
   enforceBroadcastPreNormalization,
 } from "./rate_limits.mjs";
 import { isTurnstileValidationActive } from "./turnstile.mjs";
+import { reportPersonalInformation } from "./reports.mjs";
 
 const { logger, metrics, tracing } = observability;
 
@@ -391,6 +393,22 @@ async function persistBoardBroadcast(
     handleResult.followup,
     runtime,
   );
+  const accepted = handleResult.value;
+  if (
+    accepted.tool === TOOL_CODE_BY_ID.text &&
+    accepted.type === MutationType.UPDATE
+  ) {
+    reportPersonalInformation(
+      {
+        socket,
+        boardName,
+        config,
+        now,
+        getActiveSocket: runtime.getActiveSocket,
+      },
+      accepted.txt,
+    );
+  }
 }
 
 /**

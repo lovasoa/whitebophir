@@ -59,6 +59,8 @@ export class BoardShellModule {
   constructor(getTools, logBoardEvent) {
     this.getTools = getTools;
     this.logBoardEvent = logBoardEvent;
+    this.noticeMode = "";
+    this.noticeDismissed = false;
   }
 
   /**
@@ -75,7 +77,7 @@ export class BoardShellModule {
 
   initializePageChrome() {
     document.documentElement.dataset.activeToolSecondary = "false";
-    this.bindAnonymousWelcome();
+    this.bindBoardNotice();
     this.trackRecentBoardsOnPageShow();
     this.bindRenderedTools();
     this.applyInitialBoardState();
@@ -91,36 +93,69 @@ export class BoardShellModule {
     });
   }
 
-  bindAnonymousWelcome() {
-    const Tools = this.getTools();
-    if (Tools.identity.boardName !== "anonymous") return;
-
-    const cookieName = "wbo_anonymous_welcome_v1";
-    const dismissed = document.cookie
-      .split(";")
-      .some((cookie) => cookie.trim() === `${cookieName}=dismissed`);
-    if (dismissed) return;
-
-    const welcome = getRequiredElement("anonymousWelcome");
-    for (const key of [
-      "anonymous_welcome_title",
-      "anonymous_welcome_rules",
-      "anonymous_welcome_safety",
-      "anonymous_welcome_read_rules",
-      "anonymous_welcome_dismiss",
-    ]) {
-      getRequiredElement(key).textContent = Tools.i18n.t(key);
-    }
+  bindBoardNotice() {
     getRequiredElement("anonymous_welcome_dismiss").addEventListener(
       "click",
       () => {
-        // biome-ignore lint/suspicious/noDocumentCookie: One fixed acknowledgement cookie; works without the Cookie Store API.
-        document.cookie = `${cookieName}=dismissed; Max-Age=2592000; Path=/; SameSite=Lax; Secure`;
-        welcome.hidden = true;
+        this.noticeDismissed = true;
+        if (this.noticeMode === "welcome") {
+          // biome-ignore lint/suspicious/noDocumentCookie: One fixed acknowledgement cookie; works without the Cookie Store API.
+          document.cookie =
+            "wbo_anonymous_welcome_v1=dismissed; Max-Age=2592000; Path=/; SameSite=Lax; Secure";
+        }
+        getRequiredElement("anonymousWelcome").hidden = true;
         getRequiredElement("connectedUsersToggle").focus();
       },
     );
-    welcome.hidden = false;
+  }
+
+  syncBoardNotice() {
+    const Tools = this.getTools();
+    const unavailable = Tools.access.boardState.moderationUnavailable === true;
+    const mode = unavailable
+      ? "unavailable"
+      : Tools.identity.boardName === "anonymous"
+        ? "welcome"
+        : "";
+    if (mode !== this.noticeMode) {
+      this.noticeMode = mode;
+      this.noticeDismissed = false;
+    }
+    const acknowledged =
+      !unavailable &&
+      document.cookie
+        .split(";")
+        .some(
+          (cookie) => cookie.trim() === "wbo_anonymous_welcome_v1=dismissed",
+        );
+    const welcome = getRequiredElement("anonymousWelcome");
+    welcome.hidden = !mode || this.noticeDismissed || acknowledged;
+    /** @type {Array<[string, string]>} */
+    const messages = [
+      [
+        "anonymous_welcome_title",
+        unavailable
+          ? "moderation_unavailable_title"
+          : "anonymous_welcome_title",
+      ],
+      [
+        "anonymous_welcome_rules",
+        unavailable
+          ? "moderation_unavailable_safety"
+          : "anonymous_welcome_rules",
+      ],
+      [
+        "anonymous_welcome_safety",
+        unavailable
+          ? "moderation_unavailable_recruitment"
+          : "anonymous_welcome_safety",
+      ],
+      ["anonymous_welcome_read_rules", "anonymous_welcome_read_rules"],
+      ["anonymous_welcome_dismiss", "anonymous_welcome_dismiss"],
+    ];
+    for (const [id, key] of messages) {
+      getRequiredElement(id).textContent = Tools.i18n.t(key);
+    }
   }
 
   saveBoardNameToLocalStorage() {

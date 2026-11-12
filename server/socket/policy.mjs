@@ -8,6 +8,7 @@ import { forBoard } from "../auth/board_capabilities.mjs";
 import observability from "../observability/index.mjs";
 import { getEditBanExpiresAt } from "./bans.mjs";
 import { normalizeIncomingMessage } from "./message_validation.mjs";
+import { hasOnlineModerator } from "./presence.mjs";
 import { getSocketUserSecret } from "./request.mjs";
 import { getTemporaryModeratorExpiresAt } from "./temporary_moderators.mjs";
 
@@ -30,6 +31,7 @@ const { logger, metrics, tracing } = observability;
  *   MAX_CHILDREN: number,
  *   TRUST_PROXY_HOPS: number,
  *   BOARD_MODERATORS?: Map<string, Set<string>>,
+ *   MODERATOR_REQUIRED_BOARDS?: string[],
  * }} SocketPolicyConfig
  */
 /** @typedef {ReturnType<typeof forBoard>} SocketBoardPermissions */
@@ -402,6 +404,7 @@ function boardPermissionsForSocket(config, boardName, socket) {
     config,
     boardName,
     userInfo: { token: getSocketToken(socket), userSecret },
+    hasOnlineModerator: () => hasOnlineModerator(boardName),
     // Lazy + live: only resolved when a capability query depends on the ban
     // (so canOpen never needs the IP), and re-read on every query so a ban and
     // its expiry take effect without reconnecting. The expiry is also exposed

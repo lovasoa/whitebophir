@@ -1,4 +1,6 @@
 import observability from "../observability/index.mjs";
+import { requiresOnlineModerator } from "../auth/board_capabilities.mjs";
+import { privateInfoKind } from "../../client-data/tools/text/personal_information.js";
 import {
   MODERATION_DURATIONS,
   MODERATION_RULE_IDS,
@@ -15,6 +17,7 @@ const { logger, tracing } = observability;
 const MODERATION_DISCONNECT_CLOSE_TIMEOUT_MS = 150;
 
 /** @import { AppSocket, ModerationDisconnectPayload, ModerationDisconnectSource, ModeratorReportUserPayload, ReportUserPayload, ServerConfig } from "../../types/server-runtime.d.ts" */
+/** @import { UserReportedPayload } from "../../types/app-runtime.d.ts" */
 /** @typedef {{socketId: string, userId: string, name: string, ip: string, userSecret: string, userAgent: string, language: string}} BoardUser */
 /** @typedef {{board: string, reporter_socket: string, reported_socket: string, reporter_ip: string, reported_ip: string, reporter_user_agent: string, reported_user_agent: string, reporter_language: string, reported_language: string, reporter_name: string, reported_name: string, banned: boolean}} UserReportLog */
 /** @typedef {(socketId: string) => AppSocket | undefined} GetActiveSocket */
@@ -108,15 +111,11 @@ function buildUserReportLog(boardName, { reported, reporter }, banned) {
 }
 
 /**
- * @param {ReportUserContext} context
- * @param {ReportUsers} users
+ * @param {Pick<ReportUserContext, "boardName" | "config" | "getActiveSocket">} context
+ * @param {UserReportedPayload} payload
  * @returns {void}
  */
-function notifyBoardModeratorsOfReport(context, users) {
-  const payload = {
-    reporterName: users.reporter.name,
-    reportedName: users.reported.name,
-  };
+function notifyBoardModeratorsOfReport(context, payload) {
   getBoardUserMap(context.boardName).forEach(function notifyUser(user) {
     const socket = context.getActiveSocket(user.socketId);
     if (
@@ -127,6 +126,36 @@ function notifyBoardModeratorsOfReport(context, users) {
       return;
     }
     socket.emit(SocketEvents.USER_REPORTED, payload);
+  });
+}
+
+/** Only accepted publications can trigger this server-owned alert. Never include
+ * the detected personal information in notifications or logs.
+ * @param {Pick<ReportUserContext, "socket" | "boardName" | "config" | "now" | "getActiveSocket">} context
+ * @param {string} text
+ */
+export function reportPersonalInformation(context, text) {
+  if (!requiresOnlineModerator(context.config, context.boardName)) return;
+  // Live text updates arrive while typing; do not flood moderators per keystroke.
+  if (
+    context.socket.personalInfoReportAt !== undefined &&
+    context.now - context.socket.personalInfoReportAt < 60_000
+  )
+    return;
+  if (privateInfoKind(text) === null) return;
+  const user = getBoardUser(context.boardName, context.socket.id);
+  if (!user) return;
+  context.socket.personalInfoReportAt = context.now;
+  notifyBoardModeratorsOfReport(context, {
+    reporterName: "",
+    reportedName: user.name,
+    automatic: true,
+  });
+  logger.warn("user.auto_reported", {
+    board: context.boardName,
+    reported_socket: user.socketId,
+    reported_name: user.name,
+    moderationRule: "personal_information",
   });
 }
 
@@ -369,7 +398,10 @@ function handleReportUserMessage(context) {
   const reportLog = buildUserReportLog(boardName, resolvedUsers, false);
   lastUserReportLog = reportLog;
   logger.warn("user.reported", reportLog);
-  notifyBoardModeratorsOfReport(context, resolvedUsers);
+  notifyBoardModeratorsOfReport(context, {
+    reporterName: resolvedUsers.reporter.name,
+    reportedName: resolvedUsers.reported.name,
+  });
 
   // Disconnect the reporter too to prevent abuse.
   disconnectReporter(context);

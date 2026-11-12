@@ -1,5 +1,6 @@
 import * as socketIO from "socket.io";
 import { SocketEvents } from "../../client-data/js/socket_events.js";
+import { requiresOnlineModerator } from "../auth/board_capabilities.mjs";
 import { BoardData } from "../board/data.mjs";
 import {
   deleteLoadedBoard,
@@ -27,6 +28,7 @@ import {
 } from "./policy.mjs";
 import {
   boardUserDebugFields,
+  boardModeratorExpiresAt,
   buildUserId,
   buildUserName,
   cleanupBoardUserMap,
@@ -39,6 +41,7 @@ import {
   getBoardUserMap,
   removeBoardUser,
   resetBoardUserMaps,
+  updateBoardUserCapabilities,
 } from "./presence.mjs";
 import {
   consumeFixedWindowRateLimit,
@@ -76,6 +79,8 @@ const activeSockets = new Map();
 const syncedPersistentSockets = new Set();
 /** @type {Map<string, ReturnType<typeof setTimeout>>} */
 const banExpiryTimers = new Map();
+/** @type {Map<string, ReturnType<typeof setTimeout>>} */
+const moderationExpiryTimers = new Map();
 let connectedUsersTotal = 0;
 let invalidIpSourceLogged = false;
 /** @type {import("socket.io").Server | undefined} */
@@ -176,6 +181,7 @@ function detachBoardSockets(board) {
   }
   clearBoardUsers(board.name);
   clearBoardBanExpiryTimer(board.name);
+  clearBoardModerationTimer(board.name);
   /** @type {AppSocket[]} */
   const sockets = [];
   for (const socketId of socketIds) {
@@ -312,9 +318,44 @@ function clearBoardBanExpiryTimer(boardName) {
   banExpiryTimers.delete(boardName);
 }
 
-function clearBanExpiryTimers() {
+function clearAccessExpiryTimers() {
   for (const timer of banExpiryTimers.values()) clearTimeout(timer);
   banExpiryTimers.clear();
+  for (const timer of moderationExpiryTimers.values()) clearTimeout(timer);
+  moderationExpiryTimers.clear();
+}
+
+/** @param {string} boardName */
+function clearBoardModerationTimer(boardName) {
+  const timer = moderationExpiryTimers.get(boardName);
+  if (timer) clearTimeout(timer);
+  moderationExpiryTimers.delete(boardName);
+}
+
+/** Coverage is ephemeral; never persist this pause as the board's readonly flag.
+ * @param {BoardData} board @param {ServerConfig} config
+ */
+function refreshBoardModeration(board, config) {
+  if (!requiresOnlineModerator(config, board.name)) return;
+  clearBoardModerationTimer(board.name);
+  const users = getBoardUserMap(board.name);
+  for (const user of users.values()) {
+    const socket = activeSockets.get(user.socketId);
+    if (!socket || !socket.rooms.has(board.name)) continue;
+    const state = boardStateForSocket(config, board, socket);
+    const changed = updateBoardUserCapabilities(board.name, user, state);
+    socket.emit(SocketEvents.BOARDSTATE, state);
+    if (changed) emitUserUpdatedToBoard(socket, board.name, user);
+  }
+  const expiresAt = boardModeratorExpiresAt(board.name);
+  if (expiresAt > 0 && Number.isFinite(expiresAt)) {
+    const timer = setTimeout(
+      () => refreshBoardModeration(board, config),
+      Math.max(1, expiresAt - Date.now()),
+    );
+    timer.unref?.();
+    moderationExpiryTimers.set(board.name, timer);
+  }
 }
 
 /**
@@ -340,14 +381,11 @@ async function refreshUserAccess(boardName, userSecret, config, ip) {
     const targetSocket = activeSockets.get(user.socketId);
     if (!targetSocket || !targetSocket.rooms.has(boardName)) continue;
     const boardState = boardStateForSocket(config, board, targetSocket);
-    user.canEdit = boardState.canEdit === true;
-    user.canClear = boardState.canClear === true;
-    user.canBan = boardState.canBan === true;
-    user.canGrantTemporaryModerator =
-      boardState.canGrantTemporaryModerator === true;
+    updateBoardUserCapabilities(boardName, user, boardState);
     targetSocket.emit(SocketEvents.BOARDSTATE, boardState);
     emitUserUpdatedToBoard(targetSocket, boardName, user);
   }
+  refreshBoardModeration(board, config);
 }
 
 /**
@@ -587,7 +625,11 @@ async function bootstrapSocketBoard(socket, replay, config) {
           "wbo.socket.replay.count": replayCount,
         });
       }
-      socket.emit(SocketEvents.BOARDSTATE, boardState);
+      if (boardState.canBan) refreshBoardModeration(board, config);
+      socket.emit(
+        SocketEvents.BOARDSTATE,
+        boardStateForSocket(config, board, socket),
+      );
       syncedPersistentSockets.delete(socket.id);
       socket.emit(SocketEvents.BROADCAST, replay.replayBatch);
       syncedPersistentSockets.add(socket.id);
@@ -793,48 +835,55 @@ async function handleSocketConnection(socket, config) {
     },
   );
 
-  socket.on(
+  onSocketEvent(
+    socket,
     "disconnecting",
-    function onDisconnecting(/** @type {string} */ _reason) {
+    async function onDisconnecting(/** @type {string} */ _reason) {
       activeSockets.delete(socket.id);
       syncedPersistentSockets.delete(socket.id);
       updateActiveSocketConnectionsGauge();
       metrics.recordSocketConnection("disconnected");
-      socket.rooms.forEach(
-        async function disconnectFrom(/** @type {string} */ room) {
-          const boardPromise = getLoadedBoard(room);
-          if (boardPromise) {
-            const board = await boardPromise;
-            if (logger.isEnabled("debug")) {
-              logger.debug(
-                "socket.board_disconnecting",
-                boardDebugFields(board, {
-                  socket: socket.id,
-                }),
-              );
+      // Remove coverage synchronously, before waiting for the loaded board.
+      const wasModerator = getBoardUserMap(boardName).get(socket.id)?.canBan;
+      removeBoardUser(socket, boardName);
+      await Promise.all(
+        [...socket.rooms].map(
+          async function disconnectFrom(/** @type {string} */ room) {
+            const boardPromise = getLoadedBoard(room);
+            if (boardPromise) {
+              const board = await boardPromise;
+              if (logger.isEnabled("debug")) {
+                logger.debug(
+                  "socket.board_disconnecting",
+                  boardDebugFields(board, {
+                    socket: socket.id,
+                  }),
+                );
+              }
+              const removed = board.users.delete(socket.id);
+              if (wasModerator) refreshBoardModeration(board, config);
+              const userCount = board.users.size;
+              if (removed) {
+                connectedUsersTotal = Math.max(0, connectedUsersTotal - 1);
+                updateConnectedUsersGauge();
+              }
+              if (logger.isEnabled("debug")) {
+                logger.debug(
+                  "socket.board_disconnected",
+                  boardDebugFields(board, {
+                    socket: socket.id,
+                    "wbo.board.user_removed": removed,
+                  }),
+                );
+              }
+              if (userCount === 0) {
+                clearBoardBanExpiryTimer(room);
+                clearBoardModerationTimer(room);
+                if (!shuttingDown) unloadBoard(room);
+              }
             }
-            const removed = board.users.delete(socket.id);
-            removeBoardUser(socket, room);
-            const userCount = board.users.size;
-            if (removed) {
-              connectedUsersTotal = Math.max(0, connectedUsersTotal - 1);
-              updateConnectedUsersGauge();
-            }
-            if (logger.isEnabled("debug")) {
-              logger.debug(
-                "socket.board_disconnected",
-                boardDebugFields(board, {
-                  socket: socket.id,
-                  "wbo.board.user_removed": removed,
-                }),
-              );
-            }
-            if (userCount === 0) {
-              clearBoardBanExpiryTimer(room);
-              if (!shuttingDown) unloadBoard(room);
-            }
-          }
-        },
+          },
+        ),
       );
     },
   );
@@ -960,7 +1009,7 @@ async function unloadBoard(boardName) {
 async function shutdownBoards() {
   const currentIo = io;
   shuttingDown = true;
-  clearBanExpiryTimers();
+  clearAccessExpiryTimers();
   io = undefined;
   if (currentIo) {
     currentIo.disconnectSockets(true);
@@ -1040,7 +1089,7 @@ export const __test = {
   },
   resetRateLimitMaps: function resetRateLimitMaps() {
     resetSocketRateLimitMaps();
-    clearBanExpiryTimers();
+    clearAccessExpiryTimers();
     resetBans();
     resetTemporaryModerators();
     resetBoardUserMaps();

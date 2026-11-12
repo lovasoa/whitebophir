@@ -1,4 +1,18 @@
+import { isValidBoardName } from "../../client-data/js/board_name.js";
+
 const BOARD_MODERATOR_SECRET_PATTERN = /^[0-9a-f]{32}$/i;
+
+/** @param {string} name @param {NodeJS.ProcessEnv} [env] */
+export function parseBoardNamesEnv(name, env = process.env) {
+  const names = parseCommaSeparatedEnv(name, env)
+    .map((board) => board.trim().toLowerCase())
+    .filter(Boolean);
+  for (const board of names) {
+    if (!isValidBoardName(board))
+      throw new Error(`Invalid ${name} board: ${board}`);
+  }
+  return names;
+}
 
 /**
  * @param {string} name

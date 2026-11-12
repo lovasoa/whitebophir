@@ -37,6 +37,59 @@ test("board capabilities preserve JWT-disabled writable board behavior", () => {
   });
 });
 
+test("moderator presence is a live write gate, not a replacement for bans, roles or stored readonly", () => {
+  const { forBoard } = require(BOARD_CAPABILITIES_PATH);
+  const config = createConfig({
+    AUTH_SECRET_KEY: "test-secret",
+    MODERATOR_REQUIRED_BOARDS: ["moderated"],
+  });
+  let online = false;
+  const editor = forBoard({
+    config,
+    boardName: "moderated",
+    userInfo: { token: tokenFor(config, { roles: ["editor"] }) },
+    hasOnlineModerator: () => online,
+  });
+  const moderator = forBoard({
+    config,
+    boardName: "moderated",
+    userInfo: { token: tokenFor(config, { roles: ["moderator"] }) },
+    hasOnlineModerator: () => online,
+  });
+  const board = createBoard("moderated", false);
+  assert.equal(editor.boardState(board).moderationUnavailable, true);
+  assert.equal(editor.resolveCapabilities(board).canEdit, false);
+  assert.equal(moderator.resolveCapabilities(board).canClear, false);
+  assert.equal(
+    moderator.canBan(),
+    true,
+    "moderation identity must remain independent of the write gate",
+  );
+  online = true;
+  assert.equal(editor.resolveCapabilities(board).canEdit, true);
+  assert.equal(moderator.resolveCapabilities(board).canClear, true);
+  assert.equal(editor.boardState(board).moderationUnavailable, undefined);
+  const banned = forBoard({
+    config,
+    boardName: "moderated",
+    userInfo: { token: tokenFor(config, { roles: ["editor"] }) },
+    hasOnlineModerator: () => online,
+    isBanned: () => true,
+  });
+  assert.equal(banned.resolveCapabilities(board).canEdit, false);
+  const publicViewer = forBoard({
+    config: { ...config, AUTH_SECRET_KEY: "" },
+    boardName: "moderated",
+    hasOnlineModerator: () => online,
+  });
+  assert.equal(
+    publicViewer.resolveCapabilities(createBoard("moderated", true)).canEdit,
+    false,
+  );
+  online = false;
+  assert.equal(editor.resolveCapabilities(board).canEdit, false);
+});
+
 test("board capabilities preserve JWT-disabled read-only board behavior", () => {
   const { resolveCapabilities } = require(BOARD_CAPABILITIES_PATH);
   const config = createConfig({ AUTH_SECRET_KEY: "" });
