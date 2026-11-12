@@ -53,11 +53,15 @@ test("AssetModule supports released injected and default path resolvers", async 
   }
   assert.equal(
     normalizeBoardAssetPath("tools/hand/hand.css"),
-    "../tools/hand/hand.css",
+    require("node:url").pathToFileURL(
+      require("node:path").resolve("client-data/tools/hand/hand.css"),
+    ).href,
   );
   assert.equal(
     new AssetModule().getToolAssetUrl("hand", "hand.css"),
-    "../tools/hand/hand.css",
+    require("node:url").pathToFileURL(
+      require("node:path").resolve("client-data/tools/hand/hand.css"),
+    ).href,
   );
   const injected = new AssetModule((path) => `/generated/${path}`);
   assert.equal(

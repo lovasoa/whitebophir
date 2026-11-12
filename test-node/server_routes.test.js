@@ -781,7 +781,7 @@ test("server returns 400 for malformed low-level HTTP parser input", async () =>
   ]);
 });
 
-test("board pages are no-store in development and render plain asset URLs", async () => {
+test("board pages are no-store in development and pin assets to the release", async () => {
   const dirs = await createServerDirs();
   const app = await createTestServer(
     createServerConfig(dirs, { WEBROOT: CLIENT_WEBROOT, IS_DEVELOPMENT: true }),
@@ -842,7 +842,9 @@ test("board pages are no-store in development and render plain asset URLs", asyn
       frenchResponse.body,
       /<meta property="og:title" content="cache-test \| WBO \| Tableau blanc collaboratif" \/>/,
     );
-    assert.match(response.body, /\.\.\/board\.css(?:["'])/);
+    const assetBase = `../assets/${packageJson.version}/`;
+    assert.ok(response.body.includes(`"${assetBase}board.css"`));
+    // The unversioned loader stays reachable from pages of other releases.
     assert.match(response.body, /\.\.\/js\/board_main\.js(?:["'])/);
     assert.match(
       response.body,
@@ -861,16 +863,16 @@ test("board pages are no-store in development and render plain asset URLs", asyn
       "frontend_logging",
       "message_limits",
     ].forEach((moduleName) => {
-      assert.match(
-        response.body,
-        new RegExp(
-          `rel="modulepreload" href="\\.\\.\\/js\\/${moduleName}\\.js"`,
+      assert.ok(
+        response.body.includes(
+          `rel="modulepreload" href="${assetBase}js/${moduleName}.js"`,
         ),
+        moduleName,
       );
     });
     assert.doesNotMatch(
       response.body,
-      /rel="modulepreload" href="\.\.\/tools\//,
+      /rel="modulepreload" href="[^"]*\/tools\//,
     );
     [
       "app_tools",
@@ -895,21 +897,21 @@ test("board pages are no-store in development and render plain asset URLs", asyn
       assert.doesNotMatch(
         response.body,
         new RegExp(
-          `rel="modulepreload" href="\\.\\.\\/js\\/${moduleName}\\.js"`,
+          `rel="modulepreload" href="[^"]*\\/js\\/${moduleName}\\.js"`,
         ),
       );
     });
     assert.doesNotMatch(
       response.body,
-      /rel="modulepreload" href="\.\.\/tools\/pencil\/index\.js"/,
+      /rel="modulepreload" href="[^"]*\/tools\/pencil\/index\.js"/,
     );
     assert.match(
       response.body,
       /<li class="tool disabledTool"[^>]*id="toolID-pencil"[^>]*aria-disabled="true">/,
     );
-    assert.match(response.body, /\.\.\/tools\/pencil\/icon\.svg(?:["'])/);
+    assert.ok(response.body.includes(`"${assetBase}tools/pencil/icon.svg"`));
     assert.match(response.body, /fetchpriority="low"/);
-    assert.match(response.body, /\.\.\/users\.svg(?:["'])/);
+    assert.ok(response.body.includes(`"${assetBase}users.svg"`));
     assert.match(response.body, /id="styleTool"/);
     assert.match(response.body, /id="stylePreviewDot"/);
     assert.doesNotMatch(response.body, /\?v=/);
@@ -1064,6 +1066,7 @@ test("board pages validate both their shell and drawing sequence", async () => {
 
     assert.equal(firstResponse.statusCode, 200);
     assert.ok(firstResponse.headers.etag);
+    assert.equal(firstResponse.headers["cache-control"], "no-cache");
     assert.match(firstResponse.headers.etag, /^W\/"wbo-seq-3-[a-f0-9]{16}"$/);
 
     const cachedResponse = await request(app, "/boards/etag-board", {
@@ -1532,6 +1535,47 @@ test("board html svg and preview routes negotiate compression when requested", a
     }
   } finally {
     observability.metrics.recordHttpRequest = originalRecordHttpRequest;
+    await closeServer(app);
+  }
+});
+
+test("board asset URLs pin HTML, modules, and styles to the released version", async () => {
+  const dirs = await createServerDirs();
+  const app = await createTestServer(
+    createServerConfig(dirs, {
+      WEBROOT: CLIENT_WEBROOT,
+      IS_DEVELOPMENT: false,
+    }),
+  );
+  try {
+    const prefix = `/assets/${packageJson.version}/`;
+    const page = await request(app, "/boards/release-assets");
+    // The unversioned loader is what stale pages still reach.
+    assert.ok(page.body.includes('src="../js/board_main.js"'));
+    for (const asset of [
+      "board.css",
+      "js/board_boot.js",
+      "tools/pencil/icon.svg",
+    ]) {
+      assert.ok(page.body.includes(`..${prefix}${asset}`));
+      const response = await request(app, `${prefix}${asset}`);
+      assert.equal(response.statusCode, 200);
+      assert.equal(
+        response.headers["cache-control"],
+        "public, max-age=31536000, immutable",
+      );
+    }
+    for (const suffix of [
+      "js/board_boot.js",
+      "js/board.js",
+      "tools/pencil/index.js",
+    ]) {
+      const obsolete = await request(app, `/assets/0.0.0/${suffix}`);
+      assert.equal(obsolete.statusCode, 409);
+      assert.equal(obsolete.headers["cache-control"], "no-store");
+      assert.equal(obsolete.body, "");
+    }
+  } finally {
     await closeServer(app);
   }
 });

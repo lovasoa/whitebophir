@@ -428,8 +428,12 @@ for (const tool of ["pencil", "straight-line"]) {
       );
       await page.evaluate(async (name) => {
         await window.WBOApp.toolRegistry.activateTool(name);
+        // Import the module the release-pinned tool graph uses.
         const { observeDrawingPerformance } = await import(
-          new URL("../js/drawing_performance.js", location.href).href
+          new URL(
+            `../assets/${document.documentElement.dataset.wboVersion}/js/drawing_performance.js`,
+            location.href,
+          ).href
         );
         window.drawingSummaries = [];
         observeDrawingPerformance((summary: DrawingPerformanceSummary) =>
@@ -505,7 +509,10 @@ for (const tool of ["pencil", "straight-line"]) {
     await boardPage.gotoBoard(boardName);
     await boardPage.selectTool(tool);
     await page.evaluate(async () => {
-      const url = new URL("../js/drawing_performance.js", location.href).href;
+      const url = new URL(
+        `../assets/${document.documentElement.dataset.wboVersion}/js/drawing_performance.js`,
+        location.href,
+      ).href;
       const { observeDrawingPerformance } = await import(url);
       window.drawingSummaries = [];
       observeDrawingPerformance((summary: DrawingPerformanceSummary) =>
@@ -580,7 +587,10 @@ test("touch cancellation publishes the measured portion and deletes the stroke",
   await boardPage.gotoBoard("feedback-touch-cancel");
   await boardPage.selectTool("pencil");
   await page.evaluate(async () => {
-    const url = new URL("../js/drawing_performance.js", location.href).href;
+    const url = new URL(
+      `../assets/${document.documentElement.dataset.wboVersion}/js/drawing_performance.js`,
+      location.href,
+    ).href;
     const { observeDrawingPerformance } = await import(url);
     window.drawingSummaries = [];
     observeDrawingPerformance((s: DrawingPerformanceSummary) =>

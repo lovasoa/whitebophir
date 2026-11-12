@@ -64,6 +64,12 @@ viewport restoration and pan. Full runtime hydration and lazy tool loading add
 editing and collaboration afterward. Consolidating these stages would put tool
 and network dependencies on the path to the first usable viewport.
 
+**Board assets stay pinned to one release.** Board HTML revalidates against its
+ETag; modules, styles, and tool assets carry the package version, which
+relative imports preserve across the module graph. The server rejects a removed
+release with 409 instead of mixed files, and a stale page refreshes once before
+it connects or asks for a reload afterward.
+
 ## Operational limits
 
 Each process owns its loaded boards, write queues, replay history, presence,

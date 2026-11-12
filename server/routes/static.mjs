@@ -1,3 +1,6 @@
+import path from "node:path";
+import packageJson from "../../package.json" with { type: "json" };
+import { STATIC_RESOURCE_EXTENSIONS } from "../http/cache_policy.mjs";
 import { canonicalizeBoardName } from "../../client-data/js/board_name.js";
 import { serveError } from "../http/observation.mjs";
 import { boardExists } from "../persistence/svg_board_store.mjs";
@@ -14,7 +17,27 @@ import {
  * @returns {void}
  */
 function serveStaticAsset(ctx) {
-  serveStaticFile(ctx);
+  if (!ctx.url.pathname.startsWith("/assets/")) {
+    serveStaticFile(ctx);
+    return;
+  }
+  const [, , version, ...parts] = ctx.url.pathname.split("/");
+  if (version !== packageJson.version) {
+    ctx.response.writeHead(409, { "Cache-Control": "no-store" });
+    ctx.response.end();
+    return;
+  }
+  const assetPath = `/${parts.join("/")}`;
+  if (
+    !ctx.runtime.config.IS_DEVELOPMENT &&
+    STATIC_RESOURCE_EXTENSIONS.includes(path.extname(assetPath))
+  ) {
+    ctx.response.setHeader(
+      "Cache-Control",
+      "public, max-age=31536000, immutable",
+    );
+  }
+  serveStaticFile(ctx, `${assetPath}${ctx.url.search}`);
 }
 
 /**

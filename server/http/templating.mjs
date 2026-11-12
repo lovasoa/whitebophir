@@ -29,7 +29,6 @@ import { parseRequestUrl } from "./request_url.mjs";
 /** @import { ServerConfig } from "../../types/server-runtime.d.ts" */
 
 const HTTP_DIR = path.dirname(fileURLToPath(import.meta.url));
-const BOARD_PAGE_CACHE_HEADROOM_SECONDS = 5;
 
 /**
  * Associations from language to translation dictionnaries
@@ -474,12 +473,15 @@ class BoardTemplate extends Template {
         blockedTools: blockedTools,
       })
     );
+    // Board assets are pinned to this release: relative imports keep the whole
+    // module graph on the same version.
+    params.assetBase = `../assets/${packageJson.version}/`;
     params.tools = renderedTools.map((tool) => {
       const visible = boardStateGrantsCapability(
         params.boardState,
         tool.requiredCapability,
       );
-      const iconUrl = `../${tool.iconPath}`;
+      const iconUrl = `${params.assetBase}${tool.iconPath}`;
       return {
         id: tool.toolId,
         label: params.translations[tool.translationKey] || tool.label,
@@ -537,15 +539,7 @@ class BoardTemplate extends Template {
    * @returns {string}
    */
   cacheControl() {
-    const maxAgeSeconds = Math.max(
-      0,
-      Math.floor(this.serverConfig.MAX_SAVE_DELAY / 1000) -
-        BOARD_PAGE_CACHE_HEADROOM_SECONDS,
-    );
-    return cacheControl(
-      this.serverConfig.IS_DEVELOPMENT,
-      `public, max-age=${maxAgeSeconds}, must-revalidate`,
-    );
+    return cacheControl(this.serverConfig.IS_DEVELOPMENT, "no-cache");
   }
 }
 
