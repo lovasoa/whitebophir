@@ -258,11 +258,10 @@ test("accepted personal-info text auto-reports only to moderators, with a typing
   );
 });
 
-test("personal-info auto-reports stay disabled on boards not opted in", async () => {
+test("auto-reports work without the presence gate and missed notifications do not consume cooldown", async () => {
   await createSocketScenario(
     { boardName, config: { ...config, MODERATOR_REQUIRED_BOARDS: [] } },
     async ({ connect, invoke }) => {
-      const mod = await connect({ id: "mod", ...moderator });
       const visitor = await connect({ id: "writer" });
       await invoke(visitor, "broadcast", {
         tool: Text.id,
@@ -279,9 +278,16 @@ test("personal-info auto-reports stay disabled on boards not opted in", async ()
         id: "t",
         txt: "alex@example.org",
       });
+      const mod = await connect({ id: "mod", ...moderator });
+      await invoke(visitor, "broadcast", {
+        tool: Text.id,
+        type: MutationType.UPDATE,
+        id: "t",
+        txt: "other@example.org",
+      });
       assert.equal(
         mod.emitted.some((event) => event.event === "user_reported"),
-        false,
+        true,
       );
     },
   );

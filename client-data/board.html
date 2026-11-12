@@ -71,15 +71,14 @@
 				<div id="boardStatusNotice" class="board-status-detail board-status-detail-hidden"></div>
 			</div>
 		</div>
-		<section id="anonymousWelcome" class="anonymous-welcome" dir="{{direction}}"
-			aria-labelledby="anonymous_welcome_title" hidden>
-			<h2 id="anonymous_welcome_title"></h2>
-			<p id="anonymous_welcome_rules"></p>
-			<p id="anonymous_welcome_safety"></p>
-			<div class="anonymous-welcome-actions">
-				<a id="anonymous_welcome_read_rules" href="../rules?lang={{language}}" target="_blank" rel="noopener"></a>
+		<section id="boardNotice" class="board-notice" dir="{{direction}}"
+			aria-labelledby="boardNoticeTitle" hidden>
+			<h2 id="boardNoticeTitle"></h2>
+			<div id="boardNoticeBody"></div>
+			<div class="board-notice-actions">
+				<a id="boardNoticeRules" href="../rules?lang={{language}}" target="_blank" rel="noopener"></a>
 				<span aria-hidden="true">·</span>
-				<button id="anonymous_welcome_dismiss" type="button"></button>
+				<button id="boardNoticeDismiss" type="button"></button>
 			</div>
 		</section>
 	</div>

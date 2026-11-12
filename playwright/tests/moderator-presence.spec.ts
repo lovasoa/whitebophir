@@ -27,14 +27,13 @@ test("moderator presence resumes editing and personal-info publications alert mo
     },
   ]);
   await boardPage.gotoBoard("anonymous");
-  const notice = page.locator("#anonymousWelcome");
+  const notice = page.locator("#boardNotice");
   await expect(notice).toBeVisible();
   await expect(notice).toContainText(
-    translations.en.moderation_unavailable_safety,
+    translations.en.moderation_unavailable_message,
   );
-  await expect(notice).toContainText(
-    translations.en.moderation_unavailable_recruitment,
-  );
+  await expect(notice.locator("p")).toHaveCount(1);
+  await expect(notice).not.toContainText(/sex|predator/i);
   await expect
     .poll(() => page.evaluate(() => window.WBOApp?.access.canEdit))
     .toBe(false);
@@ -109,10 +108,13 @@ for (const language of ["ar", "fr", "ja", "my", "ru"] as const) {
   }, testInfo) => {
     await page.setViewportSize({ width: 360, height: 640 });
     await boardPage.gotoBoard("moderated", { lang: language });
-    const notice = page.locator("#anonymousWelcome");
+    const notice = page.locator("#boardNotice");
     await expect(notice).toBeVisible();
     await expect(notice).toContainText(
       translations[language].moderation_unavailable_title,
+    );
+    await expect(notice.locator("p")).toHaveText(
+      translations[language].moderation_unavailable_message,
     );
     await expect(notice).toHaveAttribute(
       "dir",

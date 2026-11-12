@@ -1,5 +1,4 @@
 import observability from "../observability/index.mjs";
-import { requiresOnlineModerator } from "../auth/board_capabilities.mjs";
 import { privateInfoKind } from "../../client-data/tools/text/personal_information.js";
 import {
   MODERATION_DURATIONS,
@@ -113,9 +112,10 @@ function buildUserReportLog(boardName, { reported, reporter }, banned) {
 /**
  * @param {Pick<ReportUserContext, "boardName" | "config" | "getActiveSocket">} context
  * @param {UserReportedPayload} payload
- * @returns {void}
+ * @returns {boolean}
  */
 function notifyBoardModeratorsOfReport(context, payload) {
+  let notified = false;
   getBoardUserMap(context.boardName).forEach(function notifyUser(user) {
     const socket = context.getActiveSocket(user.socketId);
     if (
@@ -126,7 +126,9 @@ function notifyBoardModeratorsOfReport(context, payload) {
       return;
     }
     socket.emit(SocketEvents.USER_REPORTED, payload);
+    notified = true;
   });
+  return notified;
 }
 
 /** Only accepted publications can trigger this server-owned alert. Never include
@@ -135,7 +137,6 @@ function notifyBoardModeratorsOfReport(context, payload) {
  * @param {string} text
  */
 export function reportPersonalInformation(context, text) {
-  if (!requiresOnlineModerator(context.config, context.boardName)) return;
   // Live text updates arrive while typing; do not flood moderators per keystroke.
   if (
     context.socket.personalInfoReportAt !== undefined &&
@@ -145,12 +146,13 @@ export function reportPersonalInformation(context, text) {
   if (privateInfoKind(text) === null) return;
   const user = getBoardUser(context.boardName, context.socket.id);
   if (!user) return;
-  context.socket.personalInfoReportAt = context.now;
-  notifyBoardModeratorsOfReport(context, {
+  const notified = notifyBoardModeratorsOfReport(context, {
     reporterName: "",
     reportedName: user.name,
     automatic: true,
   });
+  if (!notified) return;
+  context.socket.personalInfoReportAt = context.now;
   logger.warn("user.auto_reported", {
     board: context.boardName,
     reported_socket: user.socketId,

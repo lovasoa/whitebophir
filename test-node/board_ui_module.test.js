@@ -157,6 +157,12 @@ class FakeDomElement {
     return child;
   }
 
+  /** @param {...FakeDomElement} children */
+  replaceChildren(...children) {
+    for (const child of [...this.children]) child.remove();
+    for (const child of children) this.appendChild(child);
+  }
+
   /**
    * @param {string} name
    * @param {string} value
@@ -333,6 +339,76 @@ test("floating panel controller owns hover, escape, blur, and resize behavior", 
   controller.destroy();
   browser.dispatchWindowEvent("resize");
   assert.equal(positionCount, 3);
+});
+
+test("notice panels preserve local dismissal, delegate acknowledgement and replace content safely", async () => {
+  const browser = getBrowserHarness();
+  browser.installClientDom({ createElement: (tag) => new FakeDomElement(tag) });
+  const { createNoticePanel } = await import(
+    "../client-data/js/board_ui_module.js"
+  );
+  const elements = {
+    panel: new FakeDomElement("section"),
+    title: new FakeDomElement("h2"),
+    body: new FakeDomElement("div"),
+    dismissButton: new FakeDomElement("button"),
+    restoreFocusElement: new FakeDomElement("button"),
+  };
+  const panel = createNoticePanel(
+    /** @type {import("../client-data/js/board_ui_module.js").NoticePanelOptions} */ (
+      /** @type {unknown} */ (elements)
+    ),
+  );
+  let acknowledged = 0;
+  const first = {
+    title: "First",
+    paragraphs: ["<b>Plain text</b>", "Second paragraph"],
+    onDismiss: () => acknowledged++,
+  };
+  const second = { title: "Second", paragraphs: ["One paragraph"] };
+  panel.show(first);
+  assert.equal(elements.title.textContent, "First");
+  assert.deepEqual(
+    elements.body.children.map((child) => child.textContent),
+    first.paragraphs,
+  );
+  const paragraph = elements.body.children[0];
+  panel.show(first);
+  assert.equal(
+    elements.body.children[0],
+    paragraph,
+    "state refresh must not rebuild the active notice",
+  );
+  elements.dismissButton.dispatch("click");
+  assert.equal(elements.panel.hidden, true);
+  assert.equal(document.activeElement, elements.restoreFocusElement);
+  assert.equal(acknowledged, 1);
+  panel.show(first);
+  assert.equal(
+    elements.panel.hidden,
+    true,
+    "refresh must not reopen a dismissed notice",
+  );
+  panel.show(second);
+  assert.equal(elements.panel.hidden, false);
+  assert.deepEqual(
+    elements.body.children.map((child) => child.textContent),
+    second.paragraphs,
+  );
+  elements.dismissButton.dispatch("click");
+  assert.equal(
+    acknowledged,
+    1,
+    "each notice owns its own acknowledgement policy",
+  );
+  panel.show(null);
+  assert.equal(elements.panel.hidden, true);
+  panel.show(second);
+  assert.equal(
+    elements.panel.hidden,
+    false,
+    "a new occurrence must be visible",
+  );
 });
 
 test("modal shell creates, reuses, hides, and removes shared containers", async () => {
