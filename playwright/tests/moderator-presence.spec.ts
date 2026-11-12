@@ -12,6 +12,53 @@ const test = base.extend({
   },
 });
 
+test("moderators do not see the no-moderator notice while their connection is pending", async ({
+  page,
+  context,
+  boardPage,
+  server,
+}, testInfo) => {
+  await context.addCookies([
+    {
+      name: "wbo-user-secret-v1",
+      value: moderatorSecret,
+      url: server.serverUrl,
+    },
+  ]);
+  let releaseConnection!: () => void;
+  const connectionReady = new Promise<void>((resolve) => {
+    releaseConnection = resolve;
+  });
+  await page.route("**/socket.io/**", async (route) => {
+    if (route.request().resourceType() !== "script") await connectionReady;
+    await route.continue();
+  });
+  try {
+    await boardPage.gotoBoard("moderated");
+    await expect
+      .poll(() => page.evaluate(() => window.WBOApp.access.boardState))
+      .toMatchObject({
+        canBan: true,
+        canEdit: false,
+        moderationUnavailable: true,
+      });
+    await expect(page.locator("#boardNotice")).toBeHidden();
+    await expect(boardPage.statusTitle).toHaveText(translations.en.loading);
+    await page.screenshot({
+      path: testInfo.outputPath("moderator-connecting.png"),
+    });
+    releaseConnection();
+    await boardPage.waitForSocketConnected();
+    await expect
+      .poll(() => page.evaluate(() => window.WBOApp.access.canEdit))
+      .toBe(true);
+    await expect(page.locator("#boardNotice")).toBeHidden();
+  } finally {
+    releaseConnection();
+    await page.unrouteAll({ behavior: "wait" });
+  }
+});
+
 test("moderator presence resumes editing and personal-info publications alert moderators", async ({
   page,
   context,

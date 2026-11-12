@@ -33,7 +33,8 @@ export function createBoardNotices({ boardName, i18n, show }) {
   /** @param {AppBoardState} state */
   return (state) => {
     if (state.moderationUnavailable) {
-      show(unmoderated);
+      // HTTP already knows the moderator's identity before their socket joins.
+      show(state.canBan ? null : unmoderated);
       return;
     }
     show(boardName === "anonymous" && !welcomeAcknowledged() ? welcome : null);
