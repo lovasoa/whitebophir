@@ -11,6 +11,7 @@ test("anonymous welcome is dismissed for 30 days only after acknowledgement", as
   const welcome = page.locator("#boardNotice");
   await expect(welcome).toBeVisible();
   await expect(welcome).toContainText("Welcome! This board is public.");
+  await expect(welcome.locator("#boardNoticePrimaryAction")).toBeHidden();
   await expect(welcome).toContainText("secret chats or naked pictures");
   expect(
     (await context.cookies()).find((c) => c.name === cookieName),
@@ -134,7 +135,7 @@ for (const language of ["ar", "fr", "ja", "my"]) {
     expect(
       await welcome.evaluate((el) => el.scrollWidth <= el.clientWidth),
     ).toBe(true);
-    const rulesLink = welcome.locator("a");
+    const rulesLink = welcome.locator("#boardNoticeRules");
     await expect(rulesLink).toHaveAttribute(
       "href",
       `../rules?lang=${language}`,

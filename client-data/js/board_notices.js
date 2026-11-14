@@ -29,6 +29,10 @@ export function createBoardNotices({ boardName, i18n, show }) {
   const unmoderated = {
     title: i18n.t("moderation_unavailable_title"),
     paragraphs: [i18n.t("moderation_unavailable_message")],
+    primaryAction: {
+      label: i18n.t("create_private_board"),
+      href: "../random",
+    },
   };
   /** @param {AppBoardState} state */
   return (state) => {
