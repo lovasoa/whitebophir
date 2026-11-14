@@ -106,6 +106,9 @@ export class BoardShellModule {
       panel: getRequiredElement("boardNotice"),
       title: getRequiredElement("boardNoticeTitle"),
       body: getRequiredElement("boardNoticeBody"),
+      primaryAction: /** @type {HTMLAnchorElement} */ (
+        getRequiredElement("boardNoticePrimaryAction")
+      ),
       dismissButton,
       restoreFocusElement: getRequiredElement("connectedUsersToggle"),
     });

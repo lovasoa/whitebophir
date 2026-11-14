@@ -171,6 +171,11 @@ class FakeDomElement {
     this.attributes.set(name, value);
   }
 
+  /** @param {string} name */
+  removeAttribute(name) {
+    this.attributes.delete(name);
+  }
+
   /**
    * @param {string} type
    * @param {EventListener} listener
@@ -351,6 +356,7 @@ test("notice panels preserve local dismissal, delegate acknowledgement and repla
     panel: new FakeDomElement("section"),
     title: new FakeDomElement("h2"),
     body: new FakeDomElement("div"),
+    primaryAction: new FakeDomElement("a"),
     dismissButton: new FakeDomElement("button"),
     restoreFocusElement: new FakeDomElement("button"),
   };
@@ -363,11 +369,18 @@ test("notice panels preserve local dismissal, delegate acknowledgement and repla
   const first = {
     title: "First",
     paragraphs: ["<b>Plain text</b>", "Second paragraph"],
+    primaryAction: { label: "Create a private board", href: "../random" },
     onDismiss: () => acknowledged++,
   };
   const second = { title: "Second", paragraphs: ["One paragraph"] };
   panel.show(first);
   assert.equal(elements.title.textContent, "First");
+  assert.equal(elements.primaryAction.hidden, false);
+  assert.equal(elements.primaryAction.textContent, first.primaryAction.label);
+  assert.equal(
+    elements.primaryAction.attributes.get("href"),
+    first.primaryAction.href,
+  );
   assert.deepEqual(
     elements.body.children.map((child) => child.textContent),
     first.paragraphs,
@@ -391,6 +404,9 @@ test("notice panels preserve local dismissal, delegate acknowledgement and repla
   );
   panel.show(second);
   assert.equal(elements.panel.hidden, false);
+  assert.equal(elements.primaryAction.hidden, true);
+  assert.equal(elements.primaryAction.textContent, "");
+  assert.equal(elements.primaryAction.attributes.has("href"), false);
   assert.deepEqual(
     elements.body.children.map((child) => child.textContent),
     second.paragraphs,

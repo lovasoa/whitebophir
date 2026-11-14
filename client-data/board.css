@@ -618,7 +618,8 @@ select {
   color: inherit;
 }
 
-.board-notice button {
+.board-notice button,
+.board-notice-primary {
   padding: 4px 10px;
   border: 1px solid var(--board-control-border-strong);
   border-radius: var(--board-control-radius);
@@ -626,6 +627,15 @@ select {
   color: #111827;
   font: inherit;
   cursor: pointer;
+}
+
+.board-notice-primary:not([hidden]) {
+  display: block;
+  margin: 10px 0;
+  border-color: var(--board-accent-strong);
+  background: var(--board-accent);
+  text-align: center;
+  text-decoration: none;
 }
 
 .board-rules-link:focus-visible,

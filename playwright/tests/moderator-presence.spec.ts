@@ -12,6 +12,30 @@ const test = base.extend({
   },
 });
 
+test("the no-moderator action opens a new writable private board", async ({
+  page,
+  boardPage,
+}) => {
+  await boardPage.gotoBoard("anonymous");
+  const notice = page.locator("#boardNotice");
+  const createBoard = notice.getByRole("link", {
+    name: translations.en.create_private_board,
+  });
+  await expect(createBoard).toBeVisible();
+  await expect(createBoard).toHaveAttribute("href", "../random");
+  await createBoard.click();
+  await expect(page).toHaveURL(/\/boards\/(?!anonymous(?:[?#]|$))[^/?#]+$/);
+  await boardPage.waitForSocketConnected();
+  await expect
+    .poll(() => page.evaluate(() => window.WBOApp.access.canEdit))
+    .toBe(true);
+  await expect(notice).toBeHidden();
+  await boardPage.selectTool("text");
+  await page.mouse.click(260, 240);
+  await page.locator("#textToolInput").fill("Private board");
+  await expect(page.locator("#drawingArea text")).toHaveText("Private board");
+});
+
 test("moderators do not see the no-moderator notice while their connection is pending", async ({
   page,
   context,
@@ -163,6 +187,11 @@ for (const language of ["ar", "fr", "ja", "my", "ru"] as const) {
     await expect(notice.locator("p")).toHaveText(
       translations[language].moderation_unavailable_message,
     );
+    await expect(
+      notice.getByRole("link", {
+        name: translations[language].create_private_board,
+      }),
+    ).toBeVisible();
     await expect(notice).toHaveAttribute(
       "dir",
       language === "ar" ? "rtl" : "ltr",

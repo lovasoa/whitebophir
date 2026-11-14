@@ -841,8 +841,8 @@ export function showModerationDisconnectNotice(options) {
   });
 }
 
-/** @typedef {{title: string, paragraphs: string[], onDismiss?: () => void}} NoticeContent */
-/** @typedef {{panel: HTMLElement, title: HTMLElement, body: HTMLElement, dismissButton: HTMLElement, restoreFocusElement: HTMLElement}} NoticePanelOptions */
+/** @typedef {{title: string, paragraphs: string[], primaryAction?: {label: string, href: string}, onDismiss?: () => void}} NoticeContent */
+/** @typedef {{panel: HTMLElement, title: HTMLElement, body: HTMLElement, primaryAction: HTMLAnchorElement, dismissButton: HTMLElement, restoreFocusElement: HTMLElement}} NoticePanelOptions */
 
 /** Renders one notice at a time. Content and acknowledgement policies belong to callers.
  * @param {NoticePanelOptions} elements
@@ -866,6 +866,17 @@ export function createNoticePanel(elements) {
         dismissed = false;
         if (notice) {
           elements.title.textContent = notice.title;
+          elements.primaryAction.hidden = !notice.primaryAction;
+          elements.primaryAction.textContent =
+            notice.primaryAction?.label ?? "";
+          if (notice.primaryAction) {
+            elements.primaryAction.setAttribute(
+              "href",
+              notice.primaryAction.href,
+            );
+          } else {
+            elements.primaryAction.removeAttribute("href");
+          }
           elements.body.replaceChildren(
             ...notice.paragraphs.map((text) => {
               const paragraph = document.createElement("p");
