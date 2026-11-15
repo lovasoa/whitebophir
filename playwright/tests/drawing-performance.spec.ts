@@ -178,7 +178,8 @@ test("collaborative drawing bounds rendering work per update", async ({
           await new Promise(requestAnimationFrame);
           const endpoints = Array.from(
             document.querySelectorAll<SVGPathElement>("#board path"),
-            (path) => path.getPathData().at(-1)?.values.slice(-2),
+            (path) =>
+              path.getAttribute("d")?.trim().split(/\s+/).slice(-2).map(Number),
           );
           for (let i = 0; i < remoteCount; i++) {
             if (
@@ -223,7 +224,7 @@ test("collaborative drawing bounds rendering work per update", async ({
     Array.from({ length: 7 }, (_, i) => {
       const line = document.querySelector<SVGPathElement>(`#remote-${i}`);
       if (!line) throw Error("Missing remote path");
-      return line.getPathData().at(-1)?.values.slice(-2);
+      return line.getAttribute("d")?.trim().split(/\s+/).slice(-2).map(Number);
     }),
   );
   expect(endpoints).toEqual(
@@ -279,7 +280,12 @@ test("deferred remote ink survives editing, idle commit and baseline replacement
         Array.from(
           document.querySelectorAll<SVGPathElement>("#board path"),
         ).some((path) => {
-          const point = path.getPathData().at(-1)?.values.slice(-2);
+          const point = path
+            .getAttribute("d")
+            ?.trim()
+            .split(/\s+/)
+            .slice(-2)
+            .map(Number);
           return point?.[0] === x && point[1] === y;
         }),
       { x, y },

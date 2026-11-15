@@ -2,7 +2,9 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const MessageCommon = require("../client-data/js/message_common.js");
-const { Text } = require("../client-data/tools/index.js");
+const {
+  TOOL_BY_ID: { text: Text },
+} = require("../client-data/tools/manifest.js");
 
 test("shared geometry helpers apply transforms to bounds", () => {
   const bounds = MessageCommon.applyTransformToBounds(

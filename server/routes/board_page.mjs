@@ -1,10 +1,6 @@
 import { getLoadedBoard } from "../board/registry.mjs";
-import { respondWithErrorPage } from "../http/observation.mjs";
 import observability from "../observability/index.mjs";
-import {
-  readBoardDocumentState,
-  streamServedBaseline,
-} from "../persistence/svg_board_store.mjs";
+import { readBoardDocumentState } from "../persistence/svg_board_store.mjs";
 import {
   annotateBoardRequest,
   boardDocumentLocation,
@@ -13,6 +9,7 @@ import {
   boardPageETag,
   ensureBoardUserSecretCookie,
   matchesIfNoneMatch,
+  openBoardBaselineStream,
   parseBoardPageETagCandidates,
   pinServedBoardBaseline,
   requireBoardDocumentNames,
@@ -331,39 +328,12 @@ async function streamStoredSvgBoardDocument(
   document,
   renderOptions,
 ) {
-  const svgStream = await tracing.withRecordingActiveSpan(
-    "board.baseline_stream_open",
-    {
-      attributes: boardOperationTraceAttributes(
-        pageRequest.boardName,
-        "baseline_stream_open",
-        {
-          "wbo.board.load_source": document.source,
-          "file.size": document.byteLength,
-          ...(document.metadata.seq === undefined
-            ? {}
-            : { "wbo.board.seq": document.metadata.seq }),
-        },
-      ),
-    },
-    function traceBoardBaselineStreamOpen() {
-      return streamServedBaseline(pageRequest.boardName, {
-        historyDir: ctx.runtime.config.HISTORY_DIR,
-      });
-    },
-  );
-  svgStream.on("error", (/** @type {Error} */ error) => {
-    ctx.observed.noteError(error);
-    if (!ctx.response.headersSent) {
-      respondWithErrorPage(
-        ctx.request,
-        ctx.response,
-        500,
-        ctx.runtime.errorPage,
-      );
-    } else {
-      ctx.response.destroy(error);
-    }
+  const svgStream = await openBoardBaselineStream(ctx, pageRequest.boardName, {
+    "wbo.board.load_source": document.source,
+    "file.size": document.byteLength,
+    ...(document.metadata.seq === undefined
+      ? {}
+      : { "wbo.board.seq": document.metadata.seq }),
   });
   const { encoding } = ctx.runtime.boardTemplate.serveStream(
     ctx.request,

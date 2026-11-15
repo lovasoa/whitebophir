@@ -2,9 +2,11 @@ import * as http from "node:http";
 import type { AddressInfo } from "node:net";
 import { expect, test } from "@playwright/test";
 import { MutationType } from "../../client-data/js/mutation_type.js";
-import { Cursor } from "../../client-data/tools/index.js";
+import { TOOL_BY_ID } from "../../client-data/tools/manifest.js";
 import { startTestServer, stopTestServer } from "../helpers/testServer";
 import { BoardPage } from "../pages/BoardPage";
+
+const { cursor: Cursor } = TOOL_BY_ID;
 
 function startTurnstileVerifyServer() {
   return new Promise<http.Server>((resolve) => {

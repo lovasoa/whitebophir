@@ -3,16 +3,18 @@ import { setTimeout as delay } from "node:timers/promises";
 import { FRIEND_LAST_NAMES_STORAGE_KEY } from "../../client-data/js/board_friend_store.js";
 import { MODERATION_RULES } from "../../client-data/js/moderation_rules.js";
 import { MutationType } from "../../client-data/js/mutation_type.js";
-import {
-  Cursor,
-  Eraser,
-  Hand,
-  Pencil,
-  Rectangle,
-} from "../../client-data/tools/index.js";
+import { TOOL_BY_ID } from "../../client-data/tools/manifest.js";
 import translations from "../../server/http/translations.json";
 import { createBoardPage, expect, test } from "../fixtures/test";
 import { DEFAULT_FORWARDED_IP, TOKENS } from "../helpers/tokens";
+
+const {
+  cursor: Cursor,
+  eraser: Eraser,
+  hand: Hand,
+  pencil: Pencil,
+  rectangle: Rectangle,
+} = TOOL_BY_ID;
 
 const rateLimitTest = test.extend({
   serverOptions: {
@@ -1409,7 +1411,6 @@ test.describe("collaboration and rate limiting", () => {
       "/js/board_main.js",
       "/js/board.js",
       "/js/board_viewport.js",
-      "/js/path-data-polyfill.js",
       "/socket.io/socket.io.js",
     ]);
 

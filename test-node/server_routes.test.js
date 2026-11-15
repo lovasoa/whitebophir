@@ -1347,10 +1347,10 @@ test("board pages render JWT-disabled writable capability state without Clear", 
   }
 });
 
-test("board downloads use safe ASCII filenames", async (t) => {
+test("board downloads preserve Unicode text and use safe ASCII filenames", async (t) => {
   const dirs = await createServerDirs();
   const svg =
-    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="3" data-wbo-readonly="false"><defs id="defs"></defs><g id="drawingArea"><line id="line-1" x1="0" y1="0" x2="10" y2="20" stroke="#000000" stroke-width="2" fill="none"></line></g><g id="cursors"></g></svg>';
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="3" data-wbo-readonly="false"><defs id="defs"></defs><g id="drawingArea"><line id="line-1" x1="0" y1="0" x2="10" y2="20" stroke="#000000" stroke-width="2" fill="none"></line><text id="greeting" x="10" y="20" font-size="20" fill="#000000">café 白板 𠮷</text></g><g id="cursors"></g></svg>';
   const app = await createTestServer(createServerConfig(dirs));
   try {
     for (const [boardName, filename] of Object.entries({

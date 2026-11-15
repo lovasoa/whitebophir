@@ -74,9 +74,7 @@ test("pan-ready boot graph excludes full app and tool implementations", () => {
     "client-data/js/message_common.js",
     "client-data/js/message_tool_metadata.js",
     "client-data/js/mutation_type.js",
-    "client-data/js/path-data-polyfill.js",
     "client-data/js/rate_limit_common.js",
-    "client-data/tools/index.js",
     "client-data/tools/manifest.js",
     "client-data/tools/tool-defaults.js",
     "client-data/tools/tool-order.js",
@@ -98,7 +96,6 @@ test("server tool contracts stay independent from tool interaction modules", () 
     "server/board/canonical_items.mjs",
   ]) {
     const closure = staticImportClosure(entry);
-    assertClosureExcludes(closure, ["client-data/tools/index.js"]);
     assert.equal(
       Array.from(closure).some((file) =>
         /^client-data\/tools\/[^/]+\/index\.js$/.test(file),
@@ -115,7 +112,6 @@ test("client tool metadata stays independent from tool implementations", () => {
     "client-data/js/rate_limit_common.js",
   ]) {
     const closure = staticImportClosure(entry);
-    assertClosureExcludes(closure, ["client-data/tools/index.js"]);
     assert.equal(
       Array.from(closure).some((file) =>
         /^client-data\/tools\/[^/]+\/index\.js$/.test(file),

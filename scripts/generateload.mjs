@@ -2,7 +2,8 @@ import process from "node:process";
 
 import { chromium } from "playwright";
 import { MutationType } from "../client-data/js/mutation_type.js";
-import { Pencil } from "../client-data/tools/index.js";
+import { TOOL_BY_ID } from "../client-data/tools/manifest.js";
+const { pencil: Pencil } = TOOL_BY_ID;
 
 const DEFAULT_URL = "http://127.0.0.1:8080/boards/anonymous";
 const DEFAULT_USERS = 1;

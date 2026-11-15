@@ -316,8 +316,12 @@ try {
                     const line = /** @type {SVGPathElement | null} */ (
                       document.getElementById(`peer-${repeat}-${i}`)
                     );
-                    const data = line?.getPathData();
-                    const values = data?.[data.length - 1]?.values;
+                    const values = line
+                      ?.getAttribute("d")
+                      ?.trim()
+                      .split(/\s+/)
+                      .slice(-2)
+                      .map(Number);
                     if (
                       !values ||
                       values[values.length - 2] !== 1500 + (peerPoint - 1) * 7

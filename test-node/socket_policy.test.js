@@ -9,12 +9,14 @@ const {
 } = require("./test_helpers.js");
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const {
-  Clear,
-  Cursor,
-  Hand,
-  Rectangle,
-  Text,
-} = require("../client-data/tools/index.js");
+  TOOL_BY_ID: {
+    clear: Clear,
+    cursor: Cursor,
+    hand: Hand,
+    rectangle: Rectangle,
+    text: Text,
+  },
+} = require("../client-data/tools/manifest.js");
 
 require(SOCKET_POLICY_PATH);
 

@@ -1,13 +1,5 @@
-import {
-  recordRateLimitUsage,
-  getRateLimitHistoryWaitMs,
-} from "./rate_limit_history.js";
-
 import { TOOL_CODE_BY_ID } from "../tools/manifest.js";
 import { getMutationType, MutationType } from "./message_tool_metadata.js";
-
-// Keep these exports for cached 2.18.10 write modules.
-export { recordRateLimitUsage, getRateLimitHistoryWaitMs };
 
 export const ANONYMOUS_BOARD_NAME = "anonymous";
 export const ANONYMOUS_RATE_LIMIT_DIVISOR = 2;
@@ -110,28 +102,6 @@ export function getRateLimitRemainingMs(state, periodMs, now) {
   return Math.max(0, normalized.windowStart + periodMs - now);
 }
 
-// Cached write modules still call the fixed-window API after a release.
-/**
- * @param {unknown} state
- * @param {number} cost
- * @param {number} limit
- * @param {number} periodMs
- * @param {number} now
- * @returns {boolean}
- */
-export function canConsumeFixedWindowRateLimit(
-  state,
-  cost,
-  limit,
-  periodMs,
-  now,
-) {
-  const numericCost = Math.max(0, Number(cost) || 0);
-  if (numericCost === 0) return true;
-  const normalized = normalizeRateLimitState(state, periodMs, now);
-  return normalized.count + numericCost <= Math.max(0, Number(limit) || 0);
-}
-
 /**
  * @param {unknown} state
  * @param {number} periodMs
@@ -203,15 +173,6 @@ export function isConstructiveAction(data) {
     mutationType === MutationType.CREATE ||
     mutationType === MutationType.COPY
   );
-}
-
-/**
- * @param {{limit?: unknown, periodMs?: unknown, anonymousLimit?: unknown, overrides?: {[boardName: string]: {limit?: unknown, periodMs?: unknown}}} | null | undefined} definition
- * @param {unknown} boardName
- * @returns {number}
- */
-export function getEffectiveRateLimitLimit(definition, boardName) {
-  return getEffectiveRateLimitDefinition(definition, boardName).limit;
 }
 
 /**
@@ -308,12 +269,8 @@ const rateLimitCommon = {
   normalizeRateLimitState,
   consumeFixedWindowRateLimit,
   getRateLimitRemainingMs,
-  canConsumeFixedWindowRateLimit,
-  recordRateLimitUsage,
-  getRateLimitHistoryWaitMs,
   isRateLimitStateStale,
   getEffectiveRateLimitDefinition,
-  getEffectiveRateLimitLimit,
   countDestructiveActions,
   isConstructiveAction,
   countConstructiveActions,

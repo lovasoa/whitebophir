@@ -6,7 +6,6 @@ import {
   collectOptimisticDependencyIds,
 } from "./optimistic_mutation.js";
 import RateLimitCommon from "./rate_limit_common.js";
-// A distinct module URL keeps rolling budgets independent of cached fixed-window APIs.
 import {
   recordRateLimitUsage,
   getRateLimitHistoryWaitMs,

@@ -469,9 +469,6 @@ async function loadToolModule(toolName) {
   if (!isRegisteredToolId(toolName)) {
     throw new Error(`Unknown tool module: ${toolName}.`);
   }
-  if (toolName === "pencil") {
-    await import("./path-data-polyfill.js");
-  }
   return /** @type {ToolModule} */ (
     await import(getToolModuleImportPath(toolName))
   );

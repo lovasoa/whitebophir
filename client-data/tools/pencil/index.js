@@ -34,6 +34,7 @@ import {
 import { collectOptimisticDependencyIds } from "../../js/optimistic_mutation.js";
 import { PencilContract } from "../contracts.js";
 import { TOOL_CODE_BY_ID } from "../tool-order.js";
+import { readPencilPath, writePencilPath } from "./pencil_geometry.js";
 import { wboPencilPoint } from "./wbo_pencil_point.js";
 
 /** @import { BoardMessage, ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
@@ -80,7 +81,7 @@ const LIVE_PATH_CLASS = "wbo-pencil-live-path";
 // The supported wire protocol has no stroke-end event. Idle remote ink is
 // materialized between gestures; active local input keeps it in the light layer.
 const REMOTE_INK_IDLE_MS = 250;
-/** @typedef {{type: string, values: number[]}} PencilPathSegment */
+/** @typedef {import("./pencil_geometry.js").PencilPathSegment} PencilPathSegment */
 /** @typedef {PencilPathSegment[]} PencilPathData */
 /** @typedef {{line: SVGPathElement, overlay: SVGPathElement, visibility: string, dirty: boolean, detached: boolean, updated: number}} RemoteInk */
 /** @typedef {{name: string, icon: string, active: boolean, switch?: () => void}} PencilSecondary */
@@ -198,7 +199,7 @@ class PencilLiveOverlay {
     if (!this.overlay || !this.path || !this.lineData) return;
     syncOverlayTransform(this.overlay, this.viewport);
     if (this.pathData) {
-      this.path.setPathData(this.pathData);
+      writePencilPath(this.path, this.pathData);
       this.measurement?.geometry(true);
     }
   }
@@ -211,7 +212,7 @@ class PencilLiveOverlay {
       window.cancelAnimationFrame(this.animationFrame);
       this.animationFrame = 0;
     }
-    this.path?.setPathData([]);
+    if (this.path) writePencilPath(this.path, []);
   }
 }
 
@@ -467,7 +468,7 @@ export function createPencilMoveEffect(state, x, y, now, force = false) {
 }
 
 /**
- * Returns cached path data for a board SVG path. `getPathData()` allocates, so
+ * Returns cached path data for a board SVG path. Decoding allocates, so
  * append handling keeps one mutable JS copy per line and writes it back after
  * adding the next point.
  * @param {PencilState} state
@@ -476,7 +477,7 @@ export function createPencilMoveEffect(state, x, y, now, force = false) {
 function getPathData(state, line) {
   let pathData = state.pathDataCache[line.id];
   if (!pathData) {
-    pathData = line.getPathData();
+    pathData = readPencilPath(line.getAttribute("d") || "");
     state.pathDataCache[line.id] = pathData;
   }
   return pathData;
@@ -567,7 +568,7 @@ function commitActiveStroke(state) {
   const pathData = state.pathDataCache[lineId];
   if (!pathData || pathData.length === 0) return;
   const line = createLine(state, state.activeLineData);
-  line.setPathData(pathData);
+  writePencilPath(line, pathData);
   state.measurement?.geometry();
   state.pathDataCache[lineId] = pathData;
 }
@@ -604,11 +605,10 @@ function removeLocalLine(state, lineId) {
  * Converts server-rendered canonical pencil paths back into the browser's
  * smoothed path representation. This runs on boot/normalization, not on the
  * active local input path.
- * @param {PencilState} state
  * @param {{type: string, values: number[]}[]} pathData
  * @returns {{type: string, values: number[]}[] | null}
  */
-function normalizeServerRenderedPathData(state, pathData) {
+function normalizeServerRenderedPathData(pathData) {
   if (!pathData || !pathData.length) return null;
   /** @type {{type: string, values: number[]}[]} */
   const smoothedPathData = [];
@@ -647,7 +647,6 @@ function normalizeServerRenderedPathData(state, pathData) {
     }
     wboPencilPoint(smoothedPathData, cursorX, cursorY);
   }
-  void state;
   return smoothedPathData;
 }
 
@@ -691,7 +690,7 @@ function normalizePersistedPath(d) {
 function createLine(state, lineData, deferAttachment = false) {
   let line = getLineById(state, lineData.id);
   delete state.pathDataCache[lineData.id];
-  if (line) line.setPathData([]);
+  if (line) writePencilPath(line, []);
   else {
     line = /** @type {SVGPathElement & {id: string}} */ (
       state.board.createSVGElement("path")
@@ -842,7 +841,7 @@ export function draw(state, data, isLocal = false) {
     const pathData = wboPencilPoint(getPathData(state, line), data.x, data.y);
     if (state.deferRemoteInk && state.liveOverlay.active)
       queueRemoteInk(state, line);
-    else line.setPathData(pathData);
+    else writePencilPath(line, pathData);
   }
 }
 
@@ -882,7 +881,7 @@ function queueRemoteInk(state, line) {
         if (!remote.dirty) continue;
         remote.dirty = false;
         const points = state.pathDataCache[id];
-        if (points) remote.overlay.setPathData(points);
+        if (points) writePencilPath(remote.overlay, points);
       }
     });
   scheduleRemoteInkCommit(state);
@@ -950,7 +949,7 @@ export function flushPendingDraws(state, message) {
     const points = state.pathDataCache[id];
     if (ink.detached) state.board.drawingArea.appendChild(ink.line);
     if (points && ink.line.parentNode === state.board.drawingArea)
-      ink.line.setPathData(points);
+      writePencilPath(ink.line, points);
     ink.line.style.visibility = ink.visibility;
     ink.overlay.remove();
   }
@@ -1088,14 +1087,14 @@ export function normalizeServerRenderedElement(state, line) {
   if (d.includes("C") || d.includes("c")) return;
   const normalizedPathData =
     normalizePersistedPath(d) ||
-    normalizeServerRenderedPathData(state, line.getPathData());
+    normalizeServerRenderedPathData(readPencilPath(d));
   if (!normalizedPathData || normalizedPathData.length === 0) {
     logFrontendEvent("warn", "tool.pencil.path_normalization_failed", {
       id: line.id ?? "",
     });
     return;
   }
-  line.setPathData(normalizedPathData);
+  writePencilPath(line, normalizedPathData);
   // Completed stored strokes need no JS geometry cache. An append will decode
   // just its parent on demand; otherwise large boards retain every point array.
 }

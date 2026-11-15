@@ -5,83 +5,16 @@ import MessageCommon from "../../client-data/js/message_common.js";
 import { TOOL_CONTRACT_BY_ID as TOOL_BY_ID } from "../../client-data/tools/contracts.js";
 import observability from "../observability/index.mjs";
 import { parseLegacyStoredBoard } from "./legacy_json_board_source.mjs";
+import { storedSvgSerializeHelpers } from "./stored_svg_item_codec.mjs";
 
 const { logger, tracing } = observability;
+const { numberOrZero } = storedSvgSerializeHelpers;
 const STANDALONE_SVG_RENDER_BYTES_THRESHOLD = 1024 * 1024;
 
 /** @typedef {{x: number, y: number}} Point */
 /** @typedef {{tool: string, id?: string, color?: string, size?: number, opacity?: number, deltax?: number, deltay?: number, txt?: string, _children?: Point[], x?: number, y?: number, x2?: number, y2?: number}} RenderableElement */
 /** @typedef {{[name: string]: RenderableElement}} RenderableBoard */
 /** @typedef {{write: (chunk: string) => void}} WritableTarget */
-/** @typedef {import("../../client-data/tools/shape_contract.js").StoredShapeItem} StoredShapeItem */
-
-/**
- * @param {unknown} value
- * @returns {number}
- */
-function numberOrZero(value) {
-  return typeof value === "number" ? value : 0;
-}
-
-/**
- * @param {unknown} str
- * @returns {string}
- */
-function htmlspecialchars(str) {
-  if (typeof str !== "string") return "";
-
-  return str.replace(/[<>&"']/g, (c) => {
-    switch (c) {
-      case "<":
-        return "&lt;";
-      case ">":
-        return "&gt;";
-      case "&":
-        return "&amp;";
-      case '"':
-        return "&quot;";
-      case "'":
-        return "&#39;";
-      default:
-        return c;
-    }
-  });
-}
-
-/**
- * @param {StoredShapeItem} el
- * @returns {string}
- */
-function renderTranslate(el) {
-  const deltax = numberOrZero(el.deltax);
-  const deltay = numberOrZero(el.deltay);
-  if (deltax === 0 && deltay === 0) return "";
-  return `transform="translate(${deltax},${deltay})"`;
-}
-
-/**
- * @param {StoredShapeItem} el
- * @param {string} pathstring
- * @returns {string}
- */
-function renderPath(el, pathstring) {
-  return (
-    "<path " +
-    (el.id ? `id="${htmlspecialchars(el.id)}" ` : "") +
-    'stroke-width="' +
-    (numberOrZero(el.size) | 0) +
-    '" ' +
-    (el.opacity ? `opacity="${numberOrZero(el.opacity)}" ` : "") +
-    'stroke="' +
-    htmlspecialchars(el.color) +
-    '" ' +
-    'd="' +
-    pathstring +
-    '" ' +
-    renderTranslate(el) +
-    "/>"
-  );
-}
 
 /**
  * Writes the given board as an svg to the given writeable stream
@@ -123,7 +56,7 @@ async function toSVG(obj, writeable) {
       '">' +
       '<defs><style type="text/css"><![CDATA[' +
       'text {font-family:"Arial"}' +
-      "path {fill:none;stroke-linecap:round;stroke-linejoin:round;}" +
+      "path, line {fill:none;stroke-linecap:round;stroke-linejoin:round;}" +
       "rect {fill:none}" +
       "]]></style></defs>",
   );
@@ -134,14 +67,28 @@ async function toSVG(obj, writeable) {
     const elem = elems[index];
     if (!elem) continue;
     const contract = TOOL_BY_ID[elem.tool];
-    if (typeof contract?.renderBoardSvg === "function") {
+    if (typeof contract?.serializeStoredSvgItem === "function") {
+      // Keep the standalone export's legacy defaults while sharing tool geometry.
       writeable.write(
-        contract.renderBoardSvg(elem, {
-          htmlspecialchars,
-          numberOrZero,
-          renderPath,
-          renderTranslate,
-        }),
+        contract.serializeStoredSvgItem(
+          {
+            ...elem,
+            id: elem.tool === "text" ? elem.id || "t" : elem.id,
+            opacity:
+              elem.tool === "rectangle" || elem.tool === "text"
+                ? undefined
+                : elem.opacity || undefined,
+            transform: {
+              a: 1,
+              b: 0,
+              c: 0,
+              d: 1,
+              e: numberOrZero(elem.deltax),
+              f: numberOrZero(elem.deltay),
+            },
+          },
+          storedSvgSerializeHelpers,
+        ),
       );
     } else {
       logger.warn("svg.renderer_missing", {

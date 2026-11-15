@@ -2,18 +2,12 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const { installBrowserHarness } = require("./helpers/browser_harness.js");
 
-test("published transport namespaces preserve helpers used by cached modules", async () => {
-  const transport = await import("../client-data/js/board_transport.js");
-  const { connection, messages } = transport;
-  assert.equal(
-    connection.normalizeSocketIOExtraHeaders,
-    transport.normalizeSocketIOExtraHeaders,
+test("socket parameters and pending messages retain board identity", async () => {
+  const { buildSocketParams, queuePendingMessage } = await import(
+    "../client-data/js/board_transport.js"
   );
-  assert.equal(connection.buildSocketParams, transport.buildSocketParams);
-  assert.equal(connection.closeSocket, transport.closeSocket);
-  assert.equal(messages.queuePendingMessage, transport.queuePendingMessage);
   assert.equal(
-    connection.buildSocketParams("/boards/test", null, null, "test").query,
+    buildSocketParams("/boards/test", null, null, "test").query,
     "board=test",
   );
   const pending =
@@ -30,7 +24,7 @@ test("published transport namespaces preserve helpers used by cached modules", a
     size: 10,
     opacity: 1,
   });
-  messages.queuePendingMessage(pending, "rectangle", message);
+  queuePendingMessage(pending, "rectangle", message);
   assert.equal(pending.rectangle?.[0], message);
 });
 

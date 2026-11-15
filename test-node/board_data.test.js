@@ -20,13 +20,15 @@ const {
 } = require("../server/board/registry.mjs");
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const {
-  Clear,
-  Eraser,
-  Hand,
-  Pencil,
-  Rectangle,
-  Text,
-} = require("../client-data/tools/index.js");
+  TOOL_BY_ID: {
+    clear: Clear,
+    eraser: Eraser,
+    hand: Hand,
+    pencil: Pencil,
+    rectangle: Rectangle,
+    text: Text,
+  },
+} = require("../client-data/tools/manifest.js");
 const observability = require("../server/observability/index.mjs").default;
 
 function getBoardDataClass() {

@@ -16,6 +16,9 @@ const {
 } = require("./helpers/browser_harness.js");
 const { MessageModule } = require("../client-data/js/board_message_module.js");
 const PencilTool = require("../client-data/tools/pencil/index.js");
+const {
+  readPencilPath,
+} = require("../client-data/tools/pencil/pencil_geometry.js");
 const RectangleTool = require("../client-data/tools/rectangle/index.js");
 const ShapeTool = require("../client-data/tools/shape_tool.js");
 installTestConsole();
@@ -41,17 +44,6 @@ const { MutationType } = MessageToolMetadata;
 
 const globalAny = /** @type {any} */ (global);
 const getBrowserHarness = installBrowserHarnessForTest(test);
-
-/**
- * @param {PathSegment[]} pathData
- * @returns {PathSegment[]}
- */
-function clonePathData(pathData) {
-  return pathData.map((seg) => ({
-    type: seg.type,
-    values: seg.values.slice(),
-  }));
-}
 
 /** @returns {AnimatedLength} */
 function createAnimatedLength() {
@@ -306,7 +298,6 @@ function createBaseElement(store, tagName) {
           }),
         );
       }
-      if (this.pathData && clone.setPathData) clone.setPathData(this.pathData);
       return clone;
     },
   });
@@ -330,20 +321,7 @@ function createBBoxElement(store, tagName) {
     const height = this.height ? this.height.baseVal.value : 0;
     return { x, y, width, height };
   };
-  element.transformedBBox = function () {
-    const matrix = this.transform.baseVal.numberOfItems
-      ? this.transform.baseVal[0].matrix
-      : createMatrix();
-    const x = this.x ? this.x.baseVal.value : 0;
-    const y = this.y ? this.y.baseVal.value : 0;
-    const width = this.width ? this.width.baseVal.value : 0;
-    const height = this.height ? this.height.baseVal.value : 0;
-    return {
-      r: [x + matrix.e, y + matrix.f],
-      a: [width * matrix.a, 0],
-      b: [0, height * matrix.d],
-    };
-  };
+
   return element;
 }
 
@@ -359,17 +337,11 @@ function createSVGElement(store, tagName, attrs) {
     if (globalAny.SVGPathElement) {
       Object.setPrototypeOf(element, globalAny.SVGPathElement.prototype);
     }
-    /** @type {PathSegment[]} */
-    element.pathData = [];
-    element.getPathData = function () {
-      return clonePathData(this.pathData);
-    };
-    /**
-     * @param {PathSegment[]} pathData
-     */
-    element.setPathData = function (pathData) {
-      this.pathData = clonePathData(pathData);
-    };
+    Object.defineProperty(element, "pathData", {
+      get() {
+        return readPencilPath(element.getAttribute("d") || "");
+      },
+    });
   }
   if (tagName === "line") {
     element.x1 = createAnimatedLength();
@@ -1830,12 +1802,12 @@ test("Pencil replay is idempotent for the same persisted stroke", async () => {
     pencilTool.draw(/** @type {any} */ (message));
   });
   const line = harness.elementsById.get("line-1");
-  const firstPathData = line.getPathData();
+  const firstPathData = line.pathData;
 
   replayStroke.forEach((message) => {
     pencilTool.draw(/** @type {any} */ (message));
   });
-  const secondPathData = line.getPathData();
+  const secondPathData = line.pathData;
 
   assert.deepEqual(secondPathData, firstPathData);
 });
@@ -2771,9 +2743,6 @@ test("Hand box selection can use IntersectionObserver without target bbox reads"
   selectedRect.getBBox = () => {
     throw new Error("target getBBox should not be called");
   };
-  selectedRect.transformedBBox = () => {
-    throw new Error("target transformedBBox should not be called");
-  };
   globalAny.Tools.drawingArea.appendChild(selectedRect);
 
   const rejectedRect = globalAny.Tools.dom.createSVGElement("rect");
@@ -2821,9 +2790,6 @@ test("Hand box selection does not fall back to target bbox reads without Interse
   rect.height.baseVal.value = 40;
   rect.getBBox = () => {
     throw new Error("target getBBox should not be called");
-  };
-  rect.transformedBBox = () => {
-    throw new Error("target transformedBBox should not be called");
   };
   globalAny.Tools.drawingArea.appendChild(rect);
 

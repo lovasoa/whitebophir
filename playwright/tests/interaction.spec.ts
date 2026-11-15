@@ -1144,14 +1144,16 @@ test.describe("single-page interactions", () => {
     await expect(page.locator("#seed-rect")).toBeVisible();
     await boardPage.selectTool("hand");
 
-    const measurement = await page.locator("#seed-rect").evaluate((element) => {
-      const before = element.getAttribute("transform");
-      const shape = element as SVGGraphicsElement & {
-        transformedBBox(): unknown;
-      };
-      const bounds = shape.transformedBBox();
-      return { before, after: element.getAttribute("transform"), bounds };
-    });
+    const measurement = await page
+      .locator("#seed-rect")
+      .evaluate(async (element) => {
+        const { transformedBBox } = await import(
+          window.WBOApp.assets.resolveAssetPath("js/intersect.js")
+        );
+        const before = element.getAttribute("transform");
+        const bounds = transformedBBox(element);
+        return { before, after: element.getAttribute("transform"), bounds };
+      });
     expect(measurement.before).toBeNull();
     expect(measurement.after).toBeNull();
     expect(measurement.bounds).toEqual({

@@ -1,5 +1,4 @@
 import { AccessModule } from "./board_access_module.js";
-import { normalizeBoardAssetPath } from "./board_asset_path.js";
 import { ConnectionModule } from "./board_connection_module.js";
 import {
   AssetModule,
@@ -32,9 +31,7 @@ import { WriteModule } from "./board_write_module.js";
  * @returns {AppToolsState}
  */
 export function attachFullRuntimeModules(tools, options) {
-  // Older cached AssetModule constructors require this argument. Import the
-  // resolver directly so their provider need not export it.
-  tools.assets = new AssetModule(normalizeBoardAssetPath);
+  tools.assets = new AssetModule();
   tools.ui = new UiModule();
   tools.interaction = new InteractionModule();
   tools.ids = new IdModule();

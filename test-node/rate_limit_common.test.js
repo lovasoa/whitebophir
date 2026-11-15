@@ -2,10 +2,13 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const RateLimitCommon = require("../client-data/js/rate_limit_common.js");
+const RateLimitHistory = require("../client-data/js/rate_limit_history.js");
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
-const { Pencil, Text } = require("../client-data/tools/index.js");
+const {
+  TOOL_BY_ID: { pencil: Pencil, text: Text },
+} = require("../client-data/tools/manifest.js");
 
-test("fixed-window exports remain usable by cached write modules", () => {
+test("server fixed windows preserve counts until the period expires", () => {
   const initial = RateLimitCommon.createRateLimitState(1_000);
   const consumed = RateLimitCommon.consumeFixedWindowRateLimit(
     initial,
@@ -25,26 +28,6 @@ test("fixed-window exports remain usable by cached write modules", () => {
     lastSeen: 2_000,
   });
   assert.equal(
-    RateLimitCommon.canConsumeFixedWindowRateLimit(
-      consumed,
-      1,
-      3,
-      5_000,
-      2_500,
-    ),
-    true,
-  );
-  assert.equal(
-    RateLimitCommon.canConsumeFixedWindowRateLimit(
-      consumed,
-      2,
-      3,
-      5_000,
-      2_500,
-    ),
-    false,
-  );
-  assert.equal(
     RateLimitCommon.getRateLimitRemainingMs(consumed, 5_000, 2_500),
     3_500,
   );
@@ -59,28 +42,28 @@ test("fixed-window exports remain usable by cached write modules", () => {
 });
 
 test("emission history expires enough cost for an atomic batch", () => {
-  let history = RateLimitCommon.recordRateLimitUsage(null, 3, 0);
-  history = RateLimitCommon.recordRateLimitUsage(history, 2, 500);
-  history = RateLimitCommon.recordRateLimitUsage(history, 4, 900);
+  let history = RateLimitHistory.recordRateLimitUsage(null, 3, 0);
+  history = RateLimitHistory.recordRateLimitUsage(history, 2, 500);
+  history = RateLimitHistory.recordRateLimitUsage(history, 4, 900);
   assert.equal(
-    RateLimitCommon.getRateLimitHistoryWaitMs(history, 2, 10, 1_000, 999),
+    RateLimitHistory.getRateLimitHistoryWaitMs(history, 2, 10, 1_000, 999),
     1,
   );
   assert.equal(
-    RateLimitCommon.getRateLimitHistoryWaitMs(history, 2, 10, 1_000, 1_000),
+    RateLimitHistory.getRateLimitHistoryWaitMs(history, 2, 10, 1_000, 1_000),
     0,
   );
   assert.equal(
-    RateLimitCommon.getRateLimitHistoryWaitMs(history, 5, 10, 1_000, 1_000),
+    RateLimitHistory.getRateLimitHistoryWaitMs(history, 5, 10, 1_000, 1_000),
     500,
   );
   assert.equal(
-    RateLimitCommon.getRateLimitHistoryWaitMs(history, 1, 10, 1_000, 2_000),
+    RateLimitHistory.getRateLimitHistoryWaitMs(history, 1, 10, 1_000, 2_000),
     0,
   );
   assert.equal(history.total, 0);
   assert.equal(
-    RateLimitCommon.getRateLimitHistoryWaitMs(history, 11, 10, 1_000, 2_000),
+    RateLimitHistory.getRateLimitHistoryWaitMs(history, 11, 10, 1_000, 2_000),
     0,
   );
 });
@@ -89,10 +72,10 @@ test("emission history stays bounded across many windows", () => {
   let history = null;
   for (let now = 0; now < 10_000; now++) {
     assert.equal(
-      RateLimitCommon.getRateLimitHistoryWaitMs(history, 1, 1_000, 1_000, now),
+      RateLimitHistory.getRateLimitHistoryWaitMs(history, 1, 1_000, 1_000, now),
       0,
     );
-    history = RateLimitCommon.recordRateLimitUsage(history, 1, now);
+    history = RateLimitHistory.recordRateLimitUsage(history, 1, now);
     assert.ok(history.entries.length <= 4_004);
   }
   assert.ok(history);

@@ -15,12 +15,14 @@ function normalizeIncomingMessage(data, config = defaultConfig) {
 }
 const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js");
 const {
-  Cursor,
-  Hand,
-  Rectangle,
-  StraightLine,
-  Text,
-} = require("../client-data/tools/index.js");
+  TOOL_BY_ID: {
+    cursor: Cursor,
+    hand: Hand,
+    rectangle: Rectangle,
+    "straight-line": StraightLine,
+    text: Text,
+  },
+} = require("../client-data/tools/manifest.js");
 const { MutationType } = MessageToolMetadata;
 
 test("normalizeIncomingMessage rejects live tool/type combinations that are not defined", () => {

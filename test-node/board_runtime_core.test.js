@@ -2,28 +2,27 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const { installBrowserHarness } = require("./helpers/browser_harness.js");
 
-test("cached AppTools initialization keeps viewport state on its target", async () => {
+test("core runtime keeps viewport state on the attached board", async () => {
   const browser = installBrowserHarness({ innerWidth: 100, innerHeight: 100 });
   try {
-    const { initializeCoreRuntime } = await import(
+    const { createCoreRuntime } = await import(
       "../client-data/js/app_tools_core.js"
     );
-    const target = { retained: true };
-    const runtime = initializeCoreRuntime(target, {
-      translations: {},
-      serverConfig: {},
-      boardName: "generated-runtime",
-      token: null,
-      colorPresets: [],
-      initialPreferences: {
-        tool: "pencil",
-        color: "#000000",
-        size: 10,
-        opacity: 1,
-      },
-    });
-    assert.ok(Object.is(runtime, target));
-    assert.equal(runtime.retained, true);
+    const runtime = /** @type {any} */ (
+      createCoreRuntime({
+        translations: {},
+        serverConfig: {},
+        boardName: "generated-runtime",
+        token: null,
+        colorPresets: [],
+        initialPreferences: {
+          tool: "pencil",
+          color: "#000000",
+          size: 10,
+          opacity: 1,
+        },
+      })
+    );
     const board = { style: { width: "" }, dataset: {}, dispatchEvent() {} };
     const svg = {
       style: { transform: "" },
@@ -40,33 +39,19 @@ test("cached AppTools initialization keeps viewport state on its target", async 
   }
 });
 
-test("AssetModule supports released injected and default path resolvers", async () => {
-  const { AssetModule, normalizeBoardAssetPath } = await import(
+test("tool asset URLs resolve relative to the runtime release", async () => {
+  const { AssetModule } = await import(
     "../client-data/js/board_full_runtime_modules.js"
   );
-  const { normalizeBoardAssetPath: directResolver } = await import(
-    "../client-data/js/board_asset_path.js"
-  );
-  assert.equal(normalizeBoardAssetPath, directResolver);
+  const assets = new AssetModule();
   for (const path of ["./x", "../x", "/x", "data:x", "http://x", "https://x"]) {
-    assert.equal(normalizeBoardAssetPath(path), path);
+    assert.equal(assets.resolveAssetPath(path), path);
   }
   assert.equal(
-    normalizeBoardAssetPath("tools/hand/hand.css"),
+    assets.getToolAssetUrl("hand", "hand.css"),
     require("node:url").pathToFileURL(
       require("node:path").resolve("client-data/tools/hand/hand.css"),
     ).href,
-  );
-  assert.equal(
-    new AssetModule().getToolAssetUrl("hand", "hand.css"),
-    require("node:url").pathToFileURL(
-      require("node:path").resolve("client-data/tools/hand/hand.css"),
-    ).href,
-  );
-  const injected = new AssetModule((path) => `/generated/${path}`);
-  assert.equal(
-    injected.getToolAssetUrl("hand", "hand.css"),
-    "/generated/tools/hand/hand.css",
   );
 });
 

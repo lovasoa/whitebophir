@@ -15,15 +15,15 @@ async function renderStoredBoard(storedBoard) {
     path.join(os.tmpdir(), "wbo-create-svg-"),
   );
   const file = path.join(historyDir, "board-export.json");
-  await fs.writeFile(file, JSON.stringify(storedBoard), "utf8");
-  /** @type {string[]} */
-  const chunks = [];
-  await renderBoard(file, {
-    write: (chunk) => {
-      chunks.push(chunk);
-    },
-  });
-  return chunks.join("");
+  try {
+    await fs.writeFile(file, JSON.stringify(storedBoard), "utf8");
+    /** @type {string[]} */
+    const chunks = [];
+    await renderBoard(file, { write: (chunk) => chunks.push(chunk) });
+    return chunks.join("");
+  } finally {
+    await fs.rm(historyDir, { recursive: true, force: true });
+  }
 }
 
 /**
@@ -94,4 +94,53 @@ test("renderBoard stores raw pencil path points for client-side smoothing", asyn
     points.map((point) => ({ x: point.x * 10, y: point.y * 10 })),
   );
   assert.match(svg, new RegExp(`d="${escapeRegExp(expectedPath)}"`));
+});
+
+test("legacy exports preserve ellipse, line, and text geometry and display defaults", async () => {
+  const style = {
+    size: 2,
+    color: "#123456",
+    opacity: 0.5,
+    deltax: 3,
+    deltay: 4,
+  };
+  const svg = await renderStoredBoard({
+    ellipse: {
+      ...style,
+      tool: "ellipse",
+      id: "e",
+      x: 10,
+      y: 10,
+      x2: 40,
+      y2: 30,
+    },
+    line: {
+      ...style,
+      tool: "straight-line",
+      id: "l",
+      x: 10,
+      y: 10,
+      x2: 50,
+      y2: 30,
+    },
+    text: {
+      ...style,
+      tool: "text",
+      color: undefined,
+      x: 10,
+      y: 40,
+      txt: '<hello> & "world"',
+    },
+  });
+
+  assert.match(svg, /<ellipse[^>]*cx="250" cy="200" rx="150" ry="100"/);
+  assert.match(svg, /<line[^>]*x1="100" y1="100" x2="500" y2="300"/);
+  assert.match(
+    svg,
+    /<text id="t" x="100" y="400" font-size="20" fill="#000000"/,
+  );
+  assert.match(svg, /&#60;hello&#62; &#38; &#34;world&#34;<\/text>/);
+  assert.equal(svg.match(/transform="matrix\(1 0 0 1 30 40\)"/g)?.length, 3);
+  assert.equal(svg.match(/opacity="0.5"/g)?.length, 2);
+  assert.match(svg, /path, line \{[^}]*stroke-linecap:round/);
 });

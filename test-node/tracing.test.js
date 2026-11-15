@@ -19,7 +19,9 @@ const {
 } = require("@opentelemetry/semantic-conventions");
 const { InMemorySpanExporter } = require("@opentelemetry/sdk-trace");
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
-const { Cursor } = require("../client-data/tools/index.js");
+const {
+  TOOL_BY_ID: { cursor: Cursor },
+} = require("../client-data/tools/manifest.js");
 
 const {
   MESSAGE_VALIDATION_PATH,

@@ -32,6 +32,7 @@ import {
 import { createBoardHtmlOverlay } from "../../js/board_html_overlay.js";
 import { safePreventDefault } from "../../js/board_viewport.js";
 import { logFrontendEvent } from "../../js/frontend_logging.js";
+import { pointInTransformedBBox, transformedBBox } from "../../js/intersect.js";
 import MessageCommon from "../../js/message_common.js";
 import { MutationType } from "../../js/message_tool_metadata.js";
 import { TOOL_CODE_BY_ID } from "../tool-order.js";
@@ -62,11 +63,6 @@ import { deleteBoardElementById } from "../eraser/index.js";
 /** @typedef {(x: number, y: number, force: boolean) => void} HandTransformHandler */
 /** @typedef {(e: { key: string, target: EventTarget | null }) => void} HandShortcutHandler */
 /** @typedef {{ name: string, icon: string, active: boolean, switch?: () => void }} HandSecondary */
-/** @typedef {import("../../js/intersect.js").Point2D} Point2D */
-/** @typedef {import("../../js/intersect.js").TransformedBBox} TransformedBBox */
-
-/** @type {(point: Point2D, box: TransformedBBox) => boolean} */
-let pointInTransformedBBox = () => false;
 
 const INTERSECTION_SELECTION_TIMEOUT_MS = 120;
 
@@ -93,7 +89,7 @@ function isSelectableElement(target) {
     typeof target === "object" &&
     "id" in target &&
     "transform" in target &&
-    "transformedBBox" in target
+    "getBBox" in target
   );
 }
 
@@ -647,7 +643,7 @@ function syncSelectionChrome(state) {
   state.selectionOverlay.syncBoardRect(() =>
     state.selectionRect.style.display === "none"
       ? null
-      : transformedBBoxToBoardRect(state.selectionRect.transformedBBox()),
+      : transformedBBoxToBoardRect(transformedBBox(state.selectionRect)),
   );
 }
 
@@ -660,7 +656,7 @@ function showSelectionButtons(state) {
     button.overlay.syncBoardRect(() =>
       button.drawCallback(
         button,
-        state.selectionRect.transformedBBox(),
+        transformedBBox(state.selectionRect),
         getCurrentScale(state),
       ),
     );
@@ -745,7 +741,7 @@ function startScalingTransform(state, _x, _y, evt) {
   hideSelectionButtons(state);
   state.selectionRunId += 1;
   state.selectorState = state.selectorStates.transform;
-  const bbox = state.selectionRect.transformedBBox();
+  const bbox = transformedBBox(state.selectionRect);
   state.selected = {
     x: bbox.r[0],
     y: bbox.r[1],
@@ -1050,8 +1046,8 @@ function scaleSelection(state, x, y, force) {
     if (!oldTransform) {
       throw new Error("Mover: Missing transform state while scaling.");
     }
-    const bboxX = el.transformedBBox().r[0];
-    const bboxY = el.transformedBBox().r[1];
+    const bboxX = transformedBBox(el).r[0];
+    const bboxY = transformedBBox(el).r[1];
     const a = oldTransform.a * rx;
     const d = oldTransform.d * ry;
     const e =
@@ -1138,7 +1134,7 @@ function updateRect(state, x, y, rect) {
 
 /** @param {HandState} state */
 function resetSelectionRect(state) {
-  const bbox = state.selectionRect.transformedBBox();
+  const bbox = transformedBBox(state.selectionRect);
   const tmatrix = getTransformMatrix(state, state.selectionRect);
   state.selectionRect.x.baseVal.value = bbox.r[0];
   state.selectionRect.y.baseVal.value = bbox.r[1];
@@ -1258,7 +1254,7 @@ function drawHandChild(state, data) {
 function clickSelector(state, x, y, evt) {
   if (
     state.selectionRect.style.display !== "none" &&
-    pointInTransformedBBox([x, y], state.selectionRect.transformedBBox())
+    pointInTransformedBBox([x, y], transformedBBox(state.selectionRect))
   ) {
     hideSelectionButtons(state);
     startMovingElements(state, x, y, evt);
@@ -1460,8 +1456,7 @@ function switchTool(state) {
 }
 
 /** @param {ToolBootContext} ctx */
-export async function boot(ctx) {
-  ({ pointInTransformedBBox } = await import("../../js/intersect.js"));
+export function boot(ctx) {
   return createState(ctx.runtime, ctx.assetUrl);
 }
 

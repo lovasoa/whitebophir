@@ -26,7 +26,7 @@ import {
  * by the server and tool runtime.
  * @template {keyof typeof TOOL_CODE_BY_ID} T
  * @param {T} toolId
- * @param {Pick<ToolContract, "summarizeStoredSvgItem" | "serializeStoredSvgItem"> & Partial<Pick<ToolContract, "parseStoredSvgItem" | "renderBoardSvg">>} methods
+ * @param {Pick<ToolContract, "summarizeStoredSvgItem" | "serializeStoredSvgItem"> & Partial<Pick<ToolContract, "parseStoredSvgItem">>} methods
  */
 function defineStoredToolContract(toolId, methods) {
   const metadata =
@@ -63,10 +63,6 @@ const pencilContract = defineStoredToolContract("pencil", {
     const points = Array.isArray(item._children) ? item._children : [];
     const pathData = renderPencilPath(points);
     return serializeStoredPencilPath(item, pathData, helpers);
-  },
-  renderBoardSvg(pencil, helpers) {
-    const pathstring = renderPencilPath(pencil._children || []);
-    return helpers.renderPath(pencil, pathstring);
   },
 });
 
@@ -131,22 +127,6 @@ const rectangleContract = defineStoredToolContract("rectangle", {
       helpers,
     );
   },
-  renderBoardSvg(shape, helpers) {
-    const bounds = normalizeRectBounds(
-      helpers.numberOrZero(shape.x),
-      helpers.numberOrZero(shape.y),
-      helpers.numberOrZero(shape.x2),
-      helpers.numberOrZero(shape.y2),
-    );
-    return (
-      "<rect " +
-      (shape.id ? `id="${helpers.htmlspecialchars(shape.id)}" ` : "") +
-      `x="${bounds.x}" y="${bounds.y}" width="${bounds.width}" height="${bounds.height}" ` +
-      `stroke="${helpers.htmlspecialchars(shape.color || "#000")}" stroke-width="${helpers.numberOrZero(shape.size) | 0}" ` +
-      helpers.renderTranslate(shape) +
-      "/>"
-    );
-  },
 });
 
 const ellipseContract = defineStoredToolContract("ellipse", {
@@ -204,20 +184,6 @@ const ellipseContract = defineStoredToolContract("ellipse", {
       helpers,
     );
   },
-  renderBoardSvg(shape, helpers) {
-    const x = helpers.numberOrZero(shape.x);
-    const y = helpers.numberOrZero(shape.y);
-    const x2 = helpers.numberOrZero(shape.x2);
-    const y2 = helpers.numberOrZero(shape.y2);
-    const cx = Math.round((x2 + x) / 2);
-    const cy = Math.round((y2 + y) / 2);
-    const rx = Math.abs(x2 - x) / 2;
-    const ry = Math.abs(y2 - y) / 2;
-    return helpers.renderPath(
-      shape,
-      `M${cx - rx} ${cy}a${rx},${ry} 0 1,0 ${rx * 2},0a${rx},${ry} 0 1,0 ${rx * -2},0`,
-    );
-  },
 });
 
 const straightLineContract = defineStoredToolContract("straight-line", {
@@ -270,12 +236,6 @@ const straightLineContract = defineStoredToolContract("straight-line", {
         ` x2="${helpers.numberOrZero(item.x2)}" y2="${helpers.numberOrZero(item.y2)}"`,
       item,
       helpers,
-    );
-  },
-  renderBoardSvg(shape, helpers) {
-    return helpers.renderPath(
-      shape,
-      `M${shape.x} ${shape.y}L${shape.x2} ${shape.y2}`,
     );
   },
 });
@@ -334,32 +294,6 @@ const textContract = defineStoredToolContract("text", {
       `<text id="${id}" x="${helpers.numberOrZero(item.x)}" y="${helpers.numberOrZero(item.y)}"` +
       ` font-size="${helpers.numberOrZero(item.size) | 0}" fill="${color}"${opacity}${transform}>` +
       `${helpers.escapeHtml(textValue)}</text>`
-    );
-  },
-  renderBoardSvg(text, helpers) {
-    const x = helpers.numberOrZero(text.x);
-    const y = helpers.numberOrZero(text.y);
-    return (
-      "<text " +
-      'id="' +
-      helpers.htmlspecialchars(text.id || "t") +
-      '" ' +
-      'x="' +
-      (x | 0) +
-      '" ' +
-      'y="' +
-      (y | 0) +
-      '" ' +
-      'font-size="' +
-      (helpers.numberOrZero(text.size) | 0) +
-      '" ' +
-      'fill="' +
-      helpers.htmlspecialchars(text.color || "#000") +
-      '" ' +
-      helpers.renderTranslate(text) +
-      ">" +
-      helpers.htmlspecialchars(text.txt || "") +
-      "</text>"
     );
   },
 });

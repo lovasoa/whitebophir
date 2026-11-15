@@ -1,7 +1,9 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
-const { Eraser, Pencil, Rectangle } = require("../client-data/tools/index.js");
+const {
+  TOOL_BY_ID: { eraser: Eraser, pencil: Pencil, rectangle: Rectangle },
+} = require("../client-data/tools/manifest.js");
 const path = require("node:path");
 
 const BOARD_SESSION_PATH = path.join(
