@@ -2,10 +2,12 @@
   "compilerOptions": {
     "ignoreDeprecations": "6.0",
     "target": "ES2023",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "preserve",
+    "moduleResolution": "bundler",
     "lib": ["ES2023", "DOM"],
     "types": ["node", "@playwright/test"],
+    "allowJs": true,
+    "checkJs": true,
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
@@ -17,6 +19,7 @@
     "useUnknownInCatchVariables": true
   },
   "include": [
+    "types/**/*.d.ts",
     "playwright/**/*.ts",
     "playwright/**/*.d.ts",
     "playwright.config.ts"

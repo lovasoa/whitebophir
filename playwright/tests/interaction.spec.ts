@@ -139,10 +139,12 @@ test.describe("single-page interactions", () => {
         });
       }
       const entries = app.optimistic.journal.list();
+      const firstEntry = entries[0];
+      if (!firstEntry) throw new Error("Missing optimistic mutation");
       return {
         buffered: app.writes.bufferedWrites.length,
         journal: entries.length,
-        dependent: entries[1]?.dependsOn.has(entries[0].clientMutationId),
+        dependent: entries[1]?.dependsOn.has(firstEntry.clientMutationId),
         independent: entries[2]?.dependsOn.size === 0,
       };
     });
