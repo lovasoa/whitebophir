@@ -138,7 +138,7 @@ try {
                 app = w.WBOApp;
               await app.toolRegistry.activateTool("pencil");
               const module = await import(
-                new URL("../js/drawing_performance.js", location.href).href
+                app.assets.resolveAssetPath("js/drawing_performance.js")
               );
               const probe = /** @type {any} */ ({
                 summaries: [],

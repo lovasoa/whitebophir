@@ -1047,9 +1047,6 @@ function createInputToolRuntime(tools) {
     },
     ui: tools.ui || createUnavailableUiRuntime(),
     ids: tools.ids,
-    messages: {
-      messageForTool: () => unavailableCapability("messages.messageForTool"),
-    },
     permissions: tools.access,
   };
 }
@@ -1078,7 +1075,6 @@ function createHarnessToolRuntime(app) {
     i18n: app.i18n || { t: (s) => s },
     ui: app.ui,
     ids: app.ids,
-    messages: app.messages,
     permissions: app.access,
   };
 }

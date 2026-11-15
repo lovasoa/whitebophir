@@ -525,7 +525,7 @@ function clearPendingPoint(state) {
 function acquireInteractionLease(state) {
   releaseInteractionLease(state);
   if (typeof state.interaction.suppressOwnCursor !== "function") return;
-  state.activeInteractionLease = state.interaction.suppressOwnCursor();
+  state.activeInteractionLease = state.interaction.suppressOwnCursor(toolId);
 }
 
 /** @param {PencilState} state */

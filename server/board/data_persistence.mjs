@@ -395,7 +395,7 @@ async function unsafeSaveBoard(board) {
           board.markPersistedSeq(saveTargetSeq);
           finalizePersistedItems(board, savedItemsById, persistedIds);
           finishSuccessfulSaveSchedulingWindow(board);
-          board.trimPersistedMutationLog(startedAt);
+          trimPersistedMutationLog(board, startedAt);
           const savedFile = await stat(file).catch(async (error) => {
             if (errorCode(error) !== "ENOENT") {
               throw error;
@@ -665,14 +665,11 @@ export {
   clearSaveTimeout,
   computeScheduledSaveDelayMs,
   delaySave,
-  dirtyAgeMs,
   disposeBoard,
   finalizePersistedItems,
   hasDirtyItems,
   loadBoardData,
   saveBoard,
-  scheduleDirtySave,
   scheduleSaveTimeout,
-  trimPersistedMutationLog,
   unsafeSaveBoard,
 };

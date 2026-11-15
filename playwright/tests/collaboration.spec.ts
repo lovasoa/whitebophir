@@ -84,7 +84,7 @@ test.describe("collaboration and rate limiting", () => {
     expect(firstRows[0]?.isSelf).toBe(true);
     expect(firstRows[1]?.isSelf).toBe(false);
     expect(firstRows[0]?.fontWeight).toBe("700");
-    expect(parseInt(firstRows[1]?.fontWeight, 10)).toBeLessThan(600);
+    expect(parseInt(firstRows[1]?.fontWeight ?? "", 10)).toBeLessThan(600);
     expect(firstRows[0]?.borderBottomColor).not.toBe("rgba(0, 0, 0, 0)");
 
     await boardPage.drawRectangle(

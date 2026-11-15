@@ -239,7 +239,7 @@ function createBatchMessage(children) {
   };
 }
 
-/** @typedef {Pick<ToolRuntimeModules, "config" | "permissions" | "writes" | "ids" | "board" | "viewport" | "messages" | "identity" | "toolRegistry" | "i18n">} HandRuntime */
+/** @typedef {Pick<ToolRuntimeModules, "config" | "permissions" | "writes" | "ids" | "board" | "viewport" | "identity" | "toolRegistry" | "i18n">} HandRuntime */
 /** @typedef {ReturnType<typeof createInitialState>} HandState */
 
 /**

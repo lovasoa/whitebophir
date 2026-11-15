@@ -21,8 +21,7 @@ import {
 import { drainPendingMessages, isBlockedToolName } from "./board_page_state.js";
 import MessageCommon from "./message_common.js";
 
-/** @import { AppToolsState, BoardMessage, MountedAppTool, MountedAppToolsState, PendingMessages, RateLimitKind, ToolBootContext, ToolModule, ToolRuntimeState } from "../../types/app-runtime" */
-/** @typedef {{tool: import("../tools/tool-order.js").ToolCode, type?: unknown, id?: unknown, parent?: string, txt?: unknown, _children?: unknown, clientMutationId?: string, socket?: string, userId?: string, color?: string, size?: number | string, opacity?: number, x?: number, y?: number, x2?: number, y2?: number, newid?: string, transform?: {a: number, b: number, c: number, d: number, e: number, f: number}}} RuntimeBoardMessage */
+/** @import { AppToolsState, BoardMessage, MountedAppTool, MountedAppToolsState, PendingMessages, ToolBootContext, ToolModule, ToolRuntimeModules, ToolRuntimeState } from "../../types/app-runtime" */
 /** @typedef {{criticalToolNames: string[], pendingToolName: string}} InitialToolBootOptions */
 
 /** @param {AppToolsState} Tools */
@@ -37,6 +36,8 @@ function getAttachedBoardDom(Tools) {
 function activationSendsCapabilityMutation(tool) {
   return tool.oneTouch === true && tool.requiredCapability != null;
 }
+
+function noop() {}
 
 export class ToolRegistryModule {
   /**
@@ -55,7 +56,6 @@ export class ToolRegistryModule {
       /** @type {import("../../types/app-runtime").MountedToolRegistry} */ ({});
     this.bootPromises =
       /** @type {import("../../types/app-runtime").ToolNameMap<import("../../types/app-runtime").MountedAppToolPromise>} */ ({});
-    this.bootedNames = new Set();
     this.lazyBootEnabled = false;
     this.pendingMessages = /** @type {PendingMessages} */ ({});
   }
@@ -435,6 +435,12 @@ export class ToolRegistryModule {
     });
   }
 
+  /** @param {BoardMessage} [message] */
+  flushPendingDraws(message) {
+    for (const name in this.mounted)
+      this.mounted[name]?.flushPendingDraws?.(message);
+  }
+
   notifyPresenceDisplayChange() {
     Object.values(this.mounted).forEach((tool) => {
       tool.onPresenceDisplayChange?.();
@@ -484,116 +490,26 @@ function isRegisteredToolId(toolName) {
 
 /**
  * @param {MountedAppToolsState} mountedTools
- * @param {string} [ownerToolName]
+ * @returns {ToolRuntimeModules}
  */
-export function createToolRuntimeModules(mountedTools, ownerToolName = "") {
+export function createToolRuntimeModules(mountedTools) {
   return {
     board: mountedTools.dom,
     coordinates: mountedTools.coordinates,
     viewport: mountedTools.viewportState.controller,
-    writes: {
-      /** @param {RuntimeBoardMessage} message */
-      drawAndSend(message) {
-        return mountedTools.writes.drawAndSend(message);
-      },
-      /** @param {RuntimeBoardMessage} message */
-      send(message) {
-        return mountedTools.writes.send(message);
-      },
-      canBufferWrites() {
-        return mountedTools.writes.canBufferWrites();
-      },
-      whenBoardWritable() {
-        return mountedTools.writes.whenBoardWritable();
-      },
-    },
+    writes: mountedTools.writes,
     identity: mountedTools.identity,
-    preferences: {
-      getColor() {
-        return mountedTools.preferences.getColor();
-      },
-      getSize() {
-        return mountedTools.preferences.getSize();
-      },
-      /** @param {number} size */
-      setSize(size) {
-        return mountedTools.preferences.setSize(size);
-      },
-      getOpacity() {
-        return mountedTools.preferences.getOpacity();
-      },
-    },
-    rateLimits: {
-      /** @param {RateLimitKind} kind */
-      getEffectiveRateLimit(kind) {
-        return mountedTools.rateLimits.getEffectiveRateLimit(kind);
-      },
-    },
-    toolRegistry: {
-      flushPendingDraws() {
-        for (const tool of Object.values(mountedTools.toolRegistry.mounted)) {
-          tool?.flushPendingDraws?.();
-        }
-      },
-      get current() {
-        return mountedTools.toolRegistry.current;
-      },
-      /** @param {string} toolName */
-      change(toolName) {
-        return mountedTools.toolRegistry.change(toolName);
-      },
-    },
-    interaction: {
-      get drawingEvent() {
-        return mountedTools.interaction.drawingEvent;
-      },
-      set drawingEvent(value) {
-        mountedTools.interaction.drawingEvent = value;
-      },
-      get showMarker() {
-        return mountedTools.interaction.showMarker;
-      },
-      set showMarker(value) {
-        mountedTools.interaction.showMarker = value;
-      },
-      get showMyCursor() {
-        return mountedTools.interaction.showMyCursor;
-      },
-      set showMyCursor(value) {
-        mountedTools.interaction.showMyCursor = value;
-      },
-      suppressOwnCursor() {
-        return mountedTools.interaction.suppressOwnCursor(ownerToolName);
-      },
-      isOwnCursorSuppressed() {
-        return mountedTools.interaction.isOwnCursorSuppressed();
-      },
-    },
+    preferences: mountedTools.preferences,
+    rateLimits: mountedTools.rateLimits,
+    toolRegistry: mountedTools.toolRegistry,
+    interaction: mountedTools.interaction,
     config: mountedTools.config,
     i18n: mountedTools.i18n,
     ui: mountedTools.ui,
     ids: mountedTools.ids,
     connection: mountedTools.connection,
     presence: mountedTools.presence,
-    messages: {
-      /** @param {RuntimeBoardMessage} message */
-      messageForTool(message) {
-        return mountedTools.messages.messageForTool(
-          /** @type {BoardMessage} */ (/** @type {unknown} */ (message)),
-        );
-      },
-    },
-    permissions: {
-      get canEdit() {
-        return mountedTools.access.canEdit;
-      },
-      get canClear() {
-        return mountedTools.access.canClear;
-      },
-      get canWrite() {
-        return mountedTools.access.canEdit;
-      },
-    },
+    permissions: mountedTools.access,
   };
 }
 
@@ -611,7 +527,7 @@ function createToolBootContext(Tools, toolName) {
     return /** @type {MountedAppToolsState} */ (Tools);
   })();
   return {
-    runtime: createToolRuntimeModules(mountedTools, toolName),
+    runtime: createToolRuntimeModules(mountedTools),
     canDeferDraws:
       mountedTools.optimistic.flushesPendingToolDraws === true &&
       mountedTools.replay.resetsPendingToolDraws === true,
@@ -629,67 +545,39 @@ function createToolBootContext(Tools, toolName) {
  * @returns {MountedAppTool}
  */
 function createMountedTool(Tools, toolModule, toolState, toolName) {
-  const draw = toolModule.draw;
-  const normalizeServerRenderedElement =
-    toolModule.normalizeServerRenderedElement;
-  const press = toolModule.press;
-  const move = toolModule.move;
-  const release = toolModule.release;
-  const cancelTouchGesture = toolModule.cancelTouchGesture;
-  const onMessage = toolModule.onMessage;
-  const onstart = toolModule.onstart;
-  const onquit = toolModule.onquit;
-  const onSocketDisconnect = toolModule.onSocketDisconnect;
-  const flushPendingDraws = toolModule.flushPendingDraws;
-  const onPresenceDisplayChange = toolModule.onPresenceDisplayChange;
-  const onMutationRejected = toolModule.onMutationRejected;
-  const onColorChange = toolModule.onColorChange;
-  const onSizeChange = toolModule.onSizeChange;
-  const onOpacityChange = toolModule.onOpacityChange;
-  const touchListenerOptions = toolModule.touchListenerOptions;
-  const getTouchPolicy = toolModule.getTouchPolicy;
   const toolDefinition = TOOL_BY_ID[toolName];
   /** @type {MountedAppTool} */
   const tool = {
     name: toolName,
     shortcut: toolModule.shortcut ?? toolDefinition?.shortcut,
     icon: "",
-    draw: (message, isLocal) => draw(toolState, message, isLocal),
-    normalizeServerRenderedElement: normalizeServerRenderedElement
-      ? (element) => normalizeServerRenderedElement(toolState, element)
-      : undefined,
+    draw: toolModule.draw.bind(undefined, toolState),
+    normalizeServerRenderedElement:
+      toolModule.normalizeServerRenderedElement?.bind(undefined, toolState),
     serverRenderedElementSelector: toolModule.serverRenderedElementSelector,
-    press: press
-      ? (x, y, evt, isTouchEvent) => press(toolState, x, y, evt, isTouchEvent)
-      : undefined,
-    move: move
-      ? (x, y, evt, isTouchEvent) => move(toolState, x, y, evt, isTouchEvent)
-      : undefined,
-    release: release
-      ? (x, y, evt, isTouchEvent) => release(toolState, x, y, evt, isTouchEvent)
-      : undefined,
-    cancelTouchGesture: cancelTouchGesture
-      ? (evt) => cancelTouchGesture(toolState, evt)
-      : undefined,
-    onMessage: onMessage
-      ? (message) => onMessage(toolState, message)
-      : () => {},
+    press: toolModule.press?.bind(undefined, toolState),
+    move: toolModule.move?.bind(undefined, toolState),
+    release: toolModule.release?.bind(undefined, toolState),
+    cancelTouchGesture: toolModule.cancelTouchGesture?.bind(
+      undefined,
+      toolState,
+    ),
+    onMessage: toolModule.onMessage?.bind(undefined, toolState) ?? noop,
     listeners: {},
     compiledListeners: {},
-    onstart: onstart ? (oldTool) => onstart(toolState, oldTool) : () => {},
-    onquit: onquit ? (newTool) => onquit(toolState, newTool) : () => {},
-    onSocketDisconnect: onSocketDisconnect
-      ? () => onSocketDisconnect(toolState)
-      : () => {},
-    flushPendingDraws: flushPendingDraws
-      ? (message) => flushPendingDraws(toolState, message)
-      : undefined,
-    onPresenceDisplayChange: onPresenceDisplayChange
-      ? () => onPresenceDisplayChange(toolState)
-      : undefined,
-    onMutationRejected: onMutationRejected
-      ? (message, reason) => onMutationRejected(toolState, message, reason)
-      : undefined,
+    onstart: toolModule.onstart?.bind(undefined, toolState) ?? noop,
+    onquit: toolModule.onquit?.bind(undefined, toolState) ?? noop,
+    onSocketDisconnect:
+      toolModule.onSocketDisconnect?.bind(undefined, toolState) ?? noop,
+    flushPendingDraws: toolModule.flushPendingDraws?.bind(undefined, toolState),
+    onPresenceDisplayChange: toolModule.onPresenceDisplayChange?.bind(
+      undefined,
+      toolState,
+    ),
+    onMutationRejected: toolModule.onMutationRejected?.bind(
+      undefined,
+      toolState,
+    ),
     stylesheet: toolModule.stylesheet,
     oneTouch: toolModule.oneTouch ?? toolDefinition?.oneTouch,
     alwaysOn: toolModule.alwaysOn ?? toolDefinition?.alwaysOn,
@@ -699,22 +587,14 @@ function createMountedTool(Tools, toolModule, toolState, toolName) {
       toolDefinition?.mouseCursor,
     helpText: toolModule.helpText ?? toolDefinition?.helpText,
     secondary: toolState.secondary ?? toolModule.secondary ?? null,
-    onColorChange: onColorChange
-      ? (color) => onColorChange(toolState, color)
-      : undefined,
-    onSizeChange: onSizeChange
-      ? (size) => onSizeChange(toolState, size)
-      : undefined,
-    onOpacityChange: onOpacityChange
-      ? (opacity) => onOpacityChange(toolState, opacity)
-      : undefined,
-    getTouchPolicy: getTouchPolicy
-      ? () => getTouchPolicy(toolState)
-      : undefined,
+    onColorChange: toolModule.onColorChange?.bind(undefined, toolState),
+    onSizeChange: toolModule.onSizeChange?.bind(undefined, toolState),
+    onOpacityChange: toolModule.onOpacityChange?.bind(undefined, toolState),
+    getTouchPolicy: toolModule.getTouchPolicy?.bind(undefined, toolState),
     showMarker: toolModule.showMarker ?? toolDefinition?.showMarker,
     requiredCapability:
       toolModule.requiredCapability ?? toolDefinition?.requiredCapability,
-    touchListenerOptions,
+    touchListenerOptions: toolModule.touchListenerOptions,
   };
   if (toolDefinition) {
     tool.icon ||= getToolIconPath(toolDefinition.toolId);

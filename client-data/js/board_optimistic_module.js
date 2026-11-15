@@ -29,8 +29,7 @@ export class OptimisticModule {
    */
   captureRollback(message) {
     const Tools = this.getTools();
-    for (const name in Tools.toolRegistry.mounted)
-      Tools.toolRegistry.mounted[name]?.flushPendingDraws?.(message);
+    Tools.toolRegistry.flushPendingDraws(message);
     const dom = getAttachedBoardDom(Tools);
     if (getMutationType(message) === MutationType.CLEAR) {
       return {
@@ -106,8 +105,7 @@ export class OptimisticModule {
   /** @param {OptimisticRollback} rollback */
   restoreRollback(rollback) {
     const Tools = this.getTools();
-    for (const name in Tools.toolRegistry.mounted)
-      Tools.toolRegistry.mounted[name]?.flushPendingDraws?.();
+    Tools.toolRegistry.flushPendingDraws();
     const dom = getAttachedBoardDom(Tools);
     if (!dom) return;
     if (rollback.kind === "drawing-area") {

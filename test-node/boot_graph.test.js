@@ -55,7 +55,11 @@ function assertClosureExcludes(closure, forbidden) {
 }
 
 test("pan-ready boot graph excludes full app and tool implementations", () => {
-  const closure = staticImportClosure("client-data/js/board_main.js");
+  const closure = new Set([
+    ...staticImportClosure("client-data/js/board_main.js"),
+    ...staticImportClosure("client-data/js/board_boot.js"),
+  ]);
+  assert.ok(closure.has("client-data/js/board_viewport.js"));
   assertClosureExcludes(closure, [
     "client-data/js/app_tools.js",
     "client-data/js/drawing_performance.js",

@@ -386,7 +386,7 @@ window.turnstile = {
           reportLabel: report?.getAttribute("aria-label") ?? "",
           reportText: report?.textContent ?? "",
           friend: friend?.getAttribute("aria-pressed") === "true",
-          friendHidden: friend?.hidden ?? true,
+          friendHidden: Boolean(friend?.hidden ?? true),
           friendOpacity: friendComputed?.opacity ?? "",
           reportOpacity: reportComputed?.opacity ?? "",
           actionSlotWidth: actions

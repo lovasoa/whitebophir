@@ -821,7 +821,7 @@ export type AppAssetModule =
 
 /** Shared frontend UI primitives for chrome panels and dialogs. */
 export type AppUiModule =
-  import("../client-data/js/board_ui_module.js").UiModule;
+  typeof import("../client-data/js/board_ui_module.js").ui;
 
 /** Runtime id generation. */
 export type AppIdModule =
@@ -837,10 +837,41 @@ export type AppCoordinateModule = Pick<
   "toBoardCoordinate" | "pageCoordinateToBoard"
 >;
 
-/** Restricted runtime modules passed to tool boot. */
-export type ToolRuntimeModules = ReturnType<
-  typeof import("../client-data/js/board_tool_registry_module.js").createToolRuntimeModules
->;
+/** Dependencies available to drawing tools, shared with the application owners. */
+export type ToolRuntimeModules = {
+  board: AttachedBoardDomModule & BoardDomActions;
+  coordinates: AppCoordinateModule;
+  viewport: ViewportController;
+  writes: Pick<
+    AppWriteModule,
+    "drawAndSend" | "send" | "canBufferWrites" | "whenBoardWritable"
+  >;
+  identity: AppIdentityModule;
+  preferences: Pick<
+    AppPreferenceModule,
+    "getColor" | "getSize" | "setSize" | "getOpacity"
+  >;
+  rateLimits: Pick<AppRateLimitModule, "getEffectiveRateLimit">;
+  toolRegistry: Pick<
+    AppToolRegistryModule,
+    "current" | "change" | "flushPendingDraws"
+  >;
+  interaction: Pick<
+    AppInteractionModule,
+    | "drawingEvent"
+    | "showMarker"
+    | "showMyCursor"
+    | "suppressOwnCursor"
+    | "isOwnCursorSuppressed"
+  >;
+  config: AppConfigModule;
+  i18n: AppToolsState["i18n"];
+  ui: AppUiModule;
+  ids: AppIdModule;
+  connection: AppConnectionModule;
+  presence: AppPresenceModule;
+  permissions: Pick<AppAccessModule, "canEdit" | "canClear" | "canWrite">;
+};
 
 /** Runtime root composed only of documented modules. */
 export type AppToolsState = {

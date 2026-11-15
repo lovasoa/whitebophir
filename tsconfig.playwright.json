@@ -1,22 +1,14 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "ignoreDeprecations": "6.0",
     "target": "ES2023",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "preserve",
+    "moduleResolution": "bundler",
     "lib": ["ES2023", "DOM"],
-    "types": ["node", "@playwright/test"],
-    "strict": true,
-    "noEmit": true,
-    "skipLibCheck": true,
-    "resolveJsonModule": true,
-    "noImplicitAny": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
-    "useUnknownInCatchVariables": true
+    "types": ["node", "@playwright/test"]
   },
   "include": [
+    "types/**/*.d.ts",
     "playwright/**/*.ts",
     "playwright/**/*.d.ts",
     "playwright.config.ts"

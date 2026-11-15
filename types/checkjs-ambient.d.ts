@@ -10,9 +10,6 @@ declare global {
   const turnstile: import("../types/app-runtime").TurnstileGlobal;
   interface Window {
     WBOApp: import("../types/app-runtime").AppToolsState;
-    WBOBoardState: {
-      normalizeBoardState: typeof import("../client-data/js/board_page_state.js")["normalizeBoardState"];
-    };
     socketio_extra_headers?: import("../types/app-runtime").SocketHeaders;
     __lastAlert?: string | null;
     __receivedBroadcasts?: import("../types/app-runtime").BoardMessage[];

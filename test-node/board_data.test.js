@@ -18,6 +18,12 @@ const {
   pinReplayBaseline,
   resetBoardRegistry,
 } = require("../server/board/registry.mjs");
+const {
+  clearSaveTimeout,
+  finalizePersistedItems,
+  hasDirtyItems,
+  scheduleSaveTimeout,
+} = require("../server/board/data_persistence.mjs");
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const {
   TOOL_BY_ID: {
@@ -521,7 +527,7 @@ test("finalizePersistedItems leaves newer canonical revisions dirty", () => {
     true,
   );
 
-  board.finalizePersistedItems(persistedSnapshot);
+  finalizePersistedItems(board, persistedSnapshot);
 
   assert.deepEqual(board.get("text-1"), {
     id: "text-1",
@@ -605,7 +611,7 @@ test("finalizePersistedItems folds newly persisted pencil children into the base
     ]).slice(1),
   );
 
-  board.finalizePersistedItems(persistedSnapshot);
+  finalizePersistedItems(board, persistedSnapshot);
 
   const line = board.itemsById.get("line-1");
   assert.equal(line?.payload?.persistedChildCount, 1);
@@ -631,7 +637,7 @@ test("finalizePersistedItems keeps omitted pencil creates dirty until they seria
     ]).slice(1),
   );
 
-  board.finalizePersistedItems(persistedSnapshot, new Set());
+  finalizePersistedItems(board, persistedSnapshot, new Set());
 
   const line = board.itemsById.get("line-1");
   assert.equal(line?.dirty, true);
@@ -678,7 +684,7 @@ test("scheduleSaveTimeout does not queue an autosave while a save is in progress
     saveCalls += 1;
   };
 
-  board.scheduleSaveTimeout(0);
+  scheduleSaveTimeout(board, 0);
 
   assert.equal(saveCalls, 0);
   assert.equal(board.saveTimeoutId, undefined);
@@ -1632,7 +1638,7 @@ test("BoardData.save closes the scheduling window after saving an omitted transi
 
       assert.deepEqual(result, { status: "saved" });
       assert.equal(board.getSeq(), board.getPersistedSeq());
-      assert.equal(board.hasDirtyItems(), true);
+      assert.equal(hasDirtyItems(board), true);
       assert.equal(board.dirtyFromMs, null);
       assert.equal(board.lastWriteAtMs, null);
     },
@@ -1683,7 +1689,7 @@ test("BoardData.save keeps only the during-save scheduling window when a transie
         assert.equal(board.getPersistedSeq(), 1);
         assert.equal(board.dirtyFromMs, duringSaveDirtyFrom);
       } finally {
-        board.clearSaveTimeout();
+        clearSaveTimeout(board);
       }
     },
   );

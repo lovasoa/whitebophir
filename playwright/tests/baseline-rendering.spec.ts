@@ -49,7 +49,9 @@ test("dense pencil baselines retain curves within the execution budget", async (
   );
 
   const appended = await page.evaluate(() => {
-    window.WBOApp.toolRegistry.mounted.pencil.draw(
+    const pencil = window.WBOApp.toolRegistry.mounted.pencil;
+    if (!pencil) throw Error("Pencil is not mounted");
+    pencil.draw(
       { tool: 1, type: 4, parent: "stored-0", x: 150, y: 130 },
       false,
     );

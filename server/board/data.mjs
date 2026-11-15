@@ -37,18 +37,11 @@ import {
   publicItemFromCanonicalItem,
 } from "./canonical_items.mjs";
 import {
-  dirtyAgeMs as boardDirtyAgeMs,
-  hasDirtyItems as boardHasDirtyItems,
-  clearSaveTimeout as clearBoardSaveTimeout,
   computeScheduledSaveDelayMs,
   delaySave as delayBoardSave,
   disposeBoard,
-  finalizePersistedItems as finalizeBoardPersistedItems,
   loadBoardData,
   saveBoard,
-  scheduleDirtySave as scheduleBoardDirtySave,
-  scheduleSaveTimeout as scheduleBoardSaveTimeout,
-  trimPersistedMutationLog as trimBoardPersistedMutationLog,
   unsafeSaveBoard,
 } from "./data_persistence.mjs";
 import {
@@ -267,14 +260,6 @@ class BoardData {
   }
 
   /**
-   * @param {number} [nowMs]
-   * @returns {void}
-   */
-  trimPersistedMutationLog(nowMs = Date.now()) {
-    trimBoardPersistedMutationLog(this, nowMs);
-  }
-
-  /**
    * @returns {number}
    */
   authoritativeItemCount() {
@@ -315,52 +300,13 @@ class BoardData {
     return publicItemFromCanonicalItem(getCanonicalItem(this, id));
   }
 
-  clearSaveTimeout() {
-    clearBoardSaveTimeout(this);
-  }
-
-  /**
-   * @param {number} [nowMs]
-   * @returns {number | null}
-   */
-  dirtyAgeMs(nowMs = Date.now()) {
-    return boardDirtyAgeMs(this, nowMs);
-  }
-
   /** Delays the triggering of auto-save by SAVE_INTERVAL milliseconds. */
   delaySave() {
     delayBoardSave(this);
   }
 
-  /**
-   * @param {number} [nowMs]
-   * @returns {void}
-   */
-  scheduleDirtySave(nowMs = Date.now()) {
-    scheduleBoardDirtySave(this, nowMs);
-  }
-
-  /**
-   * @param {number} delayMs
-   * @returns {void}
-   */
-  scheduleSaveTimeout(delayMs) {
-    scheduleBoardSaveTimeout(this, delayMs);
-  }
-
   dispose() {
     disposeBoard(this);
-  }
-
-  hasDirtyItems() {
-    return boardHasDirtyItems(this);
-  }
-
-  finalizePersistedItems(
-    persistedSnapshot = this.itemsById,
-    persistedIds = new Set(persistedSnapshot.keys()),
-  ) {
-    finalizeBoardPersistedItems(this, persistedSnapshot, persistedIds);
   }
 
   /** Saves the data in the board to a file. */

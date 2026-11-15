@@ -891,39 +891,12 @@ export function createNoticePanel(elements) {
   };
 }
 
-export class UiModule {
-  /** @param {NoticePanelOptions} options */
-  createNoticePanel(options) {
-    return createNoticePanel(options);
-  }
-
-  /** @param {AnchoredPanelPositionOptions} options */
-  positionAnchoredPanel(options) {
-    return positionAnchoredPanel(options);
-  }
-
-  /** @param {FloatingPanelControllerOptions} options */
-  createFloatingPanelController(options) {
-    return createFloatingPanelController(options);
-  }
-
-  /** @param {ModalShellOptions} [options] */
-  createModalShell(options) {
-    return createModalShell(options);
-  }
-
-  /** @param {ConfirmDialogOptions} options */
-  confirm(options) {
-    return showConfirmDialog(options);
-  }
-
-  /** @param {ActionDialogOptions} options */
-  showActionDialog(options) {
-    return showActionDialog(options);
-  }
-
-  /** @param {ModerationDisconnectNoticeOptions} options */
-  showModerationDisconnectNotice(options) {
-    return showModerationDisconnectNotice(options);
-  }
-}
+export const ui = {
+  createNoticePanel,
+  positionAnchoredPanel,
+  createFloatingPanelController,
+  createModalShell,
+  confirm: showConfirmDialog,
+  showActionDialog,
+  showModerationDisconnectNotice,
+};
