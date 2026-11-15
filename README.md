@@ -104,9 +104,9 @@ the actual cookie values. Treat these values as credentials.
 
 Permanent moderators can grant temporary moderator access from the users menu.
 Temporary grants and bans are local to the board and process and disappear on
-restart. Temporary moderators cannot delegate their role. Ordinary user reports
-disconnect the reporter and target without creating a ban; moderator actions
-can warn, ban, and revoke bans. Published text matching the personal-information
+restart. Temporary moderators can warn and ban, but cannot clear the board, revoke
+bans, or delegate their role. Ordinary reports disconnect the reporter and
+target without creating a ban. Published text matching the personal-information
 warning automatically alerts online moderators on every board, without banning.
 
 ### Read-only boards

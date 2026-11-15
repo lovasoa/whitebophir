@@ -21,7 +21,7 @@ import {
 } from "./broadcasts.mjs";
 import {
   boardStateForSocket,
-  canBanOnBoard,
+  canUnbanOnBoard,
   clientIpFallback,
   getClientIp,
   normalizeBroadcastData,
@@ -801,7 +801,7 @@ async function handleSocketConnection(socket, config) {
         typeof message.banId !== "string" ||
         message.banId.length !== 36 ||
         !socket.rooms.has(boardName) ||
-        !canBanOnBoard(config, boardName, socket)
+        !canUnbanOnBoard(config, boardName, socket)
       )
         return;
       const removed = unbanBoardUser(boardName, message.banId, Date.now());

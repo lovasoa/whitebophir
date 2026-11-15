@@ -27,7 +27,7 @@ export class PresenceModule {
     this.friendStorageBound = false;
     this.bans = /** @type {ActiveBan[]} */ ([]);
     this.renderedBans = /** @type {ActiveBan[] | null} */ (null);
-    this.renderedCanBan = false;
+    this.renderedCanUnban = false;
     this.panelOpen = false;
     this.renderScheduled = false;
     /** @type {number | null} */
@@ -125,11 +125,11 @@ export class PresenceModule {
 
   renderActiveBans() {
     const Tools = this.getTools();
-    const canBan = Tools.access.canBan === true;
-    if (this.renderedBans === this.bans && this.renderedCanBan === canBan)
+    const canUnban = Tools.access.canUnban === true;
+    if (this.renderedBans === this.bans && this.renderedCanUnban === canUnban)
       return;
     this.renderedBans = this.bans;
-    this.renderedCanBan = canBan;
+    this.renderedCanUnban = canUnban;
     const details = /** @type {HTMLDetailsElement | null} */ (
       document.getElementById("activeBansSection")
     );
@@ -171,7 +171,7 @@ export class PresenceModule {
       );
       main.appendChild(reason);
       row.appendChild(main);
-      if (canBan) {
+      if (canUnban) {
         const unban = document.createElement("button");
         unban.type = "button";
         unban.className = "active-ban-unban";
@@ -182,7 +182,7 @@ export class PresenceModule {
         );
         unban.addEventListener("click", () => {
           const currentTools = this.getTools();
-          if (currentTools.access.canBan !== true) return;
+          if (currentTools.access.canUnban !== true) return;
           currentTools.connection.socket?.emit(SocketEvents.UNBAN_USER, {
             banId: ban.id,
           });
