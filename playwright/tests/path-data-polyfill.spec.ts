@@ -3,6 +3,12 @@ import { readFile } from "node:fs/promises";
 import type { Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 
+declare global {
+  interface Window {
+    __pathDataNativeCalls: { get: number; set: number };
+  }
+}
+
 const polyfillPath = path.resolve("client-data/js/path-data-polyfill.js");
 const polyfillSource = readFile(polyfillPath, "utf8");
 
@@ -42,7 +48,7 @@ test.describe("path-data polyfill", () => {
       Object.defineProperty(SVGPathElement.prototype, "setPathData", {
         configurable: true,
         writable: true,
-        value(pathData) {
+        value(pathData: WboPathDataSegment[]) {
           window.__pathDataNativeCalls.set += 1;
           if (!Array.isArray(pathData) || pathData[0]?.type !== "M") {
             throw new TypeError("expected path data dictionary");
@@ -54,7 +60,8 @@ test.describe("path-data polyfill", () => {
 
     await loadPathDataPolyfill(page);
     const result = await page.evaluate(() => {
-      const line = document.querySelector("#line");
+      const line = document.querySelector<SVGPathElement>("#line");
+      if (!line) throw new Error("Missing path fixture");
       line.setPathData([{ type: "M", values: [10, 20] }]);
       return {
         calls: window.__pathDataNativeCalls,
@@ -97,7 +104,8 @@ test.describe("path-data polyfill", () => {
 
     await loadPathDataPolyfill(page);
     const result = await page.evaluate(() => {
-      const line = document.querySelector("#line");
+      const line = document.querySelector<SVGPathElement>("#line");
+      if (!line) throw new Error("Missing path fixture");
       line.setPathData([
         { type: "M", values: [10, 20] },
         { type: "l", values: [5, 6] },

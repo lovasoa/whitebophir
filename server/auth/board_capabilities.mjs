@@ -93,6 +93,7 @@ function capabilitiesGrant(capabilities, capability) {
  * @returns {{
  *   canOpen: () => boolean,
  *   canBan: () => boolean,
+ *   canUnban: () => boolean,
  *   canGrantTemporaryModerator: () => boolean,
  *   canReport: () => boolean,
  *   resolveCapabilities: (board: BoardCapabilityBoard) => BoardCapabilities,
@@ -200,7 +201,7 @@ function forBoard(input) {
         !unavailable &&
         !accessState.banned &&
         (!readonly || accessState.moderator || isEditCapableRole(role)),
-      canClear: !unavailable && accessState.moderator,
+      canClear: !unavailable && permanentModerator,
     };
   }
 
@@ -228,6 +229,7 @@ function forBoard(input) {
       ...boardStateForCapabilities(board, capabilities),
       ...(unavailable ? { readonly: true, moderationUnavailable: true } : {}),
       canBan: accessState.moderator,
+      canUnban: permanentModerator,
       canGrantTemporaryModerator: permanentModerator,
       canReport: capabilities.canOpen && !accessState.banned,
       ...(accessState.refreshAfterMs === null
@@ -263,6 +265,7 @@ function forBoard(input) {
     requireOpen,
     canApplyBoardMessage,
     canBan: () => readAccessState().moderator,
+    canUnban: () => permanentModerator,
     canGrantTemporaryModerator: () => permanentModerator,
   };
 }

@@ -82,7 +82,7 @@ test.describe("collaboration and rate limiting", () => {
     expect(firstRows[0]?.isSelf).toBe(true);
     expect(firstRows[1]?.isSelf).toBe(false);
     expect(firstRows[0]?.fontWeight).toBe("700");
-    expect(parseInt(firstRows[1]?.fontWeight, 10)).toBeLessThan(600);
+    expect(parseInt(firstRows[1]?.fontWeight ?? "", 10)).toBeLessThan(600);
     expect(firstRows[0]?.borderBottomColor).not.toBe("rgba(0, 0, 0, 0)");
 
     await boardPage.drawRectangle(
@@ -531,7 +531,10 @@ test.describe("collaboration and rate limiting", () => {
         ).toHaveText(["15m", "30m", "24h", "7d"]);
         await page.getByRole("button", { name: "30m", exact: true }).click();
 
-        await expect(targetClear).toBeVisible();
+        await expect
+          .poll(() => targetPage.evaluate(() => window.WBOApp.access.canBan))
+          .toBe(true);
+        await expect(targetClear).toBeHidden();
         await expect
           .poll(() =>
             page.evaluate(
@@ -548,6 +551,9 @@ test.describe("collaboration and rate limiting", () => {
         await page
           .getByRole("button", { name: /Revoke temporary moderator access/ })
           .click();
+        await expect
+          .poll(() => targetPage.evaluate(() => window.WBOApp.access.canBan))
+          .toBe(false);
         await expect(targetClear).toBeHidden();
       } finally {
         await targetContext.close();

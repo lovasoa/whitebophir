@@ -6,7 +6,7 @@ const moderationTest = test.extend({ serverOptions: { useJWT: true } });
 
 moderationTest(
   "active bans survive a cached-shell reload and moderators can unban",
-  async ({ boardPage, browser, page, server }) => {
+  async ({ boardPage, browser, page, server }, testInfo) => {
     const boardName = "active-bans-menu";
     const targetContext = await browser.newContext();
     const viewerContext = await browser.newContext();
@@ -103,6 +103,31 @@ moderationTest(
         targetName,
       );
       await expect(viewerSection.locator("button")).toHaveCount(0);
+      const viewerId = await viewerPage.evaluate(
+        () => window.WBOApp.connection.socket?.id,
+      );
+      if (!viewerId) throw new Error("Missing viewer socket");
+      await page.evaluate((socketId) => {
+        window.WBOApp.connection.socket?.emit("set_temporary_moderator", {
+          socketId,
+          durationMs: 900_000,
+        });
+      }, viewerId);
+      await expect
+        .poll(() => viewerPage.evaluate(() => window.WBOApp.access.boardState))
+        .toMatchObject({
+          canEdit: true,
+          canBan: true,
+          canUnban: false,
+          canClear: false,
+          canGrantTemporaryModerator: false,
+        });
+      await expect(viewerBoard.tool("clear")).toBeHidden();
+      await expect(viewerSection.locator("button")).toHaveCount(0);
+      await expect(boardPage.tool("clear")).toBeVisible();
+      await viewerPage.screenshot({
+        path: testInfo.outputPath("temporary-moderator-bans.png"),
+      });
       // Fresh connections get the same authoritative list while the ban is active.
       // Cached HTML from before the active-bans panel must still finish booting.
       await targetPage.route("**/boards/**", async (route) => {

@@ -62,6 +62,8 @@ test("opt-in User Timing exposes drawing context and bounds retained history", a
     });
     const entry = buffered.find((entry) => entry.name === "wbo.drawing");
     if (!entry) throw Error("Missing drawing measure");
+    const drawingArea = window.WBOApp.dom.drawingArea;
+    if (!drawingArea) throw Error("Drawing area is not attached");
     return {
       retained: performance.getEntriesByName("wbo.drawing", "measure").length,
       buffered: buffered.filter((entry) => entry.name === "wbo.drawing").length,
@@ -70,7 +72,7 @@ test("opt-in User Timing exposes drawing context and bounds retained history", a
       duration: entry.duration,
       start: performance.timeOrigin + entry.startTime,
       current: {
-        boardItemCount: window.WBOApp.dom.drawingArea.childElementCount,
+        boardItemCount: drawingArea.childElementCount,
         zoom: window.WBOApp.viewportState.controller.getScale(),
         connectedUserCount: window.WBOApp.presence.users.size,
         connectionState: window.WBOApp.connection.state,
