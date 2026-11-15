@@ -451,6 +451,16 @@ function canBanOnBoard(config, boardName, socket) {
  * @param {AppSocket} socket
  * @returns {boolean}
  */
+function canUnbanOnBoard(config, boardName, socket) {
+  return boardPermissionsForSocket(config, boardName, socket).canUnban();
+}
+
+/**
+ * @param {SocketPolicyConfig} config
+ * @param {string} boardName
+ * @param {AppSocket} socket
+ * @returns {boolean}
+ */
 function canGrantTemporaryModeratorOnBoard(config, boardName, socket) {
   return boardPermissionsForSocket(
     config,
@@ -527,6 +537,7 @@ export {
   canAccessBoard,
   canApplyBoardMessage,
   canBanOnBoard,
+  canUnbanOnBoard,
   canGrantTemporaryModeratorOnBoard,
   canReportOnBoard,
   canEditBoard,

@@ -328,6 +328,7 @@ export type AppBoardState = {
   canEdit?: boolean;
   canClear?: boolean;
   canBan?: boolean;
+  canUnban?: boolean;
   canGrantTemporaryModerator?: boolean;
   canReport?: boolean;
   canWrite: boolean;

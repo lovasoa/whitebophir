@@ -13,6 +13,7 @@ const {
 const { MutationType } = require("../client-data/js/mutation_type.js");
 const {
   TOOL_BY_ID: {
+    clear: Clear,
     cursor: Cursor,
     eraser: Eraser,
     hand: Hand,
@@ -431,6 +432,7 @@ test("socket boardstate uses the same capability-shaped state as rendered board 
         canEdit: true,
         canClear: true,
         canBan: true,
+        canUnban: true,
         canGrantTemporaryModerator: true,
         canReport: true,
         canWrite: true,
@@ -486,7 +488,7 @@ test("presence payloads expose board capabilities for sidebar status", async () 
   );
 });
 
-test("permanent moderators grant and revoke every tab for a temporary moderator", async () => {
+test("temporary moderators can edit but cannot clear, and grants update every tab", async () => {
   const moderatorSecret = "12121212121212121212121212121212";
   const targetSecret = "34343434343434343434343434343434";
   await createSocketScenario(
@@ -498,7 +500,7 @@ test("permanent moderators grant and revoke every tab for a temporary moderator"
         ]),
       },
     },
-    async ({ connect, invoke }) => {
+    async ({ connect, invoke, getLoadedBoard }) => {
       /** @param {string} id @param {string} secret */
       const connectAs = (id, secret) =>
         connect({
@@ -529,6 +531,34 @@ test("permanent moderators grant and revoke every tab for a temporary moderator"
         [true, true],
       );
       assert.equal(latestState(target)?.canGrantTemporaryModerator, false);
+      assert.equal(latestState(target)?.canUnban, false);
+      assert.equal(latestState(target)?.canClear, false);
+
+      await invoke(
+        target,
+        "broadcast",
+        rectangleCreate({
+          id: "temporary-mod-drawing",
+          x: 10,
+          y: 10,
+          x2: 30,
+          y2: 30,
+          color: "#444444",
+          size: 10,
+        }),
+      );
+      const board = await getLoadedBoard("temporary-moderator-board");
+      assert.ok(board.get("temporary-mod-drawing"));
+      await invoke(target, "broadcast", {
+        tool: Clear.id,
+        type: MutationType.CLEAR,
+      });
+      assert.ok(board.get("temporary-mod-drawing"));
+      await invoke(moderator, "broadcast", {
+        tool: Clear.id,
+        type: MutationType.CLEAR,
+      });
+      assert.equal(board.authoritativeItemCount(), 0);
 
       await setTemporaryModerator(moderator, 0);
       assert.deepEqual(
@@ -2914,7 +2944,7 @@ test("non-moderator report disconnects both users without banning", async () => 
   );
 });
 
-test("active ban details sync on connect and only board moderators can unban", async () => {
+test("active ban details sync on connect and only permanent moderators can unban", async () => {
   const boardName = "active-ban-users";
   const moderatorSecret = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaf";
   const targetSecret = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbf";
@@ -2934,6 +2964,7 @@ test("active ban details sync on connect and only board moderators can unban", a
       const viewer = await connect({
         id: "ban-viewer",
         remoteAddress: "203.0.113.2",
+        headers: withUserSecretCookie("dddddddddddddddddddddddddddddddf"),
       });
       const target = await connect({
         id: "ban-target",
@@ -2992,6 +3023,19 @@ test("active ban details sync on connect and only board moderators can unban", a
       assert.ok(viewerUser);
       viewerUser.canBan = true;
       await invoke(viewer, "unban_user", { banId });
+      await invoke(moderator, "set_temporary_moderator", {
+        socketId: viewer.socket.id,
+        durationMs: 900_000,
+      });
+      assert.equal(lastState(viewer).canBan, true);
+      assert.equal(lastState(viewer).canUnban, false);
+      await invoke(viewer, "unban_user", { banId });
+      assert.equal(lastState(secretPeer).canEdit, false);
+      assert.deepEqual(
+        viewer.emitted.filter((event) => event.event === "active_bans").pop()
+          ?.payload,
+        bans,
+      );
       for (const message of [
         undefined,
         null,

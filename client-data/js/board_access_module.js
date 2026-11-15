@@ -25,6 +25,10 @@ export class AccessModule {
     return this.boardState.canBan === true;
   }
 
+  get canUnban() {
+    return this.boardState.canUnban === true;
+  }
+
   get canGrantTemporaryModerator() {
     return this.boardState.canGrantTemporaryModerator === true;
   }
