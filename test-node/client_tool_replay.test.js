@@ -720,9 +720,6 @@ function createHarness() {
         );
       const definition = TOOL_BY_ID[toolName];
       assert.ok(definition);
-      const press = moduleNamespace.press;
-      const move = moduleNamespace.move;
-      const release = moduleNamespace.release;
       const onstart = moduleNamespace.onstart;
       const onMessage = moduleNamespace.onMessage;
       const onSocketDisconnect = moduleNamespace.onSocketDisconnect;
@@ -741,30 +738,11 @@ function createHarness() {
         secondary: stateMetadata.secondary ?? null,
         draw: (/** @type {any} */ data, /** @type {boolean} */ isLocal) =>
           moduleNamespace.draw(toolState, data, isLocal),
-        press: press
-          ? (
-              /** @type {number} */ x,
-              /** @type {number} */ y,
-              /** @type {any} */ evt,
-              /** @type {boolean} */ isTouchEvent,
-            ) => press(toolState, x, y, evt, isTouchEvent)
-          : undefined,
-        move: move
-          ? (
-              /** @type {number} */ x,
-              /** @type {number} */ y,
-              /** @type {any} */ evt,
-              /** @type {boolean} */ isTouchEvent,
-            ) => move(toolState, x, y, evt, isTouchEvent)
-          : undefined,
-        release: release
-          ? (
-              /** @type {number} */ x,
-              /** @type {number} */ y,
-              /** @type {any} */ evt,
-              /** @type {boolean} */ isTouchEvent,
-            ) => release(toolState, x, y, evt, isTouchEvent)
-          : undefined,
+        listeners: {
+          press: moduleNamespace.press?.bind(undefined, toolState),
+          move: moduleNamespace.move?.bind(undefined, toolState),
+          release: moduleNamespace.release?.bind(undefined, toolState),
+        },
         onstart: onstart
           ? (/** @type {any} */ oldTool) => onstart(toolState, oldTool)
           : undefined,
@@ -788,13 +766,6 @@ function createHarness() {
           ? () => getTouchPolicy(toolState)
           : undefined,
       });
-      if (!tool.listeners) {
-        tool.listeners = {
-          press: tool.press,
-          move: tool.move,
-          release: tool.release,
-        };
-      }
       tools[tool.name] = tool;
       return tool;
     },

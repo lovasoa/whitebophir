@@ -251,12 +251,6 @@ export type ToolNameMap<T> = {
 
 export type PendingMessages = ToolNameMap<BoardMessage[]>;
 
-export type PointerListenerMap<TListener> = {
-  press?: TListener;
-  move?: TListener;
-  release?: TListener;
-};
-
 export type ToolPointerListener = (
   x: number,
   y: number,
@@ -264,7 +258,11 @@ export type ToolPointerListener = (
   isTouchEvent: boolean,
 ) => unknown;
 
-export type ToolPointerListeners = PointerListenerMap<ToolPointerListener>;
+export type ToolPointerListeners = {
+  press?: ToolPointerListener;
+  move?: ToolPointerListener;
+  release?: ToolPointerListener;
+};
 
 export type CompiledToolListener = ((evt: Event) => unknown) & {
   target?: EventTarget | null;
@@ -287,7 +285,7 @@ export type ToolTouchPolicy = "app-gesture" | "native-pan";
 
 export type MaybeMountedAppTool = MountedAppTool | null;
 
-export type MountedAppTool = PointerListenerMap<ToolPointerListener> & {
+export type MountedAppTool = {
   name: string;
   shortcut?: string;
   icon: string;

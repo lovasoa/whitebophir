@@ -1,3 +1,5 @@
+import { boardStateGrantsCapability, TOOL_BY_ID } from "../tools/manifest.js";
+import { drainPendingMessages, isBlockedToolName } from "./board_page_state.js";
 import {
   bindRenderedToolButtons,
   getRenderedToolNames,
@@ -11,8 +13,6 @@ import {
   bindToolKeyboardControls,
   compileToolListeners,
 } from "./board_tool_input.js";
-import { boardStateGrantsCapability, TOOL_BY_ID } from "../tools/manifest.js";
-import { drainPendingMessages, isBlockedToolName } from "./board_page_state.js";
 import MessageCommon from "./message_common.js";
 
 /** @import { AppToolsState, BoardMessage, MountedAppTool, MountedAppToolsState, PendingMessages, ToolBootContext, ToolModule, ToolRuntimeModules, ToolRuntimeState } from "../../types/app-runtime" */
@@ -515,13 +515,10 @@ export function createToolRuntimeModules(mountedTools) {
  * @returns {ToolBootContext}
  */
 function createToolBootContext(Tools, toolName) {
-  /** @type {MountedAppToolsState} */
-  const mountedTools = (() => {
-    if (Tools.dom.status !== "attached") {
-      throw new Error("Tool boot requires board, svg, and drawing area.");
-    }
-    return /** @type {MountedAppToolsState} */ (Tools);
-  })();
+  if (Tools.dom.status !== "attached") {
+    throw new Error("Tool boot requires board, svg, and drawing area.");
+  }
+  const mountedTools = /** @type {MountedAppToolsState} */ (Tools);
   return {
     runtime: createToolRuntimeModules(mountedTools),
     assetUrl(assetFile) {
@@ -548,15 +545,16 @@ function createMountedTool(Tools, toolModule, toolState, toolName) {
     normalizeServerRenderedElement:
       toolModule.normalizeServerRenderedElement?.bind(undefined, toolState),
     serverRenderedElementSelector: toolModule.serverRenderedElementSelector,
-    press: toolModule.press?.bind(undefined, toolState),
-    move: toolModule.move?.bind(undefined, toolState),
-    release: toolModule.release?.bind(undefined, toolState),
     cancelTouchGesture: toolModule.cancelTouchGesture?.bind(
       undefined,
       toolState,
     ),
     onMessage: toolModule.onMessage?.bind(undefined, toolState) ?? noop,
-    listeners: {},
+    listeners: {
+      press: toolModule.press?.bind(undefined, toolState),
+      move: toolModule.move?.bind(undefined, toolState),
+      release: toolModule.release?.bind(undefined, toolState),
+    },
     compiledListeners: {},
     onstart: toolModule.onstart?.bind(undefined, toolState) ?? noop,
     onquit: toolModule.onquit?.bind(undefined, toolState) ?? noop,
@@ -585,12 +583,6 @@ function createMountedTool(Tools, toolModule, toolState, toolName) {
     requiredCapability: toolDefinition.requiredCapability,
     touchListenerOptions: toolModule.touchListenerOptions,
   };
-  tool.listeners = {
-    press: tool.press,
-    move: tool.move,
-    release: tool.release,
-  };
-
   tool.compiledListeners = compileToolListeners(Tools, tool);
   return tool;
 }
