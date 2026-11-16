@@ -348,10 +348,13 @@ test.describe("single-page interactions", () => {
       width: 60,
       height: 40,
     });
-    await expect(page.locator("#rectangle")).toHaveAttribute(
-      "transform",
-      "matrix(-1 0 0 -1 5400 5600)",
-    );
+    const transform = await page.locator("#rectangle").evaluate((element) => {
+      const { a, b, c, d, e, f } = (
+        element as SVGGraphicsElement
+      ).transform.baseVal.getItem(0).matrix;
+      return { a, b, c, d, e, f };
+    });
+    expect(transform).toEqual({ a: -1, b: 0, c: 0, d: -1, e: 5400, f: 5600 });
   });
 
   test("selector moves existing rectangle", async ({
