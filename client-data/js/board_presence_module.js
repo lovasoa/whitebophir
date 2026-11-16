@@ -12,6 +12,33 @@ import {
 } from "./moderation_rules.js";
 import { SocketEvents } from "./socket_events.js";
 import { createToolIconBadge, updateToolIconBadge } from "./tool_icon_badge.js";
+import { createUiTemplate } from "./ui_template.js";
+
+const connectedUserRowTemplate = createUiTemplate(`
+  <li class="connected-user-row">
+    <span class="connected-user-visual"></span>
+    <div class="connected-user-main">
+      <a class="connected-user-main-link">
+        <div class="connected-user-name"><bdi class="connected-user-name-text" dir="auto"></bdi></div>
+        <span class="connected-user-meta"><span class="connected-user-time"></span></span>
+      </a>
+    </div>
+    <span class="connected-user-actions">
+      <button type="button" class="connected-user-action connected-user-friend"><span class="connected-user-friend-glyph" aria-hidden="true"></span></button>
+      <button type="button" class="connected-user-action connected-user-report"></button>
+    </span>
+  </li>
+`);
+const activeBanRowTemplate = createUiTemplate(`
+  <li class="active-ban-row">
+    <div>
+      <bdi class="active-ban-name" dir="auto"></bdi>
+      <time class="active-ban-meta"></time>
+      <span class="active-ban-meta"></span>
+    </div>
+    <button type="button" class="active-ban-unban"></button>
+  </li>
+`);
 
 /** @import { ActiveBan, AppToolsState, BoardMessage, ConnectedUser, ConnectedUserMap } from "../../types/app-runtime" */
 /** @typedef {{
@@ -136,16 +163,14 @@ export class PresenceModule {
     const list = getRequiredElement("activeBansList");
     list.replaceChildren();
     for (const ban of this.bans) {
-      const row = document.createElement("li");
-      row.className = "active-ban-row";
-      const main = document.createElement("div");
-      const name = document.createElement("bdi");
-      name.className = "active-ban-name";
-      name.dir = "auto";
+      const row = activeBanRowTemplate();
+      const name = row.querySelector("bdi");
+      const time = row.querySelector("time");
+      const reason = row.querySelector("span");
+      const unban = row.querySelector("button");
+      if (!name || !time || !reason || !unban)
+        throw new Error("Invalid active ban row template.");
       name.textContent = ban.name;
-      main.appendChild(name);
-      const time = document.createElement("time");
-      time.className = "active-ban-meta";
       const date = new Date(ban.bannedAt);
       time.dateTime = date.toISOString();
       time.textContent = Tools.i18n.format("banned_at", {
@@ -154,19 +179,11 @@ export class PresenceModule {
           timeStyle: "short",
         }),
       });
-      main.appendChild(time);
-      const reason = document.createElement("span");
-      reason.className = "active-ban-meta";
       const rule = getModerationRule(ban.moderationRule);
       reason.textContent = Tools.i18n.t(
         rule ? rule.titleKey : "ban_reason_unspecified",
       );
-      main.appendChild(reason);
-      row.appendChild(main);
       if (canUnban) {
-        const unban = document.createElement("button");
-        unban.type = "button";
-        unban.className = "active-ban-unban";
         unban.textContent = Tools.i18n.t("unban");
         unban.setAttribute(
           "aria-label",
@@ -179,8 +196,7 @@ export class PresenceModule {
             banId: ban.id,
           });
         });
-        row.appendChild(unban);
-      }
+      } else unban.remove();
       list.appendChild(row);
     }
   }
@@ -956,28 +972,25 @@ function showConnectedUserManagementDialog(Tools, presence, user) {
  * @returns {ConnectedUserRow}
  */
 function createConnectedUserRow(getTools, presence) {
-  const row = document.createElement("li");
-  row.className = "connected-user-row";
-
-  const visual = document.createElement("span");
-  visual.className = "connected-user-visual";
+  const row = /** @type {HTMLLIElement} */ (connectedUserRowTemplate());
   const { badge: toolBadge, icon: toolIcon } = createToolIconBadge(
     "connected-user-toolBadge",
     "connected-user-toolIcon",
   );
-  visual.appendChild(toolBadge);
-  row.appendChild(visual);
-
-  const main = document.createElement("div");
-  main.className = "connected-user-main";
-
-  const friend = document.createElement("button");
-  friend.type = "button";
-  friend.className = "connected-user-action connected-user-friend";
-  const friendGlyph = document.createElement("span");
-  friendGlyph.className = "connected-user-friend-glyph";
-  friendGlyph.setAttribute("aria-hidden", "true");
-  friend.appendChild(friendGlyph);
+  row.querySelector(".connected-user-visual")?.appendChild(toolBadge);
+  const view = /** @type {ConnectedUserRow} */ ({
+    element: row,
+    link: row.querySelector("a"),
+    toolIcon,
+    toolBadge,
+    name: row.querySelector("bdi"),
+    friend: row.querySelector(".connected-user-friend"),
+    friendGlyph: row.querySelector(".connected-user-friend-glyph"),
+    meta: row.querySelector(".connected-user-meta"),
+    joinedTime: row.querySelector(".connected-user-time"),
+    report: row.querySelector(".connected-user-report"),
+  });
+  const { friend, link, report } = view;
   friend.addEventListener("click", (evt) => {
     evt.preventDefault();
     evt.stopPropagation();
@@ -996,36 +1009,7 @@ function createConnectedUserRow(getTools, presence) {
     }
     presence.toggleFriend(connectedUser.userId);
   });
-  const link = document.createElement("a");
-  link.className = "connected-user-main-link";
-
-  const name = document.createElement("div");
-  name.className = "connected-user-name";
-  const nameText = document.createElement("bdi");
-  nameText.className = "connected-user-name-text";
-  nameText.dir = "auto";
-  name.appendChild(nameText);
-  link.appendChild(name);
-
-  const meta = document.createElement("span");
-  meta.className = "connected-user-meta";
-  const joinedTime = document.createElement("span");
-  joinedTime.className = "connected-user-time";
-  link.appendChild(meta);
-
-  main.appendChild(link);
-  link.addEventListener("click", () => {
-    revealTouchConnectedUserRow(row);
-  });
-  row.appendChild(main);
-
-  const actions = document.createElement("span");
-  actions.className = "connected-user-actions";
-  actions.appendChild(friend);
-
-  const report = document.createElement("button");
-  report.type = "button";
-  report.className = "connected-user-action connected-user-report";
+  link.addEventListener("click", () => revealTouchConnectedUserRow(row));
   report.addEventListener("click", (evt) => {
     evt.preventDefault();
     evt.stopPropagation();
@@ -1115,21 +1099,6 @@ function createConnectedUserRow(getTools, presence) {
     }
     reportConnectedUser(undefined, undefined);
   });
-  actions.appendChild(report);
-  row.appendChild(actions);
-
-  const view = {
-    element: row,
-    link,
-    toolIcon,
-    toolBadge,
-    name: nameText,
-    friend,
-    friendGlyph,
-    meta,
-    joinedTime,
-    report,
-  };
   return view;
 }
 
