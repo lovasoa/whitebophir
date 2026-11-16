@@ -492,8 +492,6 @@ export type AppSocket = {
   io?: { engine?: { close: () => void }; opts?: { query?: string } };
 };
 
-export type MessageHook = (message: BoardMessage) => void;
-
 export type ColorPreset = {
   color: string;
   key?: string;

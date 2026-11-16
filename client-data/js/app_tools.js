@@ -6,12 +6,7 @@ import {
   InteractionModule,
   RateLimitModule,
 } from "./board_full_runtime_modules.js";
-import {
-  createResizeCanvasHook,
-  createToolNotificationHook,
-  createUnreadCountHook,
-  MessageModule,
-} from "./board_message_module.js";
+import { MessageModule } from "./board_message_module.js";
 import { OptimisticModule } from "./board_optimistic_module.js";
 import { PresenceModule } from "./board_presence_module.js";
 import { ReplayModule } from "./board_replay_module.js";
@@ -52,12 +47,11 @@ export function attachFullRuntimeModules(tools, options) {
   tools.connection.socketIOExtraHeaders = options.socketIOExtraHeaders;
   tools.access = new AccessModule(() => tools);
   tools.presence = new PresenceModule(() => tools);
-  tools.messages = new MessageModule(tools.toolRegistry, tools.identity);
-  tools.messages.hooks = [
-    createResizeCanvasHook(tools.viewportState.controller),
-    createUnreadCountHook(tools.messages),
-    createToolNotificationHook(tools.toolRegistry),
-  ];
+  tools.messages = new MessageModule(
+    tools.toolRegistry,
+    tools.identity,
+    tools.viewportState.controller,
+  );
   tools.shell = new BoardShellModule(() => tools, options.logBoardEvent);
   return tools;
 }

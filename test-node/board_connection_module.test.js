@@ -279,7 +279,9 @@ test("connection and replay discard superseded asynchronous work", async (t) => 
     for (const message of Tools.toolRegistry.pendingMessages.rectangle || [])
       Tools.dom.drawingArea.innerHTML += message.id;
   };
-  Tools.messages = new MessageModule(Tools.toolRegistry, Tools.identity);
+  Tools.messages = new MessageModule(Tools.toolRegistry, Tools.identity, {
+    ensureBoardExtentForBounds: () => false,
+  });
   Tools.replay.authoritativeSeq = 2;
   const applying = Tools.replay.processIncomingBroadcast({
     seq: 3,

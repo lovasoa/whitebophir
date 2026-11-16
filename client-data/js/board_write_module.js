@@ -371,7 +371,7 @@ export class WriteModule {
   send(data) {
     const Tools = this.getTools();
     const liveData = /** @type {LiveBoardMessage} */ (data);
-    Tools.messages.applyHooks(Tools.messages.hooks, liveData);
+    Tools.messages.observeMessage(liveData);
     return this.sendBufferedWrite(liveData);
   }
 

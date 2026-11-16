@@ -2411,6 +2411,7 @@ test("large Hand replay completes transforms before the next message", async () 
   const messages = new MessageModule(
     /** @type {any} */ ({ mounted: { hand: handTool } }),
     globalAny.Tools.identity,
+    { ensureBoardExtentForBounds: () => false },
   );
   await messages.messageForTool({
     tool: TOOL_CODE_BY_ID.hand,
