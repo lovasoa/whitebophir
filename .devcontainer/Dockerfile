@@ -1,4 +1,4 @@
-FROM node:26.13.0-trixie
+FROM node:26.13.1-trixie
 
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
