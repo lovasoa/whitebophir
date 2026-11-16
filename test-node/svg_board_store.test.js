@@ -402,7 +402,7 @@ test("updateRootMetadata rewrites only root metadata attributes", () => {
   assert.match(updated, /width="800"/);
 });
 
-test("writeBoardState preserves opaque shell while rewriting stored items", async () => {
+test("writeBoardState preserves the shell and rejects broken document structure", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-preserve-"),
   );
@@ -464,6 +464,17 @@ test("writeBoardState preserves opaque shell while rewriting stored items", asyn
     assert.ok(lineIndex !== -1);
     assert.ok(textIndex !== -1);
     assert.ok(lineIndex < textIndex);
+
+    const brokenSvg = rewritten.replace("</g>", "");
+    await fs.writeFile(svgPath(boardName, historyDir), brokenSvg);
+    await assert.rejects(
+      writeBoardState(boardName, {}, { readonly: true }, 13, historyDir),
+      /Unterminated drawingArea group/,
+    );
+    assert.equal(
+      await fs.readFile(svgPath(boardName, historyDir), "utf8"),
+      brokenSvg,
+    );
   });
 });
 

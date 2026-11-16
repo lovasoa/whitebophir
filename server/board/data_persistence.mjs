@@ -363,19 +363,17 @@ async function unsafeSaveBoard(board) {
                         svgExtent: savedSvgExtent,
                       },
                     )
-                  : (
-                      await writeCanonicalBoardState(
-                        board.name,
-                        savedItemsById,
-                        savedPaintOrder,
-                        board.metadata,
-                        saveTargetSeq,
-                        {
-                          historyDir: board.historyDir,
-                          svgExtent: savedSvgExtent,
-                        },
-                      )
-                    ).persistedIds;
+                  : await writeCanonicalBoardState(
+                      board.name,
+                      savedItemsById,
+                      savedPaintOrder,
+                      board.metadata,
+                      saveTargetSeq,
+                      {
+                        historyDir: board.historyDir,
+                        svgExtent: savedSvgExtent,
+                      },
+                    );
               if (span) {
                 tracing.setSpanAttributes(
                   span,
