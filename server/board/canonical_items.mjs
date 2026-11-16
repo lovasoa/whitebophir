@@ -302,25 +302,6 @@ function copyCanonicalItem(source, newId, paintOrder, time = Date.now()) {
   copied.attrs = { ...copied.attrs, id: newId, time };
   delete copied.copySource;
 
-  if (copied.payload?.kind === "text") {
-    const sourceText = currentText(source);
-    if (sourceText !== undefined) {
-      copied.payload.modifiedText = sourceText;
-    }
-    return copied;
-  }
-
-  if (copied.payload?.kind === "children") {
-    copied.payload.appendedChildren = cloneChildren(
-      source.payload.appendedChildren,
-    );
-    copied.payload.persistedChildCount =
-      typeof source.payload.persistedChildCount === "number"
-        ? source.payload.persistedChildCount
-        : 0;
-    return copied;
-  }
-
   return copied;
 }
 

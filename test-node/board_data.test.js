@@ -445,6 +445,37 @@ test("appends require a live parent in the current transaction", () => {
   }
 });
 
+test("rejected pencil batches preserve accepted points and in-flight save snapshots", () => {
+  const board = disableSaves(
+    createBoard(getBoardDataClass(), "pencil-rollback"),
+  );
+  const messages = buildPencilStrokeMutations("line-1", "#111111", 4, [
+    { x: 10, y: 20 },
+    { x: 25, y: 35 },
+  ]);
+  assertMessagesAccepted(board, messages);
+  const snapshot = board.itemsById.get("line-1");
+  const before = structuredClone(snapshot);
+
+  assert.equal(
+    board.processMessageBatch([
+      {
+        tool: Hand.id,
+        type: MutationType.UPDATE,
+        id: "line-1",
+        transform: { a: 1, b: 0, c: 0, d: 1, e: 2, f: 3 },
+      },
+      ...messages.slice(1),
+      { ...messages[1], x: board.maxBoardSize + 1 },
+    ]).ok,
+    false,
+  );
+  assert.deepEqual(board.itemsById.get("line-1"), before);
+  assert.equal(board.processMessageBatch(messages.slice(1)).ok, true);
+  assert.equal(board.get("line-1").childCount, 4);
+  assert.deepEqual(snapshot, before);
+});
+
 test("computeScheduledSaveDelayMs respects idle and max-delay deadlines", () => {
   const { computeScheduledSaveDelayMs } = require(BOARD_DATA_PATH);
 
@@ -603,6 +634,7 @@ test("finalizePersistedItems folds newly persisted pencil children into the base
   );
 
   const persistedSnapshot = new Map(board.itemsById);
+  const originalSnapshot = structuredClone(persistedSnapshot);
 
   assertMessagesAccepted(
     board,
@@ -617,6 +649,7 @@ test("finalizePersistedItems folds newly persisted pencil children into the base
   assert.equal(line?.payload?.persistedChildCount, 1);
   assert.deepEqual(line?.payload?.appendedChildren, [{ x: 25, y: 35 }]);
   assert.equal(line?.dirty, true);
+  assert.deepEqual(persistedSnapshot, originalSnapshot);
 });
 
 test("finalizePersistedItems keeps omitted pencil creates dirty until they serialize", () => {

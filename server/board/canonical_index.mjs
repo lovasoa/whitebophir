@@ -1,8 +1,4 @@
-import {
-  cloneBounds,
-  cloneCanonicalItem,
-  effectiveChildCount,
-} from "./canonical_items.mjs";
+import { cloneBounds, effectiveChildCount } from "./canonical_items.mjs";
 
 /**
  * @param {{itemsById: Map<string, any>}} state
@@ -86,7 +82,7 @@ function removeCanonicalItem(state, id) {
  * }} state
  * @param {Map<string, any>} [persistedSnapshot]
  * @param {Set<string>} [persistedIds]
- * @returns {{paintOrder: string[], nextPaintOrder: number}}
+ * @returns {void}
  */
 function finalizePersistedCanonicalItems(
   state,
@@ -100,17 +96,21 @@ function finalizePersistedCanonicalItems(
     if (persistedItem !== item) {
       if (persistedItem.deleted === true) continue;
       if (!persistedIds.has(id)) continue;
-      delete item.copySource;
+      const next = { ...item };
+      delete next.copySource;
       if (
         item.payload?.kind === "children" &&
         persistedItem.payload?.kind === "children"
       ) {
-        item.payload.persistedChildCount = effectiveChildCount(persistedItem);
-        item.payload.appendedChildren = (
-          item.payload.appendedChildren || []
-        ).slice((persistedItem.payload.appendedChildren || []).length);
+        next.payload = {
+          ...item.payload,
+          persistedChildCount: effectiveChildCount(persistedItem),
+          appendedChildren: item.payload.appendedChildren.slice(
+            persistedItem.payload.appendedChildren.length,
+          ),
+        };
       }
-      state.itemsById.set(id, item);
+      state.itemsById.set(id, next);
       continue;
     }
     if (item.deleted === true) {
@@ -120,18 +120,17 @@ function finalizePersistedCanonicalItems(
     }
     if (!persistedIds.has(id)) continue;
     if (item.dirty !== true && !item.copySource) continue;
-    const next = cloneCanonicalItem(item);
-    next.dirty = false;
+    const next = { ...item, dirty: false };
     if (next.payload?.kind === "children") {
-      next.payload.persistedChildCount = effectiveChildCount(next);
-      next.payload.appendedChildren = [];
+      next.payload = {
+        kind: "children",
+        persistedChildCount: effectiveChildCount(next),
+        appendedChildren: [],
+      };
     } else if (next.payload?.kind === "text") {
-      delete next.payload.modifiedText;
-      delete next.copySource;
+      next.payload = { kind: "text" };
     }
-    if (next.copySource && next.payload?.kind !== "text") {
-      delete next.copySource;
-    }
+    delete next.copySource;
     state.itemsById.set(id, next);
   }
   if (removedItems) {
@@ -145,10 +144,6 @@ function finalizePersistedCanonicalItems(
     rebuildLiveItemCount(state);
     state.trimPaintOrderIndex = 0;
   }
-  return {
-    paintOrder: state.paintOrder,
-    nextPaintOrder: state.nextPaintOrder,
-  };
 }
 
 export {

@@ -224,15 +224,20 @@ function prepareAppend(state, current, message) {
   const bounds = MessageCommon.extendBoundsWithPoint(current.bounds, x, y);
   if (invalidBounds(state, bounds, current.transform))
     return { ok: false, reason: "shape too large" };
-  const item = cloneCanonicalItem(current);
-  item.payload.appendedChildren = (item.payload.appendedChildren || []).concat({
-    x,
-    y,
-  });
-  item.bounds = cloneBounds(bounds);
-  item.dirty = true;
-  item.time = Date.now();
-  item.attrs.time = item.time;
+  // Revisions and point records stay immutable for batch rollback and saves.
+  // Appending needs a new array, not another copy of every previous point.
+  const time = Date.now();
+  const item = {
+    ...current,
+    attrs: { ...current.attrs, time },
+    payload: {
+      ...current.payload,
+      appendedChildren: current.payload.appendedChildren.concat({ x, y }),
+    },
+    bounds,
+    dirty: true,
+    time,
+  };
   return { ok: true, id: current.id, item };
 }
 
