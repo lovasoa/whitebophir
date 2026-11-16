@@ -43,12 +43,6 @@ function bindToolButton(Tools, button, toolName) {
   button.addEventListener("click", () => {
     void Tools.toolRegistry.activateTool(toolName);
   });
-  button.addEventListener("keydown", (evt) => {
-    if (evt.key === "Enter" || evt.key === " ") {
-      evt.preventDefault();
-      void Tools.toolRegistry.activateTool(toolName);
-    }
-  });
 }
 
 /**

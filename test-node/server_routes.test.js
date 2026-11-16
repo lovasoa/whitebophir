@@ -907,7 +907,7 @@ test("board pages are no-store in development and pin assets to the release", as
     );
     assert.match(
       response.body,
-      /<li class="tool disabledTool"[^>]*id="toolID-pencil"[^>]*aria-disabled="true">/,
+      /<button type="button" class="tool disabledTool"[^>]*id="toolID-pencil"[^>]*aria-disabled="true">/,
     );
     assert.ok(response.body.includes(`"${assetBase}tools/pencil/icon.svg"`));
     assert.match(response.body, /fetchpriority="low"/);

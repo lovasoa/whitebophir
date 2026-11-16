@@ -87,6 +87,32 @@ async function readBoardTouchAction(page: Page) {
 }
 
 test.describe("single-page interactions", () => {
+  test("tool buttons activate once with Enter and Space", async ({
+    boardPage,
+    page,
+  }) => {
+    await boardPage.gotoBoard("native-tool-buttons");
+    await boardPage.waitForToolBooted("rectangle");
+    const button = boardPage.tool("rectangle");
+    await button.focus();
+    await button.press("Enter");
+    await boardPage.expectCurrentTool("rectangle");
+    await expect(page.locator("html")).toHaveAttribute(
+      "data-active-tool-secondary",
+      "false",
+    );
+    await button.press("Space");
+    await expect(page.locator("html")).toHaveAttribute(
+      "data-active-tool-secondary",
+      "true",
+    );
+    await button.press("Enter");
+    await expect(page.locator("html")).toHaveAttribute(
+      "data-active-tool-secondary",
+      "false",
+    );
+  });
+
   test("authoritative delete removes queued copies that depend on a removed copy", async ({
     boardPage,
     server,
@@ -1002,7 +1028,8 @@ test.describe("single-page interactions", () => {
       )
       .toContain("124, 45, 18");
 
-    await boardPage.tool("pencil").click();
+    // Drawing is unavailable at this scale, but selecting its tool remains valid.
+    await boardPage.tool("pencil").click({ force: true });
     await boardPage.expectCurrentTool("pencil");
 
     await boardPage.page.evaluate(() => {
