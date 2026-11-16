@@ -15,7 +15,7 @@ function setActiveElement(element) {
   });
 }
 
-class FakeElement {
+class FakeElement extends EventTarget {
   /**
    * @param {{
    *   left?: number,
@@ -27,16 +27,13 @@ class FakeElement {
    * }} [rect]
    */
   constructor(rect = {}) {
+    super();
     this.style = /** @type {{[key: string]: string}} */ ({});
     this.offsetWidth = rect.width || 0;
     this.offsetHeight = rect.height || 0;
     this.hover = false;
     this.focused = false;
     this.children = /** @type {Set<FakeElement>} */ (new Set());
-    this.listeners =
-      /** @type {Map<string, {listener: EventListener, options?: AddEventListenerOptions}[]>} */ (
-        new Map()
-      );
     this.rect = {
       left: rect.left || 0,
       right: rect.right || rect.left || 0,
@@ -53,35 +50,11 @@ class FakeElement {
 
   /**
    * @param {string} type
-   * @param {EventListener} listener
-   * @param {AddEventListenerOptions} [options]
-   */
-  addEventListener(type, listener, options) {
-    const listeners = this.listeners.get(type) || [];
-    listeners.push({ listener, options });
-    this.listeners.set(type, listeners);
-  }
-
-  /**
-   * @param {string} type
-   * @param {EventListener} listener
-   */
-  removeEventListener(type, listener) {
-    const listeners = this.listeners.get(type) || [];
-    this.listeners.set(
-      type,
-      listeners.filter((entry) => entry.listener !== listener),
-    );
-  }
-
-  /**
-   * @param {string} type
    * @param {Record<string, unknown>} [event]
    */
   dispatch(type, event = {}) {
-    const listeners = this.listeners.get(type) || [];
-    listeners.forEach((entry) =>
-      entry.listener(/** @type {Event} */ ({ type, ...event })),
+    this.dispatchEvent(
+      Object.assign(new Event(type, { cancelable: true }), event),
     );
   }
 
@@ -266,6 +239,11 @@ test("positionAnchoredPanel keeps panels inside the viewport", async () => {
 test("floating panel controller owns hover, escape, blur, and resize behavior", async () => {
   const browser = getBrowserHarness();
   browser.installClientDom({ innerWidth: 300, innerHeight: 200 });
+  const windowEvents = new EventTarget();
+  browser.setWindowProperties({
+    addEventListener: windowEvents.addEventListener.bind(windowEvents),
+    removeEventListener: windowEvents.removeEventListener.bind(windowEvents),
+  });
   setActiveElement(null);
   const { createFloatingPanelController } = await import(
     "../client-data/js/board_ui_module.js"
@@ -301,16 +279,13 @@ test("floating panel controller owns hover, escape, blur, and resize behavior", 
   assert.equal(open, true);
   assert.equal(positionCount, 1);
 
-  browser.dispatchWindowEvent("resize");
+  windowEvents.dispatchEvent(new Event("resize"));
   assert.equal(positionCount, 2);
 
   /** @type {FakeElement} */ (/** @type {unknown} */ (panel)).dispatch(
     "keydown",
     {
       key: "Escape",
-      preventDefault() {
-        this.defaultPrevented = true;
-      },
     },
   );
   assert.equal(open, false);
@@ -326,9 +301,19 @@ test("floating panel controller owns hover, escape, blur, and resize behavior", 
   assert.equal(open, false);
   assert.equal(positionCount, 3);
 
-  open = true;
+  open = false;
   controller.destroy();
-  browser.dispatchWindowEvent("resize");
+  /** @type {FakeElement} */ (/** @type {unknown} */ (anchor)).dispatch(
+    "mouseenter",
+  );
+  assert.equal(open, false);
+  open = true;
+  /** @type {FakeElement} */ (/** @type {unknown} */ (panel)).dispatch(
+    "keydown",
+    { key: "Escape" },
+  );
+  assert.equal(open, true);
+  windowEvents.dispatchEvent(new Event("resize"));
   assert.equal(positionCount, 3);
 });
 

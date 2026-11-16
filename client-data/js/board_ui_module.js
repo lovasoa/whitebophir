@@ -187,8 +187,7 @@ export function positionAnchoredPanel({
 export function createFloatingPanelController(options) {
   /** @type {ReturnType<typeof setTimeout> | null} */
   let closeTimer = null;
-  /** @type {{element: EventTarget, type: string, listener: EventListener, options?: AddEventListenerOptions}[]} */
-  const listeners = [];
+  const listeners = new AbortController();
 
   function cancelClose() {
     if (closeTimer === null) return;
@@ -236,8 +235,10 @@ export function createFloatingPanelController(options) {
    * @param {AddEventListenerOptions} [listenerOptions]
    */
   function addListener(element, type, listener, listenerOptions) {
-    element.addEventListener(type, listener, listenerOptions);
-    listeners.push({ element, type, listener, options: listenerOptions });
+    element.addEventListener(type, listener, {
+      ...listenerOptions,
+      signal: listeners.signal,
+    });
   }
 
   (options.hoverElements || []).forEach((element) => {
@@ -289,14 +290,7 @@ export function createFloatingPanelController(options) {
     syncPosition,
     destroy() {
       cancelClose();
-      listeners.forEach((entry) => {
-        entry.element.removeEventListener(
-          entry.type,
-          entry.listener,
-          entry.options,
-        );
-      });
-      listeners.length = 0;
+      listeners.abort();
     },
   };
 }
