@@ -1264,6 +1264,8 @@ for (const operation of ["sequence", "open", "write"]) {
     const original = '<svg data-wbo-seq="1"><g id="drawingArea"></g></svg>';
     await fs.writeFile(file, original);
     const failure = new Error(`injected ${operation} failure`);
+    /** @param {...any} args */
+    const failIo = (...args) => args[args.length - 1](failure);
     if (operation !== "sequence") {
       const createWriteStream = fsSync.createWriteStream;
       t.mock.method(
@@ -1274,8 +1276,9 @@ for (const operation of ["sequence", "open", "write"]) {
             ...(typeof options === "object" ? options : { encoding: options }),
             fs: {
               ...fsSync,
-              [operation]: /** @param {...any} args */ (...args) =>
-                args[args.length - 1](failure),
+              [operation]: failIo,
+              // Buffered chunks may use writev instead of write.
+              ...(operation === "write" ? { writev: failIo } : {}),
             },
           }),
       );
