@@ -308,7 +308,11 @@ test("cursor movement clears idle activity without pulsing the row", async () =>
       ...createConnectedUser(),
       joinedAt: Date.now() - 5 * 60 * 1000 - 1000,
     };
-    presence.users = new Map([["sock-1", user]]);
+    const sibling = { ...createConnectedUser(), socketId: "sock-2" };
+    presence.users = new Map([
+      ["sock-1", user],
+      ["sock-2", sibling],
+    ]);
 
     const beforeCursor = Date.now();
     presence.updateConnectedUsersFromActivity("user-1", {
@@ -330,6 +334,30 @@ test("cursor movement clears idle activity without pulsing the row", async () =>
     assert.ok((updatedUser.lastActivityAt || 0) <= afterCursor);
     assert.equal(updatedUser.pulseUntil, undefined);
     assert.deepEqual(updatedUser.position, { x: 15, y: 25 });
+    assert.deepEqual(sibling.position, { x: 0, y: 0 });
+    const cursor = {
+      tool: TOOL_CODE_BY_ID.cursor,
+      type: MutationType.UPDATE,
+      color: "#123456",
+      size: 4,
+      opacity: 1,
+      activeTool: "hand",
+      x: 30,
+      y: 40,
+    };
+    presence.updateConnectedUsersFromActivity("user-1", {
+      ...cursor,
+      socket: "unknown",
+    });
+    assert.deepEqual(updatedUser.position, { x: 15, y: 25 });
+    presence.updateCurrentConnectedUserFromActivity({
+      ...cursor,
+      socket: "sock-2",
+    });
+    assert.deepEqual(updatedUser.position, { x: 30, y: 40 });
+    assert.deepEqual(sibling.position, { x: 0, y: 0 });
+    presence.updateConnectedUsersFromActivity("user-1", cursor);
+    assert.deepEqual(sibling.position, { x: 30, y: 40 });
   } finally {
     env.restore();
   }

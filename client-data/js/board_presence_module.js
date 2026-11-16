@@ -30,6 +30,7 @@ export class PresenceModule {
     this.renderedCanUnban = false;
     this.panelOpen = false;
     this.renderScheduled = false;
+    this.scheduleActivityRender = () => this.schedulePresenceRender(false);
     /** @type {number | null} */
     this.staleTickId = null;
   }
@@ -266,41 +267,43 @@ export class PresenceModule {
   /**
    * @param {string | undefined} userId
    * @param {BoardMessage} message
+   * @param {string | undefined} [socketId]
    */
-  updateConnectedUsersFromActivity(userId, message) {
-    // Presence has three layers:
-    // - `socketId`: one live browser tab/socket connection. This is the most precise activity target.
-    // - `userId`: derived server-side from the shared user-secret cookie, so multiple tabs from one browser profile can share it.
-    // - displayed name: combines an IP-derived word with the `userId`, so it is human-readable but not a stable routing key.
-    // When a live message includes `socket`, update that exact row only. Falling back to `userId` keeps older/non-live paths working.
-    const messageSocketId = message.socket || null;
-    if (!userId && messageSocketId === null) return;
-    let changed = false;
+  updateConnectedUsersFromActivity(userId, message, socketId = message.socket) {
+    // A socket identifies one tab; userId may match multiple tabs. Live traffic
+    // always carries a socket ID, so it must not scan every connected user.
+    if (!userId && !socketId) return;
     const focusPoint = getMessageFocusPoint(message);
-    Array.from(this.users.values()).forEach((user) => {
-      if (!connectedUserMatchesActivity(user, userId, messageSocketId)) return;
-      changed =
-        applyConnectedUserActivity(
+    let changed = false;
+    if (socketId) {
+      const user = this.users.get(socketId);
+      if (user)
+        changed = applyConnectedUserActivity(
           user,
           message,
           focusPoint,
-          messageSocketId,
-          () => this.schedulePresenceRender(false),
-        ) || changed;
-    });
-    if (changed) this.schedulePresenceRender(false);
+          this.scheduleActivityRender,
+        );
+    } else {
+      for (const user of this.users.values()) {
+        if (user.userId !== userId) continue;
+        changed =
+          applyConnectedUserActivity(
+            user,
+            message,
+            focusPoint,
+            this.scheduleActivityRender,
+          ) || changed;
+      }
+    }
+    if (changed) this.scheduleActivityRender();
   }
 
   /** @param {BoardMessage} message */
   updateCurrentConnectedUserFromActivity(message) {
-    const Tools = this.getTools();
-    if (!Tools.connection.socket?.id) return;
-    const current = this.users.get(Tools.connection.socket.id);
-    if (!current) return;
-    this.updateConnectedUsersFromActivity(
-      current.userId,
-      Object.assign({}, message, { socket: current.socketId }),
-    );
+    const socketId = this.getTools().connection.socket?.id;
+    if (socketId)
+      this.updateConnectedUsersFromActivity(undefined, message, socketId);
   }
 
   initConnectedUsersUI() {
@@ -1163,22 +1166,8 @@ function createConnectedUserRow(getTools, user, presence) {
 
 /**
  * @param {ConnectedUser} user
- * @param {string | undefined} userId
- * @param {string | null} messageSocketId
- * @returns {boolean}
- */
-function connectedUserMatchesActivity(user, userId, messageSocketId) {
-  if (messageSocketId !== null) {
-    return user.socketId === messageSocketId;
-  }
-  return user.userId === userId;
-}
-
-/**
- * @param {ConnectedUser} user
  * @param {BoardMessage} message
  * @param {{x: number, y: number} | null} focusPoint
- * @param {string | null} messageSocketId
  * @param {() => void} scheduleActivityRender
  * @returns {boolean}
  */
@@ -1186,7 +1175,6 @@ function applyConnectedUserActivity(
   user,
   message,
   focusPoint,
-  messageSocketId,
   scheduleActivityRender,
 ) {
   let changed = false;
@@ -1219,16 +1207,9 @@ function applyConnectedUserActivity(
     user.lastTool = activityToolId;
     changed = true;
   }
-  if (
-    focusPoint &&
-    (!isCursorMessage ||
-      messageSocketId === null ||
-      messageSocketId === user.socketId)
-  ) {
-    const nextFocusX = /** @type {{x: number, y: number}} */ (focusPoint).x;
-    const nextFocusY = /** @type {{x: number, y: number}} */ (focusPoint).y;
-    if (user.position.x !== nextFocusX || user.position.y !== nextFocusY) {
-      user.position = { x: nextFocusX, y: nextFocusY };
+  if (focusPoint) {
+    if (user.position.x !== focusPoint.x || user.position.y !== focusPoint.y) {
+      user.position = focusPoint;
       changed = true;
     }
   }
