@@ -677,6 +677,17 @@ test("readCanonicalBoardState promotes a staged backup svg when the primary file
       code: "ENOENT",
     });
     assert.match(servedBaseline, /id="rect-1"/);
+
+    await fs.rename(
+      svgPath(boardName, historyDir),
+      `${svgPath(boardName, historyDir)}.bak`,
+    );
+    const stream = await svgBoardStore.streamServedBaseline(boardName, {
+      historyDir,
+    });
+    let streamedSvg = "";
+    for await (const chunk of stream) streamedSvg += chunk;
+    assert.equal(streamedSvg, stagedSvg);
   });
 });
 

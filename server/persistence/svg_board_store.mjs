@@ -1059,13 +1059,14 @@ async function readServedBaseline(boardName, options) {
  */
 async function streamServedBaseline(boardName, options) {
   const historyDir = options?.historyDir;
-  const readableSvg = await readStoredSvgWithFallback(
+  const hasStoredSvg = await readStoredSvgWithFallback(
     boardName,
     historyDir,
-    async (readable) => readable.file,
+    async () => true,
   );
-  if (typeof readableSvg === "string") {
-    return fs.createReadStream(readableSvg);
+  if (hasStoredSvg) {
+    // Recovery promotes the backup before returning; stream the final path.
+    return fs.createReadStream(boardSvgPath(boardName, historyDir));
   }
   return Readable.from([await readServedBaseline(boardName, options)]);
 }
