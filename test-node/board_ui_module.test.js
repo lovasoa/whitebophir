@@ -82,44 +82,20 @@ class FakeElement extends EventTarget {
   }
 }
 
-class FakeDomElement {
+class FakeDomElement extends EventTarget {
   /** @param {string} tagName */
   constructor(tagName) {
+    super();
     this.tagName = tagName;
     this.id = "";
     this.className = "";
     this.hidden = false;
-    this.open = false;
     this.textContent = "";
     /** @type {FakeDomElement | null} */
     this.parentNode = null;
     /** @type {FakeDomElement[]} */
     this.children = [];
     this.attributes = /** @type {Map<string, string>} */ (new Map());
-    this.listeners =
-      /** @type {Map<string, {listener: EventListener, options?: AddEventListenerOptions}[]>} */ (
-        new Map()
-      );
-    const element = this;
-    const classes = new Set();
-    /** @type {{add: (...names: string[]) => void, remove: (...names: string[]) => void, contains: (name: string) => boolean}} */
-    this.classList = {
-      /** @param {...string} names */
-      add(...names) {
-        names.forEach((name) => classes.add(name));
-      },
-      /** @param {...string} names */
-      remove(...names) {
-        names.forEach((name) => classes.delete(name));
-      },
-      /** @param {string} name */
-      contains(name) {
-        return (
-          classes.has(name) ||
-          element.className.split(/\s+/).filter(Boolean).includes(name)
-        );
-      },
-    };
   }
 
   /** @param {FakeDomElement} child */
@@ -149,56 +125,13 @@ class FakeDomElement {
     this.attributes.delete(name);
   }
 
-  /**
-   * @param {string} type
-   * @param {EventListener} listener
-   * @param {AddEventListenerOptions} [options]
-   */
-  addEventListener(type, listener, options) {
-    const listeners = this.listeners.get(type) || [];
-    listeners.push({ listener, options });
-    this.listeners.set(type, listeners);
-  }
-
-  /**
-   * @param {string} type
-   * @param {EventListener} listener
-   */
-  removeEventListener(type, listener) {
-    const listeners = this.listeners.get(type) || [];
-    this.listeners.set(
-      type,
-      listeners.filter((entry) => entry.listener !== listener),
-    );
-  }
-
-  /**
-   * @param {string} type
-   * @param {Record<string, unknown>} [event]
-   */
-  dispatch(type, event = {}) {
-    const listeners = this.listeners.get(type) || [];
-    listeners.forEach((entry) =>
-      entry.listener(
-        /** @type {Event} */ (
-          /** @type {unknown} */ ({ type, target: this, ...event })
-        ),
-      ),
-    );
+  /** @param {string} type */
+  dispatch(type) {
+    this.dispatchEvent(new Event(type));
   }
 
   focus() {
-    this.open = true;
     setActiveElement(this);
-  }
-
-  showModal() {
-    this.open = true;
-  }
-
-  close() {
-    this.open = false;
-    this.dispatch("close");
   }
 
   remove() {
