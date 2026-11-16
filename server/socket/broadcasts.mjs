@@ -15,7 +15,7 @@ import {
   canApplyBoardMessage,
   normalizeBroadcastData,
 } from "./policy.mjs";
-import { updateBoardUserFromMessage } from "./presence.mjs";
+import { getBoardUser, updateBoardUserFromMessage } from "./presence.mjs";
 import {
   enforceBroadcastPostNormalization,
   enforceBroadcastPreNormalization,
@@ -193,8 +193,11 @@ async function handleBroadcastWriteMessage(
   config,
   runtime,
 ) {
-  const clientIp = runtime.resolveClientIp(socket, boardName, config);
-  const userName = runtime.getSocketUserName(socket, clientIp);
+  // Presence already owns the identity derived from this connection's handshake.
+  const user = getBoardUser(boardName, socket.id);
+  const clientIp =
+    user?.ip ?? runtime.resolveClientIp(socket, boardName, config);
+  const userName = user?.name ?? runtime.getSocketUserName(socket, clientIp);
   tracing.setActiveSpanAttributes(
     boardMutationTraceAttributes(boardName, userName, data),
   );
