@@ -206,6 +206,9 @@ function createBaseElement(store, tagName) {
       if (child.id && store.get(child.id) === child) store.delete(child.id);
       return child;
     },
+    remove() {
+      this.parentNode?.removeChild(this);
+    },
     setAttribute: function (
       /** @type {string} */ name,
       /** @type {any} */ value,
@@ -1193,17 +1196,26 @@ function drawReplayStroke(pencilTool) {
   });
 }
 
-test("Pencil replay stays canonical with a cached boot context and resets existing paths", async () => {
+test("Pencil defers active remote ink until an edit reads it and resets replayed paths", async () => {
   const harness = createHarness();
   const pencilTool = await harness.loadTool("pencil");
   pencilTool.onstart(null);
 
   drawReplayStroke(pencilTool);
   const line = harness.elementsById.get("line-1");
+  assert.equal(line.parentNode, null);
+  const copy = {
+    tool: TOOL_CODE_BY_ID.hand,
+    type: MutationType.COPY,
+    id: "line-1",
+    newid: "copy",
+  };
+  pencilTool.onMessage(copy);
   assert.equal(line.parentNode, globalAny.Tools.dom.drawingArea);
   assert.deepEqual(line.pathData, expectedTwoPointStroke());
 
   drawReplayStroke(pencilTool);
+  pencilTool.onMessage(copy);
 
   assert.deepEqual(line.pathData, expectedTwoPointStroke());
 });

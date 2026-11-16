@@ -322,8 +322,6 @@ function createInitialState(ctx) {
     activeInteractionLease: /** @type {{release: () => void} | null} */ (null),
     liveOverlay: new PencilLiveOverlay(runtime.board, runtime.viewport),
     pathDataCache: /** @type {Record<string, PencilPathData>} */ ({}),
-    // Older cached snapshot/replay owners need immediate canonical geometry.
-    deferRemoteInk: ctx.canDeferDraws === true,
     remoteInk: /** @type {Map<string, RemoteInk>} */ (new Map()),
     remoteFrame: 0,
     remoteIdleTimer: 0,
@@ -816,7 +814,7 @@ export function draw(state, data, isLocal = false) {
       state.liveOverlay.draw(state.activeLineData);
     } else {
       if (state.remoteInk.has(data.id)) flushPendingDraws(state);
-      const deferAttachment = state.deferRemoteInk && state.liveOverlay.active;
+      const deferAttachment = state.liveOverlay.active;
       state.renderingLine = createLine(state, data, deferAttachment);
       if (deferAttachment) queueRemoteInk(state, state.renderingLine);
     }
@@ -833,8 +831,7 @@ export function draw(state, data, isLocal = false) {
   } else {
     const line = getBoardLineForAppend(state, data.parent);
     const pathData = wboPencilPoint(getPathData(state, line), data.x, data.y);
-    if (state.deferRemoteInk && state.liveOverlay.active)
-      queueRemoteInk(state, line);
+    if (state.liveOverlay.active) queueRemoteInk(state, line);
     else writePencilPath(line, pathData);
   }
 }

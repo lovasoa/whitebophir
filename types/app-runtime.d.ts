@@ -580,7 +580,6 @@ export type ServerConfig = {
 
 export type ToolBootContext = {
   runtime: ToolRuntimeModules;
-  canDeferDraws?: boolean;
   assetUrl: (assetFile: string) => string;
 };
 

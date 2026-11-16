@@ -28,7 +28,6 @@ export class ReplayModule {
    */
   constructor(getTools, logBoardEvent) {
     this.getTools = getTools;
-    this.resetsPendingToolDraws = true;
     this.logBoardEvent = logBoardEvent;
     this.awaitingSnapshot = true;
     this.hasAuthoritativeSnapshot = false;
