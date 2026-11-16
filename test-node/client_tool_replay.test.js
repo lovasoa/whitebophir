@@ -10,7 +10,10 @@ const {
 const {
   VIEWPORT_LAYOUT_EVENT,
 } = require("../client-data/js/board_viewport.js");
-const { TOOL_CODE_BY_ID } = require("../client-data/tools/tool-order.js");
+const {
+  TOOL_BY_ID,
+  TOOL_CODE_BY_ID,
+} = require("../client-data/tools/manifest.js");
 const {
   installBrowserHarnessForTest,
 } = require("./helpers/browser_harness.js");
@@ -710,9 +713,11 @@ function createHarness() {
         ),
       );
       const stateMetadata =
-        /** @type {{shortcut?: string, oneTouch?: boolean, alwaysOn?: boolean, mouseCursor?: string, helpText?: string, showMarker?: boolean, secondary?: import("../types/app-runtime").ToolSecondaryMode | null}} */ (
+        /** @type {import("../types/app-runtime").ToolRuntimeState} */ (
           toolState && typeof toolState === "object" ? toolState : {}
         );
+      const definition = TOOL_BY_ID[toolName];
+      assert.ok(definition);
       const press = moduleNamespace.press;
       const move = moduleNamespace.move;
       const release = moduleNamespace.release;
@@ -725,13 +730,13 @@ function createHarness() {
       const getTouchPolicy = moduleNamespace.getTouchPolicy;
       const tool = /** @type {any} */ ({
         name: toolName,
-        shortcut: moduleNamespace.shortcut || stateMetadata.shortcut,
-        oneTouch: moduleNamespace.oneTouch ?? stateMetadata.oneTouch,
-        alwaysOn: moduleNamespace.alwaysOn ?? stateMetadata.alwaysOn,
-        mouseCursor: moduleNamespace.mouseCursor || stateMetadata.mouseCursor,
-        helpText: moduleNamespace.helpText || stateMetadata.helpText,
-        showMarker: moduleNamespace.showMarker ?? stateMetadata.showMarker,
-        secondary: stateMetadata.secondary || moduleNamespace.secondary || null,
+        shortcut: definition.shortcut,
+        oneTouch: definition.oneTouch,
+        alwaysOn: definition.alwaysOn,
+        mouseCursor: stateMetadata.mouseCursor ?? definition.mouseCursor,
+        helpText: definition.helpText,
+        showMarker: definition.showMarker,
+        secondary: stateMetadata.secondary ?? null,
         draw: (/** @type {any} */ data, /** @type {boolean} */ isLocal) =>
           moduleNamespace.draw(toolState, data, isLocal),
         press: press

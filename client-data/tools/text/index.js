@@ -32,7 +32,6 @@ import {
   truncateText,
 } from "../../js/message_common.js";
 import { MutationType } from "../../js/mutation_type.js";
-import { TextContract } from "../contracts.js";
 import { TOOL_CODE_BY_ID } from "../tool-order.js";
 import { createPrivacyWarning } from "./privacy_warning.js";
 
@@ -114,10 +113,7 @@ function normalizeCurrentTextPosition(state) {
   );
 }
 
-export const toolId = "text";
-const toolCode = TOOL_CODE_BY_ID[toolId];
-export const drawsOnBoard = true;
-export const mouseCursor = "text";
+const toolCode = TOOL_CODE_BY_ID["text"];
 
 /**
  * @param {unknown} data
@@ -142,11 +138,6 @@ function isTextMessage(data) {
     typeof message.txt === "string"
   );
 }
-
-const contract = TextContract;
-
-export { contract };
-export const shortcut = "t";
 
 /**
  * @param {EventTarget | null} target

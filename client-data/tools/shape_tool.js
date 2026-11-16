@@ -7,7 +7,7 @@ import { TOOL_CODE_BY_ID } from "./tool-order.js";
 /** @import { ToolBootContext, ToolRuntimeModules } from "../../types/app-runtime" */
 /** @typedef {typeof import("./tool-order.js").TOOL_CODE_BY_ID} ShapeToolCodeMap */
 /** @typedef {ShapeToolCodeMap["rectangle"] | ShapeToolCodeMap["ellipse"] | ShapeToolCodeMap["straight-line"]} ShapeToolCode */
-/** @typedef {{config: {contract: {toolCode: ShapeToolCode}}, preferences: ToolRuntimeModules["preferences"]}} ShapeCreateMessageState */
+/** @typedef {{config: {definition: {id: ShapeToolCode}}, preferences: ToolRuntimeModules["preferences"]}} ShapeCreateMessageState */
 /** @typedef {MouseEvent | TouchEvent | undefined} ShapePointerEvent */
 /** @typedef {{name: string, icon: string, active: boolean, switch?: (state: ShapeToolState) => void}} ShapeToolSecondary */
 /** @typedef {{tool?: ShapeToolCode, type?: number, id: string, x?: number, y?: number, x2: number, y2: number, color?: string, size?: number, opacity?: number}} ShapeRuntimeMessage */
@@ -35,7 +35,7 @@ import { TOOL_CODE_BY_ID } from "./tool-order.js";
 
 /**
  * @typedef {{
- *   contract: import("./shape_contract.js").ToolContract & {storedTagName: string, toolCode: ShapeToolCode},
+ *   definition: Pick<import("./manifest.js").ToolManifestEntry, "toolId" | "storedTagName"> & {id: ShapeToolCode},
  *   secondary?: ShapeToolSecondary,
  *   uidPrefix: string,
  *   isShapeElement: (element: Element | null) => boolean,
@@ -118,7 +118,7 @@ export function createShapeToolBoot(config) {
  */
 export function makeSeedShapeCreateMessage(state, id, x, y) {
   return {
-    tool: state.config.contract.toolCode,
+    tool: state.config.definition.id,
     type: MutationType.CREATE,
     id,
     color: state.preferences.getColor(),
@@ -200,10 +200,13 @@ export function constrainEqualSpanToBoard(state, start, x, y) {
 function createShape(state, data) {
   const { board, config } = state;
   const existingShape = board.svg.getElementById(data.id);
+  const tagName = config.definition.storedTagName;
+  if (!tagName)
+    throw new Error(`Missing SVG tag for ${config.definition.toolId}`);
   const shape = /** @type {SVGElement} */ (
     config.isShapeElement(existingShape)
       ? existingShape
-      : board.createSVGElement(config.contract.storedTagName)
+      : board.createSVGElement(tagName)
   );
   shape.id = data.id;
   config.applyShapeGeometry(shape, data);
@@ -253,7 +256,7 @@ export function drawShapeTool(state, data, isLocal = false) {
     return;
   }
   logFrontendEvent("error", "tool.shape.draw_invalid_type", {
-    toolId: config.contract.toolId,
+    toolId: config.definition.toolId,
     message: data,
   });
 }
@@ -282,7 +285,7 @@ export function pressShapeTool(state, x, y, evt) {
   state.renderedX = state.endX = x;
   state.renderedY = state.endY = y;
   state.measurement = beginDrawingPerformance(
-    state.config.contract.toolId,
+    state.config.definition.toolId,
     evt,
     x,
     y,

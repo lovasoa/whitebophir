@@ -109,27 +109,19 @@ test("storage contracts expose serialize/summarize for every stored tool", async
   }
 });
 
-test("lazy browser tool modules agree with their manifest metadata", async () => {
+test("lazy browser modules expose behavior while the manifest owns metadata", async () => {
   const { TOOL_BY_ID } = await import(MANIFEST_PATH);
   for (const [toolId, manifest] of Object.entries(TOOL_BY_ID)) {
     if (!manifest) continue;
     const runtime = await import(`../client-data/tools/${toolId}/index.js`);
-    assert.equal(runtime.toolId, toolId);
-    for (const key of [
-      "shortcut",
-      "oneTouch",
-      "alwaysOn",
-      "mouseCursor",
-      "showMarker",
-      "requiredCapability",
-    ]) {
-      if (runtime[key] !== undefined) {
-        assert.equal(runtime[key], manifest[key], `${toolId} ${key}`);
-      }
-    }
-    if (runtime.contract) {
-      assert.equal(runtime.contract.toolId, toolId);
-      assert.equal(runtime.contract.toolCode, manifest.id);
+    assert.equal(typeof runtime.boot, "function", toolId);
+    assert.equal(typeof runtime.draw, "function", toolId);
+    for (const key of [...Object.keys(manifest), "contract", "secondary"]) {
+      assert.equal(
+        Object.prototype.hasOwnProperty.call(runtime, key),
+        false,
+        `${toolId} duplicates ${key}`,
+      );
     }
   }
 });

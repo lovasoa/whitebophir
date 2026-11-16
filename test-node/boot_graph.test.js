@@ -125,3 +125,17 @@ test("client tool metadata stays independent from tool implementations", () => {
     );
   }
 });
+
+test("browser tools do not load server storage codecs", () => {
+  const { TOOL_IDS } = require("../client-data/tools/manifest.js");
+  for (const toolId of TOOL_IDS) {
+    assertClosureExcludes(
+      staticImportClosure(`client-data/tools/${toolId}/index.js`),
+      [
+        "client-data/tools/contracts.js",
+        "client-data/tools/shape_contract.js",
+        "client-data/tools/pencil/pencil_path.js",
+      ],
+    );
+  }
+});

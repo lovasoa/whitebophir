@@ -65,18 +65,7 @@ import { deleteBoardElementById } from "../eraser/index.js";
 
 const INTERSECTION_SELECTION_TIMEOUT_MS = 120;
 
-export const toolId = "hand";
-export const shortcut = "h";
-export const mouseCursor = "move";
-export const showMarker = true;
 export const touchListenerOptions = { passive: true };
-export const visibleWhenReadOnly = true;
-export const updatableFields = /** @type {const} */ (["transform"]);
-export const batchMessageFields = /** @type {const} */ ({
-  [MutationType.UPDATE]: { id: "id", transform: "transform" },
-  [MutationType.DELETE]: { id: "id" },
-  [MutationType.COPY]: { id: "id", newid: "id" },
-});
 
 /**
  * @param {EventTarget | null} target

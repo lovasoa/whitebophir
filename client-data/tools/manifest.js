@@ -144,7 +144,7 @@ export function getToolModuleImportPath(toolId) {
 }
 
 /**
- * @param {Omit<ToolManifestEntry, "translationKey" | "label" | "iconPath" | "stylesheetPath" | "moduleImportPath" | "visibleWhenReadOnly" | "requiredCapability" | "drawsOnBoard" | "toolbar"> & Partial<Pick<ToolManifestEntry, "visibleWhenReadOnly" | "requiredCapability" | "drawsOnBoard" | "toolbar">>} entry
+ * @param {Omit<ToolManifestEntry, "translationKey" | "label" | "iconPath" | "stylesheetPath" | "moduleImportPath" | "visibleWhenReadOnly" | "requiredCapability" | "drawsOnBoard" | "toolbar"> & Partial<Pick<ToolManifestEntry, "visibleWhenReadOnly" | "requiredCapability" | "drawsOnBoard" | "toolbar" | "stylesheetPath">>} entry
  * @returns {Readonly<ToolManifestEntry>}
  */
 function defineTool(entry) {
@@ -155,7 +155,8 @@ function defineTool(entry) {
     translationKey: getToolTranslationKey(toolId),
     label: getDefaultToolLabel(toolId),
     iconPath: getToolIconPath(toolId),
-    stylesheetPath: getToolStylesheetPath(toolId, drawsOnBoard),
+    stylesheetPath:
+      entry.stylesheetPath ?? getToolStylesheetPath(toolId, drawsOnBoard),
     moduleImportPath: getToolModuleImportPath(toolId),
     visibleWhenReadOnly: entry.visibleWhenReadOnly === true,
     requiredCapability: entry.requiredCapability || null,
@@ -308,6 +309,7 @@ export const TOOL_MANIFEST = Object.freeze([
   defineTool({
     toolId: "cursor",
     id: TOOL_CODE_BY_ID.cursor,
+    stylesheetPath: "tools/cursor/cursor.css",
     toolbar: false,
     alwaysOn: true,
     mouseCursor: "crosshair",

@@ -30,12 +30,6 @@ const GRID_STATES = /** @type {const} */ (["none", "url(#grid)", "url(#dots)"]);
 /** @typedef {ToolRuntimeModules["board"]} GridBoardRuntime */
 /** @typedef {ReturnType<typeof boot>} GridState */
 
-export const toolId = "grid";
-export const shortcut = "g";
-export const oneTouch = true;
-export const mouseCursor = "crosshair";
-export const visibleWhenReadOnly = true;
-
 /**
  * @param {GridBoardRuntime} board
  * @returns {SVGDefsElement}

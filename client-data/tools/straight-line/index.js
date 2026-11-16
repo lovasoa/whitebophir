@@ -1,4 +1,4 @@
-import { StraightLineContract } from "../contracts.js";
+import { TOOL_BY_ID } from "../manifest.js";
 import {
   createShapeToolBoot,
   makeLineShapeUpdateMessage,
@@ -17,17 +17,11 @@ export {
   releaseShapeTool as release,
 } from "../shape_tool.js";
 
-export const toolId = "straight-line";
-export const drawsOnBoard = true;
-export const mouseCursor = "crosshair";
+const definition = TOOL_BY_ID["straight-line"];
 
-const contract = StraightLineContract;
-
-/** @typedef {import("../shape_tool.js").ShapeCreateMessage<typeof contract.toolCode>} StraightLineCreateMessage */
-/** @typedef {import("../shape_tool.js").ShapeLineUpdateMessage<typeof contract.toolCode>} StraightLineUpdateMessage */
-export { contract };
-export const shortcut = "l";
-export const secondary = {
+/** @typedef {import("../shape_tool.js").ShapeCreateMessage<typeof definition.id>} StraightLineCreateMessage */
+/** @typedef {import("../shape_tool.js").ShapeLineUpdateMessage<typeof definition.id>} StraightLineUpdateMessage */
+const secondary = {
   name: "Straight line",
   icon: "tools/straight-line/icon-straight.svg",
   active: false,
@@ -35,11 +29,11 @@ export const secondary = {
 
 /** @type {import("../shape_tool.js").ShapeToolConfig} */
 const config = {
-  contract,
+  definition,
   secondary,
   uidPrefix: "s",
   isShapeElement: (element) =>
-    String(element?.tagName).toLowerCase() === contract.storedTagName,
+    String(element?.tagName).toLowerCase() === definition.storedTagName,
   makeCreateMessage: makeSeedShapeCreateMessage,
   constrainEndPosition: (state, x, y) => {
     const start = state.currentShape;
@@ -58,7 +52,7 @@ const config = {
   makeUpdateMessage: (state, x, y) => {
     const start = state.currentShape;
     return start
-      ? makeLineShapeUpdateMessage(contract.toolCode, start.id, x, y)
+      ? makeLineShapeUpdateMessage(definition.id, start.id, x, y)
       : null;
   },
   makeFallbackShape: (data) => ({

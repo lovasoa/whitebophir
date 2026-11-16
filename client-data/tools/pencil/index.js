@@ -32,7 +32,6 @@ import {
   MutationType,
 } from "../../js/message_tool_metadata.js";
 import { collectOptimisticDependencyIds } from "../../js/optimistic_mutation.js";
-import { PencilContract } from "../contracts.js";
 import { TOOL_CODE_BY_ID } from "../tool-order.js";
 import { readPencilPath, writePencilPath } from "./pencil_geometry.js";
 import { wboPencilPoint } from "./wbo_pencil_point.js";
@@ -66,14 +65,9 @@ function isPencilMessage(data) {
   );
 }
 
-export const toolId = "pencil";
+const toolId = "pencil";
 const toolCode = TOOL_CODE_BY_ID[toolId];
-export const drawsOnBoard = true;
 
-const contract = PencilContract;
-
-export { contract };
-export const shortcut = "p";
 export const serverRenderedElementSelector = "path";
 const LIVE_OVERLAY_CLASS = "wbo-pencil-live-overlay";
 const LIVE_OVERLAY_ACTIVE_CLASS = "wbo-pencil-live-overlay-active";

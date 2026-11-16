@@ -598,17 +598,6 @@ export type ToolRuntimeState = {
 };
 
 export type ToolModule<T = unknown> = {
-  toolId: string;
-  replaySafe?: boolean;
-  shortcut?: string;
-  oneTouch?: boolean;
-  alwaysOn?: boolean;
-  mouseCursor?: string;
-  helpText?: string;
-  secondary?: ToolSecondaryMode | null;
-  stylesheet?: string;
-  showMarker?: boolean;
-  requiredCapability?: ToolRequiredCapability | null;
   touchListenerOptions?: ToolListenerOptions;
   serverRenderedElementSelector?: string;
   press?(

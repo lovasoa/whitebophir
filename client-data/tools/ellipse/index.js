@@ -1,4 +1,4 @@
-import { EllipseContract } from "../contracts.js";
+import { TOOL_BY_ID } from "../manifest.js";
 import {
   constrainEqualSpanToBoard,
   createShapeToolBoot,
@@ -19,20 +19,14 @@ export {
   releaseShapeTool as release,
 } from "../shape_tool.js";
 
-export const toolId = "ellipse";
-export const drawsOnBoard = true;
-export const mouseCursor = "crosshair";
+const definition = TOOL_BY_ID["ellipse"];
 
-const contract = EllipseContract;
-
-/** @typedef {import("../shape_tool.js").ShapeCreateMessage<typeof contract.toolCode>} EllipseCreateMessage */
-/** @typedef {import("../shape_tool.js").ShapeBoxUpdateMessage<typeof contract.toolCode>} EllipseUpdateMessage */
-export { contract };
-export const shortcut = "c";
+/** @typedef {import("../shape_tool.js").ShapeCreateMessage<typeof definition.id>} EllipseCreateMessage */
+/** @typedef {import("../shape_tool.js").ShapeBoxUpdateMessage<typeof definition.id>} EllipseUpdateMessage */
 
 /** @type {import("../shape_tool.js").ShapeToolConfig} */
 const config = {
-  contract,
+  definition,
   secondary: {
     name: "Circle",
     icon: "tools/ellipse/icon-circle.svg",
@@ -44,7 +38,7 @@ const config = {
   },
   uidPrefix: "e",
   isShapeElement: (element) =>
-    String(element?.tagName).toLowerCase() === contract.storedTagName,
+    String(element?.tagName).toLowerCase() === definition.storedTagName,
   makeCreateMessage: (state, id, x, y) => {
     state.lastPos = { x, y };
     return makeSeedShapeCreateMessage(state, id, x, y);
@@ -71,7 +65,7 @@ const config = {
   makeUpdateMessage: (state, x, y) => {
     const start = state.currentShape;
     return start
-      ? makeBoxShapeUpdateMessage(contract.toolCode, start.id, start, x, y)
+      ? makeBoxShapeUpdateMessage(definition.id, start.id, start, x, y)
       : null;
   },
   makeFallbackShape: (data) => ({
@@ -91,5 +85,4 @@ const config = {
     ellipse.ry.baseVal.value = Math.abs(data.y2 - y) / 2;
   },
 };
-export const secondary = config.secondary;
 export const boot = createShapeToolBoot(config);

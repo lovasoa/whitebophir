@@ -11,13 +11,7 @@ import {
   bindToolKeyboardControls,
   compileToolListeners,
 } from "./board_tool_input.js";
-import {
-  boardStateGrantsCapability,
-  getToolIconPath,
-  getToolModuleImportPath,
-  getToolStylesheetPath,
-  TOOL_BY_ID,
-} from "../tools/manifest.js";
+import { boardStateGrantsCapability, TOOL_BY_ID } from "../tools/manifest.js";
 import { drainPendingMessages, isBlockedToolName } from "./board_page_state.js";
 import MessageCommon from "./message_common.js";
 
@@ -472,20 +466,22 @@ function addToolStylesheet(Tools, href) {
  * @returns {Promise<ToolModule>}
  */
 async function loadToolModule(toolName) {
-  if (!isRegisteredToolId(toolName)) {
-    throw new Error(`Unknown tool module: ${toolName}.`);
-  }
-  return /** @type {ToolModule} */ (
-    await import(getToolModuleImportPath(toolName))
-  );
+  const definition = getToolDefinition(toolName);
+  return /** @type {ToolModule} */ (await import(definition.moduleImportPath));
 }
 
 /**
  * @param {string} toolName
- * @returns {boolean}
  */
-function isRegisteredToolId(toolName) {
-  return Object.prototype.hasOwnProperty.call(TOOL_BY_ID, toolName);
+function getToolDefinition(toolName) {
+  const definition = TOOL_BY_ID[toolName];
+  if (
+    !Object.prototype.hasOwnProperty.call(TOOL_BY_ID, toolName) ||
+    !definition
+  ) {
+    throw new Error(`Unknown tool module: ${toolName}.`);
+  }
+  return definition;
 }
 
 /**
@@ -545,12 +541,12 @@ function createToolBootContext(Tools, toolName) {
  * @returns {MountedAppTool}
  */
 function createMountedTool(Tools, toolModule, toolState, toolName) {
-  const toolDefinition = TOOL_BY_ID[toolName];
+  const toolDefinition = getToolDefinition(toolName);
   /** @type {MountedAppTool} */
   const tool = {
     name: toolName,
-    shortcut: toolModule.shortcut ?? toolDefinition?.shortcut,
-    icon: "",
+    shortcut: toolDefinition.shortcut,
+    icon: toolDefinition.iconPath,
     draw: toolModule.draw.bind(undefined, toolState),
     normalizeServerRenderedElement:
       toolModule.normalizeServerRenderedElement?.bind(undefined, toolState),
@@ -578,32 +574,20 @@ function createMountedTool(Tools, toolModule, toolState, toolName) {
       undefined,
       toolState,
     ),
-    stylesheet: toolModule.stylesheet,
-    oneTouch: toolModule.oneTouch ?? toolDefinition?.oneTouch,
-    alwaysOn: toolModule.alwaysOn ?? toolDefinition?.alwaysOn,
-    mouseCursor:
-      toolModule.mouseCursor ??
-      toolState.mouseCursor ??
-      toolDefinition?.mouseCursor,
-    helpText: toolModule.helpText ?? toolDefinition?.helpText,
-    secondary: toolState.secondary ?? toolModule.secondary ?? null,
+    stylesheet: toolDefinition.stylesheetPath ?? undefined,
+    oneTouch: toolDefinition.oneTouch,
+    alwaysOn: toolDefinition.alwaysOn,
+    mouseCursor: toolState.mouseCursor ?? toolDefinition.mouseCursor,
+    helpText: toolDefinition.helpText,
+    secondary: toolState.secondary ?? null,
     onColorChange: toolModule.onColorChange?.bind(undefined, toolState),
     onSizeChange: toolModule.onSizeChange?.bind(undefined, toolState),
     onOpacityChange: toolModule.onOpacityChange?.bind(undefined, toolState),
     getTouchPolicy: toolModule.getTouchPolicy?.bind(undefined, toolState),
-    showMarker: toolModule.showMarker ?? toolDefinition?.showMarker,
-    requiredCapability:
-      toolModule.requiredCapability ?? toolDefinition?.requiredCapability,
+    showMarker: toolDefinition.showMarker,
+    requiredCapability: toolDefinition.requiredCapability,
     touchListenerOptions: toolModule.touchListenerOptions,
   };
-  if (toolDefinition) {
-    tool.icon ||= getToolIconPath(toolDefinition.toolId);
-    tool.stylesheet ||=
-      getToolStylesheetPath(
-        toolDefinition.toolId,
-        toolDefinition.drawsOnBoard,
-      ) || undefined;
-  }
   tool.listeners = {
     press: tool.press,
     move: tool.move,
