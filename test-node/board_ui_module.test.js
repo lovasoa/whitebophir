@@ -398,54 +398,6 @@ test("notice panels preserve local dismissal, delegate acknowledgement and repla
   );
 });
 
-test("native modal dialogs only settle on shell clicks", async () => {
-  const browser = getBrowserHarness();
-  const body = new FakeDomElement("body");
-  const document = browser.installClientDom({
-    globalOverrides: { HTMLElement: FakeDomElement },
-    createElement: (tagName) => new FakeDomElement(tagName),
-  });
-  document.documentElement.dataset = {};
-  /** @type {any} */ (document).body = body;
-  const { showActionDialog } = await import(
-    "../client-data/js/board_ui_module.js"
-  );
-
-  const resultPromise = showActionDialog({
-    title: "Ban user?",
-    sections: [
-      {
-        id: "duration",
-        layout: "segmented",
-        submit: true,
-        choices: [{ label: "1 hour", value: 60 * 60 * 1000 }],
-      },
-    ],
-    cancelLabel: "Cancel",
-  });
-  let resolved = false;
-  void resultPromise.then(() => {
-    resolved = true;
-  });
-
-  const dialog = body.children[0];
-  assert.ok(dialog);
-  const panel = dialog.children[0];
-  assert.ok(panel);
-  assert.equal(dialog.classList.contains("wbo-native-dialog"), true);
-  assert.equal(panel.classList.contains("wbo-dialog"), true);
-
-  dialog.dispatch("click", { target: panel });
-  await Promise.resolve();
-  assert.equal(resolved, false);
-  assert.equal(dialog.parentNode, body);
-
-  dialog.dispatch("click", { target: dialog });
-  assert.equal(await resultPromise, null);
-  assert.equal(resolved, true);
-  assert.equal(dialog.parentNode, null);
-});
-
 test("countdown durations use localized unit patterns", async () => {
   const { formatCountdownDuration } = await import(
     "../client-data/js/board_ui_module.js"

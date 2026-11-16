@@ -1945,3 +1945,74 @@ for (const language of Object.keys(
     },
   );
 }
+
+test("dialog templates keep text inert and settle only on their own actions", async ({
+  boardPage,
+  page,
+}) => {
+  await boardPage.gotoBoard("dialog-template-behavior");
+  await page.evaluate(() => {
+    (window as any).dialogResult = undefined;
+    void window.WBOApp.ui
+      .showActionDialog({
+        title: '<img src=x onerror="window.injected=true">',
+        message: "<b>literal message</b>",
+        sections: [
+          {
+            id: "duration",
+            layout: "segmented",
+            initialValue: 15,
+            choices: [
+              { label: "15 minutes", value: 15 },
+              { label: "1 hour", value: 60 },
+            ],
+          },
+          {
+            id: "rule",
+            layout: "grid",
+            submit: true,
+            choices: [{ label: "<b>Be kind</b>", value: "kind" }],
+          },
+        ],
+        cancelLabel: "Cancel",
+      })
+      .then((result) => {
+        (window as any).dialogResult = result;
+      });
+  });
+  const dialog = page.locator("dialog[open]");
+  await expect(dialog).toHaveAccessibleName(
+    '<img src=x onerror="window.injected=true">',
+  );
+  await expect(dialog.locator("img, b")).toHaveCount(0);
+  await dialog.locator(".moderation-action-title").click();
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "1 hour" }).click();
+  await dialog.getByRole("button", { name: "<b>Be kind</b>" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect
+    .poll(() => page.evaluate(() => (window as any).dialogResult))
+    .toEqual({
+      sectionId: "rule",
+      value: "kind",
+      selections: { duration: 60 },
+    });
+  await page.evaluate(() => {
+    void window.WBOApp.ui
+      .confirm({
+        title: "Clear <board>?",
+        message: "Literal <text>",
+        confirmLabel: "Clear",
+        cancelLabel: "Cancel",
+      })
+      .then((result) => {
+        (window as any).dialogResult = result;
+      });
+  });
+  await expect(dialog).toHaveAccessibleName("Clear <board>?");
+  await page.mouse.click(1, 1);
+  await expect(dialog).toHaveCount(0);
+  await expect
+    .poll(() => page.evaluate(() => (window as any).dialogResult))
+    .toBe(false);
+});

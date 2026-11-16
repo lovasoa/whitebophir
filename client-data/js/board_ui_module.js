@@ -1,3 +1,5 @@
+import { createUiTemplate } from "./ui_template.js";
+
 /**
  * @typedef {{
  *   anchor: HTMLElement,
@@ -295,16 +297,69 @@ export function createFloatingPanelController(options) {
   };
 }
 
+const createDialog = /** @type {() => HTMLDialogElement} */ (
+  createUiTemplate(`
+  <dialog class="wbo-native-dialog"><div class="wbo-dialog"></div></dialog>
+`)
+);
+
 function createNativeDialogShell() {
-  const dialog = document.createElement("dialog");
-  dialog.className = "wbo-native-dialog";
-  const panel = document.createElement("div");
-  panel.className = "wbo-dialog";
+  const dialog = createDialog();
+  const panel = /** @type {HTMLElement} */ (dialog.firstElementChild);
   panel.dir =
     document.documentElement.dataset.uiDirection === "rtl" ? "rtl" : "ltr";
-  dialog.appendChild(panel);
   return { dialog, panel };
 }
+
+const createConfirmation = createUiTemplate(`
+  <div>
+    <div class="wbo-dialog-title"></div>
+    <div class="wbo-dialog-message"></div>
+    <div class="wbo-dialog-actions">
+      <button type="button" class="wbo-dialog-button wbo-dialog-button-secondary"></button>
+      <button type="button" class="wbo-dialog-button wbo-dialog-button-primary"></button>
+    </div>
+  </div>
+`);
+
+const createModerationNotice = createUiTemplate(`
+  <div>
+    <div class="moderation-disconnect-icon" aria-hidden="true">!</div>
+    <div class="moderation-disconnect-title" id="moderation-disconnect-title"></div>
+    <p class="moderation-disconnect-message" id="moderation-disconnect-message"></p>
+    <div class="moderation-disconnect-rule">
+      <img class="moderation-disconnect-rule-icon" alt="" aria-hidden="true">
+      <div class="moderation-disconnect-rule-heading"></div>
+      <div class="moderation-disconnect-rule-title"></div>
+      <p class="moderation-disconnect-rule-body"></p>
+    </div>
+    <p class="moderation-disconnect-countdown"></p>
+    <a class="moderation-disconnect-rules" href="../rules" target="_blank" rel="noopener"></a>
+    <div class="moderation-disconnect-actions">
+      <a class="wbo-dialog-button wbo-dialog-button-secondary moderation-disconnect-private" href="../random"></a>
+      <button type="button" class="wbo-dialog-button wbo-dialog-button-primary moderation-disconnect-ack" autofocus></button>
+    </div>
+  </div>
+`);
+
+const createActionContent = createUiTemplate(`
+  <div>
+    <div class="moderation-action-title" id="moderation-action-title"></div>
+    <p class="moderation-action-message" id="moderation-action-message"></p>
+    <div class="moderation-action-footer">
+      <a class="moderation-action-rules-link" target="_blank" rel="noopener"></a>
+      <button type="button" class="wbo-dialog-button wbo-dialog-button-secondary moderation-action-cancel"></button>
+    </div>
+  </div>
+`);
+const createActionChoice = /** @type {() => HTMLButtonElement} */ (
+  createUiTemplate(`
+  <button type="button">
+    <img class="moderation-action-rule-icon" alt="">
+    <span></span>
+  </button>
+`)
+);
 
 /**
  * @template T
@@ -359,74 +414,68 @@ export function showConfirmDialog({
   cancelLabel = "Cancel",
   variant = "default",
 }) {
-  return /** @type {Promise<boolean>} */ (
-    showModalDialog(false, (dialog, settle) => {
-      if (title) {
-        const titleElement = document.createElement("div");
-        titleElement.className = "wbo-dialog-title";
-        titleElement.textContent = title;
-        dialog.appendChild(titleElement);
-      } else {
-        dialog.setAttribute("aria-label", confirmLabel);
-      }
-
-      const messageElement = document.createElement("div");
-      messageElement.className = "wbo-dialog-message";
-      messageElement.textContent = message;
-      dialog.appendChild(messageElement);
-
-      const actions = document.createElement("div");
-      actions.className = "wbo-dialog-actions";
-
-      const cancelButton = document.createElement("button");
-      cancelButton.type = "button";
-      cancelButton.className = "wbo-dialog-button wbo-dialog-button-secondary";
-      cancelButton.textContent = cancelLabel;
-      cancelButton.addEventListener("click", () => settle(false));
-
-      const confirmButton = document.createElement("button");
-      confirmButton.type = "button";
-      confirmButton.className =
-        variant === "danger"
-          ? "wbo-dialog-button wbo-dialog-button-danger"
-          : "wbo-dialog-button wbo-dialog-button-primary";
-      confirmButton.textContent = confirmLabel;
-      confirmButton.addEventListener("click", () => settle(true));
-
-      actions.appendChild(cancelButton);
-      actions.appendChild(confirmButton);
-      dialog.appendChild(actions);
-
-      cancelButton.focus();
-    })
-  );
+  return showModalDialog(false, (panel, settle, dialog) => {
+    const content = createConfirmation();
+    const titleElement = /** @type {HTMLElement} */ (
+      content.querySelector(".wbo-dialog-title")
+    );
+    if (title) titleElement.textContent = title;
+    else {
+      titleElement.remove();
+      dialog.setAttribute("aria-label", confirmLabel);
+    }
+    if (title) dialog.setAttribute("aria-label", title);
+    /** @type {HTMLElement} */ (
+      content.querySelector(".wbo-dialog-message")
+    ).textContent = message;
+    const [cancelButton, confirmButton] =
+      /** @type {[HTMLButtonElement, HTMLButtonElement]} */ ([
+        ...content.querySelectorAll("button"),
+      ]);
+    cancelButton.textContent = cancelLabel;
+    confirmButton.textContent = confirmLabel;
+    if (variant === "danger")
+      confirmButton.className = "wbo-dialog-button wbo-dialog-button-danger";
+    cancelButton.addEventListener("click", () => settle(false));
+    confirmButton.addEventListener("click", () => settle(true));
+    panel.append(...content.children);
+    cancelButton.focus();
+  });
 }
 
 /** @param {ActionDialogOptions} options @returns {Promise<ActionDialogResult | null>} */
 export function showActionDialog(options) {
   return showModalDialog(
     /** @type {ActionDialogResult | null} */ (null),
-    (dialog, settle) => {
-      dialog.classList.add("moderation-action-dialog");
-      dialog.setAttribute("role", "dialog");
-      dialog.setAttribute("aria-modal", "true");
-
-      const title = document.createElement("div");
-      title.className = "moderation-action-title";
-      title.id = "moderation-action-title";
+    (panel, settle, dialog) => {
+      panel.classList.add("moderation-action-dialog");
+      const content = createActionContent();
+      const title = /** @type {HTMLElement} */ (
+        content.querySelector(".moderation-action-title")
+      );
       title.textContent = options.title;
       dialog.setAttribute("aria-labelledby", title.id);
-      dialog.appendChild(title);
-
+      const message = /** @type {HTMLElement} */ (
+        content.querySelector(".moderation-action-message")
+      );
       if (options.message) {
-        const message = document.createElement("p");
-        message.className = "moderation-action-message";
-        message.id = "moderation-action-message";
         message.textContent = options.message;
         dialog.setAttribute("aria-describedby", message.id);
-        dialog.appendChild(message);
-      }
-
+      } else message.remove();
+      const footer = /** @type {HTMLElement} */ (
+        content.querySelector(".moderation-action-footer")
+      );
+      const link = /** @type {HTMLAnchorElement} */ (footer.querySelector("a"));
+      if (options.link) {
+        link.href = options.link.href;
+        link.textContent = options.link.label;
+      } else link.remove();
+      const cancel = /** @type {HTMLButtonElement} */ (
+        footer.querySelector("button")
+      );
+      cancel.textContent = options.cancelLabel;
+      cancel.addEventListener("click", () => settle(null));
+      panel.append(...content.children);
       /** @type {Record<string, ActionDialogValue>} */
       const selections = {};
       /** @type {HTMLButtonElement[]} */
@@ -436,15 +485,14 @@ export function showActionDialog(options) {
           const heading = document.createElement("div");
           heading.className = "moderation-action-section-title";
           heading.textContent = section.label;
-          dialog.appendChild(heading);
+          panel.insertBefore(heading, footer);
         }
         const choices = document.createElement("div");
         choices.className = `moderation-action-${section.layout}`;
         choices.setAttribute("role", "group");
         if (section.label) choices.setAttribute("aria-label", section.label);
         const buttons = section.choices.map((choice) => {
-          const button = document.createElement("button");
-          button.type = "button";
+          const button = createActionChoice();
           button.className =
             section.layout === "grid"
               ? "moderation-action-rule"
@@ -453,20 +501,19 @@ export function showActionDialog(options) {
             button.classList.add("moderation-action-duration");
           if (choice.variant)
             button.classList.add(`wbo-dialog-button-${choice.variant}`);
-          if (choice.iconUrl) {
-            const icon = document.createElement("img");
-            icon.className = "moderation-action-rule-icon";
-            icon.src = choice.iconUrl;
-            icon.alt = "";
-            button.appendChild(icon);
-          }
-          const label = document.createElement("span");
+          const icon = /** @type {HTMLImageElement} */ (
+            button.querySelector("img")
+          );
+          if (choice.iconUrl) icon.src = choice.iconUrl;
+          else icon.remove();
+          const label = /** @type {HTMLElement} */ (
+            button.querySelector("span")
+          );
           label.className =
             section.layout === "grid"
               ? "moderation-action-rule-label"
               : "moderation-action-choice-label";
           label.textContent = choice.label;
-          button.appendChild(label);
           button.addEventListener("click", () => {
             if (section.submit) {
               settle({
@@ -497,29 +544,9 @@ export function showActionDialog(options) {
           );
           buttons[selectedIndex]?.click();
         }
-        dialog.appendChild(choices);
+        panel.insertBefore(choices, footer);
       }
 
-      const footer = document.createElement("div");
-      footer.className = "moderation-action-footer";
-      if (options.link) {
-        const link = document.createElement("a");
-        link.className = "moderation-action-rules-link";
-        link.href = options.link.href;
-        link.target = "_blank";
-        link.rel = "noopener";
-        link.textContent = options.link.label;
-        footer.appendChild(link);
-      }
-
-      const cancel = document.createElement("button");
-      cancel.type = "button";
-      cancel.className =
-        "wbo-dialog-button wbo-dialog-button-secondary moderation-action-cancel";
-      cancel.textContent = options.cancelLabel;
-      cancel.addEventListener("click", () => settle(null));
-      footer.appendChild(cancel);
-      dialog.appendChild(footer);
       allButtons[0]?.focus();
     },
   );
@@ -540,51 +567,42 @@ export function showModerationDisconnectNotice(options) {
       dialog.setAttribute("aria-modal", "true");
       panel.dataset.moderationKind = options.kind;
 
-      const icon = document.createElement("div");
-      icon.className = "moderation-disconnect-icon";
-      icon.setAttribute("aria-hidden", "true");
-      icon.textContent = "!";
-
-      const title = document.createElement("div");
-      title.className = "moderation-disconnect-title";
-      title.id = "moderation-disconnect-title";
-      title.textContent = options.title;
-      dialog.setAttribute("aria-labelledby", title.id);
-
-      const message = document.createElement("p");
-      message.className = "moderation-disconnect-message";
-      message.id = "moderation-disconnect-message";
-      message.textContent = options.message;
-      dialog.setAttribute("aria-describedby", message.id);
-
-      const ruleCallout = document.createElement("div");
-      ruleCallout.className = "moderation-disconnect-rule";
+      const content = createModerationNotice();
+      const text = (
+        /** @type {string} */ selector,
+        /** @type {string} */ value,
+      ) => {
+        const element = /** @type {HTMLElement} */ (
+          content.querySelector(selector)
+        );
+        element.textContent = value;
+        return element;
+      };
+      text(".moderation-disconnect-title", options.title);
+      text(".moderation-disconnect-message", options.message);
+      dialog.setAttribute("aria-labelledby", "moderation-disconnect-title");
+      dialog.setAttribute("aria-describedby", "moderation-disconnect-message");
+      const ruleCallout = /** @type {HTMLElement} */ (
+        content.querySelector(".moderation-disconnect-rule")
+      );
       if (options.ruleTitle) {
-        if (options.ruleIconUrl) {
-          const ruleIcon = document.createElement("img");
-          ruleIcon.className = "moderation-disconnect-rule-icon";
-          ruleIcon.src = options.ruleIconUrl;
-          ruleIcon.alt = "";
-          ruleIcon.setAttribute("aria-hidden", "true");
-          ruleCallout.appendChild(ruleIcon);
-        }
-        const ruleHeading = document.createElement("div");
-        ruleHeading.className = "moderation-disconnect-rule-heading";
-        ruleHeading.textContent = options.ruleHeading || "";
-        const ruleTitle = document.createElement("div");
-        ruleTitle.className = "moderation-disconnect-rule-title";
-        ruleTitle.textContent = options.ruleTitle;
-        ruleCallout.append(ruleHeading, ruleTitle);
-        if (options.ruleBody) {
-          const ruleBody = document.createElement("p");
-          ruleBody.className = "moderation-disconnect-rule-body";
-          ruleBody.textContent = options.ruleBody;
-          ruleCallout.appendChild(ruleBody);
-        }
-      }
-
-      const countdown = document.createElement("p");
-      countdown.className = "moderation-disconnect-countdown";
+        const ruleIcon = /** @type {HTMLImageElement} */ (
+          content.querySelector(".moderation-disconnect-rule-icon")
+        );
+        if (options.ruleIconUrl) ruleIcon.src = options.ruleIconUrl;
+        else ruleIcon.remove();
+        text(".moderation-disconnect-rule-heading", options.ruleHeading || "");
+        text(".moderation-disconnect-rule-title", options.ruleTitle);
+        const body = text(
+          ".moderation-disconnect-rule-body",
+          options.ruleBody || "",
+        );
+        if (!options.ruleBody) body.remove();
+      } else ruleCallout.remove();
+      const countdown = /** @type {HTMLElement} */ (
+        content.querySelector(".moderation-disconnect-countdown")
+      );
+      if (!(options.banDurationMs > 0)) countdown.remove();
       const banEndsAt = Date.now() + Math.max(0, options.banDurationMs);
       /** @type {ReturnType<typeof setInterval> | null} */
       let countdownInterval = null;
@@ -610,28 +628,15 @@ export function showModerationDisconnectNotice(options) {
         countdownInterval = setInterval(updateCountdown, 1000);
       }
 
-      const rulesLink = document.createElement("a");
-      rulesLink.className = "moderation-disconnect-rules";
-      rulesLink.href = "../rules";
-      rulesLink.target = "_blank";
-      rulesLink.rel = "noopener";
-      rulesLink.textContent = options.rulesLabel;
-
-      const actions = document.createElement("div");
-      actions.className = "moderation-disconnect-actions";
-
-      const privateBoard = document.createElement("a");
-      privateBoard.className =
-        "wbo-dialog-button wbo-dialog-button-secondary moderation-disconnect-private";
-      privateBoard.href = "../random";
-      privateBoard.textContent = options.privateBoardLabel;
-
-      const acknowledge = document.createElement("button");
-      acknowledge.type = "button";
-      acknowledge.className =
-        "wbo-dialog-button wbo-dialog-button-primary moderation-disconnect-ack";
-      acknowledge.textContent = options.acknowledgeLabel;
-      acknowledge.autofocus = true;
+      const rulesLink = text(
+        ".moderation-disconnect-rules",
+        options.rulesLabel,
+      );
+      text(".moderation-disconnect-private", options.privateBoardLabel);
+      const acknowledge = text(
+        ".moderation-disconnect-ack",
+        options.acknowledgeLabel,
+      );
       acknowledge.addEventListener("click", () => settle(undefined), {
         once: true,
       });
@@ -644,11 +649,7 @@ export function showModerationDisconnectNotice(options) {
         (event.shiftKey ? acknowledge : rulesLink).focus();
       });
 
-      actions.append(privateBoard, acknowledge);
-      panel.append(icon, title, message);
-      if (options.ruleTitle) panel.appendChild(ruleCallout);
-      if (options.banDurationMs > 0) panel.appendChild(countdown);
-      panel.append(rulesLink, actions);
+      panel.append(...content.children);
       return () => {
         if (countdownInterval !== null) clearInterval(countdownInterval);
       };
