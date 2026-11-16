@@ -14,13 +14,11 @@ import { getTemporaryModeratorExpiresAt } from "./temporary_moderators.mjs";
 const { logger, metrics, tracing } = observability;
 
 /** @typedef {import("../../types/server-runtime.d.ts").AppSocket} AppSocket */
-/** @typedef {import("../../types/server-runtime.d.ts").BoardLike} BoardLike */
 /** @typedef {import("../../types/server-runtime.d.ts").BroadcastResult} BroadcastResult */
 /** @typedef {import("../../types/server-runtime.d.ts").MessageData} MessageData */
 /** @typedef {import("../../types/server-runtime.d.ts").RejectedBroadcast} RejectedBroadcast */
 /** @typedef {import("../../types/server-runtime.d.ts").SocketRequest} SocketRequest */
 /** @typedef {import("../../types/app-runtime").BoardCapabilities} BoardCapabilities */
-/** @typedef {import("../../types/app-runtime").AppBoardState} SocketBoardState */
 /**
  * @typedef {{
  *   AUTH_SECRET_KEY: string,
@@ -304,123 +302,8 @@ function boardPermissionsForSocket(config, boardName, socket) {
   return permissions;
 }
 
-/**
- * @param {SocketPolicyConfig} config
- * @param {string} boardName
- * @param {AppSocket} socket
- * @returns {boolean}
- */
-function canAccessBoard(config, boardName, socket) {
-  return boardPermissionsForSocket(config, boardName, socket).canOpen();
-}
-
-/**
- * Returns true when the given socket belongs to an user who has the permission to ban others on the board.
- * @param {SocketPolicyConfig} config
- * @param {string} boardName
- * @param {AppSocket} socket
- * @returns {boolean}
- */
-function canBanOnBoard(config, boardName, socket) {
-  return boardPermissionsForSocket(config, boardName, socket).canBan();
-}
-
-/**
- * @param {SocketPolicyConfig} config
- * @param {string} boardName
- * @param {AppSocket} socket
- * @returns {boolean}
- */
-function canUnbanOnBoard(config, boardName, socket) {
-  return boardPermissionsForSocket(config, boardName, socket).canUnban();
-}
-
-/**
- * @param {SocketPolicyConfig} config
- * @param {string} boardName
- * @param {AppSocket} socket
- * @returns {boolean}
- */
-function canGrantTemporaryModeratorOnBoard(config, boardName, socket) {
-  return boardPermissionsForSocket(
-    config,
-    boardName,
-    socket,
-  ).canGrantTemporaryModerator();
-}
-
-/**
- * Returns whether the socket may report another user on this board.
- * @param {SocketPolicyConfig} config
- * @param {string} boardName
- * @param {AppSocket} socket
- * @returns {boolean}
- */
-function canReportOnBoard(config, boardName, socket) {
-  return boardPermissionsForSocket(config, boardName, socket).canReport();
-}
-
-/**
- * @param {SocketPolicyConfig} config
- * @param {string} boardName
- * @param {AppSocket} socket
- * @returns {BoardCapabilities}
- */
-function boardCapabilitiesForSocket(config, boardName, socket) {
-  return boardPermissionsForSocket(
-    config,
-    boardName,
-    socket,
-  ).resolveCapabilities({ name: boardName });
-}
-
-/**
- * @param {SocketPolicyConfig} config
- * @param {BoardLike} board
- * @param {AppSocket} socket
- * @returns {SocketBoardState}
- */
-function boardStateForSocket(config, board, socket) {
-  return boardPermissionsForSocket(config, board.name, socket).boardState(
-    board,
-  );
-}
-
-/**
- * @param {SocketPolicyConfig} config
- * @param {BoardLike} board
- * @param {AppSocket} socket
- * @returns {boolean}
- */
-function canEditBoard(config, board, socket) {
-  return boardStateForSocket(config, board, socket).canEdit || false;
-}
-
-/**
- * @param {SocketPolicyConfig} config
- * @param {BoardLike} board
- * @param {import("../../types/server-runtime.d.ts").NormalizedMessageData} data
- * @param {AppSocket} socket
- * @returns {boolean}
- */
-function canApplyBoardMessage(config, board, data, socket) {
-  return boardPermissionsForSocket(
-    config,
-    board.name,
-    socket,
-  ).canApplyBoardMessage(board, data);
-}
-
 export {
-  boardCapabilitiesForSocket,
-  boardStateForSocket,
-  canAccessBoard,
-  canApplyBoardMessage,
-  canBanOnBoard,
-  canUnbanOnBoard,
-  canGrantTemporaryModeratorOnBoard,
-  canReportOnBoard,
-  canEditBoard,
+  boardPermissionsForSocket,
   clientIpFallback,
   resolveRequestClientIpSafe,
   getClientIp,

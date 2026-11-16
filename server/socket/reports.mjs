@@ -10,7 +10,7 @@ import {
 } from "../../client-data/js/socket_events.js";
 import { banBoardUser } from "./bans.mjs";
 import { getBoardUser, getBoardUserMap } from "./presence.mjs";
-import { canBanOnBoard, canReportOnBoard } from "./policy.mjs";
+import { boardPermissionsForSocket } from "./policy.mjs";
 
 const { logger, tracing } = observability;
 const MODERATION_DISCONNECT_CLOSE_TIMEOUT_MS = 150;
@@ -121,7 +121,11 @@ function notifyBoardModeratorsOfReport(context, payload) {
     if (
       !socket ||
       !socket.rooms.has(context.boardName) ||
-      !canBanOnBoard(context.config, context.boardName, socket)
+      !boardPermissionsForSocket(
+        context.config,
+        context.boardName,
+        socket,
+      ).canBan()
     ) {
       return;
     }
@@ -332,8 +336,9 @@ function handleReportUserMessage(context) {
     return;
   }
 
-  const canModerate = canBanOnBoard(config, boardName, socket);
-  if (!canReportOnBoard(config, boardName, socket)) {
+  const permissions = boardPermissionsForSocket(config, boardName, socket);
+  const canModerate = permissions.canBan();
+  if (!permissions.canReport()) {
     ignoreReportedUser("blocked_reporter_ignored");
     return;
   }
@@ -368,7 +373,10 @@ function handleReportUserMessage(context) {
     ignoreReportedUser("target_not_found");
     return;
   }
-  if (!selfTarget && canBanOnBoard(config, boardName, reportedSocket)) {
+  if (
+    !selfTarget &&
+    boardPermissionsForSocket(config, boardName, reportedSocket).canBan()
+  ) {
     handleReportedModerator(context, boardName, resolvedUsers);
     return;
   }

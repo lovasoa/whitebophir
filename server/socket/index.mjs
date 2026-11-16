@@ -20,8 +20,7 @@ import {
   shouldTraceBroadcast,
 } from "./broadcasts.mjs";
 import {
-  boardStateForSocket,
-  canUnbanOnBoard,
+  boardPermissionsForSocket,
   clientIpFallback,
   getClientIp,
   normalizeBroadcastData,
@@ -342,7 +341,11 @@ function refreshBoardModeration(board, config) {
   for (const user of users.values()) {
     const socket = activeSockets.get(user.socketId);
     if (!socket || !socket.rooms.has(board.name)) continue;
-    const state = boardStateForSocket(config, board, socket);
+    const state = boardPermissionsForSocket(
+      config,
+      board.name,
+      socket,
+    ).boardState(board);
     const changed = updateBoardUserCapabilities(board.name, user, state);
     socket.emit(SocketEvents.BOARDSTATE, state);
     if (changed) emitUserUpdatedToBoard(socket, board.name, user);
@@ -380,7 +383,11 @@ async function refreshUserAccess(boardName, userSecret, config, ip) {
       continue;
     const targetSocket = activeSockets.get(user.socketId);
     if (!targetSocket || !targetSocket.rooms.has(boardName)) continue;
-    const boardState = boardStateForSocket(config, board, targetSocket);
+    const boardState = boardPermissionsForSocket(
+      config,
+      boardName,
+      targetSocket,
+    ).boardState(board);
     updateBoardUserCapabilities(boardName, user, boardState);
     targetSocket.emit(SocketEvents.BOARDSTATE, boardState);
     emitUserUpdatedToBoard(targetSocket, boardName, user);
@@ -593,7 +600,8 @@ async function bootstrapSocketBoard(socket, replay, config) {
       }
       // Capabilities the joining socket has on this board. Reused both as the
       // socket's own BOARDSTATE and as the capabilities other users see for it.
-      const boardState = boardStateForSocket(config, board, socket);
+      const permissions = boardPermissionsForSocket(config, boardName, socket);
+      const boardState = permissions.boardState(board);
       const wasJoined = board.users.has(socket.id);
       board.users.add(socket.id);
       if (!wasJoined || !getBoardUserMap(boardName).has(socket.id)) {
@@ -626,10 +634,7 @@ async function bootstrapSocketBoard(socket, replay, config) {
         });
       }
       if (boardState.canBan) refreshBoardModeration(board, config);
-      socket.emit(
-        SocketEvents.BOARDSTATE,
-        boardStateForSocket(config, board, socket),
-      );
+      socket.emit(SocketEvents.BOARDSTATE, permissions.boardState(board));
       syncedPersistentSockets.delete(socket.id);
       socket.emit(SocketEvents.BROADCAST, replay.replayBatch);
       syncedPersistentSockets.add(socket.id);
@@ -801,7 +806,7 @@ async function handleSocketConnection(socket, config) {
         typeof message.banId !== "string" ||
         message.banId.length !== 36 ||
         !socket.rooms.has(boardName) ||
-        !canUnbanOnBoard(config, boardName, socket)
+        !boardPermissionsForSocket(config, boardName, socket).canUnban()
       )
         return;
       const removed = unbanBoardUser(boardName, message.banId, Date.now());

@@ -10,9 +10,7 @@ import { TOOL_CODE_BY_ID } from "../../client-data/tools/manifest.js";
 import { getBoardSession } from "../board/session.mjs";
 import observability from "../observability/index.mjs";
 import {
-  boardCapabilitiesForSocket,
-  boardStateForSocket,
-  canApplyBoardMessage,
+  boardPermissionsForSocket,
   normalizeBroadcastData,
 } from "./policy.mjs";
 import { getBoardUser, updateBoardUserFromMessage } from "./presence.mjs";
@@ -214,7 +212,8 @@ async function handleBroadcastWriteMessage(
   ) {
     return;
   }
-  const capabilities = boardCapabilitiesForSocket(config, boardName, socket);
+  const permissions = boardPermissionsForSocket(config, boardName, socket);
+  const capabilities = permissions.resolveCapabilities({ name: boardName });
   if (
     config.TURNSTILE_SECRET_KEY &&
     data &&
@@ -246,7 +245,7 @@ async function handleBroadcastWriteMessage(
     boardMutationTraceAttributes(boardName, userName, normalizedData),
   );
   const board = await runtime.getBoard(boardName, config);
-  const boardState = boardStateForSocket(config, board, socket);
+  const boardState = permissions.boardState(board);
   if (
     !enforceBroadcastPostNormalization({
       socket,
@@ -262,7 +261,7 @@ async function handleBroadcastWriteMessage(
     return;
   }
   if (!socket.rooms.has(boardName)) socket.join(boardName);
-  if (!canApplyBoardMessage(config, board, normalizedData, socket)) {
+  if (!permissions.canApplyBoardMessage(board, normalizedData)) {
     rejectBoardWrite(
       socket,
       board,
