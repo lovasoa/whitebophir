@@ -3,7 +3,6 @@ import {
   formatMessageTypeTag,
   getToolId,
 } from "../../client-data/js/message_tool_metadata.js";
-import RateLimitCommon from "../../client-data/js/rate_limit_common.js";
 import { forBoard } from "../auth/board_capabilities.mjs";
 import observability from "../observability/index.mjs";
 import { getEditBanExpiresAt } from "./bans.mjs";
@@ -297,14 +296,6 @@ function resolveClientIpSafe(config, socket) {
 }
 
 /**
- * @param {MessageData | null | undefined} data
- * @returns {number}
- */
-const countDestructiveActions = RateLimitCommon.countDestructiveActions;
-const countConstructiveActions = RateLimitCommon.countConstructiveActions;
-const countTextCreationActions = RateLimitCommon.countTextCreationActions;
-
-/**
  * @param {SocketPolicyConfig} config
  * @param {string} boardName
  * @param {MessageData | null | undefined} data
@@ -340,32 +331,25 @@ function normalizeBroadcastData(config, boardName, data, capabilities) {
    * @returns {RejectedBroadcast}
    */
   function rejectedBroadcast(rejectedBoardName, reason) {
-    return tracing.withDetachedSpan(
-      "socket.message_invalid",
-      {
-        attributes: {
-          "wbo.socket.event": "broadcast_write",
-          "wbo.board": rejectedBoardName,
-          "wbo.rejection.reason": reason,
-          "wbo.tool": getToolId(data?.tool),
-          "wbo.message.type": formatMessageTypeTag(data?.type),
-        },
-      },
-      function recordRejectedBroadcast() {
-        logger.warn("socket.message_invalid", {
-          board: rejectedBoardName,
-          message: data,
-          tool: getToolId(data?.tool),
-          type: data?.type,
-          reason: reason,
-        });
-        metrics.recordBoardMessage(
-          { board: rejectedBoardName, ...(data || {}) },
-          "invalid_message",
-        );
-        return { ok: false, reason: reason };
-      },
+    tracing.annotateActiveSpan("socket.message_invalid", {
+      "wbo.socket.event": "broadcast_write",
+      "wbo.board": rejectedBoardName,
+      "wbo.rejection.reason": reason,
+      "wbo.tool": getToolId(data?.tool),
+      "wbo.message.type": formatMessageTypeTag(data?.type),
+    });
+    logger.warn("socket.message_invalid", {
+      board: rejectedBoardName,
+      message: data,
+      tool: getToolId(data?.tool),
+      type: data?.type,
+      reason,
+    });
+    metrics.recordBoardMessage(
+      { board: rejectedBoardName, ...(data || {}) },
+      "invalid_message",
     );
+    return { ok: false, reason };
   }
 }
 
@@ -543,9 +527,6 @@ export {
   canEditBoard,
   clientIpFallback,
   resolveRequestClientIpSafe,
-  countConstructiveActions,
-  countDestructiveActions,
-  countTextCreationActions,
   getClientIp,
   getRequestClientIp,
   normalizeBoardName,

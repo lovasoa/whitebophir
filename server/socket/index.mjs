@@ -898,7 +898,7 @@ async function handleSocketConnection(socket, config) {
 async function unloadBoard(boardName) {
   const loadedBoard = getLoadedBoard(boardName);
   if (loadedBoard) {
-    return tracing.withOptionalActiveSpan(
+    return tracing.withRecordingActiveSpan(
       "board.unload",
       {
         attributes: {
