@@ -78,3 +78,26 @@ test("streamStoredSvgStructure can leave untouched item details opaque", async (
   assert.equal(item?.rawAttributes, undefined);
   assert.equal(item?.content, undefined);
 });
+
+test("summary and rewrite scans reject the same broken drawing structure", async () => {
+  for (const materializeEntryDetails of [true, false]) {
+    for (const drawing of [
+      '<g><rect id="nested"></rect></g></g>',
+      '<polygon id="unsupported"></polygon></g>',
+      '<constructor id="prototype"></constructor></g>',
+      '<toString id="prototype"></toString></g>',
+      '<__proto__ id="prototype"></__proto__></g>',
+      '<rect id="unclosed">',
+      '<rect id="wrong-close"></ellipse></g>',
+    ]) {
+      await assert.rejects(async () => {
+        for await (const _ of streamStoredSvgStructure(
+          chunkString(`<svg><g id="drawingArea">${drawing}</svg>`, 3),
+          { materializeEntryDetails },
+        )) {
+          // Consume the whole document so a truncated final item cannot pass.
+        }
+      });
+    }
+  }
+});
