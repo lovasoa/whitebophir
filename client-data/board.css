@@ -68,14 +68,13 @@ html[data-ui-direction="rtl"]
 }
 
 #moderation-disconnect-overlay {
-  z-index: 10000;
-  background: rgba(17, 24, 39, 0.62);
+  max-width: none;
+  max-height: none;
+  overflow: visible;
 }
 
-.moderation-disconnect-overlay-hidden {
-  visibility: hidden;
-  opacity: 0;
-  pointer-events: none;
+#moderation-disconnect-overlay::backdrop {
+  background: rgba(17, 24, 39, 0.62);
 }
 
 .wbo-dialog.moderation-disconnect-dialog {

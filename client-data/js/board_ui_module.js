@@ -62,27 +62,6 @@
 
 /**
  * @typedef {{
- *   overlayId?: string,
- *   dialogId?: string,
- *   overlayClassName?: string,
- *   dialogClassName?: string,
- *   hiddenClass?: string,
- *   initiallyHidden?: boolean,
- * }} ModalShellOptions
- */
-
-/**
- * @typedef {{
- *   overlay: HTMLElement,
- *   dialog: HTMLElement,
- *   show: () => void,
- *   hide: () => void,
- *   destroy: () => void,
- * }} ModalShell
- */
-
-/**
- * @typedef {{
  *   banDurationMs: number,
  *   kind: "ban" | "report" | "warning",
  *   title: string,
@@ -322,127 +301,25 @@ export function createFloatingPanelController(options) {
   };
 }
 
-/**
- * @param {HTMLElement} element
- * @param {string | undefined} className
- */
-function addOptionalClasses(element, className) {
-  if (!className) return;
-  className
-    .split(/\s+/)
-    .filter(Boolean)
-    .forEach((name) => element.classList.add(name));
-}
-
-const MODAL_BACKDROP_CLASS = "wbo-modal-backdrop";
-const DIALOG_PANEL_CLASS = "wbo-dialog";
-const NATIVE_DIALOG_CLASS = "wbo-native-dialog";
-
-/**
- * @param {HTMLElement} element
- * @param {string | undefined} className
- */
-function applyModalBackdropClasses(element, className) {
-  element.classList.add(MODAL_BACKDROP_CLASS);
-  addOptionalClasses(element, className);
-}
-
-/**
- * @param {HTMLElement} element
- * @param {string | undefined} className
- */
-function applyDialogPanelClasses(element, className) {
-  element.classList.add(DIALOG_PANEL_CLASS);
-  element.dir =
-    document.documentElement?.getAttribute?.("data-ui-direction") === "rtl"
-      ? "rtl"
-      : "ltr";
-  addOptionalClasses(element, className);
-}
-
-/**
- * @param {string | undefined} className
- * @returns {HTMLElement}
- */
-function createDialogPanel(className) {
-  const panel = document.createElement("div");
-  applyDialogPanelClasses(panel, className);
-  return panel;
-}
-
-/**
- * @returns {{dialog: HTMLDialogElement, panel: HTMLElement}}
- */
 function createNativeDialogShell() {
   const dialog = document.createElement("dialog");
-  dialog.classList.add(NATIVE_DIALOG_CLASS);
-  const panel = createDialogPanel(undefined);
+  dialog.className = "wbo-native-dialog";
+  const panel = document.createElement("div");
+  panel.className = "wbo-dialog";
+  panel.dir =
+    document.documentElement.dataset.uiDirection === "rtl" ? "rtl" : "ltr";
   dialog.appendChild(panel);
   return { dialog, panel };
 }
 
 /**
- * @param {ModalShellOptions} [options]
- * @returns {ModalShell}
- */
-export function createModalShell(options = {}) {
-  const {
-    overlayId,
-    dialogId,
-    overlayClassName,
-    dialogClassName,
-    hiddenClass,
-    initiallyHidden = false,
-  } = options;
-  let overlay = overlayId ? document.getElementById(overlayId) : null;
-  let createdOverlay = false;
-  if (!(overlay instanceof HTMLElement)) {
-    overlay = document.createElement("div");
-    createdOverlay = true;
-    if (overlayId) overlay.id = overlayId;
-    document.body.appendChild(overlay);
-  }
-  applyModalBackdropClasses(overlay, overlayClassName);
-  if (createdOverlay && initiallyHidden && hiddenClass) {
-    overlay.classList.add(hiddenClass);
-  }
-
-  let panel = dialogId ? document.getElementById(dialogId) : null;
-  if (!(panel instanceof HTMLElement)) {
-    panel = createDialogPanel(dialogClassName);
-    if (dialogId) panel.id = dialogId;
-    overlay.appendChild(panel);
-  } else if (panel.parentNode !== overlay) {
-    overlay.appendChild(panel);
-    applyDialogPanelClasses(panel, dialogClassName);
-  } else {
-    applyDialogPanelClasses(panel, dialogClassName);
-  }
-
-  return {
-    overlay,
-    dialog: panel,
-    show() {
-      if (hiddenClass) overlay.classList.remove(hiddenClass);
-      else overlay.hidden = false;
-    },
-    hide() {
-      if (hiddenClass) overlay.classList.add(hiddenClass);
-      else overlay.hidden = true;
-    },
-    destroy() {
-      overlay.remove();
-    },
-  };
-}
-
-/**
  * @template T
- * @param {T | null} closeValue
- * @param {(panel: HTMLElement, settle: (result: T | null) => void) => void} render
- * @returns {Promise<T | null>}
+ * @param {T} closeValue
+ * @param {(panel: HTMLElement, settle: (result: T) => void, dialog: HTMLDialogElement) => (() => void) | void} render
+ * @param {{dismissOnBackdrop?: boolean, focusOptions?: FocusOptions}} [options]
+ * @returns {Promise<T>}
  */
-function showModalDialog(closeValue, render) {
+function showModalDialog(closeValue, render, options = {}) {
   return new Promise((resolve) => {
     const previousFocus =
       document.activeElement instanceof HTMLElement
@@ -451,22 +328,26 @@ function showModalDialog(closeValue, render) {
     const { dialog, panel } = createNativeDialogShell();
 
     let settled = false;
-    /** @param {T | null} result */
+    /** @type {(() => void) | void} */
+    let cleanup;
+    /** @param {T} result */
     function settle(result) {
       if (settled) return;
       settled = true;
+      cleanup?.();
       dialog.close();
       dialog.remove();
-      previousFocus?.focus();
+      if (previousFocus?.isConnected) previousFocus.focus(options.focusOptions);
       resolve(result);
     }
 
     dialog.addEventListener("close", () => settle(closeValue));
     dialog.addEventListener("click", (evt) => {
-      if (evt.target === dialog) settle(closeValue);
+      if (options.dismissOnBackdrop !== false && evt.target === dialog)
+        settle(closeValue);
     });
 
-    render(panel, settle);
+    cleanup = render(panel, settle, dialog);
 
     document.body.appendChild(dialog);
     dialog.showModal();
@@ -650,195 +531,136 @@ export function showActionDialog(options) {
   );
 }
 
-const MODAL_FOCUSABLE_SELECTOR =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
-/**
- * Keeps keyboard navigation inside a persistent modal panel. Native one-shot
- * dialogs use showModal(), which already provides this behavior.
- * @param {HTMLElement} panel
- * @param {() => void} onEscape
- * @returns {() => void}
- */
-function trapPersistentModalFocus(panel, onEscape) {
-  /** @param {KeyboardEvent} event */
-  const onKeyDown = (event) => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      onEscape();
-      return;
-    }
-    if (event.key !== "Tab") return;
-
-    const focusable = Array.from(
-      panel.querySelectorAll(MODAL_FOCUSABLE_SELECTOR),
-    ).filter(
-      /** @returns {element is HTMLElement} */
-      (element) =>
-        element instanceof HTMLElement &&
-        !element.hidden &&
-        element.getClientRects().length > 0,
-    );
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (!first || !last) {
-      event.preventDefault();
-      panel.focus();
-      return;
-    }
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  };
-  panel.addEventListener("keydown", onKeyDown);
-  return () => panel.removeEventListener("keydown", onKeyDown);
-}
-
 /**
  * @param {ModerationDisconnectNoticeOptions} options
  * @returns {Promise<void>}
  */
 export function showModerationDisconnectNotice(options) {
-  return new Promise((resolve) => {
-    const previousFocus =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
-    const shell = createModalShell({
-      overlayId: "moderation-disconnect-overlay",
-      dialogId: "moderation-disconnect-dialog",
-      hiddenClass: "moderation-disconnect-overlay-hidden",
-      initiallyHidden: true,
-    });
-    shell.dialog.replaceChildren();
-    shell.dialog.classList.add("moderation-disconnect-dialog");
-    shell.dialog.setAttribute("role", "alertdialog");
-    shell.dialog.setAttribute("aria-modal", "true");
-    shell.dialog.dataset.moderationKind = options.kind;
+  return showModalDialog(
+    undefined,
+    (panel, settle, dialog) => {
+      dialog.id = "moderation-disconnect-overlay";
+      panel.id = "moderation-disconnect-dialog";
+      panel.classList.add("moderation-disconnect-dialog");
+      dialog.setAttribute("role", "alertdialog");
+      dialog.setAttribute("aria-modal", "true");
+      panel.dataset.moderationKind = options.kind;
 
-    const icon = document.createElement("div");
-    icon.className = "moderation-disconnect-icon";
-    icon.setAttribute("aria-hidden", "true");
-    icon.textContent = "!";
+      const icon = document.createElement("div");
+      icon.className = "moderation-disconnect-icon";
+      icon.setAttribute("aria-hidden", "true");
+      icon.textContent = "!";
 
-    const title = document.createElement("div");
-    title.className = "moderation-disconnect-title";
-    title.id = "moderation-disconnect-title";
-    title.textContent = options.title;
-    shell.dialog.setAttribute("aria-labelledby", title.id);
+      const title = document.createElement("div");
+      title.className = "moderation-disconnect-title";
+      title.id = "moderation-disconnect-title";
+      title.textContent = options.title;
+      dialog.setAttribute("aria-labelledby", title.id);
 
-    const message = document.createElement("p");
-    message.className = "moderation-disconnect-message";
-    message.id = "moderation-disconnect-message";
-    message.textContent = options.message;
-    shell.dialog.setAttribute("aria-describedby", message.id);
+      const message = document.createElement("p");
+      message.className = "moderation-disconnect-message";
+      message.id = "moderation-disconnect-message";
+      message.textContent = options.message;
+      dialog.setAttribute("aria-describedby", message.id);
 
-    const ruleCallout = document.createElement("div");
-    ruleCallout.className = "moderation-disconnect-rule";
-    if (options.ruleTitle) {
-      if (options.ruleIconUrl) {
-        const ruleIcon = document.createElement("img");
-        ruleIcon.className = "moderation-disconnect-rule-icon";
-        ruleIcon.src = options.ruleIconUrl;
-        ruleIcon.alt = "";
-        ruleIcon.setAttribute("aria-hidden", "true");
-        ruleCallout.appendChild(ruleIcon);
+      const ruleCallout = document.createElement("div");
+      ruleCallout.className = "moderation-disconnect-rule";
+      if (options.ruleTitle) {
+        if (options.ruleIconUrl) {
+          const ruleIcon = document.createElement("img");
+          ruleIcon.className = "moderation-disconnect-rule-icon";
+          ruleIcon.src = options.ruleIconUrl;
+          ruleIcon.alt = "";
+          ruleIcon.setAttribute("aria-hidden", "true");
+          ruleCallout.appendChild(ruleIcon);
+        }
+        const ruleHeading = document.createElement("div");
+        ruleHeading.className = "moderation-disconnect-rule-heading";
+        ruleHeading.textContent = options.ruleHeading || "";
+        const ruleTitle = document.createElement("div");
+        ruleTitle.className = "moderation-disconnect-rule-title";
+        ruleTitle.textContent = options.ruleTitle;
+        ruleCallout.append(ruleHeading, ruleTitle);
+        if (options.ruleBody) {
+          const ruleBody = document.createElement("p");
+          ruleBody.className = "moderation-disconnect-rule-body";
+          ruleBody.textContent = options.ruleBody;
+          ruleCallout.appendChild(ruleBody);
+        }
       }
-      const ruleHeading = document.createElement("div");
-      ruleHeading.className = "moderation-disconnect-rule-heading";
-      ruleHeading.textContent = options.ruleHeading || "";
-      const ruleTitle = document.createElement("div");
-      ruleTitle.className = "moderation-disconnect-rule-title";
-      ruleTitle.textContent = options.ruleTitle;
-      ruleCallout.append(ruleHeading, ruleTitle);
-      if (options.ruleBody) {
-        const ruleBody = document.createElement("p");
-        ruleBody.className = "moderation-disconnect-rule-body";
-        ruleBody.textContent = options.ruleBody;
-        ruleCallout.appendChild(ruleBody);
+
+      const countdown = document.createElement("p");
+      countdown.className = "moderation-disconnect-countdown";
+      const banEndsAt = Date.now() + Math.max(0, options.banDurationMs);
+      /** @type {ReturnType<typeof setInterval> | null} */
+      let countdownInterval = null;
+      const updateCountdown = () => {
+        const remainingMs = banEndsAt - Date.now();
+        countdown.textContent =
+          remainingMs > 0
+            ? options.countdownLabel.replace(
+                "{time}",
+                formatCountdownDuration(
+                  remainingMs,
+                  options.countdownUnitPatterns,
+                ),
+              )
+            : options.countdownDoneLabel;
+        if (remainingMs <= 0 && countdownInterval !== null) {
+          clearInterval(countdownInterval);
+          countdownInterval = null;
+        }
+      };
+      if (options.banDurationMs > 0) {
+        updateCountdown();
+        countdownInterval = setInterval(updateCountdown, 1000);
       }
-    }
 
-    const countdown = document.createElement("p");
-    countdown.className = "moderation-disconnect-countdown";
-    const banEndsAt = Date.now() + Math.max(0, options.banDurationMs);
-    /** @type {ReturnType<typeof setInterval> | null} */
-    let countdownInterval = null;
-    const updateCountdown = () => {
-      const remainingMs = banEndsAt - Date.now();
-      countdown.textContent =
-        remainingMs > 0
-          ? options.countdownLabel.replace(
-              "{time}",
-              formatCountdownDuration(
-                remainingMs,
-                options.countdownUnitPatterns,
-              ),
-            )
-          : options.countdownDoneLabel;
-      if (remainingMs <= 0 && countdownInterval !== null) {
-        clearInterval(countdownInterval);
-        countdownInterval = null;
-      }
-    };
-    if (options.banDurationMs > 0) {
-      updateCountdown();
-      countdownInterval = setInterval(updateCountdown, 1000);
-    }
+      const rulesLink = document.createElement("a");
+      rulesLink.className = "moderation-disconnect-rules";
+      rulesLink.href = "../rules";
+      rulesLink.target = "_blank";
+      rulesLink.rel = "noopener";
+      rulesLink.textContent = options.rulesLabel;
 
-    const rulesLink = document.createElement("a");
-    rulesLink.className = "moderation-disconnect-rules";
-    rulesLink.href = "../rules";
-    rulesLink.target = "_blank";
-    rulesLink.rel = "noopener";
-    rulesLink.textContent = options.rulesLabel;
+      const actions = document.createElement("div");
+      actions.className = "moderation-disconnect-actions";
 
-    const actions = document.createElement("div");
-    actions.className = "moderation-disconnect-actions";
+      const privateBoard = document.createElement("a");
+      privateBoard.className =
+        "wbo-dialog-button wbo-dialog-button-secondary moderation-disconnect-private";
+      privateBoard.href = "../random";
+      privateBoard.textContent = options.privateBoardLabel;
 
-    const privateBoard = document.createElement("a");
-    privateBoard.className =
-      "wbo-dialog-button wbo-dialog-button-secondary moderation-disconnect-private";
-    privateBoard.href = "../random";
-    privateBoard.textContent = options.privateBoardLabel;
+      const acknowledge = document.createElement("button");
+      acknowledge.type = "button";
+      acknowledge.className =
+        "wbo-dialog-button wbo-dialog-button-primary moderation-disconnect-ack";
+      acknowledge.textContent = options.acknowledgeLabel;
+      acknowledge.autofocus = true;
+      acknowledge.addEventListener("click", () => settle(undefined), {
+        once: true,
+      });
+      // Keep Tab on the notice's actions instead of entering browser chrome.
+      panel.addEventListener("keydown", (event) => {
+        if (event.key !== "Tab") return;
+        const endpoint = event.shiftKey ? rulesLink : acknowledge;
+        if (document.activeElement !== endpoint) return;
+        event.preventDefault();
+        (event.shiftKey ? acknowledge : rulesLink).focus();
+      });
 
-    const acknowledge = document.createElement("button");
-    acknowledge.type = "button";
-    acknowledge.className =
-      "wbo-dialog-button wbo-dialog-button-primary moderation-disconnect-ack";
-    acknowledge.textContent = options.acknowledgeLabel;
-    let settled = false;
-    let releaseFocusTrap = () => {};
-    const settle = () => {
-      if (settled) return;
-      settled = true;
-      if (countdownInterval !== null) {
-        clearInterval(countdownInterval);
-        countdownInterval = null;
-      }
-      releaseFocusTrap();
-      shell.hide();
-      acknowledge.blur();
-      if (previousFocus?.isConnected && !shell.dialog.contains(previousFocus)) {
-        previousFocus.focus({ preventScroll: true });
-      }
-      resolve();
-    };
-    acknowledge.addEventListener("click", settle, { once: true });
-
-    actions.append(privateBoard, acknowledge);
-    shell.dialog.append(icon, title, message);
-    if (options.ruleTitle) shell.dialog.appendChild(ruleCallout);
-    if (options.banDurationMs > 0) shell.dialog.appendChild(countdown);
-    shell.dialog.append(rulesLink, actions);
-    shell.show();
-    releaseFocusTrap = trapPersistentModalFocus(shell.dialog, settle);
-    acknowledge.focus();
-  });
+      actions.append(privateBoard, acknowledge);
+      panel.append(icon, title, message);
+      if (options.ruleTitle) panel.appendChild(ruleCallout);
+      if (options.banDurationMs > 0) panel.appendChild(countdown);
+      panel.append(rulesLink, actions);
+      return () => {
+        if (countdownInterval !== null) clearInterval(countdownInterval);
+      };
+    },
+    { dismissOnBackdrop: false, focusOptions: { preventScroll: true } },
+  );
 }
 
 /** @typedef {{title: string, paragraphs: string[], primaryAction?: {label: string, href: string}, onDismiss?: () => void}} NoticeContent */
@@ -895,7 +717,6 @@ export const ui = {
   createNoticePanel,
   positionAnchoredPanel,
   createFloatingPanelController,
-  createModalShell,
   confirm: showConfirmDialog,
   showActionDialog,
   showModerationDisconnectNotice,

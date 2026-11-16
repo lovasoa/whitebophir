@@ -237,20 +237,6 @@ class FakeDomElement {
   }
 }
 
-/**
- * @param {FakeDomElement} root
- * @param {string} id
- * @returns {FakeDomElement | null}
- */
-function findFakeDomElementById(root, id) {
-  if (root.id === id) return root;
-  for (const child of root.children) {
-    const match = findFakeDomElementById(child, id);
-    if (match) return match;
-  }
-  return null;
-}
-
 test("positionAnchoredPanel keeps panels inside the viewport", async () => {
   const browser = getBrowserHarness();
   browser.installClientDom({ innerWidth: 300, innerHeight: 200 });
@@ -427,62 +413,6 @@ test("notice panels preserve local dismissal, delegate acknowledgement and repla
   );
 });
 
-test("modal shell creates, reuses, hides, and removes shared containers", async () => {
-  const browser = getBrowserHarness();
-  const body = new FakeDomElement("body");
-  const document = browser.installClientDom({
-    globalOverrides: { HTMLElement: FakeDomElement },
-    createElement: (tagName) => new FakeDomElement(tagName),
-    getElementById: (id) => findFakeDomElementById(body, id),
-  });
-  /** @type {any} */ (document).body = body;
-  const { createModalShell } = await import(
-    "../client-data/js/board_ui_module.js"
-  );
-
-  const shell = createModalShell({
-    overlayId: "modal-overlay",
-    dialogId: "modal-dialog",
-    overlayClassName: "extra-overlay another-overlay",
-    dialogClassName: "extra-dialog",
-    hiddenClass: "is-hidden",
-    initiallyHidden: true,
-  });
-
-  assert.equal(shell.overlay.id, "modal-overlay");
-  assert.equal(shell.dialog.id, "modal-dialog");
-  assert.equal(shell.overlay.parentNode, body);
-  assert.equal(shell.dialog.parentNode, shell.overlay);
-  assert.equal(shell.overlay.classList.contains("wbo-modal-backdrop"), true);
-  assert.equal(shell.overlay.classList.contains("extra-overlay"), true);
-  assert.equal(shell.overlay.classList.contains("another-overlay"), true);
-  assert.equal(shell.overlay.classList.contains("is-hidden"), true);
-  assert.equal(shell.dialog.classList.contains("wbo-dialog"), true);
-  assert.equal(shell.dialog.classList.contains("extra-dialog"), true);
-
-  shell.show();
-  assert.equal(shell.overlay.classList.contains("is-hidden"), false);
-  shell.hide();
-  assert.equal(shell.overlay.classList.contains("is-hidden"), true);
-
-  const reused = createModalShell({
-    overlayId: "modal-overlay",
-    dialogId: "modal-dialog",
-  });
-  assert.equal(reused.overlay, shell.overlay);
-  assert.equal(reused.dialog, shell.dialog);
-
-  const transient = createModalShell();
-  transient.hide();
-  assert.equal(transient.overlay.hidden, true);
-  transient.show();
-  assert.equal(transient.overlay.hidden, false);
-  transient.destroy();
-
-  shell.destroy();
-  assert.equal(findFakeDomElementById(body, "modal-overlay"), null);
-});
-
 test("native modal dialogs only settle on shell clicks", async () => {
   const browser = getBrowserHarness();
   const body = new FakeDomElement("body");
@@ -490,6 +420,7 @@ test("native modal dialogs only settle on shell clicks", async () => {
     globalOverrides: { HTMLElement: FakeDomElement },
     createElement: (tagName) => new FakeDomElement(tagName),
   });
+  document.documentElement.dataset = {};
   /** @type {any} */ (document).body = body;
   const { showActionDialog } = await import(
     "../client-data/js/board_ui_module.js"

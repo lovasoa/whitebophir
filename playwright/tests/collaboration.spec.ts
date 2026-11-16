@@ -564,7 +564,7 @@ test.describe("collaboration and rate limiting", () => {
   );
 
   moderatorPresenceTest(
-    "moderator warning shows an overlay and reconnects after acknowledgement",
+    "moderator warning ignores backdrop clicks and reconnects after Escape",
     async ({ boardPage, browser, server }) => {
       const boardName = "moderator-warning-overlay";
       const targetContext = await browser.newContext();
@@ -592,6 +592,7 @@ test.describe("collaboration and rate limiting", () => {
         await expect(boardPage.connectedUsersPanel).toBeVisible();
         await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
 
+        await targetBoard.connectedUsersToggle.focus();
         const targetReconnect = targetBoard.waitForDisconnectThenReconnect();
         await boardPage.reportFirstRemoteUser();
         await expect(
@@ -622,7 +623,15 @@ test.describe("collaboration and rate limiting", () => {
             connectionState: "disconnected",
           });
 
-        await targetBoard.acknowledgeModerationDisconnect();
+        await targetPage.mouse.click(5, 5);
+        await expect(
+          targetPage.locator("#moderation-disconnect-dialog"),
+        ).toBeVisible();
+        await targetPage.keyboard.press("Escape");
+        await expect(
+          targetPage.locator("#moderation-disconnect-dialog"),
+        ).toHaveCount(0);
+        await expect(targetBoard.connectedUsersToggle).toBeFocused();
         await expect(targetReconnect).resolves.toMatchObject({
           initialId: expect.any(String),
           nextId: expect.any(String),
@@ -759,7 +768,7 @@ test.describe("collaboration and rate limiting", () => {
           });
 
         await targetBoard.acknowledgeModerationDisconnect();
-        await expect(acknowledge).not.toBeFocused();
+        await expect(acknowledge).toHaveCount(0);
         await expect(targetReconnect).resolves.toMatchObject({
           initialId: expect.any(String),
           nextId: expect.any(String),
