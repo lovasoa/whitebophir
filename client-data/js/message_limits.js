@@ -17,8 +17,12 @@ export const LIMITS = {
  * @returns {number | null}
  */
 export function toFiniteNumber(value) {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
+  try {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

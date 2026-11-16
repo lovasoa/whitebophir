@@ -286,3 +286,37 @@ test("normalizeIncomingMessage rejects invalid clientMutationId and strips it fr
     reason: "activeTool: invalid tool id",
   });
 });
+
+test("normalizeIncomingMessage rejects JSON values that cannot be coerced to numbers", () => {
+  const hostile = JSON.parse('{"valueOf":null,"toString":null}');
+  for (const field of ["x", "size", "opacity"]) {
+    assert.deepEqual(
+      normalizeIncomingMessage({
+        tool: Cursor.id,
+        type: MutationType.UPDATE,
+        x: 10,
+        y: 20,
+        color: "#123456",
+        size: 10,
+        [field]: hostile,
+      }),
+      {
+        ok: false,
+        reason: `${field}: invalid ${field === "x" ? "coord" : field}`,
+      },
+    );
+  }
+  assert.deepEqual(
+    normalizeIncomingMessage({
+      tool: Hand.id,
+      _children: [
+        {
+          type: MutationType.UPDATE,
+          id: "shape-1",
+          transform: { a: 1, b: 0, c: 0, d: 1, e: hostile, f: 0 },
+        },
+      ],
+    }),
+    { ok: false, reason: "_children[0]: transform: invalid transform" },
+  );
+});
