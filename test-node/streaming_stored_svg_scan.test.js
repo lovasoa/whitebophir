@@ -1,5 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { Readable } = require("node:stream");
 
 const {
   streamStoredSvgStructure,
@@ -99,5 +100,22 @@ test("summary and rewrite scans reject the same broken drawing structure", async
         }
       });
     }
+  }
+});
+
+test("structural scans close their source after a metadata read or parse failure", async () => {
+  for (const metadataOnly of [true, false]) {
+    const source = Readable.from([
+      '<svg><g id="drawingArea">',
+      '<unsupported id="broken"></unsupported></g></svg>',
+    ]);
+    const consume = async () => {
+      for await (const event of streamStoredSvgStructure(source)) {
+        if (metadataOnly && event.type === "prefix") break;
+      }
+    };
+    if (metadataOnly) await consume();
+    else await assert.rejects(consume(), /Unexpected direct child/);
+    assert.equal(source.destroyed, true);
   }
 });

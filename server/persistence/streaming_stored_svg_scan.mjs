@@ -124,12 +124,14 @@ async function* streamStoredSvgStructure(input, options) {
   let buffer = "";
   let prefixDone = false;
   const materializeEntryDetails = options?.materializeEntryDetails !== false;
-  const iterator = input[Symbol.asyncIterator]();
+  let suffixDone = false;
 
-  while (true) {
-    const step = await iterator.next();
-    if (step.done) break;
-    buffer += String(step.value);
+  for await (const chunk of input) {
+    if (suffixDone) {
+      yield { type: "tail", chunk: String(chunk) };
+      continue;
+    }
+    buffer += String(chunk);
 
     if (!prefixDone) {
       const extractedPrefix = tryExtractPrefix(buffer);
@@ -151,11 +153,8 @@ async function* streamStoredSvgStructure(input, options) {
           leadingText: extracted.leadingText,
           suffix: extracted.suffix,
         };
-        while (true) {
-          const remaining = await iterator.next();
-          if (remaining.done) return;
-          yield { type: "tail", chunk: String(remaining.value) };
-        }
+        suffixDone = true;
+        break;
       }
       yield {
         type: "item",
@@ -168,7 +167,7 @@ async function* streamStoredSvgStructure(input, options) {
   if (!prefixDone) {
     throw new Error("Missing drawingArea group");
   }
-  throw new Error("Unterminated drawingArea group");
+  if (!suffixDone) throw new Error("Unterminated drawingArea group");
 }
 
 export { streamStoredSvgStructure };

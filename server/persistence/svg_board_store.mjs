@@ -214,29 +214,17 @@ async function readStoredSvgMetadata(boardName, options) {
       const stream = fs.createReadStream(readableSvg.file, {
         encoding: "utf8",
       });
-      /** @type {BoardMetadata} */
-      let metadata = defaultBoardMetadata();
-      let seq = 0;
-      try {
-        for await (const event of streamStoredSvgStructure(stream)) {
-          if (event.type !== "prefix") continue;
-          const rootMetadata = readStoredSvgRootMetadata(event.prefix);
-          seq = rootMetadata.seq;
-          metadata = {
-            readonly: rootMetadata.readonly,
-            seq,
-          };
-          break;
-        }
-      } finally {
-        stream.destroy();
+      for await (const event of streamStoredSvgStructure(stream)) {
+        if (event.type !== "prefix") continue;
+        const { readonly, seq } = readStoredSvgRootMetadata(event.prefix);
+        return {
+          metadata: { readonly, seq },
+          seq,
+          source: readableSvg.source,
+          byteLength: readableSvg.byteLength,
+        };
       }
-      return {
-        metadata,
-        seq,
-        source: readableSvg.source,
-        byteLength: readableSvg.byteLength,
-      };
+      throw new Error("Missing drawingArea group");
     },
   );
   if (state) return state;
@@ -395,37 +383,33 @@ async function readCanonicalBoardState(boardName, options) {
       let metadata = defaultBoardMetadata();
       let seq = 0;
       let index = 0;
-      try {
-        for await (const event of streamStoredSvgStructure(stream)) {
-          if (event.type === "prefix") {
-            const rootMetadata = readStoredSvgRootMetadata(event.prefix);
-            metadata = {
-              readonly: rootMetadata.readonly,
-            };
-            seq = rootMetadata.seq;
-            svgExtent.width = rootMetadata.svgExtent.width;
-            svgExtent.height = rootMetadata.svgExtent.height;
-            continue;
-          }
-          if (event.type !== "item") continue;
-          const item = canonicalItemFromStoredSvgEntry(event.entry, index);
-          if (!item) {
-            logger.warn("board.load_item_skipped", {
-              board: boardName,
-              "wbo.board.source": readableSvg.source,
-              "wbo.board.paint_order": index,
-              "wbo.board.item_tag": event.entry?.tagName,
-              "wbo.board.item_id": event.entry?.id,
-            });
-            continue;
-          }
-          itemsById.set(item.id, item);
-          paintOrder.push(item.id);
-          extendSvgExtentForItem(svgExtent, item);
-          index += 1;
+      for await (const event of streamStoredSvgStructure(stream)) {
+        if (event.type === "prefix") {
+          const rootMetadata = readStoredSvgRootMetadata(event.prefix);
+          metadata = {
+            readonly: rootMetadata.readonly,
+          };
+          seq = rootMetadata.seq;
+          svgExtent.width = rootMetadata.svgExtent.width;
+          svgExtent.height = rootMetadata.svgExtent.height;
+          continue;
         }
-      } finally {
-        stream.destroy();
+        if (event.type !== "item") continue;
+        const item = canonicalItemFromStoredSvgEntry(event.entry, index);
+        if (!item) {
+          logger.warn("board.load_item_skipped", {
+            board: boardName,
+            "wbo.board.source": readableSvg.source,
+            "wbo.board.paint_order": index,
+            "wbo.board.item_tag": event.entry?.tagName,
+            "wbo.board.item_id": event.entry?.id,
+          });
+          continue;
+        }
+        itemsById.set(item.id, item);
+        paintOrder.push(item.id);
+        extendSvgExtentForItem(svgExtent, item);
+        index += 1;
       }
       return {
         itemsById,
