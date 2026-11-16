@@ -20,9 +20,8 @@ const MODERATION_DISCONNECT_CLOSE_TIMEOUT_MS = 150;
 /** @typedef {{socketId: string, userId: string, name: string, ip: string, userSecret: string, userAgent: string, language: string}} BoardUser */
 /** @typedef {{board: string, reporter_socket: string, reported_socket: string, reporter_ip: string, reported_ip: string, reporter_user_agent: string, reported_user_agent: string, reporter_language: string, reported_language: string, reporter_name: string, reported_name: string, banned: boolean}} UserReportLog */
 /** @typedef {(socketId: string) => AppSocket | undefined} GetActiveSocket */
-/** @typedef {(socket: AppSocket, eventName: string, infos: {[key: string]: any}) => void} CloseSocket */
+/** @typedef {(socket: AppSocket) => void} CloseSocket */
 /** @typedef {{socket: AppSocket, boardName: string, message: unknown, config: ServerConfig, now: number, getActiveSocket: GetActiveSocket, closeSocket: CloseSocket, onBansChanged?: () => void}} ReportUserContext */
-/** @typedef {{reporter: BoardUser, reported: BoardUser}} ReportUsers */
 
 /** @type {UserReportLog | null} */
 let lastUserReportLog = null;
@@ -64,19 +63,6 @@ function validateReportUserPayload(message, canModerate) {
 }
 
 /**
- * @param {string} boardName
- * @param {string} reporterSocketId
- * @param {string} reportedSocketId
- * @returns {ReportUsers | null}
- */
-function resolveReportedUsers(boardName, reporterSocketId, reportedSocketId) {
-  const reporter = getBoardUser(boardName, reporterSocketId);
-  const reported = getBoardUser(boardName, reportedSocketId);
-  if (!reporter || !reported) return null;
-  return { reporter, reported };
-}
-
-/**
  * @returns {void}
  */
 function ignoreReportedUser(result = "ignored") {
@@ -88,11 +74,12 @@ function ignoreReportedUser(result = "ignored") {
 /**
  * Creates an object with properties to log a user report.
  * @param {string} boardName
- * @param {ReportUsers} users
+ * @param {BoardUser} reporter
+ * @param {BoardUser} reported
  * @param {boolean} banned
  * @returns {UserReportLog}
  */
-function buildUserReportLog(boardName, { reported, reporter }, banned) {
+function buildUserReportLog(boardName, reporter, reported, banned) {
   return {
     board: boardName,
     reporter_socket: reporter.socketId,
@@ -166,27 +153,12 @@ export function reportPersonalInformation(context, text) {
 }
 
 /**
- * @param {string} boardName
- * @param {AppSocket} targetSocket
- * @param {CloseSocket} closeSocket
- * @returns {void}
- */
-function disconnectReportSocket(boardName, targetSocket, closeSocket) {
-  closeSocket(targetSocket, "report_user", {
-    board: boardName,
-    socket: targetSocket.id,
-  });
-}
-
-/**
- * @param {string} boardName
  * @param {AppSocket} targetSocket
  * @param {CloseSocket} closeSocket
  * @param {{banDurationMs: number, source: ModerationDisconnectSource, moderationRule?: string}} details
  * @returns {void}
  */
 function notifyModerationDisconnectThenClose(
-  boardName,
   targetSocket,
   closeSocket,
   { banDurationMs, source, moderationRule },
@@ -201,7 +173,7 @@ function notifyModerationDisconnectThenClose(
       clearTimeout(timeout);
       timeout = null;
     }
-    disconnectReportSocket(boardName, targetSocket, closeSocket);
+    closeSocket(targetSocket);
   };
   /** @type {ModerationDisconnectPayload} */
   const payload = {
@@ -213,116 +185,6 @@ function notifyModerationDisconnectThenClose(
   if (closed) return;
   timeout = setTimeout(close, MODERATION_DISCONNECT_CLOSE_TIMEOUT_MS);
   timeout.unref?.();
-}
-
-/**
- * @param {BoardUser} reporter
- * @param {BoardUser} reported
- * @returns {boolean}
- */
-function isSelfReportTarget(reporter, reported) {
-  return (
-    reporter.socketId === reported.socketId ||
-    hasSameUserIdentity(reporter, reported)
-  );
-}
-
-/**
- * @param {BoardUser} first
- * @param {BoardUser} second
- * @returns {boolean}
- */
-function hasSameUserIdentity(first, second) {
-  return first.userSecret !== "" && first.userSecret === second.userSecret;
-}
-
-/**
- * @param {ReportUserContext} context
- * @param {{reporter: BoardUser, reported: BoardUser}} users
- * @param {number} banDurationMs
- * @param {string} moderationRule
- * @returns {void}
- */
-function handleReportByModerator(
-  context,
-  { reporter, reported },
-  banDurationMs,
-  moderationRule,
-) {
-  const board = context.boardName;
-  if (isSelfReportTarget(reporter, reported)) {
-    tracing.setActiveSpanAttributes({
-      "wbo.board.result": "self_report_ignored",
-    });
-    logger.warn("user.ban_skipped_self_report", {
-      board,
-      reporter_socket: reporter.socketId,
-      reported_socket: reported.socketId,
-      reporter_name: reporter.name,
-      reported_name: reported.name,
-    });
-    return;
-  }
-
-  if (banDurationMs > 0) {
-    banBoardUser(
-      context.boardName,
-      reported.userSecret,
-      reported.ip,
-      context.now,
-      banDurationMs,
-      { name: reported.name, moderationRule },
-    );
-    context.onBansChanged?.();
-  }
-
-  const reportedSocket = context.getActiveSocket(reported.socketId);
-  if (!reportedSocket) {
-    logger.error("user.ban.fail", { reported, reporter, board });
-    return;
-  }
-  notifyModerationDisconnectThenClose(
-    board,
-    reportedSocket,
-    context.closeSocket,
-    {
-      banDurationMs,
-      source: ModerationDisconnectSources.MODERATOR,
-      moderationRule,
-    },
-  );
-}
-
-/**
- * @param {ReportUserContext} context
- * @returns {void}
- */
-function disconnectReporter(context) {
-  disconnectReportSocket(
-    context.boardName,
-    context.socket,
-    context.closeSocket,
-  );
-}
-
-/**
- * @param {ReportUserContext} context
- * @param {BoardUser} reported
- * @returns {void}
- */
-function disconnectReported(context, reported) {
-  const reportedSocket = context.getActiveSocket(reported.socketId);
-  if (reportedSocket && reportedSocket !== context.socket) {
-    notifyModerationDisconnectThenClose(
-      context.boardName,
-      reportedSocket,
-      context.closeSocket,
-      {
-        banDurationMs: 0,
-        source: ModerationDisconnectSources.PEER_REPORT,
-      },
-    );
-  }
 }
 
 /**
@@ -347,28 +209,22 @@ function handleReportUserMessage(context) {
     ignoreReportedUser("invalid_report_ignored");
     return;
   }
-  const resolvedUsers = resolveReportedUsers(
-    boardName,
-    socket.id,
-    message.socketId,
-  );
-  if (!resolvedUsers) {
+  const reporter = getBoardUser(boardName, socket.id);
+  const reported = getBoardUser(boardName, message.socketId);
+  if (!reporter || !reported) {
     ignoreReportedUser();
     return;
   }
 
-  const selfTarget = isSelfReportTarget(
-    resolvedUsers.reporter,
-    resolvedUsers.reported,
-  );
+  const selfTarget =
+    reporter.socketId === reported.socketId ||
+    (reporter.userSecret !== "" && reporter.userSecret === reported.userSecret);
   if (!canModerate && selfTarget) {
     ignoreReportedUser("self_report_ignored");
     return;
   }
 
-  const reportedSocket = context.getActiveSocket(
-    resolvedUsers.reported.socketId,
-  );
+  const reportedSocket = context.getActiveSocket(reported.socketId);
   if (!reportedSocket || !reportedSocket.rooms.has(boardName)) {
     ignoreReportedUser("target_not_found");
     return;
@@ -377,63 +233,88 @@ function handleReportUserMessage(context) {
     !selfTarget &&
     boardPermissionsForSocket(config, boardName, reportedSocket).canBan()
   ) {
-    handleReportedModerator(context, boardName, resolvedUsers);
+    context.closeSocket(socket);
+    ignoreReportedUser("protected_report_ignored");
+    logger.warn("user.report_skipped_protected_target", {
+      board: boardName,
+      reporter_socket: reporter.socketId,
+      reported_socket: reported.socketId,
+      reporter_name: reporter.name,
+      reported_name: reported.name,
+    });
     return;
   }
+
+  if (!canModerate) {
+    tracing.setActiveSpanAttributes({
+      "wbo.board.result": "reported",
+      "user.name": reporter.name,
+      "wbo.reported_user.name": reported.name,
+    });
+  }
+  lastUserReportLog = buildUserReportLog(
+    boardName,
+    reporter,
+    reported,
+    canModerate &&
+      /** @type {ModeratorReportUserPayload} */ (message).banDurationMs > 0,
+  );
+  logger.warn("user.reported", lastUserReportLog);
 
   if (canModerate) {
+    if (selfTarget) {
+      ignoreReportedUser("self_report_ignored");
+      logger.warn("user.ban_skipped_self_report", {
+        board: boardName,
+        reporter_socket: reporter.socketId,
+        reported_socket: reported.socketId,
+        reporter_name: reporter.name,
+        reported_name: reported.name,
+      });
+      return;
+    }
     const { banDurationMs, moderationRule } =
       /** @type {ModeratorReportUserPayload} */ (message);
-    const reportLog = buildUserReportLog(
-      boardName,
-      resolvedUsers,
-      banDurationMs > 0,
-    );
-    lastUserReportLog = reportLog;
-    logger.warn("user.reported", reportLog);
-    handleReportByModerator(
-      context,
-      resolvedUsers,
+    if (banDurationMs > 0) {
+      banBoardUser(
+        boardName,
+        reported.userSecret,
+        reported.ip,
+        context.now,
+        banDurationMs,
+        {
+          name: reported.name,
+          moderationRule,
+        },
+      );
+      context.onBansChanged?.();
+    }
+    const targetSocket = context.getActiveSocket(reported.socketId);
+    if (!targetSocket) {
+      logger.error("user.ban.fail", { reported, reporter, board: boardName });
+      return;
+    }
+    notifyModerationDisconnectThenClose(targetSocket, context.closeSocket, {
       banDurationMs,
+      source: ModerationDisconnectSources.MODERATOR,
       moderationRule,
-    );
+    });
     return;
   }
 
-  tracing.setActiveSpanAttributes({
-    "wbo.board.result": "reported",
-    "user.name": resolvedUsers.reporter.name,
-    "wbo.reported_user.name": resolvedUsers.reported.name,
-  });
-  const reportLog = buildUserReportLog(boardName, resolvedUsers, false);
-  lastUserReportLog = reportLog;
-  logger.warn("user.reported", reportLog);
   notifyBoardModeratorsOfReport(context, {
-    reporterName: resolvedUsers.reporter.name,
-    reportedName: resolvedUsers.reported.name,
+    reporterName: reporter.name,
+    reportedName: reported.name,
   });
-
   // Disconnect the reporter too to prevent abuse.
-  disconnectReporter(context);
-  disconnectReported(context, resolvedUsers.reported);
-}
-
-/**
- *
- * @param {ReportUserContext} context
- * @param {string} board
- * @param {ReportUsers} resolvedUsers
- */
-function handleReportedModerator(context, board, resolvedUsers) {
-  disconnectReporter(context);
-  ignoreReportedUser("protected_report_ignored");
-  logger.warn("user.report_skipped_protected_target", {
-    board,
-    reporter_socket: resolvedUsers.reporter.socketId,
-    reported_socket: resolvedUsers.reported.socketId,
-    reporter_name: resolvedUsers.reporter.name,
-    reported_name: resolvedUsers.reported.name,
-  });
+  context.closeSocket(socket);
+  const targetSocket = context.getActiveSocket(reported.socketId);
+  if (targetSocket && targetSocket !== socket) {
+    notifyModerationDisconnectThenClose(targetSocket, context.closeSocket, {
+      banDurationMs: 0,
+      source: ModerationDisconnectSources.PEER_REPORT,
+    });
+  }
 }
 
 /**

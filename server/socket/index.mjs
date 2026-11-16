@@ -233,10 +233,7 @@ async function dropLoadedBoardInstance(board, details) {
   );
 
   socketsToDisconnect.forEach((socket) => {
-    closeSocket(socket, "stale_board", {
-      board: board.name,
-      socket: socket.id,
-    });
+    socket.disconnect(true);
   });
   return true;
 }
@@ -259,19 +256,14 @@ async function handleStaleBoardSave(board, details) {
 
 /**
  * @param {AppSocket} socket
- * @param {string} eventName
- * @param {{[key: string]: any}} infos
  * @returns {void}
  */
-function closeSocket(socket, eventName, infos) {
-  void eventName;
-  void infos;
-  if (eventName === "report_user") {
-    const closeConnection = socket.client?.conn?.close;
-    if (typeof closeConnection === "function") {
-      closeConnection.call(socket.client.conn);
-      return;
-    }
+function closeReportedSocket(socket) {
+  // A transport close lets Socket.IO reconnect after moderation.
+  const closeConnection = socket.client?.conn?.close;
+  if (typeof closeConnection === "function") {
+    closeConnection.call(socket.client.conn);
+    return;
   }
   socket.disconnect(true);
 }
@@ -671,7 +663,7 @@ async function handleSocketConnection(socket, config) {
         );
   if (replay.ok === false) {
     rejectSocketRequest(socket, "connection", replay.reason);
-    closeSocket(socket, "connection", { reason: replay.reason });
+    socket.disconnect(true);
     return;
   }
   const boardName = replay.boardName;
@@ -786,7 +778,7 @@ async function handleSocketConnection(socket, config) {
             config,
             now: Date.now(),
             getActiveSocket,
-            closeSocket,
+            closeSocket: closeReportedSocket,
             onBansChanged: () => emitBoardBans(boardName),
           });
         },
