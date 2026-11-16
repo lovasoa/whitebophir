@@ -14,7 +14,12 @@ import { SocketEvents } from "./socket_events.js";
 import { createToolIconBadge, updateToolIconBadge } from "./tool_icon_badge.js";
 
 /** @import { ActiveBan, AppToolsState, BoardMessage, ConnectedUser, ConnectedUserMap } from "../../types/app-runtime" */
-/** @typedef {HTMLLIElement} ConnectedUserRow */
+/** @typedef {{
+ * element: HTMLLIElement, link: HTMLAnchorElement,
+ * toolIcon: HTMLImageElement, toolBadge: HTMLSpanElement,
+ * name: HTMLElement, friend: HTMLButtonElement, friendGlyph: HTMLElement,
+ * meta: HTMLElement, joinedTime: HTMLElement, report: HTMLButtonElement,
+ * }} ConnectedUserRow */
 /** @typedef {"minute" | "hour" | "day"} ConnectedUserDurationUnit */
 /** @typedef {{kind: "now"} | {kind: "duration", count: number, unit: ConnectedUserDurationUnit, shortKey: string}} ConnectedUserRelativeTime */
 
@@ -23,6 +28,7 @@ export class PresenceModule {
   constructor(getTools) {
     this.getTools = getTools;
     this.users = /** @type {ConnectedUserMap} */ (new Map());
+    this.rows = /** @type {Map<string, ConnectedUserRow>} */ (new Map());
     this.friendStore = new FriendStore();
     this.friendStorageBound = false;
     this.bans = /** @type {ActiveBan[]} */ ([]);
@@ -72,20 +78,8 @@ export class PresenceModule {
       list.contains(document.activeElement)
         ? document.activeElement
         : null;
-    /** @type {Map<string, ConnectedUserRow>} */
-    const rowsBySocketId = new Map();
-    Array.from(list.children).forEach((child) => {
-      if (
-        child instanceof HTMLLIElement &&
-        child.dataset.socketId &&
-        child.classList.contains("connected-user-row")
-      ) {
-        rowsBySocketId.set(
-          child.dataset.socketId,
-          /** @type {ConnectedUserRow} */ (child),
-        );
-      }
-    });
+    const previousRows = this.rows;
+    this.rows = new Map();
 
     const currentSocketId = Tools.connection.socket?.id;
     const users = Array.from(this.users.values()).sort((left, right) =>
@@ -94,19 +88,16 @@ export class PresenceModule {
 
     users.forEach((user, index) => {
       const row =
-        rowsBySocketId.get(user.socketId) ||
-        createConnectedUserRow(this.getTools, user, this);
-      rowsBySocketId.delete(user.socketId);
-      updateConnectedUserRow(this.getTools, row, user);
+        previousRows.get(user.socketId) ||
+        createConnectedUserRow(this.getTools, this);
+      previousRows.delete(user.socketId);
+      this.rows.set(user.socketId, row);
+      updateConnectedUserRow(Tools, row, user);
       const currentChild = list.children[index];
-      if (currentChild !== row) {
-        list.insertBefore(row, currentChild || null);
-      }
+      if (currentChild !== row.element)
+        list.insertBefore(row.element, currentChild || null);
     });
-
-    rowsBySocketId.forEach((row) => {
-      row.remove();
-    });
+    for (const row of previousRows.values()) row.element.remove();
     if (
       focusedListControl?.isConnected &&
       document.activeElement !== focusedListControl
@@ -750,7 +741,7 @@ function hasCoarsePointer() {
   );
 }
 
-/** @param {ConnectedUserRow} row */
+/** @param {HTMLLIElement} row */
 function revealTouchConnectedUserRow(row) {
   if (!hasCoarsePointer()) return;
   const list = row.parentElement;
@@ -766,13 +757,24 @@ function revealTouchConnectedUserRow(row) {
 }
 
 /**
- * @param {() => AppToolsState} getTools
- * @param {ConnectedUserRow} row
+ * @param {AppToolsState} Tools
+ * @param {ConnectedUserRow} view
  * @param {ConnectedUser} user
  * @returns {void}
  */
-function updateConnectedUserRow(getTools, row, user) {
-  const Tools = getTools();
+function updateConnectedUserRow(Tools, view, user) {
+  const {
+    element: row,
+    link,
+    toolIcon,
+    toolBadge,
+    name,
+    friend,
+    friendGlyph,
+    meta,
+    joinedTime,
+    report,
+  } = view;
   row.dataset.socketId = user.socketId;
   row.dataset.userId = user.userId;
   row.classList.toggle(
@@ -795,136 +797,91 @@ function updateConnectedUserRow(getTools, row, user) {
   const focusHash = getConnectedUserFocusHash(Tools, user);
   row.classList.toggle("connected-user-row-jumpable", focusHash !== "");
 
-  const link = /** @type {HTMLAnchorElement | null} */ (
-    row.querySelector(".connected-user-main-link")
-  );
-  if (link) {
-    if (focusHash) {
-      link.setAttribute("href", focusHash);
-      link.removeAttribute("aria-disabled");
-      link.tabIndex = 0;
-    } else {
-      link.removeAttribute("href");
-      link.setAttribute("aria-disabled", "true");
-      link.tabIndex = -1;
-    }
+  if (focusHash) {
+    link.setAttribute("href", focusHash);
+    link.removeAttribute("aria-disabled");
+    link.tabIndex = 0;
+  } else {
+    link.removeAttribute("href");
+    link.setAttribute("aria-disabled", "true");
+    link.tabIndex = -1;
   }
 
-  const toolIcon = /** @type {HTMLImageElement | null} */ (
-    row.querySelector(".connected-user-toolIcon")
+  updateToolIconBadge(
+    toolIcon,
+    user.lastTool || "hand",
+    getConnectedUserToolLabel(Tools, user),
   );
-  if (toolIcon) {
-    updateToolIconBadge(
-      toolIcon,
-      user.lastTool || "hand",
-      getConnectedUserToolLabel(Tools, user),
-    );
+
+  const userColor = user.color || "#001f3f";
+  toolBadge.style.borderColor = userColor;
+  toolBadge.style.setProperty("--connected-user-pulse-color", userColor);
+  toolBadge.style.borderWidth = `${getConnectedUserRingWidth(user.size)}px`;
+  if (user.pulseUntil && user.pulseUntil > Date.now()) {
+    toolBadge.classList.add("active");
+    toolBadge.style.setProperty("--pulse-ms", `${user.pulseMs || 700}ms`);
+  } else {
+    toolBadge.classList.remove("active");
+    toolBadge.style.removeProperty("--pulse-ms");
   }
 
-  const toolBadge = /** @type {HTMLSpanElement | null} */ (
-    row.querySelector(".connected-user-toolBadge")
-  );
-  if (toolBadge) {
-    const userColor = user.color || "#001f3f";
-    toolBadge.style.borderColor = userColor;
-    toolBadge.style.setProperty("--connected-user-pulse-color", userColor);
-    toolBadge.style.borderWidth = `${getConnectedUserRingWidth(user.size)}px`;
-    if (user.pulseUntil && user.pulseUntil > Date.now()) {
-      toolBadge.classList.add("active");
-      toolBadge.style.setProperty("--pulse-ms", `${user.pulseMs || 700}ms`);
-    } else {
-      toolBadge.classList.remove("active");
-      toolBadge.style.removeProperty("--pulse-ms");
-    }
-  }
+  name.textContent = getConnectedUserDisplayName(user);
 
-  const name = /** @type {HTMLElement | null} */ (
-    row.querySelector(".connected-user-name-text")
+  const currentIdentityUser = isCurrentIdentityUser(
+    Tools,
+    Tools.presence.users,
+    user,
   );
-  if (name) {
-    name.textContent = getConnectedUserDisplayName(user);
-  }
-
-  const friend = /** @type {HTMLButtonElement | null} */ (
-    row.querySelector(".connected-user-friend")
-  );
-  if (friend) {
-    const currentIdentityUser = isCurrentIdentityUser(
-      Tools,
-      Tools.presence.users,
-      user,
-    );
-    const isFriend = user.friend === true;
-    const managesUser = Tools.access.canGrantTemporaryModerator === true;
-    const friendLabel = managesUser
-      ? Tools.i18n.format("moderation_action_title", { name: user.name })
-      : Tools.i18n.format(isFriend ? "remove_friend" : "mark_friend", {
-          name: user.name,
-        });
-    friend.hidden = currentIdentityUser;
-    const friendGlyph = friend.querySelector(".connected-user-friend-glyph");
-    if (friendGlyph) {
-      friendGlyph.textContent = isFriend ? "\u2665\uFE0E" : "\u2661";
-    }
-    friend.title = friendLabel;
-    friend.setAttribute("aria-label", friendLabel);
-    friend.setAttribute("aria-pressed", isFriend ? "true" : "false");
-    if (managesUser) friend.setAttribute("aria-haspopup", "dialog");
-    else friend.removeAttribute("aria-haspopup");
-    friend.classList.toggle("connected-user-friend-manager", managesUser);
-    friend.classList.toggle("connected-user-friend-active", isFriend);
-    row.classList.toggle("connected-user-row-friend", isFriend);
-  }
+  const isFriend = user.friend === true;
+  const managesUser = Tools.access.canGrantTemporaryModerator === true;
+  const friendLabel = managesUser
+    ? Tools.i18n.format("moderation_action_title", { name: user.name })
+    : Tools.i18n.format(isFriend ? "remove_friend" : "mark_friend", {
+        name: user.name,
+      });
+  friend.hidden = currentIdentityUser;
+  friendGlyph.textContent = isFriend ? "\u2665\uFE0E" : "\u2661";
+  friend.title = friendLabel;
+  friend.setAttribute("aria-label", friendLabel);
+  friend.setAttribute("aria-pressed", isFriend ? "true" : "false");
+  if (managesUser) friend.setAttribute("aria-haspopup", "dialog");
+  else friend.removeAttribute("aria-haspopup");
+  friend.classList.toggle("connected-user-friend-manager", managesUser);
+  friend.classList.toggle("connected-user-friend-active", isFriend);
+  row.classList.toggle("connected-user-row-friend", isFriend);
 
   row.classList.toggle("connected-user-row-readonly", user.canEdit === false);
 
-  const meta = /** @type {HTMLElement | null} */ (
-    row.querySelector(".connected-user-meta")
-  );
-  if (meta) {
-    if (user.disconnectedAt) {
-      meta.textContent = Tools.i18n.t("connected_user_left");
-    } else {
-      const relativeTime = getRelativeTimeState(user.joinedAt);
-      const joinedTime = document.createElement("span");
-      joinedTime.className = "connected-user-time";
-      joinedTime.textContent = formatShortRelativeTime(Tools, relativeTime);
-      joinedTime.title = formatJoinedTimeTitle(Tools, relativeTime);
+  if (user.disconnectedAt) {
+    meta.textContent = Tools.i18n.t("connected_user_left");
+  } else {
+    const relativeTime = getRelativeTimeState(user.joinedAt);
+    joinedTime.textContent = formatShortRelativeTime(Tools, relativeTime);
+    joinedTime.title = formatJoinedTimeTitle(Tools, relativeTime);
 
-      meta.textContent = inactive
-        ? `${Tools.i18n.t("connected_user_idle")} · `
-        : "";
-      meta.appendChild(joinedTime);
-    }
+    meta.textContent = inactive
+      ? `${Tools.i18n.t("connected_user_idle")} · `
+      : "";
+    meta.appendChild(joinedTime);
   }
 
-  const report = /** @type {HTMLButtonElement | null} */ (
-    row.querySelector(".connected-user-report")
-  );
-  if (report) {
-    const currentIdentityUser = isCurrentIdentityUser(
-      Tools,
-      Tools.presence.users,
-      user,
-    );
-    const reportLabel = user.reported
-      ? Tools.i18n.t(user.reportBanned ? "ban_applied" : "report_sent")
-      : getReportActionLabel(Tools, user.name);
-    report.textContent = user.reported
-      ? getReportSentGlyph()
-      : getReportActionGlyph();
-    report.title = reportLabel;
-    report.setAttribute("aria-label", reportLabel);
-    report.hidden = user.reported
-      ? false
-      : Tools.access.canReport === false ||
-        currentIdentityUser ||
-        user.canBan === true ||
-        !!user.disconnectedAt;
-    report.disabled =
-      currentIdentityUser || !!user.reported || !!user.reportPending;
-    report.classList.toggle("connected-user-report-latched", !!user.reported);
-  }
+  const reportLabel = user.reported
+    ? Tools.i18n.t(user.reportBanned ? "ban_applied" : "report_sent")
+    : getReportActionLabel(Tools, user.name);
+  report.textContent = user.reported
+    ? getReportSentGlyph()
+    : getReportActionGlyph();
+  report.title = reportLabel;
+  report.setAttribute("aria-label", reportLabel);
+  report.hidden = user.reported
+    ? false
+    : Tools.access.canReport === false ||
+      currentIdentityUser ||
+      user.canBan === true ||
+      !!user.disconnectedAt;
+  report.disabled =
+    currentIdentityUser || !!user.reported || !!user.reportPending;
+  report.classList.toggle("connected-user-report-latched", !!user.reported);
 }
 
 /**
@@ -995,17 +952,16 @@ function showConnectedUserManagementDialog(Tools, presence, user) {
 
 /**
  * @param {() => AppToolsState} getTools
- * @param {ConnectedUser} user
  * @param {PresenceModule} presence
  * @returns {ConnectedUserRow}
  */
-function createConnectedUserRow(getTools, user, presence) {
-  const row = /** @type {ConnectedUserRow} */ (document.createElement("li"));
+function createConnectedUserRow(getTools, presence) {
+  const row = document.createElement("li");
   row.className = "connected-user-row";
 
   const visual = document.createElement("span");
   visual.className = "connected-user-visual";
-  const { badge: toolBadge } = createToolIconBadge(
+  const { badge: toolBadge, icon: toolIcon } = createToolIconBadge(
     "connected-user-toolBadge",
     "connected-user-toolIcon",
   );
@@ -1053,6 +1009,8 @@ function createConnectedUserRow(getTools, user, presence) {
 
   const meta = document.createElement("span");
   meta.className = "connected-user-meta";
+  const joinedTime = document.createElement("span");
+  joinedTime.className = "connected-user-time";
   link.appendChild(meta);
 
   main.appendChild(link);
@@ -1095,7 +1053,7 @@ function createConnectedUserRow(getTools, user, presence) {
       connectedUser.reportPending = false;
       connectedUser.reportBanned =
         typeof banDurationMs === "number" && banDurationMs > 0;
-      updateConnectedUserRow(getTools, row, connectedUser);
+      updateConnectedUserRow(getTools(), view, connectedUser);
       /** @type {import("../../types/app-runtime").ReportUserPayload} */
       const payload =
         banDurationMs !== undefined && moderationRule !== undefined
@@ -1105,7 +1063,7 @@ function createConnectedUserRow(getTools, user, presence) {
     };
     if (Tools.access.canBan === true) {
       connectedUser.reportPending = true;
-      updateConnectedUserRow(getTools, row, connectedUser);
+      updateConnectedUserRow(getTools(), view, connectedUser);
       void Tools.ui
         .showActionDialog({
           title: Tools.i18n.format("moderation_action_title", {
@@ -1151,7 +1109,7 @@ function createConnectedUserRow(getTools, user, presence) {
             return;
           }
           connectedUser.reportPending = false;
-          updateConnectedUserRow(getTools, row, connectedUser);
+          updateConnectedUserRow(getTools(), view, connectedUser);
         });
       return;
     }
@@ -1160,8 +1118,19 @@ function createConnectedUserRow(getTools, user, presence) {
   actions.appendChild(report);
   row.appendChild(actions);
 
-  updateConnectedUserRow(getTools, row, user);
-  return row;
+  const view = {
+    element: row,
+    link,
+    toolIcon,
+    toolBadge,
+    name: nameText,
+    friend,
+    friendGlyph,
+    meta,
+    joinedTime,
+    report,
+  };
+  return view;
 }
 
 /**
