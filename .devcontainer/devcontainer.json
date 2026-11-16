@@ -6,10 +6,9 @@
   },
   "remoteUser": "node",
   "containerEnv": {
-    "PLAYWRIGHT_BROWSERS_PATH": "/ms-playwright",
-    "WBO_SILENT": "true"
+    "PLAYWRIGHT_BROWSERS_PATH": "/ms-playwright"
   },
-  "forwardPorts": [5001],
+  "forwardPorts": [8080],
   "portsAttributes": {
     "5001": {
       "label": "WBO dev server",
