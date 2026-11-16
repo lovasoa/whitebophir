@@ -2,7 +2,6 @@ import { TOOL_BY_ID } from "../manifest.js";
 import {
   createShapeToolBoot,
   makeLineShapeUpdateMessage,
-  makeSeedShapeCreateMessage,
 } from "../shape_tool.js";
 
 export {
@@ -32,9 +31,6 @@ const config = {
   definition,
   secondary,
   uidPrefix: "s",
-  isShapeElement: (element) =>
-    String(element?.tagName).toLowerCase() === definition.storedTagName,
-  makeCreateMessage: makeSeedShapeCreateMessage,
   constrainEndPosition: (state, x, y) => {
     const start = state.currentShape;
     if (!start) return;
@@ -49,19 +45,7 @@ const config = {
     state.endX = x;
     state.endY = y;
   },
-  makeUpdateMessage: (state, x, y) => {
-    const start = state.currentShape;
-    return start
-      ? makeLineShapeUpdateMessage(definition.id, start.id, x, y)
-      : null;
-  },
-  makeFallbackShape: (data) => ({
-    id: data.id,
-    x: data.x2,
-    y: data.y2,
-    x2: data.x2,
-    y2: data.y2,
-  }),
+  makeUpdateMessage: makeLineShapeUpdateMessage,
   applyShapeGeometry: (shape, data) => {
     const line = /** @type {SVGLineElement} */ (shape);
     if (typeof data.x === "number" && typeof data.y === "number") {

@@ -23,7 +23,6 @@ const {
   readPencilPath,
 } = require("../client-data/tools/pencil/pencil_geometry.js");
 const RectangleTool = require("../client-data/tools/rectangle/index.js");
-const ShapeTool = require("../client-data/tools/shape_tool.js");
 installTestConsole();
 const { MutationType } = MessageToolMetadata;
 /** @typedef {import("../types/app-runtime").ToolModule} ToolModule */
@@ -2091,36 +2090,20 @@ equalSpanToolCases.forEach(([toolName, id]) => {
   });
 });
 
-test("Rectangle move logic separates throttled local draw from forced send", () => {
-  const tools = createInputTools();
-  const state = RectangleTool.boot(
-    createToolBootContext(
-      createInputToolRuntime(tools),
-      (assetFile) => assetFile,
-    ),
-  );
-  state.lastTime = 0;
-  state.currentShape = ShapeTool.createShapePressEffect(state, 80, 20).message;
+test("Rectangle move logic separates throttled local draw from forced send", async () => {
+  const harness = createHarness();
+  const tool = await harness.loadTool("rectangle");
+  dispatchToolEvent(tool.listeners.press, 80, 20);
+  harness.clock.now = 10;
+  dispatchToolEvent(tool.listeners.move, 120, 90);
+  assert.equal(globalAny.Tools.sentMessages.length, 1);
+  const rect = harness.elementsById.get("r-1");
+  assert.equal(rect.width.baseVal.value, 40);
+  assert.equal(rect.height.baseVal.value, 70);
 
-  const throttled = ShapeTool.createShapeMoveEffect(
-    state,
-    120,
-    90,
-    undefined,
-    false,
-    10,
-  );
-  const forced = ShapeTool.createShapeMoveEffect(
-    state,
-    120,
-    90,
-    undefined,
-    true,
-    10,
-  );
-
-  assert.equal(throttled.shouldSend, false);
-  assert.deepEqual(throttled.update, {
+  dispatchToolEvent(tool.listeners.release, 120, 90);
+  assert.equal(globalAny.Tools.sentMessages.length, 2);
+  assert.deepEqual(globalAny.Tools.sentMessages[1].data, {
     tool: TOOL_CODE_BY_ID.rectangle,
     type: MutationType.UPDATE,
     id: "r-1",
@@ -2129,8 +2112,6 @@ test("Rectangle move logic separates throttled local draw from forced send", () 
     x2: 120,
     y2: 90,
   });
-  assert.equal(forced.shouldSend, true);
-  assert.equal(forced.nextLastTime, 10);
 });
 
 test("Rectangle update recreates a missing shape before applying bounds", async () => {
