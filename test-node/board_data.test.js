@@ -552,6 +552,7 @@ test("finalizePersistedItems leaves newer canonical revisions dirty", () => {
   );
 
   const persistedSnapshot = new Map(board.itemsById);
+  const originalSnapshot = structuredClone(persistedSnapshot);
 
   assert.equal(
     board.processMessage(textUpdate("text-1", "after save started")).ok,
@@ -573,6 +574,7 @@ test("finalizePersistedItems leaves newer canonical revisions dirty", () => {
     time: board.get("text-1").time,
   });
   assert.equal(board.itemsById.get("text-1")?.dirty, true);
+  assert.deepEqual(persistedSnapshot, originalSnapshot);
 });
 
 test("BoardData keeps text content length separate from geometry admission", () => {
@@ -727,7 +729,7 @@ test("BoardData copies retain their persisted source without hydrating text", as
   await withBoardHistoryDir(
     "wbo-copy-source-membership-",
     async ({ historyDir }) => {
-      const { board } = await withLoadedBoard({
+      const { board, svgPath } = await withLoadedBoard({
         historyDir,
         boardName: "copy-source-membership",
         storedSvg: buildStoredSvg({
@@ -743,6 +745,26 @@ test("BoardData copies retain their persisted source without hydrating text", as
         sourceId: "text-1",
       });
       assert.equal(copied.payload.modifiedText, undefined);
+
+      assert.equal(
+        board.processMessage(textUpdate("text-2", "edited")).ok,
+        true,
+      );
+      assert.equal((await board.save()).status, "saved");
+      assert.equal(board.get("text-2").txt, undefined);
+      assert.equal(board.get("text-2").textLength, 6);
+      assert.equal(board.processMessage(handCopy("text-2", "text-3")).ok, true);
+      assert.equal(
+        board.processMessage(
+          handUpdate("text-3", { a: 1, b: 0, c: 0, d: 1, e: 20, f: 30 }),
+        ).ok,
+        true,
+      );
+      assert.equal((await board.save()).status, "saved");
+      const savedSvg = await fs.readFile(svgPath, "utf8");
+      assert.match(savedSvg, /<text [^>]*id="text-1"[^>]*>hello<\/text>/);
+      assert.match(savedSvg, /<text [^>]*id="text-2"[^>]*>edited<\/text>/);
+      assert.match(savedSvg, /<text [^>]*id="text-3"[^>]*>edited<\/text>/);
     },
   );
 });

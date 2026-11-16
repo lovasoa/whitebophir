@@ -16,7 +16,6 @@ import { getCanonicalItem, removeCanonicalItem } from "./canonical_index.mjs";
 import {
   canonicalItemFromItem,
   cloneBounds,
-  cloneCanonicalItem,
   copyCanonicalItem,
   currentText,
   effectiveChildCount,
@@ -182,22 +181,31 @@ function prepareUpdate(state, current, message) {
   ) {
     return { ok: false, reason: "shape too large" };
   }
-  const item = transformOnly
-    ? { ...current, attrs: { ...current.attrs } }
-    : cloneCanonicalItem(current);
+  const time = Date.now();
+  /** @type {CanonicalBoardItem} */
+  const item = {
+    ...current,
+    attrs: { ...current.attrs, time },
+    bounds,
+    dirty: true,
+    time,
+  };
   for (const key of keys) {
-    if (update[key] === undefined) continue;
-    if (key === "transform") item.transform = structuredClone(update[key]);
-    else item.attrs[key] = update[key];
+    const value = update[key];
+    if (value === undefined) continue;
+    if (key === "transform")
+      item.transform = structuredClone(
+        /** @type {CanonicalBoardItem["transform"]} */ (value),
+      );
+    else if (
+      key === "txt" &&
+      item.payload.kind === "text" &&
+      typeof value === "string"
+    ) {
+      item.payload = { kind: "text", modifiedText: value };
+      item.textLength = value.length;
+    } else item.attrs[key] = value;
   }
-  if (item.payload.kind === "text" && typeof update.txt === "string") {
-    item.payload.modifiedText = update.txt;
-    item.textLength = update.txt.length;
-  }
-  item.bounds = cloneBounds(bounds);
-  item.dirty = true;
-  item.time = Date.now();
-  item.attrs.time = item.time;
   return { ok: true, id: current.id, item };
 }
 
