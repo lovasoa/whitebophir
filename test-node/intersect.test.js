@@ -1,9 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const {
-  pointInTransformedBBox,
-  transformedBBox,
-} = require("../client-data/js/intersect.js");
+const { transformedBBox } = require("../client-data/js/intersect.js");
 const {
   installBrowserHarnessForTest,
 } = require("./helpers/browser_harness.js");
@@ -24,8 +21,6 @@ test("selected SVG bounds apply the matrix without changing its transform list",
   const bounds = transformedBBox(element);
 
   assert.deepEqual(bounds, { r: [40, 70], a: [0, 60], b: [-120, 0] });
-  assert.equal(pointInTransformedBBox([-20, 100], bounds), true);
-  assert.equal(pointInTransformedBBox([41, 100], bounds), false);
   assert.equal(element.transform.baseVal, transforms);
   assert.deepEqual(matrix, { a: 0, b: 2, c: -3, d: 0, e: 100, f: 50 });
 });

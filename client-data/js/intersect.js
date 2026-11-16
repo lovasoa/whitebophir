@@ -59,17 +59,3 @@ export function transformedBBox(element) {
     b: [matrix.c * bbox.height, matrix.d * bbox.height],
   };
 }
-
-/**
- * @param {Point2D} point
- * @param {TransformedBBox} box
- * @returns {boolean}
- */
-export function pointInTransformedBBox([x, y], { r, a, b }) {
-  const dx = x - r[0];
-  const dy = y - r[1];
-  const determinant = a[0] * b[1] - a[1] * b[0];
-  const c1 = (dx * b[1] - dy * b[0]) / determinant;
-  const c2 = (dy * a[0] - dx * a[1]) / determinant;
-  return c1 >= 0 && c1 <= 1 && c2 >= 0 && c2 <= 1;
-}
