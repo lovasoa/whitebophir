@@ -543,9 +543,6 @@ export type OptimisticJournalEntry = {
 };
 
 export type OptimisticJournalEntryInput = {
-  readonly affectedIds: OptimisticItemIdSet;
-  readonly dependsOn: OptimisticMutationIdSet;
-  readonly dependencyItemIds?: OptimisticItemIdSet;
   readonly rollback: OptimisticRollback;
   readonly message: ClientTrackedMessage;
 };
@@ -553,10 +550,7 @@ export type OptimisticJournalEntryInput = {
 export type OptimisticJournalState = {
   /** Takes ownership of entry.message and entry.rollback. Do not mutate them after append. */
   append: (entry: OptimisticJournalEntryInput) => OptimisticJournalEntry;
-  dependencyMutationIdsForItemIds: (
-    itemIds: OptimisticItemIdSet,
-  ) => OptimisticMutationIdSet;
-  promote: (clientMutationId: string) => OptimisticJournalEntry[];
+  promote: (clientMutationId: string) => void;
   reject: (clientMutationId: string) => OptimisticJournalEntry[];
   rejectByInvalidatedIds: (
     invalidatedIds: readonly string[],

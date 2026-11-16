@@ -156,7 +156,7 @@ export class ReplayModule {
     for (const [index, message] of children.entries()) {
       const own = sequenced && message.socket === Tools.connection.socket?.id;
       if (own && message.clientMutationId) {
-        Tools.optimistic.promoteMutation(message.clientMutationId);
+        Tools.optimistic.journal.promote(message.clientMutationId);
         Tools.writes.resolveBufferedWrite(message.clientMutationId);
       }
       if (sequenced && !own)

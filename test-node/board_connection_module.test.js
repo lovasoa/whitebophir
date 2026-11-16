@@ -317,7 +317,10 @@ test("drawing does not delay broadcast sequence or acknowledgements", async (t) 
     dom: { status: "attached", drawingArea: { childElementCount: 32768 } },
     connection: { generation: 0, socket: { id: "local" } },
     interaction: { isOwnCursorSuppressed: () => drawing },
-    optimistic: { promoteMutation: noop, pruneForAuthoritativeMessage: noop },
+    optimistic: {
+      journal: { promote: noop },
+      pruneForAuthoritativeMessage: noop,
+    },
     writes: {
       resolveBufferedWrite: /** @param {string} id */ (id) =>
         acknowledged.push(id),

@@ -1,7 +1,7 @@
 import { MutationType } from "./message_tool_metadata.js";
 
-/** @import { BoardMessage, ToolMessageFields, ToolOwnedChildMessage } from "../../types/app-runtime" */
-/** @typedef {BoardMessage | (ToolOwnedChildMessage & ToolMessageFields)} OptimisticMessage */
+/** @import { BoardMessage, ToolOwnedChildMessage } from "../../types/app-runtime" */
+/** @typedef {BoardMessage | ToolOwnedChildMessage} OptimisticMessage */
 
 /**
  * @param {Set<string>} ids
@@ -11,10 +11,7 @@ import { MutationType } from "./message_tool_metadata.js";
 function addOptimisticAffectedIds(ids, message) {
   if ("_children" in message) {
     for (const child of message._children) {
-      addOptimisticAffectedIds(ids, {
-        ...child,
-        tool: message.tool,
-      });
+      addOptimisticAffectedIds(ids, child);
     }
     return;
   }
@@ -40,10 +37,7 @@ function addOptimisticAffectedIds(ids, message) {
 function addOptimisticDependencyIds(ids, message) {
   if ("_children" in message) {
     for (const child of message._children) {
-      addOptimisticDependencyIds(ids, {
-        ...child,
-        tool: message.tool,
-      });
+      addOptimisticDependencyIds(ids, child);
     }
     return;
   }

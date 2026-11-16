@@ -1,20 +1,10 @@
+import {
+  collectOptimisticAffectedIds,
+  collectOptimisticDependencyIds,
+} from "./optimistic_mutation.js";
+
 /** @typedef {import("../../types/app-runtime").OptimisticJournalEntry} OptimisticJournalEntry */
 /** @typedef {import("../../types/app-runtime").OptimisticJournalEntryInput} OptimisticJournalEntryInput */
-
-/**
- * @param {OptimisticJournalEntryInput} entry
- * @returns {OptimisticJournalEntry}
- */
-function createEntry(entry) {
-  return {
-    clientMutationId: entry.message.clientMutationId,
-    affectedIds: new Set(entry.affectedIds),
-    dependsOn: new Set(entry.dependsOn),
-    dependencyItemIds: new Set(entry.dependencyItemIds ?? []),
-    rollback: entry.rollback,
-    message: entry.message,
-  };
-}
 
 export function createOptimisticJournal() {
   /** @type {Map<string, OptimisticJournalEntry>} */
@@ -108,7 +98,20 @@ export function createOptimisticJournal() {
      * @returns {OptimisticJournalEntry}
      */
     append(entry) {
-      const nextEntry = createEntry(entry);
+      const dependencyItemIds = collectOptimisticDependencyIds(entry.message);
+      const dependsOn = new Set();
+      for (const itemId of dependencyItemIds) {
+        const id = latestMutationIdByItemId.get(itemId);
+        if (id !== undefined) dependsOn.add(id);
+      }
+      const nextEntry = {
+        message: entry.message,
+        rollback: entry.rollback,
+        clientMutationId: entry.message.clientMutationId,
+        affectedIds: collectOptimisticAffectedIds(entry.message),
+        dependencyItemIds,
+        dependsOn,
+      };
       const existing = entries.get(nextEntry.clientMutationId);
       if (existing) removeEntry(existing);
       entries.set(nextEntry.clientMutationId, nextEntry);
@@ -117,11 +120,11 @@ export function createOptimisticJournal() {
     },
     /**
      * @param {string} clientMutationId
-     * @returns {OptimisticJournalEntry[]}
+     * @returns {void}
      */
     promote(clientMutationId) {
       const entry = entries.get(clientMutationId);
-      return entry ? [removeEntry(entry)] : [];
+      if (entry) removeEntry(entry);
     },
     /**
      * @param {string} clientMutationId
@@ -159,20 +162,6 @@ export function createOptimisticJournal() {
       }
       expandRejectedIds(rejectedIds);
       return removeEntries(rejectedIds);
-    },
-    /**
-     * @param {ReadonlySet<string>} itemIds
-     * @returns {Set<string>}
-     */
-    dependencyMutationIdsForItemIds(itemIds) {
-      const dependencyMutationIds = new Set();
-      for (const itemId of itemIds) {
-        const clientMutationId = latestMutationIdByItemId.get(itemId);
-        if (clientMutationId !== undefined) {
-          dependencyMutationIds.add(clientMutationId);
-        }
-      }
-      return dependencyMutationIds;
     },
     reset() {
       const pending = list();

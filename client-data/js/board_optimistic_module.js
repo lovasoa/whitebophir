@@ -2,10 +2,7 @@ import { TOOL_ID_BY_CODE } from "../tools/tool-order.js";
 import { optimisticPrunePlanForAuthoritativeMessage } from "./authoritative_mutation_effects.js";
 import { getMutationType, MutationType } from "./message_tool_metadata.js";
 import { createOptimisticJournal } from "./optimistic_journal.js";
-import {
-  collectOptimisticAffectedIds,
-  collectOptimisticDependencyIds,
-} from "./optimistic_mutation.js";
+import { collectOptimisticAffectedIds } from "./optimistic_mutation.js";
 
 /** @import { AppToolsState, BoardMessage, ClientTrackedMessage, LiveBoardMessage, OptimisticJournalEntry, OptimisticRollback } from "../../types/app-runtime" */
 
@@ -58,25 +55,12 @@ export class OptimisticModule {
     };
   }
 
-  /** @param {LiveBoardMessage} message */
-  collectDependencyMutationIds(message) {
-    return this.journal.dependencyMutationIdsForItemIds(
-      collectOptimisticDependencyIds(message),
-    );
-  }
-
   /**
    * @param {ClientTrackedMessage} message
    * @param {OptimisticRollback} rollback
    */
   trackMutation(message, rollback) {
-    this.journal.append({
-      affectedIds: collectOptimisticAffectedIds(message),
-      dependsOn: this.collectDependencyMutationIds(message),
-      dependencyItemIds: collectOptimisticDependencyIds(message),
-      rollback,
-      message,
-    });
+    this.journal.append({ rollback, message });
   }
 
   /** @param {OptimisticJournalEntry[]} rejected */
@@ -129,11 +113,6 @@ export class OptimisticModule {
         dom.drawingArea.insertAdjacentHTML("beforeend", snapshot.outerHTML);
       }
     });
-  }
-
-  /** @param {string} clientMutationId */
-  promoteMutation(clientMutationId) {
-    if (this.journal.promote(clientMutationId).length === 0) return;
   }
 
   /**
