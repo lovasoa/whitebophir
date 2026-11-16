@@ -44,7 +44,6 @@ import {
 import packageJson from "../../package.json" with { type: "json" };
 import {
   createLogRecord,
-  formatReadableLogRecord,
   LogfmtLogRecordExporter,
   parseObservabilityOptions,
   shouldEmitLogAtLevel,
@@ -884,41 +883,11 @@ async function flushObservability() {
 }
 
 const logger = {
-  /**
-   * @param {"debug"|"info"|"warn"|"error"} level
-   * @returns {boolean}
-   */
-  isEnabled: function isEnabled(level) {
-    return shouldEmitLog(level);
-  },
-  /**
-   * @param {string} name
-   * @param {{msg?: string, error?: unknown, [key: string]: unknown}=} fields
-   */
-  debug: function debug(name, fields) {
-    emitLog("debug", name, fields);
-  },
-  /**
-   * @param {string} name
-   * @param {{msg?: string, error?: unknown, [key: string]: unknown}=} fields
-   */
-  info: function info(name, fields) {
-    emitLog("info", name, fields);
-  },
-  /**
-   * @param {string} name
-   * @param {{msg?: string, error?: unknown, [key: string]: unknown}=} fields
-   */
-  warn: function warn(name, fields) {
-    emitLog("warn", name, fields);
-  },
-  /**
-   * @param {string} name
-   * @param {{msg?: string, error?: unknown, [key: string]: unknown}=} fields
-   */
-  error: function error(name, fields) {
-    emitLog("error", name, fields);
-  },
+  isEnabled: shouldEmitLog,
+  debug: emitLog.bind(undefined, "debug"),
+  info: emitLog.bind(undefined, "info"),
+  warn: emitLog.bind(undefined, "warn"),
+  error: emitLog.bind(undefined, "error"),
 };
 
 const observabilityMetrics = {
@@ -954,21 +923,8 @@ const tracing = {
   SpanStatusCode,
 };
 
-const __test = {
-  createLogRecord,
-  parseObservabilityOptions,
-  shouldEmitLog,
-  shouldEmitLogAtLevel,
-  tracingEnabled: function tracingEnabledForTest() {
-    return tracingEnabled;
-  },
-};
-
 const observability = {
-  LogfmtLogRecordExporter,
-  __test,
   createRequestId,
-  formatReadableLogRecord,
   logger,
   metrics: observabilityMetrics,
   shutdownObservability,
@@ -976,13 +932,9 @@ const observability = {
 };
 
 export {
-  __test,
   createRequestId,
-  formatReadableLogRecord,
-  LogfmtLogRecordExporter,
   logger,
   observabilityMetrics as metrics,
-  parseObservabilityOptions,
   shutdownObservability,
   tracing,
 };
