@@ -485,7 +485,6 @@ export type AppSocket = {
   };
   connect: () => void;
   disconnect?: () => void;
-  destroy?: () => void;
   once: (eventName: string, handler: (...args: unknown[]) => void) => void;
   io?: { engine?: { close: () => void }; opts?: { query?: string } };
 };

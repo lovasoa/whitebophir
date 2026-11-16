@@ -1,6 +1,5 @@
 import { TOOL_ID_BY_CODE } from "../tools/tool-order.js";
 import { getContentMessageBounds } from "./board_extent.js";
-import { queuePendingMessage } from "./board_transport.js";
 import { getMutationType, MutationType } from "./message_tool_metadata.js";
 
 /** @import { AppIdentityModule, BoardMessage, ViewportController } from "../../types/app-runtime" */
@@ -53,7 +52,8 @@ export class MessageModule {
     if (tool) {
       tool.draw(message, false);
     } else {
-      queuePendingMessage(this.#toolRegistry.pendingMessages, name, message);
+      this.#toolRegistry.pendingMessages[name] ??= [];
+      this.#toolRegistry.pendingMessages[name].push(message);
       await this.#toolRegistry.bootTool(name);
     }
   }

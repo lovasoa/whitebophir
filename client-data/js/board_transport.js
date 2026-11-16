@@ -1,4 +1,4 @@
-/** @import { BoardMessage, PendingMessages, SocketHeaders, SocketParams } from "../../types/app-runtime" */
+/** @import { SocketHeaders, SocketParams } from "../../types/app-runtime" */
 /** @typedef {{[name: string]: string}} SocketQueryParams */
 
 /**
@@ -52,31 +52,4 @@ export function buildSocketParams(
   const queryString = query.toString();
   if (queryString) socketParams.query = queryString;
   return socketParams;
-}
-
-/**
- * @param {unknown} socket
- * @returns {void}
- */
-export function closeSocket(socket) {
-  if (!socket || typeof socket !== "object") return;
-  if ("disconnect" in socket && typeof socket.disconnect === "function") {
-    socket.disconnect();
-    return;
-  }
-  if ("destroy" in socket && typeof socket.destroy === "function") {
-    socket.destroy();
-  }
-}
-
-/**
- * @param {PendingMessages} pendingMessages
- * @param {string} toolName
- * @param {BoardMessage} message
- * @returns {void}
- */
-export function queuePendingMessage(pendingMessages, toolName, message) {
-  const toolMessages = pendingMessages[toolName];
-  if (toolMessages) toolMessages.push(message);
-  else pendingMessages[toolName] = [message];
 }
