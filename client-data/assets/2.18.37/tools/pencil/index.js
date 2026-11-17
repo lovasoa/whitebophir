@@ -1,0 +1,1197 @@
+/**
+ *                        WHITEBOPHIR
+ *********************************************************
+ * @licstart  The following is the entire license notice for the
+ *  JavaScript code in this page.
+ *
+ * Copyright (C) 2013  Ophir LOJKINE
+ *
+ *
+ * The JavaScript code in this page is free software: you can
+ * redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GNU GPL) as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option)
+ * any later version.  The code is distributed WITHOUT ANY WARRANTY;
+ * without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE.  See the GNU GPL for more details.
+ *
+ * As additional permission under GNU GPL version 3 section 7, you
+ * may distribute non-source (e.g., minimized or compacted) forms of
+ * that code without the copy of the GNU GPL normally required by
+ * section 4, provided you include this license notice and a URL
+ * through which recipients can access the Corresponding Source.
+ *
+ * @licend
+ */
+
+import { beginDrawingPerformance } from "../../js/drawing_performance.js";
+import { logFrontendEvent } from "../../js/frontend_logging.js";
+import { LIMITS } from "../../js/message_common.js";
+import {
+  getMutationType,
+  MutationType,
+} from "../../js/message_tool_metadata.js";
+import { collectOptimisticDependencyIds } from "../../js/optimistic_mutation.js";
+import { PencilContract } from "../contracts.js";
+import { TOOL_CODE_BY_ID } from "../tool-order.js";
+import { wboPencilPoint } from "./wbo_pencil_point.js";
+
+/** @import { BoardMessage, ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
+/** @typedef {Omit<ReturnType<typeof createLineMessage>, "opacity"> & {opacity?: number}} PencilCreateMessage */
+/** @typedef {ReturnType<typeof createPointMessage>} PencilAppendMessage */
+/** @typedef {PencilCreateMessage | PencilAppendMessage} PencilMessage */
+/** @typedef {{type: number, id: string, color?: string, size?: number, opacity?: number}} PencilLineData */
+
+/**
+ * @param {unknown} data
+ * @returns {data is PencilMessage}
+ */
+function isPencilMessage(data) {
+  if (!data || typeof data !== "object") return false;
+  const message = /** @type {Partial<PencilMessage>} */ (data);
+  if (message.tool !== toolCode) return false;
+  if (message.type === MutationType.CREATE) {
+    return (
+      typeof message.id === "string" &&
+      typeof message.color === "string" &&
+      typeof message.size === "number"
+    );
+  }
+  return (
+    message.type === MutationType.APPEND &&
+    typeof message.parent === "string" &&
+    typeof message.x === "number" &&
+    typeof message.y === "number"
+  );
+}
+
+export const toolId = "pencil";
+const toolCode = TOOL_CODE_BY_ID[toolId];
+export const drawsOnBoard = true;
+
+const contract = PencilContract;
+
+export { contract };
+export const shortcut = "p";
+export const serverRenderedElementSelector = "path";
+const LIVE_OVERLAY_CLASS = "wbo-pencil-live-overlay";
+const LIVE_OVERLAY_ACTIVE_CLASS = "wbo-pencil-live-overlay-active";
+const LIVE_PATH_CLASS = "wbo-pencil-live-path";
+// The supported wire protocol has no stroke-end event. Idle remote ink is
+// materialized between gestures; active local input keeps it in the light layer.
+const REMOTE_INK_IDLE_MS = 250;
+/** @typedef {{type: string, values: number[]}} PencilPathSegment */
+/** @typedef {PencilPathSegment[]} PencilPathData */
+/** @typedef {{line: SVGPathElement, overlay: SVGPathElement, visibility: string, dirty: boolean, detached: boolean, updated: number}} RemoteInk */
+/** @typedef {{name: string, icon: string, active: boolean, switch?: () => void}} PencilSecondary */
+/** @typedef {ReturnType<typeof createInitialState>} PencilState */
+/** @typedef {{lineId: string, createMessage: PencilCreateMessage}} PencilPressEffect */
+/** @typedef {{appendMessage: PencilAppendMessage | null, stopBefore: boolean, stopAfter: boolean, nextLastTime: number, nextHasSentPoint: boolean, nextChildCount: number}} PencilMoveEffect */
+
+/**
+ * Renders the in-progress local pencil stroke outside `#drawingArea`.
+ *
+ * The dense board SVG is expensive to restyle, paint, and commit while a user
+ * is drawing. This overlay is the only DOM that should receive per-point
+ * updates for active local strokes; the canonical board path is written once
+ * when the stroke ends.
+ */
+class PencilLiveOverlay {
+  /**
+   * @param {ToolRuntimeModules["board"]} board
+   * @param {ToolRuntimeModules["viewport"]} viewport
+   */
+  constructor(board, viewport) {
+    this.board = board;
+    this.viewport = viewport;
+    this.overlay = /** @type {SVGSVGElement | null} */ (null);
+    this.path = /** @type {SVGPathElement | null} */ (null);
+    this.pathData = /** @type {PencilPathData | null} */ (null);
+    this.lineData = /** @type {PencilLineData | null} */ (null);
+    this.animationFrame = 0;
+    this.active = false;
+    this.measurement =
+      /** @type {ReturnType<typeof beginDrawingPerformance>} */ (null);
+    this.refreshGeometry = () => this.syncGeometry();
+  }
+
+  /** Lazily creates the overlay SVG used for active local stroke feedback. */
+  ensureOverlay() {
+    if (this.overlay && this.path) return;
+    const namespace = this.board.svg.namespaceURI;
+    const overlay = /** @type {SVGSVGElement} */ (
+      document.createElementNS(namespace, "svg")
+    );
+    overlay.setAttribute("class", LIVE_OVERLAY_CLASS);
+    overlay.setAttribute("aria-hidden", "true");
+    const path = /** @type {SVGPathElement} */ (
+      document.createElementNS(namespace, "path")
+    );
+    path.setAttribute("class", LIVE_PATH_CLASS);
+    overlay.appendChild(path);
+    this.board.board.appendChild(overlay);
+    this.overlay = overlay;
+    this.path = path;
+  }
+
+  /**
+   * Enables the overlay as Pencil's input surface while the tool is selected.
+   *
+   * The SVG uses `pointer-events: bounding-box` in CSS so empty board space
+   * targets this small overlay instead of forcing hit-testing through the dense
+   * persisted SVG. Events still bubble to `#board`, where tools already listen.
+   */
+  activate() {
+    this.ensureOverlay();
+    const wasActive = this.active;
+    this.active = true;
+    this.overlay?.classList.add(LIVE_OVERLAY_ACTIVE_CLASS);
+    this.syncGeometry();
+    if (!wasActive) {
+      window.addEventListener("resize", this.refreshGeometry, {
+        passive: true,
+      });
+    }
+  }
+
+  /** Disables Pencil's input surface when another tool owns the board. */
+  deactivate() {
+    this.clear();
+    this.active = false;
+    this.overlay?.classList.remove(LIVE_OVERLAY_ACTIVE_CLASS);
+    window.removeEventListener("resize", this.refreshGeometry);
+  }
+
+  /**
+   * Keeps the overlay sized like the board without doing that work on the first
+   * stroke point. Width/height writes can trigger style work, so they belong to
+   * tool activation and resize, not pointer-down.
+   */
+  syncGeometry() {
+    if (!this.overlay) return;
+    syncOverlayGeometry(this.overlay, this.board.svg, this.viewport);
+  }
+
+  /**
+   * Queues one visual overlay update. Multiple local points can arrive before
+   * RAF; only the latest path data needs to be painted.
+   * @param {PencilLineData} lineData
+   * @param {PencilPathData | null} pathData
+   */
+  draw(lineData, pathData = null) {
+    if (!this.active) this.activate();
+    // Style belongs to the stroke, not each point. Rewriting identical SVG
+    // attributes also wakes any deployment's DOM observers on every flush.
+    if (this.lineData !== lineData && this.path)
+      copyOverlayStrokeAttributes(this.path, lineData);
+    this.lineData = lineData;
+    this.pathData = pathData;
+    if (this.animationFrame !== 0) return;
+    this.animationFrame = window.requestAnimationFrame(() => {
+      this.animationFrame = 0;
+      this.flush();
+    });
+  }
+
+  /** Applies the latest active local stroke data to the overlay only. */
+  flush() {
+    if (!this.overlay || !this.path || !this.lineData) return;
+    syncOverlayTransform(this.overlay, this.viewport);
+    if (this.pathData) {
+      this.path.setPathData(this.pathData);
+      this.measurement?.geometry(true);
+    }
+  }
+
+  /** Clears the active stroke while keeping Pencil's input surface installed. */
+  clear() {
+    this.pathData = null;
+    this.lineData = null;
+    if (this.animationFrame !== 0) {
+      window.cancelAnimationFrame(this.animationFrame);
+      this.animationFrame = 0;
+    }
+    this.path?.setPathData([]);
+  }
+}
+
+/**
+ * Copies pencil stroke style into the overlay path without reading from a board
+ * SVG element. Active local strokes may not have one yet.
+ * @param {SVGPathElement} target
+ * @param {PencilLineData} source
+ */
+function copyOverlayStrokeAttributes(target, source) {
+  target.setAttribute("fill", "none");
+  target.setAttribute("stroke-linecap", "round");
+  target.setAttribute("stroke-linejoin", "round");
+  target.setAttribute("stroke", source.color || "black");
+  target.setAttribute("stroke-width", String(source.size || 10));
+  if (typeof source.opacity === "number") {
+    target.setAttribute("opacity", String(source.opacity));
+  } else {
+    target.removeAttribute("opacity");
+  }
+}
+
+/**
+ * Mirrors the board SVG scale without reading scroll/layout state. Stroke
+ * flushes call this because zoom can change while Pencil remains selected.
+ * @param {SVGSVGElement} overlay
+ * @param {ToolRuntimeModules["viewport"]} viewport
+ */
+function syncOverlayTransform(overlay, viewport) {
+  const transform = `scale(${viewport.getScale()})`;
+  if (overlay.style.transform !== transform)
+    overlay.style.transform = transform;
+}
+
+/**
+ * Keeps the overlay in board coordinates and lets normal document scrolling
+ * move it with the board. Do not read `scrollLeft`/`scrollTop` here; that was
+ * the trace-visible forced layout trigger.
+ * @param {SVGSVGElement} overlay
+ * @param {SVGSVGElement} boardSvg
+ * @param {ToolRuntimeModules["viewport"]} viewport
+ */
+function syncOverlayGeometry(overlay, boardSvg, viewport) {
+  const width =
+    Number(boardSvg.width?.baseVal?.value) ||
+    Number(boardSvg.getAttribute("width"));
+  const height =
+    Number(boardSvg.height?.baseVal?.value) ||
+    Number(boardSvg.getAttribute("height"));
+  if (Number.isFinite(width) && width > 0) {
+    const textWidth = String(width);
+    if (overlay.getAttribute("width") !== textWidth) {
+      overlay.setAttribute("width", textWidth);
+    }
+    const cssWidth = `${width}px`;
+    if (overlay.style.width !== cssWidth) overlay.style.width = cssWidth;
+  }
+  if (Number.isFinite(height) && height > 0) {
+    const textHeight = String(height);
+    if (overlay.getAttribute("height") !== textHeight) {
+      overlay.setAttribute("height", textHeight);
+    }
+    const cssHeight = `${height}px`;
+    if (overlay.style.height !== cssHeight) overlay.style.height = cssHeight;
+  }
+  syncOverlayTransform(overlay, viewport);
+}
+
+/** @param {ToolBootContext} ctx */
+function createInitialState(ctx) {
+  const runtime = ctx.runtime;
+  const serverConfig = runtime.config.serverConfig;
+  const defaultMaxPencilChildren =
+    Number(LIMITS.DEFAULT_MAX_CHILDREN) > 0
+      ? Number(LIMITS.DEFAULT_MAX_CHILDREN)
+      : Number.POSITIVE_INFINITY;
+  return {
+    board: runtime.board,
+    coordinates: runtime.coordinates,
+    measurement: /** @type {ReturnType<typeof beginDrawingPerformance>} */ (
+      null
+    ),
+    viewport: runtime.viewport,
+    preferences: runtime.preferences,
+    writes: runtime.writes,
+    rateLimits: runtime.rateLimits,
+    runtimeConfig: runtime.config,
+    ids: runtime.ids,
+    interaction: runtime.interaction,
+    toolRegistry: runtime.toolRegistry,
+    AUTO_FINGER_WHITEOUT: serverConfig.AUTO_FINGER_WHITEOUT === true,
+    MAX_PENCIL_CHILDREN:
+      Number(serverConfig.MAX_CHILDREN) > 0
+        ? Number(serverConfig.MAX_CHILDREN)
+        : defaultMaxPencilChildren,
+    minPencilIntervalMs: computeMinPencilIntervalMs(runtime.rateLimits),
+    hasUsedStylus: false,
+    curLineId: "",
+    lastTime: performance.now(),
+    lastPointX: NaN,
+    lastPointY: NaN,
+    pendingX: NaN,
+    pendingY: NaN,
+    pointTimer: 0,
+    flushPendingPoint() {
+      this.pointTimer = 0;
+      move(this, this.pendingX, this.pendingY, undefined);
+    },
+    hasSentPoint: false,
+    currentLineChildCount: 0,
+    renderingLine: /** @type {SVGPathElement | null} */ (null),
+    activeLineData: /** @type {PencilLineData | null} */ (null),
+    activeInteractionLease: /** @type {{release: () => void} | null} */ (null),
+    liveOverlay: new PencilLiveOverlay(runtime.board, runtime.viewport),
+    pathDataCache: /** @type {Record<string, PencilPathData>} */ ({}),
+    // Older cached snapshot/replay owners need immediate canonical geometry.
+    deferRemoteInk: ctx.canDeferDraws === true,
+    remoteInk: /** @type {Map<string, RemoteInk>} */ (new Map()),
+    remoteFrame: 0,
+    remoteIdleTimer: 0,
+    rejectedLineDeletes: new Set(),
+    drawingSize: -1,
+    whiteOutSize: -1,
+    secondary: /** @type {PencilSecondary} */ ({
+      name: "White-out",
+      icon: "tools/pencil/whiteout_tape.svg",
+      active: false,
+    }),
+    mouseCursor: `url('${ctx.assetUrl("cursor.svg")}'), crosshair`,
+  };
+}
+
+/**
+ * @param {unknown} value
+ * @param {number} fallback
+ * @returns {number}
+ */
+function getPositiveNumber(value, fallback) {
+  const number = Number(value);
+  return number > 0 ? number : fallback;
+}
+
+/** @param {ToolRuntimeModules["rateLimits"]} rateLimits */
+function computeMinPencilIntervalMs(rateLimits) {
+  const generalLimit = rateLimits.getEffectiveRateLimit("general");
+  return (
+    getPositiveNumber(generalLimit.periodMs, 4096) /
+    getPositiveNumber(generalLimit.limit, 192)
+  );
+}
+
+/**
+ * @param {PencilState} state
+ * @param {number} x
+ * @param {number} y
+ */
+function createPointMessage(state, x, y) {
+  return {
+    tool: toolCode,
+    type: MutationType.APPEND,
+    parent: state.curLineId,
+    x,
+    y,
+  };
+}
+
+/** @param {string} lineId */
+function createDeleteLineMessage(lineId) {
+  return {
+    tool: TOOL_CODE_BY_ID.eraser,
+    type: MutationType.DELETE,
+    id: lineId,
+  };
+}
+
+/**
+ * @param {PencilState} state
+ * @param {string} lineId
+ */
+function createLineMessage(state, lineId) {
+  return {
+    tool: toolCode,
+    type: MutationType.CREATE,
+    id: lineId,
+    color: state.secondary.active ? "#ffffff" : state.preferences.getColor(),
+    size: state.preferences.getSize(),
+    opacity: state.secondary.active ? 1 : state.preferences.getOpacity(),
+  };
+}
+
+/**
+ * Builds the create message for a new stroke without touching DOM. Keeping
+ * this pure makes press behavior easy to unit-test separately from rendering.
+ * @param {PencilState} state
+ * @returns {PencilPressEffect}
+ */
+export function createPencilPressEffect(state) {
+  const lineId = state.ids.generateUID("l");
+  return {
+    lineId,
+    createMessage: createLineMessage(state, lineId),
+  };
+}
+
+/**
+ * Decides whether a pointer move should send a pencil point, throttle it, or
+ * end the current stroke because it reached the configured child limit.
+ * @param {PencilState} state
+ * @param {number} x
+ * @param {number} y
+ * @param {number} now
+ * @param {boolean} [force]
+ * @returns {PencilMoveEffect}
+ */
+export function createPencilMoveEffect(state, x, y, now, force = false) {
+  if (
+    state.curLineId !== "" &&
+    state.currentLineChildCount >= state.MAX_PENCIL_CHILDREN
+  ) {
+    return {
+      appendMessage: null,
+      stopBefore: true,
+      stopAfter: false,
+      nextLastTime: state.lastTime,
+      nextHasSentPoint: state.hasSentPoint,
+      nextChildCount: state.currentLineChildCount,
+    };
+  }
+  if (
+    state.curLineId === "" ||
+    (state.hasSentPoint &&
+      ((x === state.lastPointX && y === state.lastPointY) ||
+        (!force && now - state.lastTime <= state.minPencilIntervalMs)))
+  ) {
+    return {
+      appendMessage: null,
+      stopBefore: false,
+      stopAfter: false,
+      nextLastTime: state.lastTime,
+      nextHasSentPoint: state.hasSentPoint,
+      nextChildCount: state.currentLineChildCount,
+    };
+  }
+  const nextChildCount = state.currentLineChildCount + 1;
+  return {
+    appendMessage: createPointMessage(state, x, y),
+    stopBefore: false,
+    stopAfter: nextChildCount >= state.MAX_PENCIL_CHILDREN,
+    nextLastTime: now,
+    nextHasSentPoint: true,
+    nextChildCount,
+  };
+}
+
+/**
+ * Returns cached path data for a board SVG path. `getPathData()` allocates, so
+ * append handling keeps one mutable JS copy per line and writes it back after
+ * adding the next point.
+ * @param {PencilState} state
+ * @param {SVGPathElement & {id: string}} line
+ */
+function getPathData(state, line) {
+  let pathData = state.pathDataCache[line.id];
+  if (!pathData) {
+    pathData = line.getPathData();
+    state.pathDataCache[line.id] = pathData;
+  }
+  return pathData;
+}
+
+/**
+ * @param {PencilState} state
+ * @param {string | undefined} lineId
+ * @returns {(SVGPathElement & {id: string}) | null}
+ */
+function getLineById(state, lineId) {
+  if (!lineId) return null;
+  const line =
+    state.remoteInk.get(lineId)?.line ||
+    document.getElementById(lineId) ||
+    state.board.svg.getElementById(lineId);
+  return line instanceof SVGPathElement
+    ? /** @type {SVGPathElement & {id: string}} */ (line)
+    : null;
+}
+
+/**
+ * Releases the short-lived interaction lease used while Pencil owns the
+ * pointer stream. The lease suppresses the local cursor while a stroke is
+ * active without touching the dense board SVG subtree.
+ * @param {PencilState} state
+ */
+function releaseInteractionLease(state) {
+  state.activeInteractionLease?.release();
+  state.activeInteractionLease = null;
+}
+
+/** @param {PencilState} state */
+function clearPendingPoint(state) {
+  window.clearTimeout(state.pointTimer);
+  state.pointTimer = 0;
+  state.pendingX = state.pendingY = NaN;
+}
+
+/**
+ * Claims the active drawing interaction so the local cursor does not repaint
+ * over Pencil's own overlay feedback.
+ * @param {PencilState} state
+ */
+function acquireInteractionLease(state) {
+  releaseInteractionLease(state);
+  if (typeof state.interaction.suppressOwnCursor !== "function") return;
+  state.activeInteractionLease = state.interaction.suppressOwnCursor();
+}
+
+/** @param {PencilState} state */
+function clearActiveStrokeState(
+  state,
+  keepPathData = false,
+  reason = "cancel",
+) {
+  clearPendingPoint(state);
+  state.measurement?.finish(
+    reason,
+    reason !== "release" &&
+      reason !== "point-limit" &&
+      reason !== "tool-change",
+  );
+  state.measurement = state.liveOverlay.measurement = null;
+  const lineId = state.curLineId;
+  state.liveOverlay.clear();
+  releaseInteractionLease(state);
+  state.curLineId = "";
+  state.activeLineData = null;
+  flushPendingDraws(state);
+  state.hasSentPoint = false;
+  state.currentLineChildCount = 0;
+  state.renderingLine = null;
+  if (lineId && !keepPathData) delete state.pathDataCache[lineId];
+}
+
+/**
+ * Materializes the active local stroke into `#drawingArea` exactly once.
+ *
+ * This is the deliberate handoff from overlay-only drawing to normal
+ * canonical SVG. It should run on release or child-limit rollover, not on
+ * every accepted pencil point.
+ * @param {PencilState} state
+ */
+function commitActiveStroke(state) {
+  const lineId = state.curLineId;
+  if (!lineId || !state.activeLineData) return;
+  const pathData = state.pathDataCache[lineId];
+  if (!pathData || pathData.length === 0) return;
+  const line = createLine(state, state.activeLineData);
+  line.setPathData(pathData);
+  state.measurement?.geometry();
+  state.pathDataCache[lineId] = pathData;
+}
+
+/**
+ * Completes an active local stroke by committing its final path and clearing
+ * overlay/lease state.
+ * @param {PencilState} state
+ */
+function finishActiveStroke(state, reason = "release") {
+  if (reason === "tool-change" && !Number.isNaN(state.pendingX))
+    move(state, state.pendingX, state.pendingY, undefined, true);
+  flushPendingDraws(state);
+  commitActiveStroke(state);
+  clearActiveStrokeState(state, true, reason);
+}
+
+/**
+ * Removes local state and any materialized board path for a rejected stroke.
+ * This implements the simple optimistic policy: a pencil rejection discards
+ * the whole local stroke instead of trying to reconstruct a valid prefix.
+ * @param {PencilState} state
+ * @param {string} lineId
+ */
+function removeLocalLine(state, lineId) {
+  const line = getLineById(state, lineId);
+  if (line && line.parentNode === state.board.drawingArea) {
+    state.board.drawingArea.removeChild(line);
+  }
+  delete state.pathDataCache[lineId];
+}
+
+/**
+ * Converts server-rendered canonical pencil paths back into the browser's
+ * smoothed path representation. This runs on boot/normalization, not on the
+ * active local input path.
+ * @param {PencilState} state
+ * @param {{type: string, values: number[]}[]} pathData
+ * @returns {{type: string, values: number[]}[] | null}
+ */
+function normalizeServerRenderedPathData(state, pathData) {
+  if (!pathData || !pathData.length) return null;
+  /** @type {{type: string, values: number[]}[]} */
+  const smoothedPathData = [];
+  let cursorX = 0;
+  let cursorY = 0;
+  let hasPoint = false;
+  for (const segment of pathData) {
+    if (
+      !segment ||
+      !Array.isArray(segment.values) ||
+      segment.values.length < 2
+    ) {
+      return null;
+    }
+    const x = Number(segment.values[segment.values.length - 2]);
+    const y = Number(segment.values[segment.values.length - 1]);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    if (segment.type === "M") {
+      cursorX = x;
+      cursorY = y;
+      hasPoint = true;
+    } else if (segment.type === "L") {
+      if (!hasPoint) return null;
+      cursorX = x;
+      cursorY = y;
+    } else if (segment.type === "m") {
+      cursorX += x;
+      cursorY += y;
+      hasPoint = true;
+    } else if (segment.type === "l") {
+      if (!hasPoint) return null;
+      cursorX += x;
+      cursorY += y;
+    } else {
+      return null;
+    }
+    wboPencilPoint(smoothedPathData, cursorX, cursorY);
+  }
+  void state;
+  return smoothedPathData;
+}
+
+/**
+ * Stored pencil paths use M followed by relative line segments. Read those
+ * coordinates directly instead of asking the SVG API to allocate an additional
+ * segment list for every stroke on board load.
+ * @param {string} d
+ * @returns {PencilPathData | null}
+ */
+function normalizePersistedPath(d) {
+  const parts = d.split(" ");
+  if (parts[0] !== "M" || parts.length % 3 !== 0) return null;
+  let x = Number(parts[1]);
+  let y = Number(parts[2]);
+  if (!parts[1] || !parts[2] || !Number.isFinite(x) || !Number.isFinite(y))
+    return null;
+  /** @type {PencilPathData} */
+  const pathData = [];
+  wboPencilPoint(pathData, x, y);
+  for (let i = 3; i < parts.length; i += 3) {
+    if (parts[i] !== "l" || !parts[i + 1] || !parts[i + 2]) return null;
+    const dx = Number(parts[i + 1]);
+    const dy = Number(parts[i + 2]);
+    if (!Number.isFinite(dx) || !Number.isFinite(dy)) return null;
+    x += dx;
+    y += dy;
+    wboPencilPoint(pathData, x, y);
+  }
+  return pathData;
+}
+
+/**
+ * Creates or resets the canonical board SVG path for one pencil stroke.
+ * Active local strokes call this only when they are committed at the end.
+ * @param {PencilState} state
+ * @param {PencilLineData} lineData
+ * @param {boolean} [deferAttachment]
+ * @returns {SVGPathElement & {id: string}}
+ */
+function createLine(state, lineData, deferAttachment = false) {
+  let line = getLineById(state, lineData.id);
+  delete state.pathDataCache[lineData.id];
+  if (line) line.setPathData([]);
+  else {
+    line = /** @type {SVGPathElement & {id: string}} */ (
+      state.board.createSVGElement("path")
+    );
+  }
+  line.id = lineData.id || "";
+  line.setAttribute("stroke", lineData.color || "black");
+  line.setAttribute("stroke-width", String(lineData.size || 10));
+  line.setAttribute(
+    "opacity",
+    String(Math.max(0.1, Math.min(1, Number(lineData.opacity) || 1))),
+  );
+  if (!deferAttachment && line.parentNode !== state.board.drawingArea) {
+    state.board.drawingArea.appendChild(line);
+  }
+  return line;
+}
+
+/**
+ * Returns the board path that a non-local append should mutate, creating a
+ * minimal placeholder only for out-of-order or malformed replay recovery.
+ * @param {PencilState} state
+ * @param {string} parentId
+ * @returns {SVGPathElement & {id: string}}
+ */
+function getBoardLineForAppend(state, parentId) {
+  const existingLine =
+    state.renderingLine && state.renderingLine.id === parentId
+      ? state.renderingLine
+      : getLineById(state, parentId);
+  if (existingLine) return existingLine;
+  logFrontendEvent("warn", "tool.pencil.append_missing_parent", {
+    parentId,
+  });
+  const fallbackLine = createLine(state, {
+    type: MutationType.CREATE,
+    id: parentId,
+  });
+  state.renderingLine = fallbackLine;
+  return fallbackLine;
+}
+
+/** @param {PencilState} state */
+function restoreDrawingSize(state) {
+  state.whiteOutSize = state.preferences.getSize();
+  if (state.drawingSize !== -1) state.preferences.setSize(state.drawingSize);
+}
+
+/** @param {PencilState} state */
+function restoreWhiteOutSize(state) {
+  state.drawingSize = state.preferences.getSize();
+  if (state.whiteOutSize !== -1) state.preferences.setSize(state.whiteOutSize);
+}
+
+/** @param {PencilState} state */
+function toggleSize(state) {
+  if (state.secondary.active) restoreWhiteOutSize(state);
+  else restoreDrawingSize(state);
+}
+
+/**
+ * @param {PencilState} state
+ * @param {TouchEvent} evt
+ */
+function handleAutoWhiteOut(state, evt) {
+  const touch = evt.touches && evt.touches[0];
+  const touchType =
+    touch && "touchType" in touch
+      ? /** @type {{touchType?: string}} */ (touch).touchType
+      : undefined;
+  if (touchType === "stylus") {
+    if (state.hasUsedStylus && state.toolRegistry.current?.secondary?.active) {
+      state.toolRegistry.change(toolId);
+    }
+    state.hasUsedStylus = true;
+  }
+  if (touchType === "direct") {
+    if (
+      state.hasUsedStylus &&
+      state.toolRegistry.current?.secondary &&
+      !state.toolRegistry.current?.secondary?.active
+    ) {
+      state.toolRegistry.change(toolId);
+    }
+  }
+}
+
+/** @param {ToolBootContext} ctx */
+export function boot(ctx) {
+  const state = createInitialState(ctx);
+  state.flushPendingPoint = state.flushPendingPoint.bind(state);
+  state.secondary.switch = () => {
+    finishActiveStroke(state, "tool-change");
+    toggleSize(state);
+  };
+  return state;
+}
+
+/**
+ * Draws one pencil message.
+ *
+ * Local active strokes use `PencilLiveOverlay`. While local input is active,
+ * remote ink shares that light layer and coalesces geometry writes per frame.
+ * Read boundaries and release materialize pending geometry in the board SVG.
+ * @param {PencilState} state
+ * @param {unknown} data
+ * @param {boolean} [isLocal]
+ */
+export function draw(state, data, isLocal = false) {
+  state.interaction.drawingEvent = true;
+  if (!isPencilMessage(data)) {
+    logFrontendEvent("error", "tool.pencil.draw_invalid_type", {
+      mutationType: /** @type {{type?: unknown}} */ (data)?.type,
+      message: data,
+    });
+    return;
+  }
+
+  if (data.type === MutationType.CREATE) {
+    if (isLocal && data.id === state.curLineId) {
+      state.activeLineData = {
+        type: MutationType.CREATE,
+        id: data.id,
+        color: data.color,
+        size: data.size,
+        opacity: data.opacity,
+      };
+      state.pathDataCache[data.id] = [];
+      state.liveOverlay.draw(state.activeLineData);
+    } else {
+      if (state.remoteInk.has(data.id)) flushPendingDraws(state);
+      const deferAttachment = state.deferRemoteInk && state.liveOverlay.active;
+      state.renderingLine = createLine(state, data, deferAttachment);
+      if (deferAttachment) queueRemoteInk(state, state.renderingLine);
+    }
+    return;
+  }
+
+  if (isLocal && data.parent === state.curLineId && state.activeLineData) {
+    const pathData = state.pathDataCache[data.parent] || [];
+    state.pathDataCache[data.parent] = pathData;
+    const previousLength = pathData.length;
+    wboPencilPoint(pathData, data.x, data.y);
+    if (pathData.length !== previousLength) state.measurement?.accept();
+    state.liveOverlay.draw(state.activeLineData, pathData);
+  } else {
+    const line = getBoardLineForAppend(state, data.parent);
+    const pathData = wboPencilPoint(getPathData(state, line), data.x, data.y);
+    if (state.deferRemoteInk && state.liveOverlay.active)
+      queueRemoteInk(state, line);
+    else line.setPathData(pathData);
+  }
+}
+
+/** Keep active remote ink off the dense SVG while Pencil is selected.
+ * Existing nodes keep their stacking position; new nodes attach on commit.
+ * Other mutations flush geometry before copying, transforming or snapshotting.
+ * @param {PencilState} state
+ * @param {SVGPathElement} line
+ */
+function queueRemoteInk(state, line) {
+  let ink = state.remoteInk.get(line.id);
+  if (!ink) {
+    const overlay = /** @type {SVGPathElement} */ (line.cloneNode(false));
+    overlay.removeAttribute("id");
+    overlay.setAttribute("class", LIVE_PATH_CLASS);
+    state.liveOverlay.overlay?.appendChild(overlay);
+    const detached = line.parentNode !== state.board.drawingArea;
+    ink = {
+      line,
+      overlay,
+      visibility: line.style.visibility,
+      dirty: true,
+      detached,
+      updated: 0,
+    };
+    if (!detached) line.style.visibility = "hidden";
+    state.remoteInk.set(line.id, ink);
+  }
+  ink.dirty = true;
+  ink.updated = performance.now();
+  if (!state.remoteFrame)
+    state.remoteFrame = window.requestAnimationFrame(() => {
+      state.remoteFrame = 0;
+      if (state.liveOverlay.overlay)
+        syncOverlayTransform(state.liveOverlay.overlay, state.viewport);
+      for (const [id, remote] of state.remoteInk) {
+        if (!remote.dirty) continue;
+        remote.dirty = false;
+        const points = state.pathDataCache[id];
+        if (points) remote.overlay.setPathData(points);
+      }
+    });
+  scheduleRemoteInkCommit(state);
+}
+
+/** @param {PencilState} state */
+function scheduleRemoteInkCommit(state) {
+  if (state.activeLineData || state.remoteIdleTimer || !state.remoteInk.size)
+    return;
+  const now = performance.now();
+  let delay = REMOTE_INK_IDLE_MS;
+  for (const ink of state.remoteInk.values())
+    delay = Math.min(
+      delay,
+      Math.max(1, REMOTE_INK_IDLE_MS - (now - ink.updated)),
+    );
+  state.remoteIdleTimer = window.setTimeout(() => {
+    state.remoteIdleTimer = 0;
+    if (state.activeLineData) return;
+    const now = performance.now();
+    for (const remote of state.remoteInk.values()) {
+      if (now - remote.updated >= REMOTE_INK_IDLE_MS) {
+        // Commit the group in creation order, including earlier active paths.
+        // Otherwise a later completed stroke could end up underneath them.
+        flushPendingDraws(state);
+        return;
+      }
+    }
+    scheduleRemoteInkCommit(state);
+  }, delay);
+}
+
+/** Rendering is deferred, mutation ordering is not. Flush at read boundaries
+ * and on local stroke completion; cursor/ink messages do not need a snapshot.
+ * @param {PencilState} state
+ * @param {BoardMessage} [message]
+ */
+export function flushPendingDraws(state, message) {
+  if (message) {
+    const type = getMutationType(message);
+    if (
+      !state.remoteInk.size ||
+      message.tool === TOOL_CODE_BY_ID.cursor ||
+      (message.tool === toolCode &&
+        (type === MutationType.CREATE || type === MutationType.APPEND))
+    )
+      return;
+    // Unrelated moves must not materialize active ink. Reuse the same item
+    // dependency contract as editing/rollback; copies read their source id.
+    if (type !== MutationType.CLEAR && type !== MutationType.CREATE) {
+      let readsPendingInk = false;
+      for (const id of collectOptimisticDependencyIds(message))
+        if (state.remoteInk.has(id)) {
+          readsPendingInk = true;
+          break;
+        }
+      if (!readsPendingInk) return;
+    }
+  }
+  if (state.remoteFrame) window.cancelAnimationFrame(state.remoteFrame);
+  state.remoteFrame = 0;
+  window.clearTimeout(state.remoteIdleTimer);
+  state.remoteIdleTimer = 0;
+  for (const [id, ink] of state.remoteInk) {
+    const points = state.pathDataCache[id];
+    if (ink.detached) state.board.drawingArea.appendChild(ink.line);
+    if (points && ink.line.parentNode === state.board.drawingArea)
+      ink.line.setPathData(points);
+    ink.line.style.visibility = ink.visibility;
+    ink.overlay.remove();
+  }
+  state.remoteInk.clear();
+}
+
+/**
+ * Starts a local pencil stroke, sends the live create immediately, and lets
+ * `draw()` put the first visible feedback into the overlay instead of
+ * `#drawingArea`.
+ * @param {PencilState} state
+ * @param {number} x
+ * @param {number} y
+ * @param {MouseEvent | TouchEvent} evt
+ */
+export function press(state, x, y, evt) {
+  evt.preventDefault();
+  clearPendingPoint(state);
+  if (
+    state.AUTO_FINGER_WHITEOUT &&
+    typeof TouchEvent !== "undefined" &&
+    evt instanceof TouchEvent
+  ) {
+    handleAutoWhiteOut(state, evt);
+  }
+  state.measurement?.finish("replaced", true);
+  state.measurement = beginDrawingPerformance(
+    toolId,
+    evt,
+    x,
+    y,
+    (pageX, pageY, time, received) => {
+      state.measurement?.input(
+        state.coordinates.pageCoordinateToBoard(pageX),
+        state.coordinates.pageCoordinateToBoard(pageY),
+        time,
+        received,
+      );
+    },
+    state.minPencilIntervalMs,
+  );
+  state.liveOverlay.measurement = state.measurement;
+  const effect = createPencilPressEffect(state);
+  state.curLineId = effect.lineId;
+  state.activeLineData = null;
+  state.rejectedLineDeletes.delete(effect.lineId);
+  state.hasSentPoint = false;
+  state.currentLineChildCount = 0;
+  acquireInteractionLease(state);
+  state.writes.drawAndSend(effect.createMessage);
+  move(state, x, y, evt);
+}
+
+/**
+ * Sends live pencil append messages while throttling to the configured write
+ * rate. Local rendering still goes through `draw()`, so this stays focused on
+ * input policy rather than DOM mutation.
+ * @param {PencilState} state
+ * @param {number} x
+ * @param {number} y
+ * @param {MouseEvent | TouchEvent | undefined} evt
+ * @param {boolean} [force]
+ */
+export function move(state, x, y, evt, force = false) {
+  const now = performance.now();
+  state.measurement?.input(x, y, evt?.timeStamp ?? now, now);
+  const effect = createPencilMoveEffect(state, x, y, now, force);
+  if (effect.stopBefore) {
+    finishActiveStroke(state, "point-limit");
+  }
+  if (effect.appendMessage) {
+    clearPendingPoint(state);
+    state.writes.drawAndSend(effect.appendMessage);
+    state.currentLineChildCount = effect.nextChildCount;
+    state.hasSentPoint = effect.nextHasSentPoint;
+    state.lastTime = effect.nextLastTime;
+    state.lastPointX = x;
+    state.lastPointY = y;
+    if (effect.stopAfter) finishActiveStroke(state, "point-limit");
+  } else if (state.curLineId) {
+    if (x === state.lastPointX && y === state.lastPointY) {
+      clearPendingPoint(state);
+    } else {
+      state.pendingX = x;
+      state.pendingY = y;
+      // Throttling must retain the latest movement. Otherwise stopping between
+      // accepted points leaves the ink behind until the next move or release.
+      // Let normal input supply the next point first, avoiding extra writes
+      // during continuous movement. The timer is only needed when input stops.
+      if (!state.pointTimer) {
+        state.pointTimer = window.setTimeout(
+          state.flushPendingPoint,
+          state.minPencilIntervalMs + 1,
+        );
+      }
+    }
+  }
+  if (evt) evt.preventDefault();
+}
+
+/**
+ * Ends the pointer stroke and performs the single overlay-to-board-SVG commit.
+ * Any live messages were already sent during press/move.
+ * @param {PencilState} state
+ * @param {number} x
+ * @param {number} y
+ */
+export function release(state, x, y) {
+  // The write runtime still enforces the network budget for this final point.
+  move(state, x, y, undefined, true);
+  finishActiveStroke(state);
+}
+
+/**
+ * Handles browser gesture cancellation by dropping local feedback and sending a
+ * delete for any prefix the server may already have accepted.
+ * @param {PencilState} state
+ */
+export function cancelTouchGesture(state) {
+  const lineId = state.curLineId;
+  clearActiveStrokeState(state);
+  if (lineId) state.writes.send(createDeleteLineMessage(lineId));
+}
+
+/**
+ * @param {PencilState} state
+ * @param {SVGElement} line
+ */
+export function normalizeServerRenderedElement(state, line) {
+  if (!(line instanceof SVGPathElement)) return;
+  delete state.pathDataCache[line.id];
+  const d = line.getAttribute("d") || "";
+  // Live/replayed strokes already contain curves. Do not decode them again
+  // when another normalization pass runs over the same board.
+  if (d.includes("C") || d.includes("c")) return;
+  const normalizedPathData =
+    normalizePersistedPath(d) ||
+    normalizeServerRenderedPathData(state, line.getPathData());
+  if (!normalizedPathData || normalizedPathData.length === 0) {
+    logFrontendEvent("warn", "tool.pencil.path_normalization_failed", {
+      id: line.id ?? "",
+    });
+    return;
+  }
+  line.setPathData(normalizedPathData);
+  // Completed stored strokes need no JS geometry cache. An append will decode
+  // just its parent on demand; otherwise large boards retain every point array.
+}
+
+/**
+ * @param {{type?: unknown, id?: unknown, _children?: unknown}} message
+ * @param {string} activeId
+ * @returns {boolean}
+ */
+function messageDeletesActiveStroke(message, activeId) {
+  if (!activeId) return false;
+  if (message.type === MutationType.DELETE && message.id === activeId) {
+    return true;
+  }
+  if (!Array.isArray(message._children)) return false;
+  for (const child of message._children) {
+    if (!child || typeof child !== "object") continue;
+    const record = /** @type {{type?: unknown, id?: unknown}} */ (child);
+    if (record.type === MutationType.DELETE && record.id === activeId) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Handles authoritative board events that invalidate the active local stroke.
+ * The overlay is local-only, so clear/delete must explicitly discard it.
+ * Hand selection deletes arrive as a batch, so child deletes are inspected too.
+ * @param {PencilState} state
+ * @param {BoardMessage} message
+ */
+export function onMessage(state, message) {
+  flushPendingDraws(state, message);
+  const type = getMutationType(message);
+  if (
+    type === MutationType.CLEAR ||
+    messageDeletesActiveStroke(message, state.curLineId)
+  ) {
+    clearActiveStrokeState(
+      state,
+      false,
+      type === MutationType.CLEAR ? "clear" : "delete",
+    );
+  }
+}
+
+/**
+ * Drops unacknowledged local feedback on disconnect. Reconnect reloads the
+ * authoritative board state instead of trying to preserve the overlay stroke.
+ * @param {PencilState} state
+ */
+export function onSocketDisconnect(state) {
+  // The next baseline owns geometry. Restore presentation without committing
+  // stale deferred paths into a document that may already have been replaced.
+  for (const ink of state.remoteInk.values()) {
+    ink.line.style.visibility = ink.visibility;
+    ink.overlay.remove();
+  }
+  state.remoteInk.clear();
+  clearActiveStrokeState(state, false, "disconnect");
+}
+
+/**
+ * Handles the pencil optimistic policy after the generic write layer reports a
+ * rejection. A rejected append means the server may have accepted an earlier
+ * prefix, so the client sends one cleanup delete for the whole stroke.
+ * @param {PencilState} state
+ * @param {{type?: unknown, id?: string, parent?: string}} message
+ */
+export function onMutationRejected(state, message) {
+  const lineId = message.parent || message.id || "";
+  if (!lineId) return;
+  const isAppend =
+    message.type === MutationType.APPEND || typeof message.parent === "string";
+  if (lineId === state.curLineId) {
+    clearActiveStrokeState(state, false, "rejected");
+  } else {
+    removeLocalLine(state, lineId);
+  }
+  if (isAppend && !state.rejectedLineDeletes.has(lineId)) {
+    state.rejectedLineDeletes.add(lineId);
+    state.writes.send(createDeleteLineMessage(lineId));
+  }
+}
+
+/** @param {PencilState} state */
+export function onstart(state) {
+  state.hasUsedStylus = false;
+  state.liveOverlay.activate();
+  if (state.secondary.active) restoreWhiteOutSize(state);
+}
+
+/** @param {PencilState} state */
+export function onquit(state) {
+  finishActiveStroke(state, "tool-change");
+  state.liveOverlay.deactivate();
+  if (state.secondary.active) restoreDrawingSize(state);
+}

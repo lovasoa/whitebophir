@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60" width="32" height="32">
+  <title>Eraser</title>
+  <g fill="none" stroke="#000" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+    <path fill="#fff" d="M14 38.5 34.5 18c2.1-2.1 5.4-2.1 7.5 0l7.9 7.9c2.1 2.1 2.1 5.4 0 7.5L34.4 49H18.6L14 44.4c-1.6-1.6-1.6-4.3 0-5.9Z"/>
+    <path fill="#f3f4f6" d="m27.2 25.3 15.5 15.5-8.3 8.2H18.6L14 44.4c-1.6-1.6-1.6-4.3 0-5.9l13.2-13.2Z"/>
+    <path d="m27.2 25.3 15.5 15.5"/>
+    <path d="M18.6 49h27.8"/>
+    <path d="M12 52h19"/>
+    <path d="M36.4 17.1 50.8 31.5" opacity=".22"/>
+    <path d="M20.5 34.7 29 26.2" opacity=".35"/>
+    <path d="M37.7 45.6h4.7" opacity=".45"/>
+    <path d="M8.5 48.8h4.2M35.9 52h5.8M45 44.2h3.8"/>
+  </g>
+</svg>
