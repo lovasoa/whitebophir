@@ -230,9 +230,20 @@ export function limitSocketHandshakes(config) {
       });
       response.end();
     } else {
-      // Engine.IO's upgrade response only stages headers for successful upgrades.
-      request.socket.end(
-        `HTTP/1.1 429 Too Many Requests\r\nRetry-After: ${seconds}\r\nCache-Control: no-store\r\nContent-Length: 0\r\nConnection: close\r\n\r\n`,
+      // Engine.IO has handed the HTTP upgrade stream off to us here.
+      const socket = request.socket;
+      socket.once("error", () => socket.destroy());
+      socket.end(
+        [
+          "HTTP/1.1 429 Too Many Requests",
+          `Retry-After: ${seconds}`,
+          "Cache-Control: no-store",
+          "Content-Length: 0",
+          "Connection: close",
+          "",
+          "",
+        ].join("\r\n"),
+        () => socket.destroy(),
       );
     }
   };
