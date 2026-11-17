@@ -1051,27 +1051,6 @@ window.turnstile = {
     });
   }
 
-  async validateTurnstileToken(token: string) {
-    return this.page.evaluate((value) => {
-      return new Promise<{ success: boolean; validated: boolean }>(
-        (resolve) => {
-          window.WBOApp.connection.socket?.emit(
-            "turnstile_token",
-            value,
-            (result: unknown) => {
-              const ack = window.WBOApp.turnstile.normalizeAck(result);
-              if (ack.success) window.WBOApp.turnstile.setValidation(ack);
-              resolve({
-                success: ack.success === true,
-                validated: window.WBOApp.turnstile.isValidated(),
-              });
-            },
-          );
-        },
-      );
-    }, token);
-  }
-
   async queueProtectedRectangle(id: string) {
     await this.waitForBoardWritable();
     await this.page.evaluate(

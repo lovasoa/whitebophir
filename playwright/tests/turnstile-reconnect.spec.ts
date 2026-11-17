@@ -43,7 +43,7 @@ function closeServer(server: http.Server | undefined) {
   });
 }
 
-test("reconnect resets Turnstile and recovers protected writes", async ({
+test("Turnstile verifies tool selection and recovers protected writes after reconnect", async ({
   page,
   context,
 }, testInfo) => {
@@ -60,20 +60,81 @@ test("reconnect resets Turnstile and recovers protected writes", async ({
     testInfo,
   );
 
+  let allowWidgetScript = () => {};
+  const widgetScriptGate = new Promise<void>((resolve) => {
+    allowWidgetScript = resolve;
+  });
+
   try {
     const boardPage = new BoardPage(page, server);
     await boardPage.installTurnstileMock();
-    await boardPage.gotoBoard("anonymous", { lang: "fr", tokenQuery: "" });
-    await expect(boardPage.tool("pencil")).toBeVisible();
-    await boardPage.waitForSocketConnected();
-    await boardPage.trackBroadcasts();
-
-    await expect(
-      await boardPage.validateTurnstileToken("validated-before-reconnect"),
-    ).toEqual({
-      success: true,
-      validated: true,
+    const widgetScriptUrl =
+      "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+    await page.route(widgetScriptUrl, async (route) => {
+      await widgetScriptGate;
+      await route.fallback();
     });
+    const overlay = page.locator("#turnstile-overlay");
+    const paths = page.locator("#drawingArea path");
+
+    await boardPage.gotoBoard("anonymous", { lang: "fr", tokenQuery: "" });
+    await boardPage.waitForBoardWritable();
+    await boardPage.waitForToolBooted("pencil");
+    await boardPage.expectCurrentTool("hand");
+    await expect(overlay).toHaveCount(0);
+
+    const widgetScriptRequested = page.waitForRequest(widgetScriptUrl);
+    await boardPage.selectTool("pencil");
+    await widgetScriptRequested;
+
+    await page.mouse.move(260, 300);
+    await page.mouse.down();
+    await page.mouse.move(360, 300);
+    await page.mouse.up();
+    await expect(paths).toHaveCount(0);
+    expect(
+      await page.evaluate(() => window.WBOApp.turnstile.pendingWrites.length),
+    ).toBe(0);
+
+    allowWidgetScript();
+    await expect(overlay).toBeVisible();
+    await testInfo.attach("turnstile-before-drawing", {
+      body: await page.screenshot(),
+      contentType: "image/png",
+    });
+    await page.keyboard.press("h");
+    await boardPage.expectCurrentTool("hand");
+    await expect(overlay).toBeHidden();
+    await page.keyboard.press("p");
+    await boardPage.expectCurrentTool("pencil");
+    await expect(overlay).toBeVisible();
+    expect(
+      await boardPage.completeTurnstileChallenge("validated-before-drawing"),
+    ).toEqual({ overlayPresent: false, pendingWrites: 0, validated: true });
+
+    await page.mouse.move(260, 300);
+    await page.mouse.down();
+    await page.mouse.move(320, 300);
+    await page.evaluate(() => window.WBOApp.turnstile.setValidation(null));
+    await page.mouse.move(420, 300);
+    await expect(overlay).toBeHidden();
+    await page.mouse.up();
+
+    await expect(overlay).toBeVisible();
+    expect(
+      await boardPage.completeTurnstileChallenge("validated-after-stroke"),
+    ).toEqual({ overlayPresent: false, pendingWrites: 0, validated: true });
+    await expect(paths).toHaveCount(1);
+    const strokeId = (await paths.first().getAttribute("id")) ?? "";
+    const endX = await page.evaluate(() =>
+      window.WBOApp.coordinates.pageCoordinateToBoard(420 + window.scrollX),
+    );
+    await server.waitForStoredBoard(
+      server.dataPath,
+      "anonymous",
+      (storedBoard) => storedBoard[strokeId]?.localBounds?.maxX >= endX - 1,
+    );
+    await boardPage.selectTool("hand");
 
     const peerPage = await context.newPage();
     const peerBoard = new BoardPage(peerPage, server);
@@ -86,6 +147,7 @@ test("reconnect resets Turnstile and recovers protected writes", async ({
       connected: true,
       validated: false,
     });
+    await expect(overlay).toBeHidden();
 
     await peerBoard.emitBroadcast({
       tool: Cursor.id,
@@ -135,6 +197,7 @@ test("reconnect resets Turnstile and recovers protected writes", async ({
 
     await peerPage.close();
   } finally {
+    allowWidgetScript();
     await closeServer(verifyServer);
     await stopTestServer(server, testInfo);
   }
