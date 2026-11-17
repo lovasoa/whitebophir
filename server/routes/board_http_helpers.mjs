@@ -14,8 +14,10 @@ import {
 } from "../auth/user_secret_cookie.mjs";
 import { pinReplayBaseline } from "../board/registry.mjs";
 import { badRequest } from "../http/boundary_errors.mjs";
-import { requestScheme } from "../http/observation.mjs";
+import { requestScheme, respondWithErrorPage } from "../http/observation.mjs";
 import { publicPath } from "../http/request_url.mjs";
+import observability from "../observability/index.mjs";
+import { streamServedBaseline } from "../persistence/svg_board_store.mjs";
 import { getEditBanExpiresAt } from "../socket/bans.mjs";
 import { resolveRequestClientIpSafe } from "../socket/policy.mjs";
 import { hasOnlineModerator } from "../socket/presence.mjs";
@@ -123,6 +125,45 @@ function boardOperationTraceAttributes(boardName, operation, extras) {
 }
 
 /**
+ * Opens a baseline for HTTP streaming and handles read errors after dispatch
+ * has returned, when the response may already have started.
+ * @param {import("../../types/server-runtime.d.ts").HttpRouteContext} ctx
+ * @param {string} boardName
+ * @param {Record<string, unknown>} attributes
+ * @returns {ReturnType<typeof streamServedBaseline>}
+ */
+async function openBoardBaselineStream(ctx, boardName, attributes) {
+  const stream = await observability.tracing.withRecordingActiveSpan(
+    "board.baseline_stream_open",
+    {
+      attributes: boardOperationTraceAttributes(
+        boardName,
+        "baseline_stream_open",
+        attributes,
+      ),
+    },
+    () =>
+      streamServedBaseline(boardName, {
+        historyDir: ctx.runtime.config.HISTORY_DIR,
+      }),
+  );
+  stream.on("error", (/** @type {Error} */ error) => {
+    ctx.observed.noteError(error);
+    if (ctx.response.headersSent) {
+      ctx.response.destroy(error);
+    } else {
+      respondWithErrorPage(
+        ctx.request,
+        ctx.response,
+        500,
+        ctx.runtime.errorPage,
+      );
+    }
+  });
+  return stream;
+}
+
+/**
  * @param {URL} parsedUrl
  * @returns {string}
  */
@@ -227,6 +268,7 @@ export {
   boardPageETag,
   ensureBoardUserSecretCookie,
   matchesIfNoneMatch,
+  openBoardBaselineStream,
   parseBoardPageETagCandidates,
   pinServedBoardBaseline,
   requireBoardDocumentNames,

@@ -20,8 +20,7 @@ import {
   shouldTraceBroadcast,
 } from "./broadcasts.mjs";
 import {
-  boardStateForSocket,
-  canUnbanOnBoard,
+  boardPermissionsForSocket,
   clientIpFallback,
   getClientIp,
   normalizeBroadcastData,
@@ -234,10 +233,7 @@ async function dropLoadedBoardInstance(board, details) {
   );
 
   socketsToDisconnect.forEach((socket) => {
-    closeSocket(socket, "stale_board", {
-      board: board.name,
-      socket: socket.id,
-    });
+    socket.disconnect(true);
   });
   return true;
 }
@@ -260,19 +256,14 @@ async function handleStaleBoardSave(board, details) {
 
 /**
  * @param {AppSocket} socket
- * @param {string} eventName
- * @param {{[key: string]: any}} infos
  * @returns {void}
  */
-function closeSocket(socket, eventName, infos) {
-  void eventName;
-  void infos;
-  if (eventName === "report_user") {
-    const closeConnection = socket.client?.conn?.close;
-    if (typeof closeConnection === "function") {
-      closeConnection.call(socket.client.conn);
-      return;
-    }
+function closeReportedSocket(socket) {
+  // A transport close lets Socket.IO reconnect after moderation.
+  const closeConnection = socket.client?.conn?.close;
+  if (typeof closeConnection === "function") {
+    closeConnection.call(socket.client.conn);
+    return;
   }
   socket.disconnect(true);
 }
@@ -342,7 +333,11 @@ function refreshBoardModeration(board, config) {
   for (const user of users.values()) {
     const socket = activeSockets.get(user.socketId);
     if (!socket || !socket.rooms.has(board.name)) continue;
-    const state = boardStateForSocket(config, board, socket);
+    const state = boardPermissionsForSocket(
+      config,
+      board.name,
+      socket,
+    ).boardState(board);
     const changed = updateBoardUserCapabilities(board.name, user, state);
     socket.emit(SocketEvents.BOARDSTATE, state);
     if (changed) emitUserUpdatedToBoard(socket, board.name, user);
@@ -380,7 +375,11 @@ async function refreshUserAccess(boardName, userSecret, config, ip) {
       continue;
     const targetSocket = activeSockets.get(user.socketId);
     if (!targetSocket || !targetSocket.rooms.has(boardName)) continue;
-    const boardState = boardStateForSocket(config, board, targetSocket);
+    const boardState = boardPermissionsForSocket(
+      config,
+      boardName,
+      targetSocket,
+    ).boardState(board);
     updateBoardUserCapabilities(boardName, user, boardState);
     targetSocket.emit(SocketEvents.BOARDSTATE, boardState);
     emitUserUpdatedToBoard(targetSocket, boardName, user);
@@ -593,7 +592,8 @@ async function bootstrapSocketBoard(socket, replay, config) {
       }
       // Capabilities the joining socket has on this board. Reused both as the
       // socket's own BOARDSTATE and as the capabilities other users see for it.
-      const boardState = boardStateForSocket(config, board, socket);
+      const permissions = boardPermissionsForSocket(config, boardName, socket);
+      const boardState = permissions.boardState(board);
       const wasJoined = board.users.has(socket.id);
       board.users.add(socket.id);
       if (!wasJoined || !getBoardUserMap(boardName).has(socket.id)) {
@@ -626,10 +626,7 @@ async function bootstrapSocketBoard(socket, replay, config) {
         });
       }
       if (boardState.canBan) refreshBoardModeration(board, config);
-      socket.emit(
-        SocketEvents.BOARDSTATE,
-        boardStateForSocket(config, board, socket),
-      );
+      socket.emit(SocketEvents.BOARDSTATE, permissions.boardState(board));
       syncedPersistentSockets.delete(socket.id);
       socket.emit(SocketEvents.BROADCAST, replay.replayBatch);
       syncedPersistentSockets.add(socket.id);
@@ -666,7 +663,7 @@ async function handleSocketConnection(socket, config) {
         );
   if (replay.ok === false) {
     rejectSocketRequest(socket, "connection", replay.reason);
-    closeSocket(socket, "connection", { reason: replay.reason });
+    socket.disconnect(true);
     return;
   }
   const boardName = replay.boardName;
@@ -781,7 +778,7 @@ async function handleSocketConnection(socket, config) {
             config,
             now: Date.now(),
             getActiveSocket,
-            closeSocket,
+            closeSocket: closeReportedSocket,
             onBansChanged: () => emitBoardBans(boardName),
           });
         },
@@ -801,7 +798,7 @@ async function handleSocketConnection(socket, config) {
         typeof message.banId !== "string" ||
         message.banId.length !== 36 ||
         !socket.rooms.has(boardName) ||
-        !canUnbanOnBoard(config, boardName, socket)
+        !boardPermissionsForSocket(config, boardName, socket).canUnban()
       )
         return;
       const removed = unbanBoardUser(boardName, message.banId, Date.now());
@@ -898,7 +895,7 @@ async function handleSocketConnection(socket, config) {
 async function unloadBoard(boardName) {
   const loadedBoard = getLoadedBoard(boardName);
   if (loadedBoard) {
-    return tracing.withOptionalActiveSpan(
+    return tracing.withRecordingActiveSpan(
       "board.unload",
       {
         attributes: {

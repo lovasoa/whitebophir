@@ -4,12 +4,14 @@ const { createSocketScenario } = require("./test_helpers.js");
 const { parseBoardNamesEnv } = require("../server/configuration/helpers.mjs");
 const { MutationType } = require("../client-data/js/mutation_type.js");
 const {
-  Clear,
-  Cursor,
-  Hand,
-  Rectangle,
-  Text,
-} = require("../client-data/tools/index.js");
+  TOOL_BY_ID: {
+    clear: Clear,
+    cursor: Cursor,
+    hand: Hand,
+    rectangle: Rectangle,
+    text: Text,
+  },
+} = require("../client-data/tools/manifest.js");
 const {
   getBoardUser,
   hasOnlineModerator,

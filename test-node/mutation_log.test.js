@@ -2,7 +2,9 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
-const { Eraser, Rectangle, Text } = require("../client-data/tools/index.js");
+const {
+  TOOL_BY_ID: { eraser: Eraser, rectangle: Rectangle, text: Text },
+} = require("../client-data/tools/manifest.js");
 const { createMutationLog } = require("../server/board/mutation_log.mjs");
 
 /** @param {string} id */

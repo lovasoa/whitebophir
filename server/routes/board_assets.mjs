@@ -1,17 +1,12 @@
 import { badRequest } from "../http/boundary_errors.mjs";
 import { boardSvgCacheControl, CSP } from "../http/cache_policy.mjs";
 import { startCompressedResponse } from "../http/compression.mjs";
-import {
-  errorCode,
-  respondWithErrorPage,
-  serveError,
-} from "../http/observation.mjs";
+import { errorCode, serveError } from "../http/observation.mjs";
 import observability from "../observability/index.mjs";
 import {
   boardExists,
   readServedBaseline,
   readStoredSvgSeq,
-  streamServedBaseline,
 } from "../persistence/svg_board_store.mjs";
 import {
   annotateBoardRequest,
@@ -19,6 +14,7 @@ import {
   boardOperationTraceAttributes,
   boardPageETag,
   matchesIfNoneMatch,
+  openBoardBaselineStream,
   pinServedBoardBaseline,
   requireBoardPathName,
 } from "./board_http_helpers.mjs";
@@ -36,21 +32,12 @@ function rejectMissingBoardName() {
 
 /**
  * @param {HttpRouteContext} ctx
- * @param {string} boardName
- * @returns {void}
- */
-function requireBoardOpenPermission(ctx, boardName) {
-  boardPermissionsForRequest(ctx, boardName).requireOpen();
-}
-
-/**
- * @param {HttpRouteContext} ctx
  * @returns {Promise<void>}
  */
 async function serveBoardSvg(ctx) {
   const boardName = requireBoardPathName(ctx.params);
   annotateBoardRequest(ctx.observed, boardName);
-  requireBoardOpenPermission(ctx, boardName);
+  boardPermissionsForRequest(ctx, boardName).requireOpen();
   const persistedSeq = await readStoredSvgSeq(boardName, {
     historyDir: ctx.runtime.config.HISTORY_DIR,
   });
@@ -64,35 +51,8 @@ async function serveBoardSvg(ctx) {
     ctx.response.end();
     return;
   }
-  const svgStream = await tracing.withRecordingActiveSpan(
-    "board.baseline_stream_open",
-    {
-      attributes: boardOperationTraceAttributes(
-        boardName,
-        "baseline_stream_open",
-        {
-          "wbo.board.seq": persistedSeq,
-        },
-      ),
-    },
-    function traceBoardBaselineStreamOpen() {
-      return streamServedBaseline(boardName, {
-        historyDir: ctx.runtime.config.HISTORY_DIR,
-      });
-    },
-  );
-  svgStream.on("error", (/** @type {Error} */ error) => {
-    ctx.observed.noteError(error);
-    if (!ctx.response.headersSent) {
-      respondWithErrorPage(
-        ctx.request,
-        ctx.response,
-        500,
-        ctx.runtime.errorPage,
-      );
-    } else {
-      ctx.response.destroy(error);
-    }
+  const svgStream = await openBoardBaselineStream(ctx, boardName, {
+    "wbo.board.seq": persistedSeq,
   });
   const compressedResponse = startCompressedResponse(
     ctx.response,
@@ -114,23 +74,12 @@ async function serveBoardSvg(ctx) {
 
 /**
  * @param {HttpRouteContext} ctx
- * @returns {void}
- */
-function downloadBoard(ctx) {
-  const boardName = requireBoardPathName(ctx.params);
-  annotateBoardRequest(ctx.observed, boardName);
-  requireBoardOpenPermission(ctx, boardName);
-  void respondWithBoardDownload(ctx, boardName).catch(
-    serveError(ctx.request, ctx.response, ctx.runtime.errorPage, ctx.observed),
-  );
-}
-
-/**
- * @param {HttpRouteContext} ctx
- * @param {string} boardName
  * @returns {Promise<void>}
  */
-async function respondWithBoardDownload(ctx, boardName) {
+async function downloadBoard(ctx) {
+  const boardName = requireBoardPathName(ctx.params);
+  annotateBoardRequest(ctx.observed, boardName);
+  boardPermissionsForRequest(ctx, boardName).requireOpen();
   const data = await tracing.withActiveSpan(
     "board.download_read",
     {
@@ -147,40 +96,26 @@ async function respondWithBoardDownload(ctx, boardName) {
   ctx.response.writeHead(200, {
     "Content-Type": "image/svg+xml",
     "Content-Disposition": `attachment; filename="${fallbackFilename}"`,
-    "Content-Length": data.length,
+    "Content-Length": Buffer.byteLength(data),
   });
   ctx.response.end(data);
 }
 
 /**
  * @param {HttpRouteContext} ctx
- * @returns {void}
- */
-function serveBoardPreview(ctx) {
-  const boardName = requireBoardPathName(ctx.params);
-  annotateBoardRequest(ctx.observed, boardName);
-  requireBoardOpenPermission(ctx, boardName);
-  const startedAt = Date.now();
-  void respondWithBoardPreview(ctx, boardName, startedAt).catch((error) => {
-    recordPreviewDuration(ctx, startedAt);
-    serveError(
-      ctx.request,
-      ctx.response,
-      ctx.runtime.errorPage,
-      ctx.observed,
-    )(error);
-  });
-}
-
-/**
- * @param {HttpRouteContext} ctx
- * @param {string} boardName
- * @param {number} startedAt
  * @returns {Promise<void>}
  */
-async function respondWithBoardPreview(ctx, boardName, startedAt) {
-  const svg = await renderPreviewSvg(boardName, ctx.runtime.config);
-  recordPreviewDuration(ctx, startedAt);
+async function serveBoardPreview(ctx) {
+  const boardName = requireBoardPathName(ctx.params);
+  annotateBoardRequest(ctx.observed, boardName);
+  boardPermissionsForRequest(ctx, boardName).requireOpen();
+  const startedAt = Date.now();
+  let svg;
+  try {
+    svg = await renderPreviewSvg(boardName, ctx.runtime.config);
+  } finally {
+    recordPreviewDuration(ctx, startedAt);
+  }
   if (svg === null) {
     serveError(
       ctx.request,
@@ -244,7 +179,7 @@ async function renderPreviewSvg(boardName, config) {
           historyDir: config.HISTORY_DIR,
         });
       } catch (error) {
-        if (isNotFoundError(error)) {
+        if (errorCode(error) === "ENOENT") {
           markPreviewNotFound(boardName);
           return null;
         }
@@ -252,14 +187,6 @@ async function renderPreviewSvg(boardName, config) {
       }
     },
   );
-}
-
-/**
- * @param {unknown} error
- * @returns {boolean}
- */
-function isNotFoundError(error) {
-  return errorCode(error) === "ENOENT";
 }
 
 /**

@@ -12,7 +12,6 @@ import {
 import {
   canonicalItemFromStoredSvgEntry,
   currentText,
-  publicItemFromCanonicalItem,
 } from "../board/canonical_items.mjs";
 import {
   createDefaultSvgExtent,
@@ -215,29 +214,17 @@ async function readStoredSvgMetadata(boardName, options) {
       const stream = fs.createReadStream(readableSvg.file, {
         encoding: "utf8",
       });
-      /** @type {BoardMetadata} */
-      let metadata = defaultBoardMetadata();
-      let seq = 0;
-      try {
-        for await (const event of streamStoredSvgStructure(stream)) {
-          if (event.type !== "prefix") continue;
-          const rootMetadata = readStoredSvgRootMetadata(event.prefix);
-          seq = rootMetadata.seq;
-          metadata = {
-            readonly: rootMetadata.readonly,
-            seq,
-          };
-          break;
-        }
-      } finally {
-        stream.destroy();
+      for await (const event of streamStoredSvgStructure(stream)) {
+        if (event.type !== "prefix") continue;
+        const { readonly, seq } = readStoredSvgRootMetadata(event.prefix);
+        return {
+          metadata: { readonly, seq },
+          seq,
+          source: readableSvg.source,
+          byteLength: readableSvg.byteLength,
+        };
       }
-      return {
-        metadata,
-        seq,
-        source: readableSvg.source,
-        byteLength: readableSvg.byteLength,
-      };
+      throw new Error("Missing drawingArea group");
     },
   );
   if (state) return state;
@@ -274,19 +261,6 @@ function createStoredSvgSeqMismatchError(expectedSeq, actualSeq) {
   error.expectedSeq = expectedSeq;
   error.actualSeq = actualSeq;
   return error;
-}
-
-/**
- * @param {{[name: string]: any}} board
- * @param {BoardMetadata} metadata
- * @param {number} seq
- * @param {SvgExtent=} [svgExtent]
- * @returns {string}
- */
-function serializeStoredSvg(board, metadata, seq, svgExtent) {
-  const items = collectSerializedSvgItems(board).itemTags;
-  const envelope = createDefaultStoredSvgEnvelope(metadata, seq, svgExtent);
-  return serializeStoredSvgEnvelope(envelope.prefix, items, envelope.suffix);
 }
 
 /**
@@ -409,37 +383,33 @@ async function readCanonicalBoardState(boardName, options) {
       let metadata = defaultBoardMetadata();
       let seq = 0;
       let index = 0;
-      try {
-        for await (const event of streamStoredSvgStructure(stream)) {
-          if (event.type === "prefix") {
-            const rootMetadata = readStoredSvgRootMetadata(event.prefix);
-            metadata = {
-              readonly: rootMetadata.readonly,
-            };
-            seq = rootMetadata.seq;
-            svgExtent.width = rootMetadata.svgExtent.width;
-            svgExtent.height = rootMetadata.svgExtent.height;
-            continue;
-          }
-          if (event.type !== "item") continue;
-          const item = canonicalItemFromStoredSvgEntry(event.entry, index);
-          if (!item) {
-            logger.warn("board.load_item_skipped", {
-              board: boardName,
-              "wbo.board.source": readableSvg.source,
-              "wbo.board.paint_order": index,
-              "wbo.board.item_tag": event.entry?.tagName,
-              "wbo.board.item_id": event.entry?.id,
-            });
-            continue;
-          }
-          itemsById.set(item.id, item);
-          paintOrder.push(item.id);
-          extendSvgExtentForItem(svgExtent, item);
-          index += 1;
+      for await (const event of streamStoredSvgStructure(stream)) {
+        if (event.type === "prefix") {
+          const rootMetadata = readStoredSvgRootMetadata(event.prefix);
+          metadata = {
+            readonly: rootMetadata.readonly,
+          };
+          seq = rootMetadata.seq;
+          svgExtent.width = rootMetadata.svgExtent.width;
+          svgExtent.height = rootMetadata.svgExtent.height;
+          continue;
         }
-      } finally {
-        stream.destroy();
+        if (event.type !== "item") continue;
+        const item = canonicalItemFromStoredSvgEntry(event.entry, index);
+        if (!item) {
+          logger.warn("board.load_item_skipped", {
+            board: boardName,
+            "wbo.board.source": readableSvg.source,
+            "wbo.board.paint_order": index,
+            "wbo.board.item_tag": event.entry?.tagName,
+            "wbo.board.item_id": event.entry?.id,
+          });
+          continue;
+        }
+        itemsById.set(item.id, item);
+        paintOrder.push(item.id);
+        extendSvgExtentForItem(svgExtent, item);
+        index += 1;
       }
       return {
         itemsById,
@@ -500,6 +470,30 @@ async function boardExists(boardName, config) {
  * @returns {Promise<void>}
  */
 async function writeBoardState(boardName, board, metadata, seq, options) {
+  return writeSerializedBoardState(
+    boardName,
+    Object.values(board).map(serializeStoredSvgItem),
+    metadata,
+    seq,
+    options,
+  );
+}
+
+/**
+ * @param {string} boardName
+ * @param {string[]} itemTags
+ * @param {BoardMetadata} metadata
+ * @param {number} seq
+ * @param {{historyDir?: string, svgExtent?: SvgExtent}=} [options]
+ * @returns {Promise<void>}
+ */
+async function writeSerializedBoardState(
+  boardName,
+  itemTags,
+  metadata,
+  seq,
+  options,
+) {
   const historyDir = options?.historyDir;
   const file = boardSvgPath(boardName, historyDir);
   const backupFile = boardSvgBackupPath(boardName, historyDir);
@@ -507,35 +501,31 @@ async function writeBoardState(boardName, board, metadata, seq, options) {
   logSvgStoreDebug("svg.write_started", {
     board: boardName,
     "file.tmp_path": tmpFile,
-    "wbo.svg.item_count": Object.keys(board).length,
+    "wbo.svg.item_count": itemTags.length,
     "wbo.svg.seq": seq,
   });
-  /** @type {string} */
-  let svg;
+  let envelope;
   try {
-    const existingSvg = await readFile(file, "utf8");
-    const parsed = parseStoredSvgEnvelope(existingSvg);
-    const prefix = updateRootMetadata(
-      parsed.prefix,
+    envelope = parseStoredSvgEnvelope(await readFile(file, "utf8"));
+    envelope.prefix = updateRootMetadata(
+      envelope.prefix,
       metadata,
       seq,
       options?.svgExtent,
     );
-    const itemTags = Object.values(board).map((item) =>
-      serializeStoredSvgItem(item),
-    );
-    svg = serializeStoredSvgEnvelope(prefix, itemTags, parsed.suffix);
   } catch (error) {
-    if (errorCode(error) !== "ENOENT") {
-      try {
-        svg = serializeStoredSvg(board, metadata, seq, options?.svgExtent);
-      } catch {
-        throw error;
-      }
-    } else {
-      svg = serializeStoredSvg(board, metadata, seq, options?.svgExtent);
-    }
+    if (errorCode(error) !== "ENOENT") throw error;
+    envelope = createDefaultStoredSvgEnvelope(
+      metadata,
+      seq,
+      options?.svgExtent,
+    );
   }
+  const svg = serializeStoredSvgEnvelope(
+    envelope.prefix,
+    itemTags,
+    envelope.suffix,
+  );
   await writeFile(tmpFile, svg, { flag: "wx" });
   logSvgStoreDebug("svg.write_tmp_finished", {
     board: boardName,
@@ -615,29 +605,20 @@ async function migrateLegacyJsonBoardToSvg(boardName, parsed, options) {
 }
 
 /**
- * @param {Map<string, any>} itemsById
- * @param {string[]} paintOrder
- * @returns {any[]}
- */
-function collectPersistedCanonicalItems(itemsById, paintOrder) {
-  return paintOrder
-    .map((id) => itemsById.get(id))
-    .filter((item) => item && item.deleted !== true);
-}
-
-/**
  * @param {any} item
  * @param {{sourceText?: string, sourcePath?: string, isPersistedItem?: boolean}=} [options]
  * @returns {string}
  */
 function serializeCanonicalItemForStorage(item, options = {}) {
-  const storedItem = publicItemFromCanonicalItem(item);
-  if (!storedItem) return "";
+  if (!item || item.deleted) return "";
+  const storedItem = {
+    id: item.id,
+    tool: item.tool,
+    ...item.attrs,
+    transform: item.transform,
+  };
   if (item.payload?.kind === "text") {
-    if (typeof storedItem.txt !== "string") {
-      storedItem.txt =
-        typeof options.sourceText === "string" ? options.sourceText : "";
-    }
+    storedItem.txt = currentText(item) ?? options.sourceText ?? "";
     return serializeStoredSvgItem(storedItem);
   }
   if (item.payload?.kind === "children") {
@@ -648,9 +629,9 @@ function serializeCanonicalItemForStorage(item, options = {}) {
     const pathData = sourceRequired
       ? appendPersistedPencilPath(
           options.sourcePath,
-          storedItem.appendedChildren,
+          item.payload.appendedChildren,
         )
-      : renderPencilPath(storedItem._children || []);
+      : renderPencilPath(item.payload.appendedChildren);
     if (!pathData) {
       if (!sourceRequired) return "";
       throw new Error(
@@ -673,7 +654,7 @@ function serializeCanonicalItemForStorage(item, options = {}) {
  * @param {BoardMetadata} metadata
  * @param {number} seq
  * @param {{historyDir?: string, svgExtent?: SvgExtent}=} [options]
- * @returns {Promise<{persistedIds: Set<string>}>}
+ * @returns {Promise<Set<string>>}
  */
 async function writeCanonicalBoardState(
   boardName,
@@ -684,34 +665,17 @@ async function writeCanonicalBoardState(
   options,
 ) {
   const persistedIds = new Set();
-  /** @type {Map<string, any>} */
-  const fullBoard = new Map();
-  for (const item of collectPersistedCanonicalItems(itemsById, paintOrder)) {
-    if (needsStoredPencilPath(item, false)) {
-      throw new Error(
-        `Cannot rewrite persisted pencil "${item.id || "(unknown)"}" without a stored source path`,
-      );
-    }
-    const materialized = publicItemFromCanonicalItem(item);
-    if (!materialized) continue;
-    if (item.payload?.kind === "text" && typeof materialized.txt !== "string") {
-      materialized.txt = "";
-    }
-    const serialized = serializeStoredSvgItem(materialized);
+  const itemTags = [];
+  for (const id of paintOrder) {
+    const item = itemsById.get(id);
+    if (!item || item.deleted === true) continue;
+    const serialized = serializeCanonicalItemForStorage(item);
     if (!serialized) continue;
     persistedIds.add(item.id);
-    fullBoard.set(item.id, materialized);
+    itemTags.push(serialized);
   }
-  await writeBoardState(
-    boardName,
-    Object.fromEntries(fullBoard),
-    metadata,
-    seq,
-    options,
-  );
-  return {
-    persistedIds,
-  };
+  await writeSerializedBoardState(boardName, itemTags, metadata, seq, options);
+  return persistedIds;
 }
 
 /**
@@ -1059,13 +1023,14 @@ async function readServedBaseline(boardName, options) {
  */
 async function streamServedBaseline(boardName, options) {
   const historyDir = options?.historyDir;
-  const readableSvg = await readStoredSvgWithFallback(
+  const hasStoredSvg = await readStoredSvgWithFallback(
     boardName,
     historyDir,
-    async (readable) => readable.file,
+    async () => true,
   );
-  if (typeof readableSvg === "string") {
-    return fs.createReadStream(readableSvg);
+  if (hasStoredSvg) {
+    // Recovery promotes the backup before returning; stream the final path.
+    return fs.createReadStream(boardSvgPath(boardName, historyDir));
   }
   return Readable.from([await readServedBaseline(boardName, options)]);
 }

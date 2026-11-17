@@ -15,7 +15,7 @@ function setActiveElement(element) {
   });
 }
 
-class FakeElement {
+class FakeElement extends EventTarget {
   /**
    * @param {{
    *   left?: number,
@@ -27,16 +27,13 @@ class FakeElement {
    * }} [rect]
    */
   constructor(rect = {}) {
+    super();
     this.style = /** @type {{[key: string]: string}} */ ({});
     this.offsetWidth = rect.width || 0;
     this.offsetHeight = rect.height || 0;
     this.hover = false;
     this.focused = false;
     this.children = /** @type {Set<FakeElement>} */ (new Set());
-    this.listeners =
-      /** @type {Map<string, {listener: EventListener, options?: AddEventListenerOptions}[]>} */ (
-        new Map()
-      );
     this.rect = {
       left: rect.left || 0,
       right: rect.right || rect.left || 0,
@@ -53,35 +50,11 @@ class FakeElement {
 
   /**
    * @param {string} type
-   * @param {EventListener} listener
-   * @param {AddEventListenerOptions} [options]
-   */
-  addEventListener(type, listener, options) {
-    const listeners = this.listeners.get(type) || [];
-    listeners.push({ listener, options });
-    this.listeners.set(type, listeners);
-  }
-
-  /**
-   * @param {string} type
-   * @param {EventListener} listener
-   */
-  removeEventListener(type, listener) {
-    const listeners = this.listeners.get(type) || [];
-    this.listeners.set(
-      type,
-      listeners.filter((entry) => entry.listener !== listener),
-    );
-  }
-
-  /**
-   * @param {string} type
    * @param {Record<string, unknown>} [event]
    */
   dispatch(type, event = {}) {
-    const listeners = this.listeners.get(type) || [];
-    listeners.forEach((entry) =>
-      entry.listener(/** @type {Event} */ ({ type, ...event })),
+    this.dispatchEvent(
+      Object.assign(new Event(type, { cancelable: true }), event),
     );
   }
 
@@ -109,44 +82,20 @@ class FakeElement {
   }
 }
 
-class FakeDomElement {
+class FakeDomElement extends EventTarget {
   /** @param {string} tagName */
   constructor(tagName) {
+    super();
     this.tagName = tagName;
     this.id = "";
     this.className = "";
     this.hidden = false;
-    this.open = false;
     this.textContent = "";
     /** @type {FakeDomElement | null} */
     this.parentNode = null;
     /** @type {FakeDomElement[]} */
     this.children = [];
     this.attributes = /** @type {Map<string, string>} */ (new Map());
-    this.listeners =
-      /** @type {Map<string, {listener: EventListener, options?: AddEventListenerOptions}[]>} */ (
-        new Map()
-      );
-    const element = this;
-    const classes = new Set();
-    /** @type {{add: (...names: string[]) => void, remove: (...names: string[]) => void, contains: (name: string) => boolean}} */
-    this.classList = {
-      /** @param {...string} names */
-      add(...names) {
-        names.forEach((name) => classes.add(name));
-      },
-      /** @param {...string} names */
-      remove(...names) {
-        names.forEach((name) => classes.delete(name));
-      },
-      /** @param {string} name */
-      contains(name) {
-        return (
-          classes.has(name) ||
-          element.className.split(/\s+/).filter(Boolean).includes(name)
-        );
-      },
-    };
   }
 
   /** @param {FakeDomElement} child */
@@ -176,56 +125,13 @@ class FakeDomElement {
     this.attributes.delete(name);
   }
 
-  /**
-   * @param {string} type
-   * @param {EventListener} listener
-   * @param {AddEventListenerOptions} [options]
-   */
-  addEventListener(type, listener, options) {
-    const listeners = this.listeners.get(type) || [];
-    listeners.push({ listener, options });
-    this.listeners.set(type, listeners);
-  }
-
-  /**
-   * @param {string} type
-   * @param {EventListener} listener
-   */
-  removeEventListener(type, listener) {
-    const listeners = this.listeners.get(type) || [];
-    this.listeners.set(
-      type,
-      listeners.filter((entry) => entry.listener !== listener),
-    );
-  }
-
-  /**
-   * @param {string} type
-   * @param {Record<string, unknown>} [event]
-   */
-  dispatch(type, event = {}) {
-    const listeners = this.listeners.get(type) || [];
-    listeners.forEach((entry) =>
-      entry.listener(
-        /** @type {Event} */ (
-          /** @type {unknown} */ ({ type, target: this, ...event })
-        ),
-      ),
-    );
+  /** @param {string} type */
+  dispatch(type) {
+    this.dispatchEvent(new Event(type));
   }
 
   focus() {
-    this.open = true;
     setActiveElement(this);
-  }
-
-  showModal() {
-    this.open = true;
-  }
-
-  close() {
-    this.open = false;
-    this.dispatch("close");
   }
 
   remove() {
@@ -235,20 +141,6 @@ class FakeDomElement {
     );
     this.parentNode = null;
   }
-}
-
-/**
- * @param {FakeDomElement} root
- * @param {string} id
- * @returns {FakeDomElement | null}
- */
-function findFakeDomElementById(root, id) {
-  if (root.id === id) return root;
-  for (const child of root.children) {
-    const match = findFakeDomElementById(child, id);
-    if (match) return match;
-  }
-  return null;
 }
 
 test("positionAnchoredPanel keeps panels inside the viewport", async () => {
@@ -280,6 +172,11 @@ test("positionAnchoredPanel keeps panels inside the viewport", async () => {
 test("floating panel controller owns hover, escape, blur, and resize behavior", async () => {
   const browser = getBrowserHarness();
   browser.installClientDom({ innerWidth: 300, innerHeight: 200 });
+  const windowEvents = new EventTarget();
+  browser.setWindowProperties({
+    addEventListener: windowEvents.addEventListener.bind(windowEvents),
+    removeEventListener: windowEvents.removeEventListener.bind(windowEvents),
+  });
   setActiveElement(null);
   const { createFloatingPanelController } = await import(
     "../client-data/js/board_ui_module.js"
@@ -315,16 +212,13 @@ test("floating panel controller owns hover, escape, blur, and resize behavior", 
   assert.equal(open, true);
   assert.equal(positionCount, 1);
 
-  browser.dispatchWindowEvent("resize");
+  windowEvents.dispatchEvent(new Event("resize"));
   assert.equal(positionCount, 2);
 
   /** @type {FakeElement} */ (/** @type {unknown} */ (panel)).dispatch(
     "keydown",
     {
       key: "Escape",
-      preventDefault() {
-        this.defaultPrevented = true;
-      },
     },
   );
   assert.equal(open, false);
@@ -340,9 +234,19 @@ test("floating panel controller owns hover, escape, blur, and resize behavior", 
   assert.equal(open, false);
   assert.equal(positionCount, 3);
 
-  open = true;
+  open = false;
   controller.destroy();
-  browser.dispatchWindowEvent("resize");
+  /** @type {FakeElement} */ (/** @type {unknown} */ (anchor)).dispatch(
+    "mouseenter",
+  );
+  assert.equal(open, false);
+  open = true;
+  /** @type {FakeElement} */ (/** @type {unknown} */ (panel)).dispatch(
+    "keydown",
+    { key: "Escape" },
+  );
+  assert.equal(open, true);
+  windowEvents.dispatchEvent(new Event("resize"));
   assert.equal(positionCount, 3);
 });
 
@@ -425,109 +329,6 @@ test("notice panels preserve local dismissal, delegate acknowledgement and repla
     false,
     "a new occurrence must be visible",
   );
-});
-
-test("modal shell creates, reuses, hides, and removes shared containers", async () => {
-  const browser = getBrowserHarness();
-  const body = new FakeDomElement("body");
-  const document = browser.installClientDom({
-    globalOverrides: { HTMLElement: FakeDomElement },
-    createElement: (tagName) => new FakeDomElement(tagName),
-    getElementById: (id) => findFakeDomElementById(body, id),
-  });
-  /** @type {any} */ (document).body = body;
-  const { createModalShell } = await import(
-    "../client-data/js/board_ui_module.js"
-  );
-
-  const shell = createModalShell({
-    overlayId: "modal-overlay",
-    dialogId: "modal-dialog",
-    overlayClassName: "extra-overlay another-overlay",
-    dialogClassName: "extra-dialog",
-    hiddenClass: "is-hidden",
-    initiallyHidden: true,
-  });
-
-  assert.equal(shell.overlay.id, "modal-overlay");
-  assert.equal(shell.dialog.id, "modal-dialog");
-  assert.equal(shell.overlay.parentNode, body);
-  assert.equal(shell.dialog.parentNode, shell.overlay);
-  assert.equal(shell.overlay.classList.contains("wbo-modal-backdrop"), true);
-  assert.equal(shell.overlay.classList.contains("extra-overlay"), true);
-  assert.equal(shell.overlay.classList.contains("another-overlay"), true);
-  assert.equal(shell.overlay.classList.contains("is-hidden"), true);
-  assert.equal(shell.dialog.classList.contains("wbo-dialog"), true);
-  assert.equal(shell.dialog.classList.contains("extra-dialog"), true);
-
-  shell.show();
-  assert.equal(shell.overlay.classList.contains("is-hidden"), false);
-  shell.hide();
-  assert.equal(shell.overlay.classList.contains("is-hidden"), true);
-
-  const reused = createModalShell({
-    overlayId: "modal-overlay",
-    dialogId: "modal-dialog",
-  });
-  assert.equal(reused.overlay, shell.overlay);
-  assert.equal(reused.dialog, shell.dialog);
-
-  const transient = createModalShell();
-  transient.hide();
-  assert.equal(transient.overlay.hidden, true);
-  transient.show();
-  assert.equal(transient.overlay.hidden, false);
-  transient.destroy();
-
-  shell.destroy();
-  assert.equal(findFakeDomElementById(body, "modal-overlay"), null);
-});
-
-test("native modal dialogs only settle on shell clicks", async () => {
-  const browser = getBrowserHarness();
-  const body = new FakeDomElement("body");
-  const document = browser.installClientDom({
-    globalOverrides: { HTMLElement: FakeDomElement },
-    createElement: (tagName) => new FakeDomElement(tagName),
-  });
-  /** @type {any} */ (document).body = body;
-  const { showActionDialog } = await import(
-    "../client-data/js/board_ui_module.js"
-  );
-
-  const resultPromise = showActionDialog({
-    title: "Ban user?",
-    sections: [
-      {
-        id: "duration",
-        layout: "segmented",
-        submit: true,
-        choices: [{ label: "1 hour", value: 60 * 60 * 1000 }],
-      },
-    ],
-    cancelLabel: "Cancel",
-  });
-  let resolved = false;
-  void resultPromise.then(() => {
-    resolved = true;
-  });
-
-  const dialog = body.children[0];
-  assert.ok(dialog);
-  const panel = dialog.children[0];
-  assert.ok(panel);
-  assert.equal(dialog.classList.contains("wbo-native-dialog"), true);
-  assert.equal(panel.classList.contains("wbo-dialog"), true);
-
-  dialog.dispatch("click", { target: panel });
-  await Promise.resolve();
-  assert.equal(resolved, false);
-  assert.equal(dialog.parentNode, body);
-
-  dialog.dispatch("click", { target: dialog });
-  assert.equal(await resultPromise, null);
-  assert.equal(resolved, true);
-  assert.equal(dialog.parentNode, null);
 });
 
 test("countdown durations use localized unit patterns", async () => {

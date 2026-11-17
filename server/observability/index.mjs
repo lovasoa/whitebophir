@@ -44,7 +44,6 @@ import {
 import packageJson from "../../package.json" with { type: "json" };
 import {
   createLogRecord,
-  formatReadableLogRecord,
   LogfmtLogRecordExporter,
   parseObservabilityOptions,
   shouldEmitLogAtLevel,
@@ -367,6 +366,7 @@ function getActiveSpan() {
  * @returns {void}
  */
 function setSpanAttributes(span, attributes) {
+  if (!span.isRecording()) return;
   const normalized = normalizeSpanAttributes(attributes);
   if (Object.keys(normalized).length > 0) {
     span.setAttributes(/** @type {any} */ (normalized));
@@ -390,6 +390,7 @@ function setActiveSpanAttributes(attributes) {
  * @returns {void}
  */
 function addSpanEvent(span, name, attributes) {
+  if (!span.isRecording()) return;
   span.addEvent(name, /** @type {any} */ (normalizeSpanAttributes(attributes)));
 }
 
@@ -411,6 +412,7 @@ function addActiveSpanEvent(name, attributes) {
  * @returns {void}
  */
 function recordSpanError(span, error, attributes) {
+  if (!span.isRecording()) return;
   if (error instanceof Error) {
     span.recordException(error);
     span.setStatus({
@@ -547,30 +549,6 @@ function withActiveSpan(name, options, fn) {
 }
 
 /**
- * @param {string} name
- * @param {{
- *   kind?: number,
- *   attributes?: {[key: string]: unknown},
- * } | undefined} options
- * @param {() => any} fn
- * @returns {any}
- */
-function withOptionalActiveSpan(name, options, fn) {
-  const activeSpan = getActiveSpan();
-  if (!activeSpan) return fn();
-  return withActiveSpan(
-    name,
-    {
-      kind: options?.kind,
-      attributes: options?.attributes,
-    },
-    function runOptionalSpan() {
-      return fn();
-    },
-  );
-}
-
-/**
  * Create a child span only when the current trace is already recording. This
  * keeps unsampled traffic and standalone work cheap while making sampled root
  * traces easier to read.
@@ -636,20 +614,14 @@ function withExpensiveActiveSpan(name, options, fn) {
 
 /**
  * @param {string} name
- * @param {{
- *   kind?: number,
- *   attributes?: {[key: string]: unknown},
- * } | undefined} options
- * @param {() => any} fn
- * @returns {any}
+ * @param {{[key: string]: unknown}} attributes
  */
-function withDetachedSpan(name, options, fn) {
-  const activeSpan = getActiveSpan();
-  if (activeSpan) {
-    setSpanAttributes(activeSpan, options?.attributes);
-    addSpanEvent(activeSpan, name, options?.attributes);
-  }
-  return fn();
+function annotateActiveSpan(name, attributes) {
+  const span = getActiveSpan();
+  if (!span?.isRecording()) return;
+  const normalized = normalizeSpanAttributes(attributes);
+  span.setAttributes(normalized);
+  span.addEvent(name, normalized);
 }
 
 /**
@@ -911,41 +883,11 @@ async function flushObservability() {
 }
 
 const logger = {
-  /**
-   * @param {"debug"|"info"|"warn"|"error"} level
-   * @returns {boolean}
-   */
-  isEnabled: function isEnabled(level) {
-    return shouldEmitLog(level);
-  },
-  /**
-   * @param {string} name
-   * @param {{msg?: string, error?: unknown, [key: string]: unknown}=} fields
-   */
-  debug: function debug(name, fields) {
-    emitLog("debug", name, fields);
-  },
-  /**
-   * @param {string} name
-   * @param {{msg?: string, error?: unknown, [key: string]: unknown}=} fields
-   */
-  info: function info(name, fields) {
-    emitLog("info", name, fields);
-  },
-  /**
-   * @param {string} name
-   * @param {{msg?: string, error?: unknown, [key: string]: unknown}=} fields
-   */
-  warn: function warn(name, fields) {
-    emitLog("warn", name, fields);
-  },
-  /**
-   * @param {string} name
-   * @param {{msg?: string, error?: unknown, [key: string]: unknown}=} fields
-   */
-  error: function error(name, fields) {
-    emitLog("error", name, fields);
-  },
+  isEnabled: shouldEmitLog,
+  debug: emitLog.bind(undefined, "debug"),
+  info: emitLog.bind(undefined, "info"),
+  warn: emitLog.bind(undefined, "warn"),
+  error: emitLog.bind(undefined, "error"),
 };
 
 const observabilityMetrics = {
@@ -973,30 +915,16 @@ const tracing = {
   setActiveSpanAttributes,
   startSpan,
   withActiveSpan,
-  withDetachedSpan,
+  annotateActiveSpan,
   withExpensiveActiveSpan,
-  withOptionalActiveSpan,
   withRecordingActiveSpan,
   withSpanContext,
   SpanKind,
   SpanStatusCode,
 };
 
-const __test = {
-  createLogRecord,
-  parseObservabilityOptions,
-  shouldEmitLog,
-  shouldEmitLogAtLevel,
-  tracingEnabled: function tracingEnabledForTest() {
-    return tracingEnabled;
-  },
-};
-
 const observability = {
-  LogfmtLogRecordExporter,
-  __test,
   createRequestId,
-  formatReadableLogRecord,
   logger,
   metrics: observabilityMetrics,
   shutdownObservability,
@@ -1004,13 +932,9 @@ const observability = {
 };
 
 export {
-  __test,
   createRequestId,
-  formatReadableLogRecord,
-  LogfmtLogRecordExporter,
   logger,
   observabilityMetrics as metrics,
-  parseObservabilityOptions,
   shutdownObservability,
   tracing,
 };

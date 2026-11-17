@@ -10,14 +10,19 @@ const {
 const {
   VIEWPORT_LAYOUT_EVENT,
 } = require("../client-data/js/board_viewport.js");
-const { TOOL_CODE_BY_ID } = require("../client-data/tools/tool-order.js");
+const {
+  TOOL_BY_ID,
+  TOOL_CODE_BY_ID,
+} = require("../client-data/tools/manifest.js");
 const {
   installBrowserHarnessForTest,
 } = require("./helpers/browser_harness.js");
 const { MessageModule } = require("../client-data/js/board_message_module.js");
 const PencilTool = require("../client-data/tools/pencil/index.js");
+const {
+  readPencilPath,
+} = require("../client-data/tools/pencil/pencil_geometry.js");
 const RectangleTool = require("../client-data/tools/rectangle/index.js");
-const ShapeTool = require("../client-data/tools/shape_tool.js");
 installTestConsole();
 const { MutationType } = MessageToolMetadata;
 /** @typedef {import("../types/app-runtime").ToolModule} ToolModule */
@@ -41,17 +46,6 @@ const { MutationType } = MessageToolMetadata;
 
 const globalAny = /** @type {any} */ (global);
 const getBrowserHarness = installBrowserHarnessForTest(test);
-
-/**
- * @param {PathSegment[]} pathData
- * @returns {PathSegment[]}
- */
-function clonePathData(pathData) {
-  return pathData.map((seg) => ({
-    type: seg.type,
-    values: seg.values.slice(),
-  }));
-}
 
 /** @returns {AnimatedLength} */
 function createAnimatedLength() {
@@ -211,6 +205,9 @@ function createBaseElement(store, tagName) {
       if (child.id && store.get(child.id) === child) store.delete(child.id);
       return child;
     },
+    remove() {
+      this.parentNode?.removeChild(this);
+    },
     setAttribute: function (
       /** @type {string} */ name,
       /** @type {any} */ value,
@@ -306,7 +303,6 @@ function createBaseElement(store, tagName) {
           }),
         );
       }
-      if (this.pathData && clone.setPathData) clone.setPathData(this.pathData);
       return clone;
     },
   });
@@ -330,20 +326,7 @@ function createBBoxElement(store, tagName) {
     const height = this.height ? this.height.baseVal.value : 0;
     return { x, y, width, height };
   };
-  element.transformedBBox = function () {
-    const matrix = this.transform.baseVal.numberOfItems
-      ? this.transform.baseVal[0].matrix
-      : createMatrix();
-    const x = this.x ? this.x.baseVal.value : 0;
-    const y = this.y ? this.y.baseVal.value : 0;
-    const width = this.width ? this.width.baseVal.value : 0;
-    const height = this.height ? this.height.baseVal.value : 0;
-    return {
-      r: [x + matrix.e, y + matrix.f],
-      a: [width * matrix.a, 0],
-      b: [0, height * matrix.d],
-    };
-  };
+
   return element;
 }
 
@@ -359,17 +342,11 @@ function createSVGElement(store, tagName, attrs) {
     if (globalAny.SVGPathElement) {
       Object.setPrototypeOf(element, globalAny.SVGPathElement.prototype);
     }
-    /** @type {PathSegment[]} */
-    element.pathData = [];
-    element.getPathData = function () {
-      return clonePathData(this.pathData);
-    };
-    /**
-     * @param {PathSegment[]} pathData
-     */
-    element.setPathData = function (pathData) {
-      this.pathData = clonePathData(pathData);
-    };
+    Object.defineProperty(element, "pathData", {
+      get() {
+        return readPencilPath(element.getAttribute("d") || "");
+      },
+    });
   }
   if (tagName === "line") {
     element.x1 = createAnimatedLength();
@@ -738,12 +715,11 @@ function createHarness() {
         ),
       );
       const stateMetadata =
-        /** @type {{shortcut?: string, oneTouch?: boolean, alwaysOn?: boolean, mouseCursor?: string, helpText?: string, showMarker?: boolean, secondary?: import("../types/app-runtime").ToolSecondaryMode | null}} */ (
+        /** @type {import("../types/app-runtime").ToolRuntimeState} */ (
           toolState && typeof toolState === "object" ? toolState : {}
         );
-      const press = moduleNamespace.press;
-      const move = moduleNamespace.move;
-      const release = moduleNamespace.release;
+      const definition = TOOL_BY_ID[toolName];
+      assert.ok(definition);
       const onstart = moduleNamespace.onstart;
       const onMessage = moduleNamespace.onMessage;
       const onSocketDisconnect = moduleNamespace.onSocketDisconnect;
@@ -753,39 +729,20 @@ function createHarness() {
       const getTouchPolicy = moduleNamespace.getTouchPolicy;
       const tool = /** @type {any} */ ({
         name: toolName,
-        shortcut: moduleNamespace.shortcut || stateMetadata.shortcut,
-        oneTouch: moduleNamespace.oneTouch ?? stateMetadata.oneTouch,
-        alwaysOn: moduleNamespace.alwaysOn ?? stateMetadata.alwaysOn,
-        mouseCursor: moduleNamespace.mouseCursor || stateMetadata.mouseCursor,
-        helpText: moduleNamespace.helpText || stateMetadata.helpText,
-        showMarker: moduleNamespace.showMarker ?? stateMetadata.showMarker,
-        secondary: stateMetadata.secondary || moduleNamespace.secondary || null,
+        shortcut: definition.shortcut,
+        oneTouch: definition.oneTouch,
+        alwaysOn: definition.alwaysOn,
+        mouseCursor: stateMetadata.mouseCursor ?? definition.mouseCursor,
+        helpText: definition.helpText,
+        showMarker: definition.showMarker,
+        secondary: stateMetadata.secondary ?? null,
         draw: (/** @type {any} */ data, /** @type {boolean} */ isLocal) =>
           moduleNamespace.draw(toolState, data, isLocal),
-        press: press
-          ? (
-              /** @type {number} */ x,
-              /** @type {number} */ y,
-              /** @type {any} */ evt,
-              /** @type {boolean} */ isTouchEvent,
-            ) => press(toolState, x, y, evt, isTouchEvent)
-          : undefined,
-        move: move
-          ? (
-              /** @type {number} */ x,
-              /** @type {number} */ y,
-              /** @type {any} */ evt,
-              /** @type {boolean} */ isTouchEvent,
-            ) => move(toolState, x, y, evt, isTouchEvent)
-          : undefined,
-        release: release
-          ? (
-              /** @type {number} */ x,
-              /** @type {number} */ y,
-              /** @type {any} */ evt,
-              /** @type {boolean} */ isTouchEvent,
-            ) => release(toolState, x, y, evt, isTouchEvent)
-          : undefined,
+        listeners: {
+          press: moduleNamespace.press?.bind(undefined, toolState),
+          move: moduleNamespace.move?.bind(undefined, toolState),
+          release: moduleNamespace.release?.bind(undefined, toolState),
+        },
         onstart: onstart
           ? (/** @type {any} */ oldTool) => onstart(toolState, oldTool)
           : undefined,
@@ -809,13 +766,6 @@ function createHarness() {
           ? () => getTouchPolicy(toolState)
           : undefined,
       });
-      if (!tool.listeners) {
-        tool.listeners = {
-          press: tool.press,
-          move: tool.move,
-          release: tool.release,
-        };
-      }
       tools[tool.name] = tool;
       return tool;
     },
@@ -1038,7 +988,6 @@ function createUnavailableUiRuntime() {
       unavailableCapability("ui.positionAnchoredPanel"),
     createFloatingPanelController: () =>
       unavailableCapability("ui.createFloatingPanelController"),
-    createModalShell: () => unavailableCapability("ui.createModalShell"),
     confirm: () => unavailableCapability("ui.confirm"),
   };
 }
@@ -1075,9 +1024,6 @@ function createInputToolRuntime(tools) {
     },
     ui: tools.ui || createUnavailableUiRuntime(),
     ids: tools.ids,
-    messages: {
-      messageForTool: () => unavailableCapability("messages.messageForTool"),
-    },
     permissions: tools.access,
   };
 }
@@ -1106,7 +1052,6 @@ function createHarnessToolRuntime(app) {
     i18n: app.i18n || { t: (s) => s },
     ui: app.ui,
     ids: app.ids,
-    messages: app.messages,
     permissions: app.access,
   };
 }
@@ -1220,17 +1165,26 @@ function drawReplayStroke(pencilTool) {
   });
 }
 
-test("Pencil replay stays canonical with a cached boot context and resets existing paths", async () => {
+test("Pencil defers active remote ink until an edit reads it and resets replayed paths", async () => {
   const harness = createHarness();
   const pencilTool = await harness.loadTool("pencil");
   pencilTool.onstart(null);
 
   drawReplayStroke(pencilTool);
   const line = harness.elementsById.get("line-1");
+  assert.equal(line.parentNode, null);
+  const copy = {
+    tool: TOOL_CODE_BY_ID.hand,
+    type: MutationType.COPY,
+    id: "line-1",
+    newid: "copy",
+  };
+  pencilTool.onMessage(copy);
   assert.equal(line.parentNode, globalAny.Tools.dom.drawingArea);
   assert.deepEqual(line.pathData, expectedTwoPointStroke());
 
   drawReplayStroke(pencilTool);
+  pencilTool.onMessage(copy);
 
   assert.deepEqual(line.pathData, expectedTwoPointStroke());
 });
@@ -1830,12 +1784,12 @@ test("Pencil replay is idempotent for the same persisted stroke", async () => {
     pencilTool.draw(/** @type {any} */ (message));
   });
   const line = harness.elementsById.get("line-1");
-  const firstPathData = line.getPathData();
+  const firstPathData = line.pathData;
 
   replayStroke.forEach((message) => {
     pencilTool.draw(/** @type {any} */ (message));
   });
-  const secondPathData = line.getPathData();
+  const secondPathData = line.pathData;
 
   assert.deepEqual(secondPathData, firstPathData);
 });
@@ -2107,36 +2061,20 @@ equalSpanToolCases.forEach(([toolName, id]) => {
   });
 });
 
-test("Rectangle move logic separates throttled local draw from forced send", () => {
-  const tools = createInputTools();
-  const state = RectangleTool.boot(
-    createToolBootContext(
-      createInputToolRuntime(tools),
-      (assetFile) => assetFile,
-    ),
-  );
-  state.lastTime = 0;
-  state.currentShape = ShapeTool.createShapePressEffect(state, 80, 20).message;
+test("Rectangle move logic separates throttled local draw from forced send", async () => {
+  const harness = createHarness();
+  const tool = await harness.loadTool("rectangle");
+  dispatchToolEvent(tool.listeners.press, 80, 20);
+  harness.clock.now = 10;
+  dispatchToolEvent(tool.listeners.move, 120, 90);
+  assert.equal(globalAny.Tools.sentMessages.length, 1);
+  const rect = harness.elementsById.get("r-1");
+  assert.equal(rect.width.baseVal.value, 40);
+  assert.equal(rect.height.baseVal.value, 70);
 
-  const throttled = ShapeTool.createShapeMoveEffect(
-    state,
-    120,
-    90,
-    undefined,
-    false,
-    10,
-  );
-  const forced = ShapeTool.createShapeMoveEffect(
-    state,
-    120,
-    90,
-    undefined,
-    true,
-    10,
-  );
-
-  assert.equal(throttled.shouldSend, false);
-  assert.deepEqual(throttled.update, {
+  dispatchToolEvent(tool.listeners.release, 120, 90);
+  assert.equal(globalAny.Tools.sentMessages.length, 2);
+  assert.deepEqual(globalAny.Tools.sentMessages[1].data, {
     tool: TOOL_CODE_BY_ID.rectangle,
     type: MutationType.UPDATE,
     id: "r-1",
@@ -2145,8 +2083,6 @@ test("Rectangle move logic separates throttled local draw from forced send", () 
     x2: 120,
     y2: 90,
   });
-  assert.equal(forced.shouldSend, true);
-  assert.equal(forced.nextLastTime, 10);
 });
 
 test("Rectangle update recreates a missing shape before applying bounds", async () => {
@@ -2443,6 +2379,7 @@ test("large Hand replay completes transforms before the next message", async () 
   const messages = new MessageModule(
     /** @type {any} */ ({ mounted: { hand: handTool } }),
     globalAny.Tools.identity,
+    { ensureBoardExtentForBounds: () => false },
   );
   await messages.messageForTool({
     tool: TOOL_CODE_BY_ID.hand,
@@ -2771,9 +2708,6 @@ test("Hand box selection can use IntersectionObserver without target bbox reads"
   selectedRect.getBBox = () => {
     throw new Error("target getBBox should not be called");
   };
-  selectedRect.transformedBBox = () => {
-    throw new Error("target transformedBBox should not be called");
-  };
   globalAny.Tools.drawingArea.appendChild(selectedRect);
 
   const rejectedRect = globalAny.Tools.dom.createSVGElement("rect");
@@ -2821,9 +2755,6 @@ test("Hand box selection does not fall back to target bbox reads without Interse
   rect.height.baseVal.value = 40;
   rect.getBBox = () => {
     throw new Error("target getBBox should not be called");
-  };
-  rect.transformedBBox = () => {
-    throw new Error("target transformedBBox should not be called");
   };
   globalAny.Tools.drawingArea.appendChild(rect);
 

@@ -18,15 +18,23 @@ const {
   pinReplayBaseline,
   resetBoardRegistry,
 } = require("../server/board/registry.mjs");
+const {
+  clearSaveTimeout,
+  finalizePersistedItems,
+  hasDirtyItems,
+  scheduleSaveTimeout,
+} = require("../server/board/data_persistence.mjs");
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const {
-  Clear,
-  Eraser,
-  Hand,
-  Pencil,
-  Rectangle,
-  Text,
-} = require("../client-data/tools/index.js");
+  TOOL_BY_ID: {
+    clear: Clear,
+    eraser: Eraser,
+    hand: Hand,
+    pencil: Pencil,
+    rectangle: Rectangle,
+    text: Text,
+  },
+} = require("../client-data/tools/manifest.js");
 const observability = require("../server/observability/index.mjs").default;
 
 function getBoardDataClass() {
@@ -437,6 +445,37 @@ test("appends require a live parent in the current transaction", () => {
   }
 });
 
+test("rejected pencil batches preserve accepted points and in-flight save snapshots", () => {
+  const board = disableSaves(
+    createBoard(getBoardDataClass(), "pencil-rollback"),
+  );
+  const messages = buildPencilStrokeMutations("line-1", "#111111", 4, [
+    { x: 10, y: 20 },
+    { x: 25, y: 35 },
+  ]);
+  assertMessagesAccepted(board, messages);
+  const snapshot = board.itemsById.get("line-1");
+  const before = structuredClone(snapshot);
+
+  assert.equal(
+    board.processMessageBatch([
+      {
+        tool: Hand.id,
+        type: MutationType.UPDATE,
+        id: "line-1",
+        transform: { a: 1, b: 0, c: 0, d: 1, e: 2, f: 3 },
+      },
+      ...messages.slice(1),
+      { ...messages[1], x: board.maxBoardSize + 1 },
+    ]).ok,
+    false,
+  );
+  assert.deepEqual(board.itemsById.get("line-1"), before);
+  assert.equal(board.processMessageBatch(messages.slice(1)).ok, true);
+  assert.equal(board.get("line-1").childCount, 4);
+  assert.deepEqual(snapshot, before);
+});
+
 test("computeScheduledSaveDelayMs respects idle and max-delay deadlines", () => {
   const { computeScheduledSaveDelayMs } = require(BOARD_DATA_PATH);
 
@@ -513,13 +552,14 @@ test("finalizePersistedItems leaves newer canonical revisions dirty", () => {
   );
 
   const persistedSnapshot = new Map(board.itemsById);
+  const originalSnapshot = structuredClone(persistedSnapshot);
 
   assert.equal(
     board.processMessage(textUpdate("text-1", "after save started")).ok,
     true,
   );
 
-  board.finalizePersistedItems(persistedSnapshot);
+  finalizePersistedItems(board, persistedSnapshot);
 
   assert.deepEqual(board.get("text-1"), {
     id: "text-1",
@@ -534,6 +574,7 @@ test("finalizePersistedItems leaves newer canonical revisions dirty", () => {
     time: board.get("text-1").time,
   });
   assert.equal(board.itemsById.get("text-1")?.dirty, true);
+  assert.deepEqual(persistedSnapshot, originalSnapshot);
 });
 
 test("BoardData keeps text content length separate from geometry admission", () => {
@@ -595,6 +636,7 @@ test("finalizePersistedItems folds newly persisted pencil children into the base
   );
 
   const persistedSnapshot = new Map(board.itemsById);
+  const originalSnapshot = structuredClone(persistedSnapshot);
 
   assertMessagesAccepted(
     board,
@@ -603,12 +645,13 @@ test("finalizePersistedItems folds newly persisted pencil children into the base
     ]).slice(1),
   );
 
-  board.finalizePersistedItems(persistedSnapshot);
+  finalizePersistedItems(board, persistedSnapshot);
 
   const line = board.itemsById.get("line-1");
   assert.equal(line?.payload?.persistedChildCount, 1);
   assert.deepEqual(line?.payload?.appendedChildren, [{ x: 25, y: 35 }]);
   assert.equal(line?.dirty, true);
+  assert.deepEqual(persistedSnapshot, originalSnapshot);
 });
 
 test("finalizePersistedItems keeps omitted pencil creates dirty until they serialize", () => {
@@ -629,7 +672,7 @@ test("finalizePersistedItems keeps omitted pencil creates dirty until they seria
     ]).slice(1),
   );
 
-  board.finalizePersistedItems(persistedSnapshot, new Set());
+  finalizePersistedItems(board, persistedSnapshot, new Set());
 
   const line = board.itemsById.get("line-1");
   assert.equal(line?.dirty, true);
@@ -676,7 +719,7 @@ test("scheduleSaveTimeout does not queue an autosave while a save is in progress
     saveCalls += 1;
   };
 
-  board.scheduleSaveTimeout(0);
+  scheduleSaveTimeout(board, 0);
 
   assert.equal(saveCalls, 0);
   assert.equal(board.saveTimeoutId, undefined);
@@ -686,7 +729,7 @@ test("BoardData copies retain their persisted source without hydrating text", as
   await withBoardHistoryDir(
     "wbo-copy-source-membership-",
     async ({ historyDir }) => {
-      const { board } = await withLoadedBoard({
+      const { board, svgPath } = await withLoadedBoard({
         historyDir,
         boardName: "copy-source-membership",
         storedSvg: buildStoredSvg({
@@ -702,6 +745,26 @@ test("BoardData copies retain their persisted source without hydrating text", as
         sourceId: "text-1",
       });
       assert.equal(copied.payload.modifiedText, undefined);
+
+      assert.equal(
+        board.processMessage(textUpdate("text-2", "edited")).ok,
+        true,
+      );
+      assert.equal((await board.save()).status, "saved");
+      assert.equal(board.get("text-2").txt, undefined);
+      assert.equal(board.get("text-2").textLength, 6);
+      assert.equal(board.processMessage(handCopy("text-2", "text-3")).ok, true);
+      assert.equal(
+        board.processMessage(
+          handUpdate("text-3", { a: 1, b: 0, c: 0, d: 1, e: 20, f: 30 }),
+        ).ok,
+        true,
+      );
+      assert.equal((await board.save()).status, "saved");
+      const savedSvg = await fs.readFile(svgPath, "utf8");
+      assert.match(savedSvg, /<text [^>]*id="text-1"[^>]*>hello<\/text>/);
+      assert.match(savedSvg, /<text [^>]*id="text-2"[^>]*>edited<\/text>/);
+      assert.match(savedSvg, /<text [^>]*id="text-3"[^>]*>edited<\/text>/);
     },
   );
 });
@@ -1630,7 +1693,7 @@ test("BoardData.save closes the scheduling window after saving an omitted transi
 
       assert.deepEqual(result, { status: "saved" });
       assert.equal(board.getSeq(), board.getPersistedSeq());
-      assert.equal(board.hasDirtyItems(), true);
+      assert.equal(hasDirtyItems(board), true);
       assert.equal(board.dirtyFromMs, null);
       assert.equal(board.lastWriteAtMs, null);
     },
@@ -1681,7 +1744,7 @@ test("BoardData.save keeps only the during-save scheduling window when a transie
         assert.equal(board.getPersistedSeq(), 1);
         assert.equal(board.dirtyFromMs, duringSaveDirtyFrom);
       } finally {
-        board.clearSaveTimeout();
+        clearSaveTimeout(board);
       }
     },
   );

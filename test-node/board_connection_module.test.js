@@ -1,37 +1,16 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
+const { SocketEvents } = require("../client-data/js/socket_events.js");
 const { installBrowserHarness } = require("./helpers/browser_harness.js");
 
-test("published transport namespaces preserve helpers used by cached modules", async () => {
-  const transport = await import("../client-data/js/board_transport.js");
-  const { connection, messages } = transport;
-  assert.equal(
-    connection.normalizeSocketIOExtraHeaders,
-    transport.normalizeSocketIOExtraHeaders,
+test("socket parameters retain board identity", async () => {
+  const { buildSocketParams } = await import(
+    "../client-data/js/board_transport.js"
   );
-  assert.equal(connection.buildSocketParams, transport.buildSocketParams);
-  assert.equal(connection.closeSocket, transport.closeSocket);
-  assert.equal(messages.queuePendingMessage, transport.queuePendingMessage);
   assert.equal(
-    connection.buildSocketParams("/boards/test", null, null, "test").query,
+    buildSocketParams("/boards/test", null, null, "test").query,
     "board=test",
   );
-  const pending =
-    /** @type {import("../types/app-runtime").PendingMessages} */ ({});
-  const message = /** @type {import("../types/app-runtime").BoardMessage} */ ({
-    tool: 3,
-    type: 1,
-    id: "pending-rectangle",
-    x: 1,
-    y: 2,
-    x2: 30,
-    y2: 40,
-    color: "#000000",
-    size: 10,
-    opacity: 1,
-  });
-  messages.queuePendingMessage(pending, "rectangle", message);
-  assert.equal(pending.rectangle?.[0], message);
 });
 
 test("moderation disconnect payloads normalize explicit and legacy sources", async () => {
@@ -212,7 +191,7 @@ test("connection and replay discard superseded asynchronous work", async (t) => 
       svg: { setAttribute: noop },
       drawingArea: { innerHTML: "old" },
     },
-    presence: { clearConnectedUsers: noop },
+    presence: { clearConnectedUsers: noop, upsertConnectedUser: noop },
     identity: { boardName: "test", token: null },
     preferences: {
       initial: { tool: "pencil" },
@@ -246,11 +225,20 @@ test("connection and replay discard superseded asynchronous work", async (t) => 
   });
   Tools.replay.beginAuthoritativeResync();
   assert.deepEqual(Tools.replay.incomingBroadcastQueue, []);
-  const connect = t.mock.fn(() => ({
-    id: "socket",
-    on: noop,
-    connect: noop,
-  }));
+  /** @type {Array<Map<string, (...args: any[]) => void>>} */
+  const socketHandlers = [];
+  const connect = t.mock.fn(() => {
+    const handlers = new Map();
+    socketHandlers.push(handlers);
+    return {
+      id: "socket",
+      on: (
+        /** @type {string} */ event,
+        /** @type {(...args: any[]) => void} */ handler,
+      ) => handlers.set(event, handler),
+      connect: noop,
+    };
+  });
   browser.setGlobal("io", { connect });
   let finish = noop;
   let pending = new Promise((resolve) => {
@@ -285,7 +273,9 @@ test("connection and replay discard superseded asynchronous work", async (t) => 
     for (const message of Tools.toolRegistry.pendingMessages.rectangle || [])
       Tools.dom.drawingArea.innerHTML += message.id;
   };
-  Tools.messages = new MessageModule(Tools.toolRegistry, Tools.identity);
+  Tools.messages = new MessageModule(Tools.toolRegistry, Tools.identity, {
+    ensureBoardExtentForBounds: () => false,
+  });
   Tools.replay.authoritativeSeq = 2;
   const applying = Tools.replay.processIncomingBroadcast({
     seq: 3,
@@ -305,6 +295,31 @@ test("connection and replay discard superseded asynchronous work", async (t) => 
   browser.advanceTime(250);
   await Tools.connection.starting;
   assert.equal(connect.mock.callCount(), 2);
+  const joined = t.mock.method(Tools.presence, "upsertConnectedUser", () => {});
+  socketHandlers[0]?.get(SocketEvents.USER_JOINED)?.({ socketId: "stale" });
+  const staleRateLimit = socketHandlers[0]?.get(SocketEvents.RATE_LIMITED);
+  assert.ok(staleRateLimit);
+  staleRateLimit({ retryAfterMs: 1000 });
+  assert.equal(joined.mock.callCount(), 0);
+  assert.equal(Tools.writes.serverRateLimitedUntil, undefined);
+  socketHandlers[1]?.get(SocketEvents.USER_JOINED)?.({ socketId: "current" });
+  assert.equal(joined.mock.callCount(), 1);
+  Tools.i18n = { t: (/** @type {string} */ key) => key };
+  Tools.ui = { showModerationDisconnectNotice: () => Promise.resolve() };
+  const acknowledge = t.mock.fn();
+  const moderationNotice = socketHandlers[1]?.get(
+    SocketEvents.MODERATION_DISCONNECT,
+  );
+  assert.ok(moderationNotice);
+  moderationNotice({ banDurationMs: 0, source: "moderator" }, acknowledge);
+  assert.equal(acknowledge.mock.callCount(), 1);
+  Tools.replay.beginAuthoritativeResync();
+  socketHandlers[1]?.get(SocketEvents.USER_JOINED)?.({
+    socketId: "superseded",
+  });
+  moderationNotice({ banDurationMs: 0, source: "moderator" }, acknowledge);
+  assert.equal(joined.mock.callCount(), 1);
+  assert.equal(acknowledge.mock.callCount(), 1);
 });
 
 test("drawing does not delay broadcast sequence or acknowledgements", async (t) => {
@@ -321,7 +336,10 @@ test("drawing does not delay broadcast sequence or acknowledgements", async (t) 
     dom: { status: "attached", drawingArea: { childElementCount: 32768 } },
     connection: { generation: 0, socket: { id: "local" } },
     interaction: { isOwnCursorSuppressed: () => drawing },
-    optimistic: { promoteMutation: noop, pruneForAuthoritativeMessage: noop },
+    optimistic: {
+      journal: { promote: noop },
+      pruneForAuthoritativeMessage: noop,
+    },
     writes: {
       resolveBufferedWrite: /** @param {string} id */ (id) =>
         acknowledged.push(id),

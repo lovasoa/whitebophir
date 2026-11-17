@@ -14,9 +14,9 @@ const { setLoadedBoard, deleteLoadedBoard } = await import(
 );
 const { __test: socketsTest } = await import("../server/socket/index.mjs");
 const { MutationType } = await import("../client-data/js/mutation_type.js");
-const { Hand, Pencil, Rectangle, Text } = await import(
-  "../client-data/tools/index.js"
-);
+const {
+  TOOL_BY_ID: { hand: Hand, pencil: Pencil, rectangle: Rectangle, text: Text },
+} = await import("../client-data/tools/manifest.js");
 const config = await import(
   `../server/configuration.mjs?cache-bust=${encodeURIComponent(import.meta.url)}`
 );

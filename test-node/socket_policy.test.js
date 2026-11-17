@@ -9,12 +9,14 @@ const {
 } = require("./test_helpers.js");
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const {
-  Clear,
-  Cursor,
-  Hand,
-  Rectangle,
-  Text,
-} = require("../client-data/tools/index.js");
+  TOOL_BY_ID: {
+    clear: Clear,
+    cursor: Cursor,
+    hand: Hand,
+    rectangle: Rectangle,
+    text: Text,
+  },
+} = require("../client-data/tools/manifest.js");
 
 require(SOCKET_POLICY_PATH);
 
@@ -249,121 +251,97 @@ test("socket board policy uses capabilities for cursor, edit, and clear decision
     name: "readonly-test",
     isReadOnly: () => true,
   };
-
-  const socketPolicy = require(SOCKET_POLICY_PATH);
-  const { socket } = createSocket();
-  const unauthenticatedConfig = createConfig({ AUTH_SECRET_KEY: "" });
-
+  const { boardPermissionsForSocket } = require(SOCKET_POLICY_PATH);
+  const publicViewer = boardPermissionsForSocket(
+    createConfig({ AUTH_SECRET_KEY: "" }),
+    readonlyBoard.name,
+    createSocket().socket,
+  );
   assert.equal(
-    socketPolicy.canApplyBoardMessage(
-      unauthenticatedConfig,
-      readonlyBoard,
-      {
-        tool: Cursor.id,
-        type: MutationType.UPDATE,
-        color: "#123456",
-        size: 4,
-        x: 1,
-        y: 2,
-      },
-      socket,
-    ),
+    publicViewer.canApplyBoardMessage(readonlyBoard, {
+      tool: Cursor.id,
+      type: MutationType.UPDATE,
+      color: "#123456",
+      size: 4,
+      x: 1,
+      y: 2,
+    }),
     true,
   );
   assert.equal(
-    socketPolicy.canApplyBoardMessage(
-      unauthenticatedConfig,
-      readonlyBoard,
-      {
-        tool: Text.id,
-        type: MutationType.UPDATE,
-        id: "text-1",
-        txt: "blocked",
-      },
-      socket,
-    ),
+    publicViewer.canApplyBoardMessage(readonlyBoard, {
+      tool: Text.id,
+      type: MutationType.UPDATE,
+      id: "text-1",
+      txt: "blocked",
+    }),
     false,
   );
 
-  const authenticatedConfig = createConfig({ AUTH_SECRET_KEY: "test-secret" });
+  const config = createConfig({ AUTH_SECRET_KEY: "test-secret" });
   const editorToken = jsonwebtoken.sign(
     { roles: ["editor"] },
-    authenticatedConfig.AUTH_SECRET_KEY,
+    config.AUTH_SECRET_KEY,
   );
   const moderatorToken = jsonwebtoken.sign(
     { roles: ["moderator"] },
-    authenticatedConfig.AUTH_SECRET_KEY,
+    config.AUTH_SECRET_KEY,
   );
-
+  const editor = boardPermissionsForSocket(
+    config,
+    readonlyBoard.name,
+    createSocket({ token: editorToken }).socket,
+  );
+  const moderator = boardPermissionsForSocket(
+    config,
+    readonlyBoard.name,
+    createSocket({ token: moderatorToken }).socket,
+  );
   assert.equal(
-    socketPolicy.canApplyBoardMessage(
-      authenticatedConfig,
-      readonlyBoard,
-      {
-        tool: Text.id,
-        type: MutationType.UPDATE,
-        id: "text-1",
-        txt: "allowed",
-      },
-      createSocket({ token: editorToken }).socket,
-    ),
+    editor.canApplyBoardMessage(readonlyBoard, {
+      tool: Text.id,
+      type: MutationType.UPDATE,
+      id: "text-1",
+      txt: "allowed",
+    }),
     true,
   );
   assert.equal(
-    socketPolicy.canApplyBoardMessage(
-      authenticatedConfig,
-      readonlyBoard,
-      { tool: Clear.id, type: MutationType.CLEAR },
-      createSocket({ token: editorToken }).socket,
-    ),
+    editor.canApplyBoardMessage(readonlyBoard, {
+      tool: Clear.id,
+      type: MutationType.CLEAR,
+    }),
     false,
   );
   assert.equal(
-    socketPolicy.canApplyBoardMessage(
-      authenticatedConfig,
-      readonlyBoard,
-      { tool: Clear.id, type: MutationType.CLEAR },
-      createSocket({ token: moderatorToken }).socket,
-    ),
+    moderator.canApplyBoardMessage(readonlyBoard, {
+      tool: Clear.id,
+      type: MutationType.CLEAR,
+    }),
     true,
   );
-  assert.deepEqual(
-    socketPolicy.boardStateForSocket(
-      authenticatedConfig,
-      readonlyBoard,
-      createSocket({ token: moderatorToken }).socket,
-    ),
-    {
-      readonly: true,
-      canEdit: true,
-      canClear: true,
-      canBan: true,
-      canUnban: true,
-      canGrantTemporaryModerator: true,
-      canReport: true,
-      canWrite: true,
-    },
-  );
+  assert.deepEqual(moderator.boardState(readonlyBoard), {
+    readonly: true,
+    canEdit: true,
+    canClear: true,
+    canBan: true,
+    canUnban: true,
+    canGrantTemporaryModerator: true,
+    canReport: true,
+    canWrite: true,
+  });
   assert.equal(
-    socketPolicy.boardCapabilitiesForSocket(
-      authenticatedConfig,
-      readonlyBoard.name,
-      createSocket({ token: moderatorToken }).socket,
-    ).canClear,
+    moderator.resolveCapabilities({ name: readonlyBoard.name }).canClear,
     true,
   );
   assert.equal(
-    socketPolicy.boardCapabilitiesForSocket(
-      authenticatedConfig,
-      readonlyBoard.name,
-      createSocket({ token: editorToken }).socket,
-    ).canClear,
+    editor.resolveCapabilities({ name: readonlyBoard.name }).canClear,
     false,
   );
 });
 
 test("configured moderator secret grants edit clear and ban on readonly board", async () => {
-  const socketPolicy = require(SOCKET_POLICY_PATH);
+  const { boardPermissionsForSocket } = require(SOCKET_POLICY_PATH);
   const moderatorSecret = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
   const readonlyBoard = {
     name: "secret-mod-board",
@@ -375,49 +353,41 @@ test("configured moderator secret grants edit clear and ban on readonly board", 
       ["secret-mod-board", new Set([moderatorSecret])],
     ]),
   });
-
-  const moderatorSocket = createSocket({
-    headers: { cookie: `wbo-user-secret-v1=${moderatorSecret}` },
-  }).socket;
-  assert.deepEqual(
-    socketPolicy.boardStateForSocket(config, readonlyBoard, moderatorSocket),
-    {
-      readonly: true,
-      canEdit: true,
-      canClear: true,
-      canBan: true,
-      canUnban: true,
-      canGrantTemporaryModerator: true,
-      canReport: true,
-      canWrite: true,
-    },
+  const moderator = boardPermissionsForSocket(
+    config,
+    readonlyBoard.name,
+    createSocket({
+      headers: { cookie: `wbo-user-secret-v1=${moderatorSecret}` },
+    }).socket,
   );
+  assert.deepEqual(moderator.boardState(readonlyBoard), {
+    readonly: true,
+    canEdit: true,
+    canClear: true,
+    canBan: true,
+    canUnban: true,
+    canGrantTemporaryModerator: true,
+    canReport: true,
+    canWrite: true,
+  });
+  assert.equal(moderator.canBan(), true);
   assert.equal(
-    socketPolicy.canBanOnBoard(config, readonlyBoard.name, moderatorSocket),
-    true,
-  );
-  assert.equal(
-    socketPolicy.boardCapabilitiesForSocket(
-      config,
-      readonlyBoard.name,
-      moderatorSocket,
-    ).canClear,
+    moderator.resolveCapabilities({ name: readonlyBoard.name }).canClear,
     true,
   );
 
-  const unlistedSocket = createSocket({
-    headers: { cookie: "wbo-user-secret-v1=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
-  }).socket;
-  assert.equal(
-    socketPolicy.canBanOnBoard(config, readonlyBoard.name, unlistedSocket),
-    false,
+  const unlisted = boardPermissionsForSocket(
+    config,
+    readonlyBoard.name,
+    createSocket({
+      headers: {
+        cookie: "wbo-user-secret-v1=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      },
+    }).socket,
   );
+  assert.equal(unlisted.canBan(), false);
   assert.equal(
-    socketPolicy.boardCapabilitiesForSocket(
-      config,
-      readonlyBoard.name,
-      unlistedSocket,
-    ).canClear,
+    unlisted.resolveCapabilities({ name: readonlyBoard.name }).canClear,
     false,
   );
 });

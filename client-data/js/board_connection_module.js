@@ -3,7 +3,6 @@ import { normalizeBoardState } from "./board_page_state.js";
 import { getAuthoritativeBaselineUrl } from "./board_replay_module.js";
 import {
   buildSocketParams,
-  closeSocket,
   normalizeSocketIOExtraHeaders,
 } from "./board_transport.js";
 import * as BoardTurnstile from "./board_turnstile.js";
@@ -234,7 +233,7 @@ export class ConnectionModule {
         preserveBufferedWrites: Tools.writes.isWritePaused(),
       });
     const generation = ++this.generation;
-    closeSocket(this.socket);
+    this.socket?.disconnect?.();
     this.socket = null;
     this.state = "connecting";
     Tools.replay.awaitingSnapshot = true;
@@ -289,9 +288,24 @@ export class ConnectionModule {
       const socket = ioClient.connect("", socketParams);
       this.socket = socket;
 
+      /**
+       * Ignore events from a superseded connection or replay generation.
+       * @type {import("../../types/app-runtime").AppSocket["on"]}
+       * @param {string} event
+       * @param {(...args: unknown[]) => void} handler
+       */
+      const on = (event, handler) => {
+        socket.on(
+          event,
+          (/** @type {unknown} */ payload, /** @type {unknown} */ ack) => {
+            if (generation === this.generation && socket === this.socket)
+              handler(payload, ack);
+          },
+        );
+      };
+
       // Receive draw instructions from the server.
-      socket.on(SocketEvents.CONNECT, () => {
-        if (generation !== this.generation) return;
+      on(SocketEvents.CONNECT, () => {
         const hadConnectedBefore = Tools.connection.hasConnectedOnce;
         Tools.connection.state = "connected";
         this.logBoardEvent(
@@ -311,29 +325,23 @@ export class ConnectionModule {
         Tools.connection.hasConnectedOnce = true;
         Tools.status.syncWriteStatusIndicator();
       });
-      socket.on(SocketEvents.BROADCAST, (msg) => {
-        if (generation !== this.generation) return;
+      on(SocketEvents.BROADCAST, (msg) => {
         Tools.replay.enqueueIncomingBroadcast(msg);
       });
-      socket.on(SocketEvents.BOARDSTATE, (boardState) => {
-        if (generation !== this.generation) return;
+      on(SocketEvents.BOARDSTATE, (boardState) => {
         Tools.access.applyBoardState(normalizeBoardState(boardState));
       });
-      socket.on(
-        SocketEvents.MUTATION_REJECTED,
-        function onMutationRejected(payload) {
-          if (payload.clientMutationId) {
-            Tools.writes.resolveBufferedWrite(payload.clientMutationId);
-            Tools.optimistic.rejectMutation(
-              payload.clientMutationId,
-              payload.reason,
-            );
-          }
-          Tools.status.showUnknownMutationError(payload.reason);
-        },
-      );
-      socket.on(SocketEvents.CONNECT_ERROR, (error) => {
-        if (socket !== Tools.connection.socket) return;
+      on(SocketEvents.MUTATION_REJECTED, function onMutationRejected(payload) {
+        if (payload.clientMutationId) {
+          Tools.writes.resolveBufferedWrite(payload.clientMutationId);
+          Tools.optimistic.rejectMutation(
+            payload.clientMutationId,
+            payload.reason,
+          );
+        }
+        Tools.status.showUnknownMutationError(payload.reason);
+      });
+      on(SocketEvents.CONNECT_ERROR, (error) => {
         const data = error.data;
         const reason = data?.reason || error.message || "connect_error";
         this.logBoardEvent("warn", "socket.connect_error", {
@@ -358,25 +366,24 @@ export class ConnectionModule {
           Tools.replay.beginAuthoritativeResync();
           if (socket === Tools.connection.socket) {
             Tools.connection.socket = null;
-            closeSocket(socket);
+            socket.disconnect?.();
           }
         }
         this.scheduleSocketReconnect();
       });
-      socket.on(SocketEvents.ACTIVE_BANS, (bans) => {
-        if (socket !== Tools.connection.socket) return;
+      on(SocketEvents.ACTIVE_BANS, (bans) => {
         Tools.presence.setActiveBans(bans);
       });
-      socket.on(SocketEvents.USER_JOINED, function onUserJoined(user) {
+      on(SocketEvents.USER_JOINED, function onUserJoined(user) {
         Tools.presence.upsertConnectedUser(user);
       });
-      socket.on(SocketEvents.USER_LEFT, function onUserLeft(user) {
+      on(SocketEvents.USER_LEFT, function onUserLeft(user) {
         Tools.presence.removeConnectedUser(user.socketId);
       });
-      socket.on(SocketEvents.USER_REPORTED, function onUserReported(payload) {
+      on(SocketEvents.USER_REPORTED, function onUserReported(payload) {
         Tools.status.showUserReportNotice(payload);
       });
-      socket.on(
+      on(
         SocketEvents.MODERATION_DISCONNECT,
         /**
          * @param {unknown} payload
@@ -425,7 +432,7 @@ export class ConnectionModule {
             });
         },
       );
-      socket.on(SocketEvents.RATE_LIMITED, function onRateLimited(payload) {
+      on(SocketEvents.RATE_LIMITED, function onRateLimited(payload) {
         const retryAfterMs = Math.max(0, Number(payload.retryAfterMs) || 0);
         Tools.writes.serverRateLimitedUntil = Date.now() + retryAfterMs;
         Tools.writes.deferBufferedWritesUntil(
@@ -441,8 +448,7 @@ export class ConnectionModule {
         );
         Tools.status.syncWriteStatusIndicator();
       });
-      socket.on(SocketEvents.DISCONNECT, (reason) => {
-        if (socket !== Tools.connection.socket) return;
+      on(SocketEvents.DISCONNECT, (reason) => {
         if (reason === "io client disconnect") return;
         Tools.connection.state = "disconnected";
         const moderationNotice = Tools.connection.pendingModerationDisconnect;

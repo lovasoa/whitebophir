@@ -37,13 +37,7 @@ import { TOOL_CODE_BY_ID } from "../tool-order.js";
 /** @typedef {{preventDefault(): void, target: EventTarget | null, type?: string, touches?: TouchList}} EraserPointerEvent */
 /** @typedef {ReturnType<typeof boot>} EraserState */
 
-export const toolId = "eraser";
-const toolCode = TOOL_CODE_BY_ID[toolId];
-export const shortcut = "e";
-export const showMarker = true;
-export const liveMessageFields = /** @type {const} */ ({
-  [MutationType.DELETE]: { id: "id" },
-});
+const toolCode = TOOL_CODE_BY_ID["eraser"];
 
 /**
  * @param {EventTarget | null} elem

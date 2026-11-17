@@ -1,8 +1,10 @@
 import jsonwebtoken from "jsonwebtoken";
 import { MutationType } from "../../client-data/js/mutation_type.js";
-import { Rectangle } from "../../client-data/tools/index.js";
+import { TOOL_BY_ID } from "../../client-data/tools/manifest.js";
 import { expect, test } from "../fixtures/test";
 import { AUTH_SECRET, TOKENS } from "../helpers/tokens";
+
+const { rectangle: Rectangle } = TOOL_BY_ID;
 
 const jwtTest = test.extend({
   serverOptions: { useJWT: true },

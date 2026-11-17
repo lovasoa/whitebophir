@@ -144,7 +144,7 @@ export function getToolModuleImportPath(toolId) {
 }
 
 /**
- * @param {Omit<ToolManifestEntry, "translationKey" | "label" | "iconPath" | "stylesheetPath" | "moduleImportPath" | "visibleWhenReadOnly" | "requiredCapability" | "drawsOnBoard" | "toolbar"> & Partial<Pick<ToolManifestEntry, "visibleWhenReadOnly" | "requiredCapability" | "drawsOnBoard" | "toolbar">>} entry
+ * @param {Omit<ToolManifestEntry, "translationKey" | "label" | "iconPath" | "stylesheetPath" | "moduleImportPath" | "visibleWhenReadOnly" | "requiredCapability" | "drawsOnBoard" | "toolbar"> & Partial<Pick<ToolManifestEntry, "visibleWhenReadOnly" | "requiredCapability" | "drawsOnBoard" | "toolbar" | "stylesheetPath">>} entry
  * @returns {Readonly<ToolManifestEntry>}
  */
 function defineTool(entry) {
@@ -155,7 +155,8 @@ function defineTool(entry) {
     translationKey: getToolTranslationKey(toolId),
     label: getDefaultToolLabel(toolId),
     iconPath: getToolIconPath(toolId),
-    stylesheetPath: getToolStylesheetPath(toolId, drawsOnBoard),
+    stylesheetPath:
+      entry.stylesheetPath ?? getToolStylesheetPath(toolId, drawsOnBoard),
     moduleImportPath: getToolModuleImportPath(toolId),
     visibleWhenReadOnly: entry.visibleWhenReadOnly === true,
     requiredCapability: entry.requiredCapability || null,
@@ -308,6 +309,7 @@ export const TOOL_MANIFEST = Object.freeze([
   defineTool({
     toolId: "cursor",
     id: TOOL_CODE_BY_ID.cursor,
+    stylesheetPath: "tools/cursor/cursor.css",
     toolbar: false,
     alwaysOn: true,
     mouseCursor: "crosshair",
@@ -322,11 +324,12 @@ export const TOOL_IDS = /** @type {ReadonlyArray<ToolId>} */ (
 export const TOOL_ID_BY_CODE = Object.freeze(
   Object.fromEntries(TOOL_MANIFEST.map((tool) => [tool.id, tool.toolId])),
 );
-export const TOOL_BY_ID = Object.freeze(
-  Object.fromEntries(TOOL_MANIFEST.map((tool) => [tool.toolId, tool])),
-);
-// Cached message_tool_metadata modules still import this published array.
-export const TOOL_BY_CODE = TOOL_MANIFEST;
+export const TOOL_BY_ID =
+  /** @type {{readonly [TId in ToolId]: Readonly<Omit<ToolManifestEntry, "id" | "toolId"> & {id: typeof TOOL_CODE_BY_ID[TId], toolId: TId}>} & Readonly<Record<string, Readonly<ToolManifestEntry> | undefined>>} */ (
+    Object.freeze(
+      Object.fromEntries(TOOL_MANIFEST.map((tool) => [tool.toolId, tool])),
+    )
+  );
 export const DRAW_TOOL_IDS = Object.freeze(
   TOOL_MANIFEST.filter((tool) => tool.drawsOnBoard).map((tool) => tool.toolId),
 );

@@ -32,6 +32,7 @@ import {
 import { createBoardHtmlOverlay } from "../../js/board_html_overlay.js";
 import { safePreventDefault } from "../../js/board_viewport.js";
 import { logFrontendEvent } from "../../js/frontend_logging.js";
+import { transformedBBox } from "../../js/intersect.js";
 import MessageCommon from "../../js/message_common.js";
 import { MutationType } from "../../js/message_tool_metadata.js";
 import { TOOL_CODE_BY_ID } from "../tool-order.js";
@@ -53,35 +54,18 @@ import { deleteBoardElementById } from "../eraser/index.js";
 /** @typedef {{type?: unknown, id?: unknown, transform?: unknown, newid?: unknown, _children?: unknown}} HandMessageCandidate */
 /** @typedef {{x: number, y: number, width: number, height: number}} BoardRect */
 /** @typedef {ReturnType<typeof createBoardHtmlOverlay>} BoardHtmlOverlay */
-/** @typedef {{ name: string, element: HTMLButtonElement, overlay: BoardHtmlOverlay, origWidth: number, origHeight: number, drawCallback: (button: SelectionButton, bbox: {r:[number,number], a:[number,number], b:[number,number]}, scale:number) => BoardRect, clickCallback: (x:number, y:number, evt: { preventDefault(): void }) => void }} SelectionButton */
+/** @typedef {{ name: string, element: HTMLButtonElement, overlay: BoardHtmlOverlay, origWidth: number, origHeight: number, drawCallback: (button: SelectionButton, rect: BoardRect, scale:number) => BoardRect, clickCallback: (x:number, y:number, evt: { preventDefault(): void }) => void }} SelectionButton */
 /** @typedef {{x: number, y: number}} HandPointSelection */
-/** @typedef {{x: number, y: number, w: number, h: number}} HandScaleSelection */
+/** @typedef {BoardRect} HandScaleSelection */
 /** @typedef {{pan: true}} HandPanSelection */
 /** @typedef {HandPointSelection | HandScaleSelection | HandPanSelection | null} HandSelection */
-/** @typedef {{x: number, y: number} | {a: number, d: number, e: number, f: number} | undefined} SelectionRectTransform */
 /** @typedef {(x: number, y: number, force: boolean) => void} HandTransformHandler */
 /** @typedef {(e: { key: string, target: EventTarget | null }) => void} HandShortcutHandler */
 /** @typedef {{ name: string, icon: string, active: boolean, switch?: () => void }} HandSecondary */
-/** @typedef {import("../../js/intersect.js").Point2D} Point2D */
-/** @typedef {import("../../js/intersect.js").TransformedBBox} TransformedBBox */
-
-/** @type {(point: Point2D, box: TransformedBBox) => boolean} */
-let pointInTransformedBBox = () => false;
 
 const INTERSECTION_SELECTION_TIMEOUT_MS = 120;
 
-export const toolId = "hand";
-export const shortcut = "h";
-export const mouseCursor = "move";
-export const showMarker = true;
 export const touchListenerOptions = { passive: true };
-export const visibleWhenReadOnly = true;
-export const updatableFields = /** @type {const} */ (["transform"]);
-export const batchMessageFields = /** @type {const} */ ({
-  [MutationType.UPDATE]: { id: "id", transform: "transform" },
-  [MutationType.DELETE]: { id: "id" },
-  [MutationType.COPY]: { id: "id", newid: "id" },
-});
 
 /**
  * @param {EventTarget | null} target
@@ -93,7 +77,7 @@ function isSelectableElement(target) {
     typeof target === "object" &&
     "id" in target &&
     "transform" in target &&
-    "transformedBBox" in target
+    "getBBox" in target
   );
 }
 
@@ -143,55 +127,21 @@ function isBatchMessage(value) {
 
 /**
  * @param {unknown} child
- * @returns {child is HandUpdateChildMessage}
- */
-function isHandUpdateChild(child) {
-  const message = handMessageCandidate(child);
-  return !!(
-    message &&
-    message.type === MutationType.UPDATE &&
-    typeof message.id === "string" &&
-    isTransformState(message.transform)
-  );
-}
-
-/**
- * @param {unknown} child
- * @returns {child is HandDeleteChildMessage}
- */
-function isHandDeleteChild(child) {
-  const message = handMessageCandidate(child);
-  return !!(
-    message &&
-    message.type === MutationType.DELETE &&
-    typeof message.id === "string"
-  );
-}
-
-/**
- * @param {unknown} child
- * @returns {child is HandCopyChildMessage}
- */
-function isHandCopyChild(child) {
-  const message = handMessageCandidate(child);
-  return !!(
-    message &&
-    message.type === MutationType.COPY &&
-    typeof message.id === "string" &&
-    typeof message.newid === "string"
-  );
-}
-
-/**
- * @param {unknown} child
  * @returns {child is HandChildMessage}
  */
 function isHandChildMessage(child) {
-  return (
-    isHandUpdateChild(child) ||
-    isHandDeleteChild(child) ||
-    isHandCopyChild(child)
-  );
+  const message = handMessageCandidate(child);
+  if (!message || typeof message.id !== "string") return false;
+  switch (message.type) {
+    case MutationType.UPDATE:
+      return isTransformState(message.transform);
+    case MutationType.DELETE:
+      return true;
+    case MutationType.COPY:
+      return typeof message.newid === "string";
+    default:
+      return false;
+  }
 }
 
 /**
@@ -243,7 +193,7 @@ function createBatchMessage(children) {
   };
 }
 
-/** @typedef {Pick<ToolRuntimeModules, "config" | "permissions" | "writes" | "ids" | "board" | "viewport" | "messages" | "identity" | "toolRegistry" | "i18n">} HandRuntime */
+/** @typedef {Pick<ToolRuntimeModules, "config" | "permissions" | "writes" | "ids" | "board" | "viewport" | "identity" | "toolRegistry" | "i18n">} HandRuntime */
 /** @typedef {ReturnType<typeof createInitialState>} HandState */
 
 /**
@@ -261,14 +211,12 @@ function createInitialState(Tools, assetUrl) {
     },
     selected: /** @type {HandSelection} */ (null),
     selectedEls: /** @type {(SVGGraphicsElement & { id: string })[]} */ ([]),
-    selectionRect: /** @type {SVGRectElement} */ (
-      /** @type {unknown} */ (null)
-    ),
+    selectionRect: /** @type {BoardRect | null} */ (null),
     selectionChrome: /** @type {HTMLElement} */ (/** @type {unknown} */ (null)),
     selectionOverlay: /** @type {BoardHtmlOverlay} */ (
       /** @type {unknown} */ (null)
     ),
-    selectionRectTransform: /** @type {SelectionRectTransform} */ (undefined),
+    initialSelectionRect: /** @type {BoardRect | null} */ (null),
     currentTransform: /** @type {HandTransformHandler | null} */ (null),
     transformElements: /** @type {TransformState[]} */ ([]),
     selectorState: 0,
@@ -284,17 +232,17 @@ function createInitialState(Tools, assetUrl) {
 }
 
 /**
- * @param {{r:[number,number], b:[number,number]}} bbox
+ * @param {BoardRect} rect
  * @param {number} buttonHeight
  * @param {number} scale
  * @returns {number}
  */
-function selectionActionButtonY(bbox, buttonHeight, scale) {
+function selectionActionButtonY(rect, buttonHeight, scale) {
   const gap = 3 / scale;
-  const preferred = bbox.r[1] - buttonHeight / scale - gap;
+  const preferred = rect.y - buttonHeight / scale - gap;
   const visibleTop = (document.documentElement.scrollTop || 0) / scale;
   if (preferred >= visibleTop) return preferred;
-  return bbox.r[1] + bbox.b[1] + gap;
+  return rect.y + rect.height + gap;
 }
 
 /**
@@ -333,11 +281,11 @@ function createActionButton(state, name, icon, index, onClick, label) {
     icon,
     24,
     24,
-    (me, bbox, scale) => ({
+    (me, rect, scale) => ({
       x:
-        selectionActionButtonX(state, bbox.r[0]) +
+        selectionActionButtonX(state, rect.x) +
         (index * (me.origWidth + 2)) / scale,
-      y: selectionActionButtonY(bbox, me.origHeight, scale),
+      y: selectionActionButtonY(rect, me.origHeight, scale),
       width: me.origWidth / scale,
       height: me.origHeight / scale,
     }),
@@ -352,7 +300,6 @@ function createActionButton(state, name, icon, index, onClick, label) {
  */
 function createState(Tools, assetUrl) {
   const state = createInitialState(Tools, assetUrl);
-  state.selectionRect = createSelectorRect(state);
   state.selectionChrome = createSelectionChrome();
   state.selectionOverlay = createBoardHtmlOverlay({
     board: Tools.board,
@@ -372,10 +319,10 @@ function createState(Tools, assetUrl) {
       "handle",
       14,
       14,
-      (me, bbox, scale) => {
+      (me, rect, scale) => {
         return {
-          x: bbox.r[0] + bbox.a[0] - me.origWidth / (2 * scale),
-          y: bbox.r[1] + bbox.b[1] - me.origHeight / (2 * scale),
+          x: rect.x + rect.width - me.origWidth / (2 * scale),
+          y: rect.y + rect.height - me.origHeight / (2 * scale),
           width: me.origWidth / scale,
           height: me.origHeight / scale,
         };
@@ -415,29 +362,16 @@ function createState(Tools, assetUrl) {
  */
 function getParentMathematics(el) {
   if (!isSelectableElement(el)) return null;
-  let target;
-  /** @type {(SVGGraphicsElement & { id: string }) | null} */
-  let a = el;
-  /** @type {(SVGGraphicsElement & { id: string })[]} */
-  const els = [];
-  while (a) {
-    els.unshift(a);
-    /** @type {EventTarget | null} */
-    const parentElement = a.parentElement;
-    a =
-      parentElement && isSelectableElement(parentElement)
-        ? parentElement
-        : null;
+  let selected = el;
+  for (let parent = el.parentElement; parent; parent = parent.parentElement) {
+    if (
+      isSelectableElement(parent) &&
+      parent.tagName === "svg" &&
+      parent.getAttribute("class") === "MathElement"
+    )
+      selected = parent;
   }
-  const parentMathematics = els.find(
-    (elem) => elem.getAttribute("class") === "MathElement",
-  );
-  if (parentMathematics && parentMathematics.tagName === "svg") {
-    target = /** @type {SVGGraphicsElement & { id: string }} */ (
-      parentMathematics
-    );
-  }
-  return target || /** @type {SVGGraphicsElement & { id: string }} */ (el);
+  return selected;
 }
 
 /** @param {HandState} state */
@@ -468,28 +402,6 @@ function duplicateSelection(state) {
   state.Tools.writes.drawAndSend(createBatchMessage(msgs));
 }
 
-/** @param {HandState} state @returns {SVGRectElement} */
-function createSelectorRect(state) {
-  const shape = /** @type {SVGRectElement} */ (
-    state.Tools.board.createSVGElement("rect")
-  );
-  shape.id = "selectionRect";
-  shape.x.baseVal.value = 0;
-  shape.y.baseVal.value = 0;
-  shape.width.baseVal.value = 0;
-  shape.height.baseVal.value = 0;
-  shape.setAttribute("stroke", "transparent");
-  shape.setAttribute("stroke-width", "1");
-  shape.setAttribute("vector-effect", "non-scaling-stroke");
-  shape.setAttribute("fill", "none");
-  shape.setAttribute("stroke-dasharray", "5 5");
-  shape.setAttribute("opacity", "0");
-  shape.style.pointerEvents = "none";
-  shape.style.display = "none";
-  state.Tools.board.svg.appendChild(shape);
-  return shape;
-}
-
 function createSelectionChrome() {
   const element = document.createElement("div");
   element.id = "selectionRectOverlay";
@@ -500,10 +412,10 @@ function createSelectionChrome() {
 
 /**
  * @param {MouseEvent | TouchEvent} event
- * @param {"pageX" | "pageY"} axis
+ * @param {"pageX" | "pageY" | "clientX" | "clientY"} axis
  * @returns {number}
  */
-function getPointerPageCoord(event, axis) {
+function getPointerCoordinate(event, axis) {
   if ("changedTouches" in event) {
     const touch = event.changedTouches[0];
     return touch ? touch[axis] || 0 : 0;
@@ -528,10 +440,10 @@ function stopSelectionButtonEvent(event) {
 function eventBoardPoint(state, event) {
   return {
     x: state.Tools.viewport.pageCoordinateToBoard(
-      getPointerPageCoord(event, "pageX"),
+      getPointerCoordinate(event, "pageX"),
     ),
     y: state.Tools.viewport.pageCoordinateToBoard(
-      getPointerPageCoord(event, "pageY"),
+      getPointerCoordinate(event, "pageY"),
     ),
   };
 }
@@ -542,7 +454,7 @@ function eventBoardPoint(state, event) {
  * @param {string} icon
  * @param {number} width
  * @param {number} height
- * @param {(button: SelectionButton, bbox: {r:[number,number], a:[number,number], b:[number,number]}, scale:number) => BoardRect} drawCallback
+ * @param {(button: SelectionButton, rect: BoardRect, scale:number) => BoardRect} drawCallback
  * @param {(x:number, y:number, evt: { preventDefault(): void }) => void} clickCallback
  * @param {string} [label]
  * @returns {SelectionButton}
@@ -644,11 +556,7 @@ function transformedBBoxToBoardRect(bbox) {
 
 /** @param {HandState} state */
 function syncSelectionChrome(state) {
-  state.selectionOverlay.syncBoardRect(() =>
-    state.selectionRect.style.display === "none"
-      ? null
-      : transformedBBoxToBoardRect(state.selectionRect.transformedBBox()),
-  );
+  state.selectionOverlay.syncBoardRect(() => state.selectionRect);
 }
 
 /** @param {HandState} state */
@@ -658,11 +566,13 @@ function showSelectionButtons(state) {
     const button = state.selectionButtons[i];
     if (!button) continue;
     button.overlay.syncBoardRect(() =>
-      button.drawCallback(
-        button,
-        state.selectionRect.transformedBBox(),
-        getCurrentScale(state),
-      ),
+      state.selectionRect
+        ? button.drawCallback(
+            button,
+            state.selectionRect,
+            getCurrentScale(state),
+          )
+        : null,
     );
   }
 }
@@ -679,7 +589,7 @@ function hideSelectionButtons(state) {
 function hideSelectionUI(state) {
   hideSelectionButtons(state);
   state.selectionOverlay.hide();
-  state.selectionRect.style.display = "none";
+  state.selectionRect = null;
 }
 
 /** @param {HandState} state @returns {boolean} */
@@ -697,11 +607,20 @@ function ensureCurrentSelection(state) {
   state.selected = null;
   state.selectedEls = [];
   state.transformElements = [];
-  state.selectionRectTransform = undefined;
+  state.initialSelectionRect = null;
   state.currentTransform = null;
   state.selectorState = state.selectorStates.pointing;
   hideSelectionUI(state);
   return false;
+}
+
+/** @param {HandState} state */
+function captureTransforms(state) {
+  state.transformElements = state.selectedEls.map((el) => {
+    const { a, b, c, d, e, f } = getTransformMatrix(state, el);
+    return { a, b, c, d, e, f };
+  });
+  state.initialSelectionRect = state.selectionRect;
 }
 
 /**
@@ -718,19 +637,7 @@ function startMovingElements(state, x, y, evt) {
   state.currentTransform = (moveX, moveY, force) =>
     moveSelection(state, moveX, moveY, force);
   state.selected = { x: x, y: y };
-  state.transformElements = state.selectedEls.map((el) => {
-    const tmatrix = getTransformMatrix(state, el);
-    return {
-      a: tmatrix.a,
-      b: tmatrix.b,
-      c: tmatrix.c,
-      d: tmatrix.d,
-      e: tmatrix.e,
-      f: tmatrix.f,
-    };
-  });
-  const tmatrix = getTransformMatrix(state, state.selectionRect);
-  state.selectionRectTransform = { x: tmatrix.e, y: tmatrix.f };
+  captureTransforms(state);
 }
 
 /**
@@ -745,31 +652,8 @@ function startScalingTransform(state, _x, _y, evt) {
   hideSelectionButtons(state);
   state.selectionRunId += 1;
   state.selectorState = state.selectorStates.transform;
-  const bbox = state.selectionRect.transformedBBox();
-  state.selected = {
-    x: bbox.r[0],
-    y: bbox.r[1],
-    w: bbox.a[0],
-    h: bbox.b[1],
-  };
-  state.transformElements = state.selectedEls.map((el) => {
-    const tmatrix = getTransformMatrix(state, el);
-    return {
-      a: tmatrix.a,
-      b: tmatrix.b,
-      c: tmatrix.c,
-      d: tmatrix.d,
-      e: tmatrix.e,
-      f: tmatrix.f,
-    };
-  });
-  const tmatrix = getTransformMatrix(state, state.selectionRect);
-  state.selectionRectTransform = {
-    a: tmatrix.a,
-    d: tmatrix.d,
-    e: tmatrix.e,
-    f: tmatrix.f,
-  };
+  state.selected = state.selectionRect;
+  captureTransforms(state);
   state.currentTransform = (moveX, moveY, force) =>
     scaleSelection(state, moveX, moveY, force);
 }
@@ -786,14 +670,7 @@ function startSelector(state, x, y, evt) {
   state.selected = { x: x, y: y };
   state.selectedEls = [];
   state.selectorState = state.selectorStates.selecting;
-  state.selectionRect.x.baseVal.value = x;
-  state.selectionRect.y.baseVal.value = y;
-  state.selectionRect.width.baseVal.value = 0;
-  state.selectionRect.height.baseVal.value = 0;
-  state.selectionRect.style.display = "";
-  const tmatrix = getTransformMatrix(state, state.selectionRect);
-  tmatrix.e = 0;
-  tmatrix.f = 0;
+  state.selectionRect = { x, y, width: 0, height: 0 };
   syncSelectionChrome(state);
 }
 
@@ -815,30 +692,10 @@ function getSelectableElements(state) {
  * @returns {{left: number, top: number, right: number, bottom: number} | null}
  */
 function getSelectionViewportRect(state) {
-  const rect = state.selectionRect;
-  const clientRect = rect.getBoundingClientRect();
-  if (
-    Number.isFinite(clientRect.left) &&
-    Number.isFinite(clientRect.top) &&
-    Number.isFinite(clientRect.right) &&
-    Number.isFinite(clientRect.bottom) &&
-    clientRect.right > clientRect.left &&
-    clientRect.bottom > clientRect.top
-  ) {
-    return {
-      left: clientRect.left,
-      top: clientRect.top,
-      right: clientRect.right,
-      bottom: clientRect.bottom,
-    };
-  }
-
-  const viewportRect = state.Tools.viewport.boardRectToViewportRect({
-    x: rect.x.baseVal.value,
-    y: rect.y.baseVal.value,
-    width: rect.width.baseVal.value,
-    height: rect.height.baseVal.value,
-  });
+  if (!state.selectionRect) return null;
+  const viewportRect = state.Tools.viewport.boardRectToViewportRect(
+    state.selectionRect,
+  );
   return viewportRect.right > viewportRect.left &&
     viewportRect.bottom > viewportRect.top
     ? viewportRect
@@ -863,14 +720,6 @@ function selectionRectRootMargin(rect) {
   if (right <= left || bottom <= top) return null;
 
   return `${-top}px ${right - viewportWidth}px ${bottom - viewportHeight}px ${-left}px`;
-}
-
-/**
- * @param {IntersectionObserverEntry} entry
- * @returns {boolean}
- */
-function isSelectionIntersection(entry) {
-  return entry.isIntersecting;
 }
 
 /**
@@ -903,7 +752,7 @@ function calculateSelectionWithIntersectionObserver(state, selectable) {
         const entry = entries[index];
         if (!entry) continue;
         seen.add(entry.target);
-        if (isSelectionIntersection(entry)) selected.add(entry.target);
+        if (entry.isIntersecting) selected.add(entry.target);
       }
     }
 
@@ -983,16 +832,11 @@ function selectElementsInSelectionRect(state, runId) {
 function moveSelection(state, x, y, force) {
   if (
     !state.selected ||
-    !state.selectionRectTransform ||
     !("x" in state.selected) ||
-    !("x" in state.selectionRectTransform)
-  ) {
+    !state.initialSelectionRect
+  )
     return;
-  }
   if (!ensureCurrentSelection(state)) return;
-  const rectTranslation = /** @type {{x: number, y: number}} */ (
-    state.selectionRectTransform
-  );
   const dx = x - state.selected.x;
   const dy = y - state.selected.y;
   /** @type {HandUpdateChildMessage[]} */
@@ -1010,9 +854,11 @@ function moveSelection(state, x, y, force) {
       f: dy + oldTransform.f,
     });
   });
-  const tmatrix = getTransformMatrix(state, state.selectionRect);
-  tmatrix.e = dx + rectTranslation.x;
-  tmatrix.f = dy + rectTranslation.y;
+  state.selectionRect = {
+    ...state.initialSelectionRect,
+    x: state.initialSelectionRect.x + dx,
+    y: state.initialSelectionRect.y + dy,
+  };
   syncSelectionChrome(state);
   dispatchTransform(state, createBatchMessage(msgs), force);
 }
@@ -1024,63 +870,33 @@ function moveSelection(state, x, y, force) {
  * @param {boolean} force
  */
 function scaleSelection(state, x, y, force) {
-  if (
-    !state.selected ||
-    !state.selectionRectTransform ||
-    !("a" in state.selectionRectTransform) ||
-    !("w" in state.selected) ||
-    !("h" in state.selected)
-  ) {
-    return;
-  }
+  const origin = state.initialSelectionRect;
+  if (!origin || !origin.width || !origin.height) return;
   if (!ensureCurrentSelection(state)) return;
-  const scaleSelectionState =
-    /** @type {{x: number, y: number, w: number, h: number}} */ (
-      state.selected
-    );
-  const rectTransform =
-    /** @type {{a: number, d: number, e: number, f: number}} */ (
-      state.selectionRectTransform
-    );
-  const rx = (x - scaleSelectionState.x) / scaleSelectionState.w;
-  const ry = (y - scaleSelectionState.y) / scaleSelectionState.h;
+  const rx = (x - origin.x) / origin.width;
+  const ry = (y - origin.y) / origin.height;
   /** @type {HandUpdateChildMessage[]} */
   const msgs = state.selectedEls.map((el, i) => {
     const oldTransform = state.transformElements[i];
     if (!oldTransform) {
       throw new Error("Mover: Missing transform state while scaling.");
     }
-    const bboxX = el.transformedBBox().r[0];
-    const bboxY = el.transformedBBox().r[1];
-    const a = oldTransform.a * rx;
-    const d = oldTransform.d * ry;
-    const e =
-      scaleSelectionState.x * (1 - rx) -
-      bboxX * a +
-      (bboxX * oldTransform.a + oldTransform.e) * rx;
-    const f =
-      scaleSelectionState.y * (1 - ry) -
-      bboxY * d +
-      (bboxY * oldTransform.d + oldTransform.f) * ry;
     return createUpdateChildMessage(el.id, {
-      a: a,
+      a: oldTransform.a * rx,
       b: oldTransform.b,
       c: oldTransform.c,
-      d: d,
-      e: e,
-      f: f,
+      d: oldTransform.d * ry,
+      e: origin.x * (1 - rx) + oldTransform.e * rx,
+      f: origin.y * (1 - ry) + oldTransform.f * ry,
     });
   });
 
-  const tmatrix = getTransformMatrix(state, state.selectionRect);
-  tmatrix.a = rx;
-  tmatrix.d = ry;
-  tmatrix.e =
-    rectTransform.e +
-    state.selectionRect.x.baseVal.value * (rectTransform.a - rx);
-  tmatrix.f =
-    rectTransform.f +
-    state.selectionRect.y.baseVal.value * (rectTransform.d - ry);
+  state.selectionRect = {
+    x: Math.min(origin.x, x),
+    y: Math.min(origin.y, y),
+    width: Math.abs(x - origin.x),
+    height: Math.abs(y - origin.y),
+  };
   syncSelectionChrome(state);
   dispatchTransform(state, createBatchMessage(msgs), force);
 }
@@ -1111,7 +927,7 @@ function validateTransformBatch(state, msg) {
   let bounds = null;
   for (let index = 0; index < msg._children.length; index++) {
     const child = msg._children[index];
-    if (!isHandUpdateChild(child)) continue;
+    if (child?.type !== MutationType.UPDATE) continue;
     const element = state.Tools.board.svg.getElementById(child.id);
     if (!isSelectableElement(element)) return { ok: false };
     const effectiveBounds = measureSvgElementBoundsAfterTransform(
@@ -1126,30 +942,15 @@ function validateTransformBatch(state, msg) {
   return { ok: true, bounds };
 }
 
-/** @param {HandState} state @param {number} x @param {number} y @param {SVGRectElement} rect */
-function updateRect(state, x, y, rect) {
+/** @param {HandState} state @param {number} x @param {number} y */
+function updateRect(state, x, y) {
   if (!state.selected || !("x" in state.selected)) return;
-  rect.x.baseVal.value = Math.min(x, state.selected.x);
-  rect.y.baseVal.value = Math.min(y, state.selected.y);
-  rect.width.baseVal.value = Math.abs(x - state.selected.x);
-  rect.height.baseVal.value = Math.abs(y - state.selected.y);
-  syncSelectionChrome(state);
-}
-
-/** @param {HandState} state */
-function resetSelectionRect(state) {
-  const bbox = state.selectionRect.transformedBBox();
-  const tmatrix = getTransformMatrix(state, state.selectionRect);
-  state.selectionRect.x.baseVal.value = bbox.r[0];
-  state.selectionRect.y.baseVal.value = bbox.r[1];
-  state.selectionRect.width.baseVal.value = bbox.a[0];
-  state.selectionRect.height.baseVal.value = bbox.b[1];
-  tmatrix.a = 1;
-  tmatrix.b = 0;
-  tmatrix.c = 0;
-  tmatrix.d = 1;
-  tmatrix.e = 0;
-  tmatrix.f = 0;
+  state.selectionRect = {
+    x: Math.min(x, state.selected.x),
+    y: Math.min(y, state.selected.y),
+    width: Math.abs(x - state.selected.x),
+    height: Math.abs(y - state.selected.y),
+  };
   syncSelectionChrome(state);
 }
 
@@ -1257,8 +1058,11 @@ function drawHandChild(state, data) {
  */
 function clickSelector(state, x, y, evt) {
   if (
-    state.selectionRect.style.display !== "none" &&
-    pointInTransformedBBox([x, y], state.selectionRect.transformedBBox())
+    state.selectionRect &&
+    x >= state.selectionRect.x &&
+    x <= state.selectionRect.x + state.selectionRect.width &&
+    y >= state.selectionRect.y &&
+    y <= state.selectionRect.y + state.selectionRect.height
   ) {
     hideSelectionButtons(state);
     startMovingElements(state, x, y, evt);
@@ -1273,6 +1077,7 @@ function clickSelector(state, x, y, evt) {
       return;
     }
     state.selectedEls = [parent];
+    state.selectionRect = transformedBBoxToBoardRect(transformedBBox(parent));
     startMovingElements(state, x, y, evt);
   } else {
     hideSelectionButtons(state);
@@ -1287,8 +1092,6 @@ function releaseSelector(state) {
     state.transformElements = [];
     state.selectorState = state.selectorStates.pointing;
     return selectElementsInSelectionRect(state, runId);
-  } else if (state.selectorState === state.selectorStates.transform) {
-    resetSelectionRect(state);
   }
   if (state.selectedEls.length !== 0) showSelectionButtons(state);
   state.transformElements = [];
@@ -1304,24 +1107,13 @@ function releaseSelector(state) {
  */
 function moveSelector(state, x, y, _evt, force) {
   if (state.selectorState === state.selectorStates.selecting) {
-    updateRect(state, x, y, state.selectionRect);
+    updateRect(state, x, y);
   } else if (
     state.selectorState === state.selectorStates.transform &&
     state.currentTransform
   ) {
     state.currentTransform(x, y, force);
   }
-}
-
-/** @param {MouseEvent | TouchEvent} evt @param {"clientX" | "clientY"} axis @returns {number} */
-function getPointerClientCoord(evt, axis) {
-  if ("changedTouches" in evt) {
-    const touch = evt.changedTouches[0];
-    return touch ? touch[axis] || 0 : 0;
-  }
-  if (axis === "clientX" && "clientX" in evt) return evt.clientX || 0;
-  if (axis === "clientY" && "clientY" in evt) return evt.clientY || 0;
-  return 0;
 }
 
 /**
@@ -1337,8 +1129,8 @@ function startHand(state, _x, _y, evt, isTouchEvent) {
   if (isTouchEvent) return;
   if (!safePreventDefault(evt)) return;
   state.Tools.viewport.beginPan(
-    getPointerClientCoord(evt, "clientX"),
-    getPointerClientCoord(evt, "clientY"),
+    getPointerCoordinate(evt, "clientX"),
+    getPointerCoordinate(evt, "clientY"),
   );
   state.selected = { pan: true };
 }
@@ -1354,11 +1146,11 @@ function moveHand(state, _x, _y, evt, isTouchEvent) {
   void _x;
   void _y;
   if (isTouchEvent) return;
-  if (state.selected && !("w" in state.selected)) {
+  if (state.selected && !("width" in state.selected)) {
     if (!safePreventDefault(evt)) return;
     state.Tools.viewport.movePan(
-      getPointerClientCoord(evt, "clientX"),
-      getPointerClientCoord(evt, "clientY"),
+      getPointerCoordinate(evt, "clientX"),
+      getPointerCoordinate(evt, "clientY"),
     );
   }
 }
@@ -1460,8 +1252,7 @@ function switchTool(state) {
 }
 
 /** @param {ToolBootContext} ctx */
-export async function boot(ctx) {
-  ({ pointInTransformedBBox } = await import("../../js/intersect.js"));
+export function boot(ctx) {
   return createState(ctx.runtime, ctx.assetUrl);
 }
 

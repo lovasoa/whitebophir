@@ -1,3 +1,5 @@
+import { createUiTemplate } from "./ui_template.js";
+
 /**
  * @typedef {{
  *   anchor: HTMLElement,
@@ -59,27 +61,6 @@
 /** @typedef {{id: string, label?: string, layout: "stacked" | "segmented" | "grid", choices: ActionDialogChoice[], initialValue?: ActionDialogValue, submit?: boolean}} ActionDialogSection */
 /** @typedef {{title: string, message?: string, sections: ActionDialogSection[], cancelLabel: string, link?: {label: string, href: string}}} ActionDialogOptions */
 /** @typedef {{sectionId: string, value: ActionDialogValue, selections: Record<string, ActionDialogValue>}} ActionDialogResult */
-
-/**
- * @typedef {{
- *   overlayId?: string,
- *   dialogId?: string,
- *   overlayClassName?: string,
- *   dialogClassName?: string,
- *   hiddenClass?: string,
- *   initiallyHidden?: boolean,
- * }} ModalShellOptions
- */
-
-/**
- * @typedef {{
- *   overlay: HTMLElement,
- *   dialog: HTMLElement,
- *   show: () => void,
- *   hide: () => void,
- *   destroy: () => void,
- * }} ModalShell
- */
 
 /**
  * @typedef {{
@@ -208,8 +189,7 @@ export function positionAnchoredPanel({
 export function createFloatingPanelController(options) {
   /** @type {ReturnType<typeof setTimeout> | null} */
   let closeTimer = null;
-  /** @type {{element: EventTarget, type: string, listener: EventListener, options?: AddEventListenerOptions}[]} */
-  const listeners = [];
+  const listeners = new AbortController();
 
   function cancelClose() {
     if (closeTimer === null) return;
@@ -257,8 +237,10 @@ export function createFloatingPanelController(options) {
    * @param {AddEventListenerOptions} [listenerOptions]
    */
   function addListener(element, type, listener, listenerOptions) {
-    element.addEventListener(type, listener, listenerOptions);
-    listeners.push({ element, type, listener, options: listenerOptions });
+    element.addEventListener(type, listener, {
+      ...listenerOptions,
+      signal: listeners.signal,
+    });
   }
 
   (options.hoverElements || []).forEach((element) => {
@@ -310,139 +292,83 @@ export function createFloatingPanelController(options) {
     syncPosition,
     destroy() {
       cancelClose();
-      listeners.forEach((entry) => {
-        entry.element.removeEventListener(
-          entry.type,
-          entry.listener,
-          entry.options,
-        );
-      });
-      listeners.length = 0;
+      listeners.abort();
     },
   };
 }
 
-/**
- * @param {HTMLElement} element
- * @param {string | undefined} className
- */
-function addOptionalClasses(element, className) {
-  if (!className) return;
-  className
-    .split(/\s+/)
-    .filter(Boolean)
-    .forEach((name) => element.classList.add(name));
-}
+const createDialog = /** @type {() => HTMLDialogElement} */ (
+  createUiTemplate(`
+  <dialog class="wbo-native-dialog"><div class="wbo-dialog"></div></dialog>
+`)
+);
 
-const MODAL_BACKDROP_CLASS = "wbo-modal-backdrop";
-const DIALOG_PANEL_CLASS = "wbo-dialog";
-const NATIVE_DIALOG_CLASS = "wbo-native-dialog";
-
-/**
- * @param {HTMLElement} element
- * @param {string | undefined} className
- */
-function applyModalBackdropClasses(element, className) {
-  element.classList.add(MODAL_BACKDROP_CLASS);
-  addOptionalClasses(element, className);
-}
-
-/**
- * @param {HTMLElement} element
- * @param {string | undefined} className
- */
-function applyDialogPanelClasses(element, className) {
-  element.classList.add(DIALOG_PANEL_CLASS);
-  element.dir =
-    document.documentElement?.getAttribute?.("data-ui-direction") === "rtl"
-      ? "rtl"
-      : "ltr";
-  addOptionalClasses(element, className);
-}
-
-/**
- * @param {string | undefined} className
- * @returns {HTMLElement}
- */
-function createDialogPanel(className) {
-  const panel = document.createElement("div");
-  applyDialogPanelClasses(panel, className);
-  return panel;
-}
-
-/**
- * @returns {{dialog: HTMLDialogElement, panel: HTMLElement}}
- */
 function createNativeDialogShell() {
-  const dialog = document.createElement("dialog");
-  dialog.classList.add(NATIVE_DIALOG_CLASS);
-  const panel = createDialogPanel(undefined);
-  dialog.appendChild(panel);
+  const dialog = createDialog();
+  const panel = /** @type {HTMLElement} */ (dialog.firstElementChild);
+  panel.dir =
+    document.documentElement.dataset.uiDirection === "rtl" ? "rtl" : "ltr";
   return { dialog, panel };
 }
 
-/**
- * @param {ModalShellOptions} [options]
- * @returns {ModalShell}
- */
-export function createModalShell(options = {}) {
-  const {
-    overlayId,
-    dialogId,
-    overlayClassName,
-    dialogClassName,
-    hiddenClass,
-    initiallyHidden = false,
-  } = options;
-  let overlay = overlayId ? document.getElementById(overlayId) : null;
-  let createdOverlay = false;
-  if (!(overlay instanceof HTMLElement)) {
-    overlay = document.createElement("div");
-    createdOverlay = true;
-    if (overlayId) overlay.id = overlayId;
-    document.body.appendChild(overlay);
-  }
-  applyModalBackdropClasses(overlay, overlayClassName);
-  if (createdOverlay && initiallyHidden && hiddenClass) {
-    overlay.classList.add(hiddenClass);
-  }
+const createConfirmation = createUiTemplate(`
+  <div>
+    <div class="wbo-dialog-title"></div>
+    <div class="wbo-dialog-message"></div>
+    <div class="wbo-dialog-actions">
+      <button type="button" class="wbo-dialog-button wbo-dialog-button-secondary"></button>
+      <button type="button" class="wbo-dialog-button wbo-dialog-button-primary"></button>
+    </div>
+  </div>
+`);
 
-  let panel = dialogId ? document.getElementById(dialogId) : null;
-  if (!(panel instanceof HTMLElement)) {
-    panel = createDialogPanel(dialogClassName);
-    if (dialogId) panel.id = dialogId;
-    overlay.appendChild(panel);
-  } else if (panel.parentNode !== overlay) {
-    overlay.appendChild(panel);
-    applyDialogPanelClasses(panel, dialogClassName);
-  } else {
-    applyDialogPanelClasses(panel, dialogClassName);
-  }
+const createModerationNotice = createUiTemplate(`
+  <div>
+    <div class="moderation-disconnect-icon" aria-hidden="true">!</div>
+    <div class="moderation-disconnect-title" id="moderation-disconnect-title"></div>
+    <p class="moderation-disconnect-message" id="moderation-disconnect-message"></p>
+    <div class="moderation-disconnect-rule">
+      <img class="moderation-disconnect-rule-icon" alt="" aria-hidden="true">
+      <div class="moderation-disconnect-rule-heading"></div>
+      <div class="moderation-disconnect-rule-title"></div>
+      <p class="moderation-disconnect-rule-body"></p>
+    </div>
+    <p class="moderation-disconnect-countdown"></p>
+    <a class="moderation-disconnect-rules" href="../rules" target="_blank" rel="noopener"></a>
+    <div class="moderation-disconnect-actions">
+      <a class="wbo-dialog-button wbo-dialog-button-secondary moderation-disconnect-private" href="../random"></a>
+      <button type="button" class="wbo-dialog-button wbo-dialog-button-primary moderation-disconnect-ack" autofocus></button>
+    </div>
+  </div>
+`);
 
-  return {
-    overlay,
-    dialog: panel,
-    show() {
-      if (hiddenClass) overlay.classList.remove(hiddenClass);
-      else overlay.hidden = false;
-    },
-    hide() {
-      if (hiddenClass) overlay.classList.add(hiddenClass);
-      else overlay.hidden = true;
-    },
-    destroy() {
-      overlay.remove();
-    },
-  };
-}
+const createActionContent = createUiTemplate(`
+  <div>
+    <div class="moderation-action-title" id="moderation-action-title"></div>
+    <p class="moderation-action-message" id="moderation-action-message"></p>
+    <div class="moderation-action-footer">
+      <a class="moderation-action-rules-link" target="_blank" rel="noopener"></a>
+      <button type="button" class="wbo-dialog-button wbo-dialog-button-secondary moderation-action-cancel"></button>
+    </div>
+  </div>
+`);
+const createActionChoice = /** @type {() => HTMLButtonElement} */ (
+  createUiTemplate(`
+  <button type="button">
+    <img class="moderation-action-rule-icon" alt="">
+    <span></span>
+  </button>
+`)
+);
 
 /**
  * @template T
- * @param {T | null} closeValue
- * @param {(panel: HTMLElement, settle: (result: T | null) => void) => void} render
- * @returns {Promise<T | null>}
+ * @param {T} closeValue
+ * @param {(panel: HTMLElement, settle: (result: T) => void, dialog: HTMLDialogElement) => (() => void) | void} render
+ * @param {{dismissOnBackdrop?: boolean, focusOptions?: FocusOptions}} [options]
+ * @returns {Promise<T>}
  */
-function showModalDialog(closeValue, render) {
+function showModalDialog(closeValue, render, options = {}) {
   return new Promise((resolve) => {
     const previousFocus =
       document.activeElement instanceof HTMLElement
@@ -451,22 +377,26 @@ function showModalDialog(closeValue, render) {
     const { dialog, panel } = createNativeDialogShell();
 
     let settled = false;
-    /** @param {T | null} result */
+    /** @type {(() => void) | void} */
+    let cleanup;
+    /** @param {T} result */
     function settle(result) {
       if (settled) return;
       settled = true;
+      cleanup?.();
       dialog.close();
       dialog.remove();
-      previousFocus?.focus();
+      if (previousFocus?.isConnected) previousFocus.focus(options.focusOptions);
       resolve(result);
     }
 
     dialog.addEventListener("close", () => settle(closeValue));
     dialog.addEventListener("click", (evt) => {
-      if (evt.target === dialog) settle(closeValue);
+      if (options.dismissOnBackdrop !== false && evt.target === dialog)
+        settle(closeValue);
     });
 
-    render(panel, settle);
+    cleanup = render(panel, settle, dialog);
 
     document.body.appendChild(dialog);
     dialog.showModal();
@@ -484,74 +414,68 @@ export function showConfirmDialog({
   cancelLabel = "Cancel",
   variant = "default",
 }) {
-  return /** @type {Promise<boolean>} */ (
-    showModalDialog(false, (dialog, settle) => {
-      if (title) {
-        const titleElement = document.createElement("div");
-        titleElement.className = "wbo-dialog-title";
-        titleElement.textContent = title;
-        dialog.appendChild(titleElement);
-      } else {
-        dialog.setAttribute("aria-label", confirmLabel);
-      }
-
-      const messageElement = document.createElement("div");
-      messageElement.className = "wbo-dialog-message";
-      messageElement.textContent = message;
-      dialog.appendChild(messageElement);
-
-      const actions = document.createElement("div");
-      actions.className = "wbo-dialog-actions";
-
-      const cancelButton = document.createElement("button");
-      cancelButton.type = "button";
-      cancelButton.className = "wbo-dialog-button wbo-dialog-button-secondary";
-      cancelButton.textContent = cancelLabel;
-      cancelButton.addEventListener("click", () => settle(false));
-
-      const confirmButton = document.createElement("button");
-      confirmButton.type = "button";
-      confirmButton.className =
-        variant === "danger"
-          ? "wbo-dialog-button wbo-dialog-button-danger"
-          : "wbo-dialog-button wbo-dialog-button-primary";
-      confirmButton.textContent = confirmLabel;
-      confirmButton.addEventListener("click", () => settle(true));
-
-      actions.appendChild(cancelButton);
-      actions.appendChild(confirmButton);
-      dialog.appendChild(actions);
-
-      cancelButton.focus();
-    })
-  );
+  return showModalDialog(false, (panel, settle, dialog) => {
+    const content = createConfirmation();
+    const titleElement = /** @type {HTMLElement} */ (
+      content.querySelector(".wbo-dialog-title")
+    );
+    if (title) titleElement.textContent = title;
+    else {
+      titleElement.remove();
+      dialog.setAttribute("aria-label", confirmLabel);
+    }
+    if (title) dialog.setAttribute("aria-label", title);
+    /** @type {HTMLElement} */ (
+      content.querySelector(".wbo-dialog-message")
+    ).textContent = message;
+    const [cancelButton, confirmButton] =
+      /** @type {[HTMLButtonElement, HTMLButtonElement]} */ ([
+        ...content.querySelectorAll("button"),
+      ]);
+    cancelButton.textContent = cancelLabel;
+    confirmButton.textContent = confirmLabel;
+    if (variant === "danger")
+      confirmButton.className = "wbo-dialog-button wbo-dialog-button-danger";
+    cancelButton.addEventListener("click", () => settle(false));
+    confirmButton.addEventListener("click", () => settle(true));
+    panel.append(...content.children);
+    cancelButton.focus();
+  });
 }
 
 /** @param {ActionDialogOptions} options @returns {Promise<ActionDialogResult | null>} */
 export function showActionDialog(options) {
   return showModalDialog(
     /** @type {ActionDialogResult | null} */ (null),
-    (dialog, settle) => {
-      dialog.classList.add("moderation-action-dialog");
-      dialog.setAttribute("role", "dialog");
-      dialog.setAttribute("aria-modal", "true");
-
-      const title = document.createElement("div");
-      title.className = "moderation-action-title";
-      title.id = "moderation-action-title";
+    (panel, settle, dialog) => {
+      panel.classList.add("moderation-action-dialog");
+      const content = createActionContent();
+      const title = /** @type {HTMLElement} */ (
+        content.querySelector(".moderation-action-title")
+      );
       title.textContent = options.title;
       dialog.setAttribute("aria-labelledby", title.id);
-      dialog.appendChild(title);
-
+      const message = /** @type {HTMLElement} */ (
+        content.querySelector(".moderation-action-message")
+      );
       if (options.message) {
-        const message = document.createElement("p");
-        message.className = "moderation-action-message";
-        message.id = "moderation-action-message";
         message.textContent = options.message;
         dialog.setAttribute("aria-describedby", message.id);
-        dialog.appendChild(message);
-      }
-
+      } else message.remove();
+      const footer = /** @type {HTMLElement} */ (
+        content.querySelector(".moderation-action-footer")
+      );
+      const link = /** @type {HTMLAnchorElement} */ (footer.querySelector("a"));
+      if (options.link) {
+        link.href = options.link.href;
+        link.textContent = options.link.label;
+      } else link.remove();
+      const cancel = /** @type {HTMLButtonElement} */ (
+        footer.querySelector("button")
+      );
+      cancel.textContent = options.cancelLabel;
+      cancel.addEventListener("click", () => settle(null));
+      panel.append(...content.children);
       /** @type {Record<string, ActionDialogValue>} */
       const selections = {};
       /** @type {HTMLButtonElement[]} */
@@ -561,15 +485,14 @@ export function showActionDialog(options) {
           const heading = document.createElement("div");
           heading.className = "moderation-action-section-title";
           heading.textContent = section.label;
-          dialog.appendChild(heading);
+          panel.insertBefore(heading, footer);
         }
         const choices = document.createElement("div");
         choices.className = `moderation-action-${section.layout}`;
         choices.setAttribute("role", "group");
         if (section.label) choices.setAttribute("aria-label", section.label);
         const buttons = section.choices.map((choice) => {
-          const button = document.createElement("button");
-          button.type = "button";
+          const button = createActionChoice();
           button.className =
             section.layout === "grid"
               ? "moderation-action-rule"
@@ -578,20 +501,19 @@ export function showActionDialog(options) {
             button.classList.add("moderation-action-duration");
           if (choice.variant)
             button.classList.add(`wbo-dialog-button-${choice.variant}`);
-          if (choice.iconUrl) {
-            const icon = document.createElement("img");
-            icon.className = "moderation-action-rule-icon";
-            icon.src = choice.iconUrl;
-            icon.alt = "";
-            button.appendChild(icon);
-          }
-          const label = document.createElement("span");
+          const icon = /** @type {HTMLImageElement} */ (
+            button.querySelector("img")
+          );
+          if (choice.iconUrl) icon.src = choice.iconUrl;
+          else icon.remove();
+          const label = /** @type {HTMLElement} */ (
+            button.querySelector("span")
+          );
           label.className =
             section.layout === "grid"
               ? "moderation-action-rule-label"
               : "moderation-action-choice-label";
           label.textContent = choice.label;
-          button.appendChild(label);
           button.addEventListener("click", () => {
             if (section.submit) {
               settle({
@@ -622,80 +544,12 @@ export function showActionDialog(options) {
           );
           buttons[selectedIndex]?.click();
         }
-        dialog.appendChild(choices);
+        panel.insertBefore(choices, footer);
       }
 
-      const footer = document.createElement("div");
-      footer.className = "moderation-action-footer";
-      if (options.link) {
-        const link = document.createElement("a");
-        link.className = "moderation-action-rules-link";
-        link.href = options.link.href;
-        link.target = "_blank";
-        link.rel = "noopener";
-        link.textContent = options.link.label;
-        footer.appendChild(link);
-      }
-
-      const cancel = document.createElement("button");
-      cancel.type = "button";
-      cancel.className =
-        "wbo-dialog-button wbo-dialog-button-secondary moderation-action-cancel";
-      cancel.textContent = options.cancelLabel;
-      cancel.addEventListener("click", () => settle(null));
-      footer.appendChild(cancel);
-      dialog.appendChild(footer);
       allButtons[0]?.focus();
     },
   );
-}
-
-const MODAL_FOCUSABLE_SELECTOR =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
-/**
- * Keeps keyboard navigation inside a persistent modal panel. Native one-shot
- * dialogs use showModal(), which already provides this behavior.
- * @param {HTMLElement} panel
- * @param {() => void} onEscape
- * @returns {() => void}
- */
-function trapPersistentModalFocus(panel, onEscape) {
-  /** @param {KeyboardEvent} event */
-  const onKeyDown = (event) => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      onEscape();
-      return;
-    }
-    if (event.key !== "Tab") return;
-
-    const focusable = Array.from(
-      panel.querySelectorAll(MODAL_FOCUSABLE_SELECTOR),
-    ).filter(
-      /** @returns {element is HTMLElement} */
-      (element) =>
-        element instanceof HTMLElement &&
-        !element.hidden &&
-        element.getClientRects().length > 0,
-    );
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (!first || !last) {
-      event.preventDefault();
-      panel.focus();
-      return;
-    }
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  };
-  panel.addEventListener("keydown", onKeyDown);
-  return () => panel.removeEventListener("keydown", onKeyDown);
 }
 
 /**
@@ -703,142 +557,105 @@ function trapPersistentModalFocus(panel, onEscape) {
  * @returns {Promise<void>}
  */
 export function showModerationDisconnectNotice(options) {
-  return new Promise((resolve) => {
-    const previousFocus =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
-    const shell = createModalShell({
-      overlayId: "moderation-disconnect-overlay",
-      dialogId: "moderation-disconnect-dialog",
-      hiddenClass: "moderation-disconnect-overlay-hidden",
-      initiallyHidden: true,
-    });
-    shell.dialog.replaceChildren();
-    shell.dialog.classList.add("moderation-disconnect-dialog");
-    shell.dialog.setAttribute("role", "alertdialog");
-    shell.dialog.setAttribute("aria-modal", "true");
-    shell.dialog.dataset.moderationKind = options.kind;
+  return showModalDialog(
+    undefined,
+    (panel, settle, dialog) => {
+      dialog.id = "moderation-disconnect-overlay";
+      panel.id = "moderation-disconnect-dialog";
+      panel.classList.add("moderation-disconnect-dialog");
+      dialog.setAttribute("role", "alertdialog");
+      dialog.setAttribute("aria-modal", "true");
+      panel.dataset.moderationKind = options.kind;
 
-    const icon = document.createElement("div");
-    icon.className = "moderation-disconnect-icon";
-    icon.setAttribute("aria-hidden", "true");
-    icon.textContent = "!";
-
-    const title = document.createElement("div");
-    title.className = "moderation-disconnect-title";
-    title.id = "moderation-disconnect-title";
-    title.textContent = options.title;
-    shell.dialog.setAttribute("aria-labelledby", title.id);
-
-    const message = document.createElement("p");
-    message.className = "moderation-disconnect-message";
-    message.id = "moderation-disconnect-message";
-    message.textContent = options.message;
-    shell.dialog.setAttribute("aria-describedby", message.id);
-
-    const ruleCallout = document.createElement("div");
-    ruleCallout.className = "moderation-disconnect-rule";
-    if (options.ruleTitle) {
-      if (options.ruleIconUrl) {
-        const ruleIcon = document.createElement("img");
-        ruleIcon.className = "moderation-disconnect-rule-icon";
-        ruleIcon.src = options.ruleIconUrl;
-        ruleIcon.alt = "";
-        ruleIcon.setAttribute("aria-hidden", "true");
-        ruleCallout.appendChild(ruleIcon);
+      const content = createModerationNotice();
+      const text = (
+        /** @type {string} */ selector,
+        /** @type {string} */ value,
+      ) => {
+        const element = /** @type {HTMLElement} */ (
+          content.querySelector(selector)
+        );
+        element.textContent = value;
+        return element;
+      };
+      text(".moderation-disconnect-title", options.title);
+      text(".moderation-disconnect-message", options.message);
+      dialog.setAttribute("aria-labelledby", "moderation-disconnect-title");
+      dialog.setAttribute("aria-describedby", "moderation-disconnect-message");
+      const ruleCallout = /** @type {HTMLElement} */ (
+        content.querySelector(".moderation-disconnect-rule")
+      );
+      if (options.ruleTitle) {
+        const ruleIcon = /** @type {HTMLImageElement} */ (
+          content.querySelector(".moderation-disconnect-rule-icon")
+        );
+        if (options.ruleIconUrl) ruleIcon.src = options.ruleIconUrl;
+        else ruleIcon.remove();
+        text(".moderation-disconnect-rule-heading", options.ruleHeading || "");
+        text(".moderation-disconnect-rule-title", options.ruleTitle);
+        const body = text(
+          ".moderation-disconnect-rule-body",
+          options.ruleBody || "",
+        );
+        if (!options.ruleBody) body.remove();
+      } else ruleCallout.remove();
+      const countdown = /** @type {HTMLElement} */ (
+        content.querySelector(".moderation-disconnect-countdown")
+      );
+      if (!(options.banDurationMs > 0)) countdown.remove();
+      const banEndsAt = Date.now() + Math.max(0, options.banDurationMs);
+      /** @type {ReturnType<typeof setInterval> | null} */
+      let countdownInterval = null;
+      const updateCountdown = () => {
+        const remainingMs = banEndsAt - Date.now();
+        countdown.textContent =
+          remainingMs > 0
+            ? options.countdownLabel.replace(
+                "{time}",
+                formatCountdownDuration(
+                  remainingMs,
+                  options.countdownUnitPatterns,
+                ),
+              )
+            : options.countdownDoneLabel;
+        if (remainingMs <= 0 && countdownInterval !== null) {
+          clearInterval(countdownInterval);
+          countdownInterval = null;
+        }
+      };
+      if (options.banDurationMs > 0) {
+        updateCountdown();
+        countdownInterval = setInterval(updateCountdown, 1000);
       }
-      const ruleHeading = document.createElement("div");
-      ruleHeading.className = "moderation-disconnect-rule-heading";
-      ruleHeading.textContent = options.ruleHeading || "";
-      const ruleTitle = document.createElement("div");
-      ruleTitle.className = "moderation-disconnect-rule-title";
-      ruleTitle.textContent = options.ruleTitle;
-      ruleCallout.append(ruleHeading, ruleTitle);
-      if (options.ruleBody) {
-        const ruleBody = document.createElement("p");
-        ruleBody.className = "moderation-disconnect-rule-body";
-        ruleBody.textContent = options.ruleBody;
-        ruleCallout.appendChild(ruleBody);
-      }
-    }
 
-    const countdown = document.createElement("p");
-    countdown.className = "moderation-disconnect-countdown";
-    const banEndsAt = Date.now() + Math.max(0, options.banDurationMs);
-    /** @type {ReturnType<typeof setInterval> | null} */
-    let countdownInterval = null;
-    const updateCountdown = () => {
-      const remainingMs = banEndsAt - Date.now();
-      countdown.textContent =
-        remainingMs > 0
-          ? options.countdownLabel.replace(
-              "{time}",
-              formatCountdownDuration(
-                remainingMs,
-                options.countdownUnitPatterns,
-              ),
-            )
-          : options.countdownDoneLabel;
-      if (remainingMs <= 0 && countdownInterval !== null) {
-        clearInterval(countdownInterval);
-        countdownInterval = null;
-      }
-    };
-    if (options.banDurationMs > 0) {
-      updateCountdown();
-      countdownInterval = setInterval(updateCountdown, 1000);
-    }
+      const rulesLink = text(
+        ".moderation-disconnect-rules",
+        options.rulesLabel,
+      );
+      text(".moderation-disconnect-private", options.privateBoardLabel);
+      const acknowledge = text(
+        ".moderation-disconnect-ack",
+        options.acknowledgeLabel,
+      );
+      acknowledge.addEventListener("click", () => settle(undefined), {
+        once: true,
+      });
+      // Keep Tab on the notice's actions instead of entering browser chrome.
+      panel.addEventListener("keydown", (event) => {
+        if (event.key !== "Tab") return;
+        const endpoint = event.shiftKey ? rulesLink : acknowledge;
+        if (document.activeElement !== endpoint) return;
+        event.preventDefault();
+        (event.shiftKey ? acknowledge : rulesLink).focus();
+      });
 
-    const rulesLink = document.createElement("a");
-    rulesLink.className = "moderation-disconnect-rules";
-    rulesLink.href = "../rules";
-    rulesLink.target = "_blank";
-    rulesLink.rel = "noopener";
-    rulesLink.textContent = options.rulesLabel;
-
-    const actions = document.createElement("div");
-    actions.className = "moderation-disconnect-actions";
-
-    const privateBoard = document.createElement("a");
-    privateBoard.className =
-      "wbo-dialog-button wbo-dialog-button-secondary moderation-disconnect-private";
-    privateBoard.href = "../random";
-    privateBoard.textContent = options.privateBoardLabel;
-
-    const acknowledge = document.createElement("button");
-    acknowledge.type = "button";
-    acknowledge.className =
-      "wbo-dialog-button wbo-dialog-button-primary moderation-disconnect-ack";
-    acknowledge.textContent = options.acknowledgeLabel;
-    let settled = false;
-    let releaseFocusTrap = () => {};
-    const settle = () => {
-      if (settled) return;
-      settled = true;
-      if (countdownInterval !== null) {
-        clearInterval(countdownInterval);
-        countdownInterval = null;
-      }
-      releaseFocusTrap();
-      shell.hide();
-      acknowledge.blur();
-      if (previousFocus?.isConnected && !shell.dialog.contains(previousFocus)) {
-        previousFocus.focus({ preventScroll: true });
-      }
-      resolve();
-    };
-    acknowledge.addEventListener("click", settle, { once: true });
-
-    actions.append(privateBoard, acknowledge);
-    shell.dialog.append(icon, title, message);
-    if (options.ruleTitle) shell.dialog.appendChild(ruleCallout);
-    if (options.banDurationMs > 0) shell.dialog.appendChild(countdown);
-    shell.dialog.append(rulesLink, actions);
-    shell.show();
-    releaseFocusTrap = trapPersistentModalFocus(shell.dialog, settle);
-    acknowledge.focus();
-  });
+      panel.append(...content.children);
+      return () => {
+        if (countdownInterval !== null) clearInterval(countdownInterval);
+      };
+    },
+    { dismissOnBackdrop: false, focusOptions: { preventScroll: true } },
+  );
 }
 
 /** @typedef {{title: string, paragraphs: string[], primaryAction?: {label: string, href: string}, onDismiss?: () => void}} NoticeContent */
@@ -891,39 +708,11 @@ export function createNoticePanel(elements) {
   };
 }
 
-export class UiModule {
-  /** @param {NoticePanelOptions} options */
-  createNoticePanel(options) {
-    return createNoticePanel(options);
-  }
-
-  /** @param {AnchoredPanelPositionOptions} options */
-  positionAnchoredPanel(options) {
-    return positionAnchoredPanel(options);
-  }
-
-  /** @param {FloatingPanelControllerOptions} options */
-  createFloatingPanelController(options) {
-    return createFloatingPanelController(options);
-  }
-
-  /** @param {ModalShellOptions} [options] */
-  createModalShell(options) {
-    return createModalShell(options);
-  }
-
-  /** @param {ConfirmDialogOptions} options */
-  confirm(options) {
-    return showConfirmDialog(options);
-  }
-
-  /** @param {ActionDialogOptions} options */
-  showActionDialog(options) {
-    return showActionDialog(options);
-  }
-
-  /** @param {ModerationDisconnectNoticeOptions} options */
-  showModerationDisconnectNotice(options) {
-    return showModerationDisconnectNotice(options);
-  }
-}
+export const ui = {
+  createNoticePanel,
+  positionAnchoredPanel,
+  createFloatingPanelController,
+  confirm: showConfirmDialog,
+  showActionDialog,
+  showModerationDisconnectNotice,
+};

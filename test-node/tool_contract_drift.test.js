@@ -3,7 +3,6 @@ const test = require("node:test");
 
 const CONTRACTS_PATH = "../client-data/tools/contracts.js";
 const MANIFEST_PATH = "../client-data/tools/manifest.js";
-const INDEX_PATH = "../client-data/tools/index.js";
 
 test("wire tool codes match the documented protocol", async () => {
   const { TOOL_CODE_BY_ID } = await import(MANIFEST_PATH);
@@ -48,12 +47,9 @@ test("mutation type codes match the documented protocol", async () => {
 });
 
 test("code-to-tool maps round trip through the explicit maps", async () => {
-  const { TOOL_CODE_BY_ID, TOOL_ID_BY_CODE, TOOL_BY_CODE, TOOL_BY_ID } =
-    await import(MANIFEST_PATH);
+  const { TOOL_CODE_BY_ID, TOOL_ID_BY_CODE } = await import(MANIFEST_PATH);
   for (const [toolId, code] of Object.entries(TOOL_CODE_BY_ID)) {
     assert.equal(TOOL_ID_BY_CODE[code], toolId, `code ${code} -> ${toolId}`);
-    // Released metadata modules index this array with the wire code minus one.
-    assert.equal(TOOL_BY_CODE[code - 1], TOOL_BY_ID[toolId]);
   }
   for (const [code, toolId] of Object.entries(TOOL_ID_BY_CODE)) {
     assert.equal(
@@ -65,9 +61,6 @@ test("code-to-tool maps round trip through the explicit maps", async () => {
 });
 
 test("server-safe contracts agree with the manifest for every tool", async () => {
-  const { defineShapeContract } = await import(
-    "../client-data/tools/shape_contract.js"
-  );
   const { TOOL_CONTRACT_BY_ID } = await import(CONTRACTS_PATH);
   const { TOOL_BY_ID } = await import(MANIFEST_PATH);
   for (const [toolId, manifestEntry] of Object.entries(TOOL_BY_ID)) {
@@ -95,12 +88,6 @@ test("server-safe contracts agree with the manifest for every tool", async () =>
       manifestEntry.requiredCapability,
       `${toolId} requiredCapability`,
     );
-    if (contract.shapeTool) {
-      // Released contracts modules wrap these definitions with this helper.
-      const compatible = defineShapeContract(contract);
-      assert.notEqual(compatible, contract);
-      assert.deepEqual(compatible, contract);
-    }
   }
 });
 
@@ -122,27 +109,19 @@ test("storage contracts expose serialize/summarize for every stored tool", async
   }
 });
 
-test("the runtime browser registry and the server contracts share metadata", async () => {
-  const { TOOL_BY_ID: RUNTIME_BY_ID } = await import(INDEX_PATH);
-  const { TOOL_CONTRACT_BY_ID } = await import(CONTRACTS_PATH);
-  for (const [toolId, contract] of Object.entries(TOOL_CONTRACT_BY_ID)) {
-    const runtime = RUNTIME_BY_ID[toolId];
-    assert.ok(runtime, `runtime missing ${toolId}`);
-    assert.equal(runtime.id, contract.id, `${toolId} id`);
-    assert.equal(
-      runtime.storedTagName,
-      contract.storedTagName,
-      `${toolId} storedTagName`,
-    );
-    assert.equal(
-      runtime.payloadKind,
-      contract.payloadKind,
-      `${toolId} payloadKind`,
-    );
-    assert.equal(
-      runtime.requiredCapability,
-      contract.requiredCapability,
-      `${toolId} requiredCapability`,
-    );
+test("lazy browser modules expose behavior while the manifest owns metadata", async () => {
+  const { TOOL_BY_ID } = await import(MANIFEST_PATH);
+  for (const [toolId, manifest] of Object.entries(TOOL_BY_ID)) {
+    if (!manifest) continue;
+    const runtime = await import(`../client-data/tools/${toolId}/index.js`);
+    assert.equal(typeof runtime.boot, "function", toolId);
+    assert.equal(typeof runtime.draw, "function", toolId);
+    for (const key of [...Object.keys(manifest), "contract", "secondary"]) {
+      assert.equal(
+        Object.prototype.hasOwnProperty.call(runtime, key),
+        false,
+        `${toolId} duplicates ${key}`,
+      );
+    }
   }
 });

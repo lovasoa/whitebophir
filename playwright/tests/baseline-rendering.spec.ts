@@ -19,6 +19,14 @@ test("dense pencil baselines retain curves within the execution budget", async (
     boardSvgPath(boardName, server.dataPath),
     `<svg id="canvas" xmlns="http://www.w3.org/2000/svg" width="1000" height="800" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="0" data-wbo-readonly="false"><g id="drawingArea">${items}</g><g id="cursors"></g></svg>`,
   );
+  await page.addInitScript(() => {
+    for (const name of ["getPathData", "setPathData"]) {
+      Object.defineProperty(SVGPathElement.prototype, name, {
+        value: undefined,
+        configurable: true,
+      });
+    }
+  });
   await page.coverage.startJSCoverage();
   await boardPage.gotoBoard(boardName);
   await boardPage.waitForSocketConnected();
@@ -48,9 +56,18 @@ test("dense pencil baselines retain curves within the execution budget", async (
       false,
     );
     const line = document.querySelector<SVGPathElement>("#stored-0");
-    return line?.getPathData().at(-1)?.values.slice(-2);
+    return line?.getAttribute("d")?.trim().split(/\s+/).slice(-2).map(Number);
   });
   expect(appended).toEqual([150, 130]);
+  expect(
+    await page.evaluate(() =>
+      ["getPathData", "setPathData"].every(
+        (name) =>
+          Object.getOwnPropertyDescriptor(SVGPathElement.prototype, name)
+            ?.value === undefined,
+      ),
+    ),
+  ).toBe(true);
   // Baseline ~221,000, including dependencies; allow ample headroom.
   expect(executionCount(await page.coverage.stopJSCoverage())).toBeLessThan(
     500_000,

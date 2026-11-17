@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!**/*.html", "!client-data/js/path-data-polyfill.js"]
+    "includes": ["**", "!**/*.html"]
   },
   "formatter": {
     "indentStyle": "space",

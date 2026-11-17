@@ -29,12 +29,6 @@ import { downloadBoardSvg } from "../../js/board_export.js";
 /** @import { ToolBootContext } from "../../../types/app-runtime" */
 /** @typedef {ReturnType<typeof boot>} DownloadToolState */
 
-export const toolId = "download";
-export const shortcut = "d";
-export const oneTouch = true;
-export const mouseCursor = "crosshair";
-export const visibleWhenReadOnly = true;
-
 /** @param {ToolBootContext} ctx */
 export function boot(ctx) {
   return ctx.runtime;

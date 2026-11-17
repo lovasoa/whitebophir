@@ -2,7 +2,9 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
-const { Hand, Rectangle } = require("../client-data/tools/index.js");
+const {
+  TOOL_BY_ID: { hand: Hand, rectangle: Rectangle },
+} = require("../client-data/tools/manifest.js");
 const { TOOL_CODE_BY_ID } = require("../client-data/tools/tool-order.js");
 const { collectOptimisticAffectedIds, collectOptimisticDependencyIds } =
   require("../client-data/js/optimistic_mutation.js");
@@ -63,12 +65,7 @@ function handUpdate(id) {
  * @param {ClientTrackedMessage} message
  */
 function trackOptimisticMessage(journal, message) {
-  journal.append({
-    affectedIds: collectOptimisticAffectedIds(message),
-    dependsOn: journal.dependencyMutationIdsForItemIds(
-      collectOptimisticDependencyIds(message),
-    ),
-    dependencyItemIds: collectOptimisticDependencyIds(message),
+  return journal.append({
     rollback: { kind: "items", snapshots: [] },
     message,
   });
@@ -76,14 +73,11 @@ function trackOptimisticMessage(journal, message) {
 
 /**
  * @param {OptimisticJournalState} journal
- * @param {{clientMutationId: string, affectedIds: Set<string>, dependsOn: Set<string>, dependencyItemIds?: Set<string>, rollback: OptimisticRollback, message: LiveBoardMessage}} entry
+ * @param {{clientMutationId: string, rollback: OptimisticRollback, message: LiveBoardMessage}} entry
  */
 function appendOptimisticEntry(journal, entry) {
   entry.message.clientMutationId = entry.clientMutationId;
   return journal.append({
-    affectedIds: entry.affectedIds,
-    dependsOn: entry.dependsOn,
-    dependencyItemIds: entry.dependencyItemIds,
     rollback: entry.rollback,
     message: /** @type {ClientTrackedMessage} */ (entry.message),
   });
@@ -144,15 +138,11 @@ test("optimistic journal appends and promotes entries in order", () => {
   const journal = createOptimisticJournal();
   appendOptimisticEntry(journal, {
     clientMutationId: "c1",
-    affectedIds: new Set(["shape-1"]),
-    dependsOn: new Set(),
     rollback: { kind: "items", snapshots: [] },
     message: rectCreate("shape-1"),
   });
   appendOptimisticEntry(journal, {
     clientMutationId: "c2",
-    affectedIds: new Set(["shape-2"]),
-    dependsOn: new Set(),
     rollback: { kind: "items", snapshots: [] },
     message: rectCreate("shape-2"),
   });
@@ -168,70 +158,51 @@ test("optimistic journal appends and promotes entries in order", () => {
     journal.list().map((entry) => entry.clientMutationId),
     ["c2", "c1"],
   );
-  assert.deepEqual(
-    journal.promote("c1").map((entry) => entry.clientMutationId),
-    ["c1"],
-  );
+  journal.promote("c1");
   assert.deepEqual(
     journal.list().map((entry) => entry.clientMutationId),
     ["c2"],
   );
-  assert.deepEqual(
-    journal.dependencyMutationIdsForItemIds(new Set(["shape-1"])),
-    new Set(),
-  );
+  const independent = trackOptimisticMessage(journal, {
+    ...rectUpdate("shape-1"),
+    clientMutationId: "c3",
+  });
+  assert.deepEqual(independent.dependsOn, new Set());
 });
 
-test("optimistic journal tracks the latest pending mutation per affected item", () => {
+test("optimistic journal restores dependencies after out-of-order acknowledgements", () => {
   const journal = createOptimisticJournal();
-  appendOptimisticEntry(journal, {
+  trackOptimisticMessage(journal, {
+    ...rectCreate("shape-1"),
     clientMutationId: "c1",
-    affectedIds: new Set(["shape-1"]),
-    dependsOn: new Set(),
-    rollback: { kind: "items", snapshots: [] },
-    message: rectCreate("shape-1"),
   });
-  appendOptimisticEntry(journal, {
+  const second = trackOptimisticMessage(journal, {
+    ...rectUpdate("shape-1"),
     clientMutationId: "c2",
-    affectedIds: new Set(["shape-1", "shape-2"]),
-    dependsOn: new Set(["c1"]),
-    rollback: { kind: "items", snapshots: [] },
-    message: rectUpdate("shape-1"),
   });
-
-  assert.deepEqual(
-    journal.dependencyMutationIdsForItemIds(new Set(["shape-1", "shape-2"])),
-    new Set(["c2"]),
-  );
-
+  assert.deepEqual(second.dependsOn, new Set(["c1"]));
   journal.promote("c2");
-
-  assert.deepEqual(
-    journal.dependencyMutationIdsForItemIds(new Set(["shape-1", "shape-2"])),
-    new Set(["c1"]),
-  );
+  const third = trackOptimisticMessage(journal, {
+    ...rectUpdate("shape-1"),
+    clientMutationId: "c3",
+  });
+  assert.deepEqual(third.dependsOn, new Set(["c1"]));
 });
 
 test("optimistic journal rejects dependent descendants together", () => {
   const journal = createOptimisticJournal();
   appendOptimisticEntry(journal, {
     clientMutationId: "c1",
-    affectedIds: new Set(["shape-1"]),
-    dependsOn: new Set(),
     rollback: { kind: "items", snapshots: [] },
     message: rectCreate("shape-1"),
   });
   appendOptimisticEntry(journal, {
     clientMutationId: "c2",
-    affectedIds: new Set(["shape-1"]),
-    dependsOn: new Set(["c1"]),
     rollback: { kind: "items", snapshots: [] },
     message: rectUpdate("shape-1"),
   });
   appendOptimisticEntry(journal, {
     clientMutationId: "c3",
-    affectedIds: new Set(["shape-2"]),
-    dependsOn: new Set(),
     rollback: { kind: "items", snapshots: [] },
     message: rectCreate("shape-2"),
   });
@@ -250,8 +221,6 @@ test("optimistic journal reset clears all pending entries", () => {
   const journal = createOptimisticJournal();
   appendOptimisticEntry(journal, {
     clientMutationId: "c1",
-    affectedIds: new Set(["shape-1"]),
-    dependsOn: new Set(),
     rollback: { kind: "items", snapshots: [] },
     message: rectCreate("shape-1"),
   });
@@ -283,8 +252,6 @@ test("optimistic journal does not require native structuredClone", () => {
 
     const appended = appendOptimisticEntry(journal, {
       clientMutationId: "c1",
-      affectedIds: new Set(["shape-1"]),
-      dependsOn: new Set(),
       rollback,
       message,
     });
@@ -310,9 +277,6 @@ test("optimistic journal prunes entries invalidated by authoritative deletes", (
   const journal = createOptimisticJournal();
   appendOptimisticEntry(journal, {
     clientMutationId: "copy-1",
-    affectedIds: new Set(["copy-1"]),
-    dependsOn: new Set(),
-    dependencyItemIds: new Set(["seed-1"]),
     rollback: { kind: "items", snapshots: [] },
     message: {
       tool: Hand.id,
@@ -323,17 +287,11 @@ test("optimistic journal prunes entries invalidated by authoritative deletes", (
   });
   appendOptimisticEntry(journal, {
     clientMutationId: "copy-1-transform",
-    affectedIds: new Set(["copy-1"]),
-    dependsOn: new Set(["copy-1"]),
-    dependencyItemIds: new Set(["copy-1"]),
     rollback: { kind: "items", snapshots: [] },
     message: handUpdate("copy-1"),
   });
   appendOptimisticEntry(journal, {
     clientMutationId: "shape-2-update",
-    affectedIds: new Set(["shape-2"]),
-    dependsOn: new Set(),
-    dependencyItemIds: new Set(["shape-2"]),
     rollback: { kind: "items", snapshots: [] },
     message: rectUpdate("shape-2"),
   });
@@ -383,17 +341,11 @@ test("optimistic journal prunes entries invalidated by hand batch child deletes"
   const journal = createOptimisticJournal();
   appendOptimisticEntry(journal, {
     clientMutationId: "c1",
-    affectedIds: new Set(["shape-1"]),
-    dependsOn: new Set(),
-    dependencyItemIds: new Set(["shape-1"]),
     rollback: { kind: "items", snapshots: [] },
     message: rectUpdate("shape-1"),
   });
   appendOptimisticEntry(journal, {
     clientMutationId: "c2",
-    affectedIds: new Set(["shape-2"]),
-    dependsOn: new Set(),
-    dependencyItemIds: new Set(["shape-2"]),
     rollback: { kind: "items", snapshots: [] },
     message: rectUpdate("shape-2"),
   });
@@ -456,10 +408,6 @@ test("optimistic journal uses authoritative prune plans with dependency-driven e
   assert.equal(entries.length, 3);
   assert.deepEqual(entries[0]?.dependsOn, new Set());
   assert.deepEqual(entries[1]?.dependsOn, new Set(["cm-create-rect-1"]));
-  assert.deepEqual(
-    journal.dependencyMutationIdsForItemIds(new Set(["rect-1"])),
-    new Set(["cm-append-1"]),
-  );
 
   assert.deepEqual(
     journal.list().map((entry) => entry.clientMutationId),

@@ -25,20 +25,13 @@
  */
 
 import { MutationType } from "../../js/mutation_type.js";
-import { BOARD_CAPABILITY, TOOL_CODE_BY_ID } from "../manifest.js";
+import { TOOL_CODE_BY_ID } from "../manifest.js";
 
 /** @import { ToolBootContext } from "../../../types/app-runtime" */
 /** @typedef {ReturnType<typeof createClearMessage>} ClearMessage */
 /** @typedef {ReturnType<typeof boot>} ClearToolState */
 
-export const toolId = "clear";
-const toolCode = TOOL_CODE_BY_ID[toolId];
-export const oneTouch = true;
-export const mouseCursor = "crosshair";
-export const requiredCapability = BOARD_CAPABILITY.CLEAR;
-export const liveMessageFields = /** @type {const} */ ({
-  [MutationType.CLEAR]: {},
-});
+const toolCode = TOOL_CODE_BY_ID["clear"];
 
 /** @param {ClearToolState} state */
 function createClearMessage(state) {

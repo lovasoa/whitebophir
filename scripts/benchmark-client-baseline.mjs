@@ -38,14 +38,14 @@ try {
     signal: AbortSignal.timeout(30_000),
   });
   browser = await chromium.launch({ headless: true });
-  for (const forcePolyfill of [false, true]) {
+  for (const forceNoPathApi of [false, true]) {
     const context = await browser.newContext();
     try {
       const page = await context.newPage();
       const cdp = await context.newCDPSession(page);
       await cdp.send("Emulation.setCPUThrottlingRate", { rate: cpuRate });
-      await page.addInitScript((forcePolyfill) => {
-        if (!forcePolyfill) return;
+      await page.addInitScript((forceNoPathApi) => {
+        if (!forceNoPathApi) return;
         for (const name of ["getPathData", "setPathData"]) {
           Object.defineProperty(SVGPathElement.prototype, name, {
             value: undefined,
@@ -53,7 +53,7 @@ try {
             configurable: true,
           });
         }
-      }, forcePolyfill);
+      }, forceNoPathApi);
       await page.goto(
         `http://127.0.0.1:${started.port}/boards/baseline-benchmark#0,0,1`,
       );
@@ -80,7 +80,7 @@ try {
         JSON.stringify({
           browser: browser.version(),
           cpuRate,
-          pathApi: forcePolyfill ? "forced-polyfill" : "default",
+          pathApi: forceNoPathApi ? "unavailable" : "default",
           ...timings,
         }),
       );

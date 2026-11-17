@@ -1,5 +1,5 @@
 import { MODERATION_DURATIONS } from "../../client-data/js/moderation_rules.js";
-import { canGrantTemporaryModeratorOnBoard } from "./policy.mjs";
+import { boardPermissionsForSocket } from "./policy.mjs";
 import { getBoardUser } from "./presence.mjs";
 import { setTemporaryModerator } from "./temporary_moderators.mjs";
 
@@ -20,7 +20,14 @@ export async function handleSetTemporaryModeratorMessage(context) {
   ) {
     return;
   }
-  if (!canGrantTemporaryModeratorOnBoard(config, boardName, socket)) return;
+  if (
+    !boardPermissionsForSocket(
+      config,
+      boardName,
+      socket,
+    ).canGrantTemporaryModerator()
+  )
+    return;
 
   const actor = getBoardUser(boardName, socket.id);
   const target = getBoardUser(boardName, socketId);
@@ -29,7 +36,13 @@ export async function handleSetTemporaryModeratorMessage(context) {
   if (!target.userSecret || actor.userSecret === target.userSecret) {
     return;
   }
-  if (canGrantTemporaryModeratorOnBoard(config, boardName, targetSocket))
+  if (
+    boardPermissionsForSocket(
+      config,
+      boardName,
+      targetSocket,
+    ).canGrantTemporaryModerator()
+  )
     return;
 
   setTemporaryModerator(

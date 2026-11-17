@@ -32,13 +32,6 @@
 
 const ZOOM_FACTOR = 0.5;
 
-export const toolId = "zoom";
-export const shortcut = "z";
-export const mouseCursor = "zoom-in";
-export const helpText = "click_to_zoom";
-export const showMarker = true;
-export const visibleWhenReadOnly = true;
-
 /**
  * @param {ZoomPointerEvent} evt
  * @param {boolean} isTouchEvent

@@ -8,10 +8,9 @@
  * @typedef {{escapeHtml: (value: string) => string, numberOrZero: (value: unknown) => number, renderTransformAttribute: (transform: SvgTransform | undefined) => string}} StoredShapeSerializeHelpers
  * @typedef {{id: string, opacity?: number, transform?: SvgTransform, decorateStoredItemData: (data: object, opacity: number | undefined, transform: SvgTransform | undefined) => object, decodedTextLength: (value: string) => number, parseNumber: (value: unknown) => number | undefined, readStoredSvgAttribute: (entry: StoredSvgEntry, name: string) => string | undefined}} StoredShapeSummaryHelpers
  * @typedef {{readStoredSvgAttribute: (entry: StoredSvgEntry, name: string) => string | undefined, unescapeHtml: (value: string) => string}} StoredShapeParseHelpers
- * @typedef {{htmlspecialchars: (value: string) => string, numberOrZero: (value: unknown) => number, renderPath: (item: StoredShapeItem, pathString: string) => string, renderTranslate: (item: StoredShapeItem) => string}} StoredShapeRenderHelpers
  * @typedef {ReadonlyArray<string>} UpdatableFields
  * @typedef {Readonly<Record<number, Readonly<Record<string, string>>>>} LiveMessageFields
- * @typedef {{toolId: string, toolCode: import("../../types/app-runtime").ToolCode, storedTagName?: string, shapeTool?: boolean, updatableFields?: UpdatableFields, drawsOnBoard?: boolean, payloadKind?: "inline" | "text" | "children", liveMessageFields?: LiveMessageFields, summarizeStoredSvgItem: (entry: StoredSvgEntry, paintOrder: number | undefined, helpers: StoredShapeSummaryHelpers) => StoredShapeSummary | null, serializeStoredSvgItem: (item: StoredShapeItem, helpers: StoredShapeSerializeHelpers) => string, parseStoredSvgItem?: (summary: StoredShapeSummary, entry: StoredSvgEntry, helpers: StoredShapeParseHelpers) => StoredShapeItem | null, renderBoardSvg?: (shape: StoredShapeItem, helpers: StoredShapeRenderHelpers) => string}} ToolContract
+ * @typedef {{toolId: string, toolCode: import("../../types/app-runtime").ToolCode, storedTagName?: string, shapeTool?: boolean, updatableFields?: UpdatableFields, drawsOnBoard?: boolean, payloadKind?: "inline" | "text" | "children", liveMessageFields?: LiveMessageFields, summarizeStoredSvgItem: (entry: StoredSvgEntry, paintOrder: number | undefined, helpers: StoredShapeSummaryHelpers) => StoredShapeSummary | null, serializeStoredSvgItem: (item: StoredShapeItem, helpers: StoredShapeSerializeHelpers) => string, parseStoredSvgItem?: (summary: StoredShapeSummary, entry: StoredSvgEntry, helpers: StoredShapeParseHelpers) => StoredShapeItem | null}} ToolContract
  */
 
 /**
@@ -71,14 +70,4 @@ export function serializeStoredShapeTag(tagName, attrs, item, helpers) {
     ` stroke="${color}" stroke-width="${size}" fill="none"` +
     `${opacity}${transform}></${tagName}>`
   );
-}
-
-// This helper is still imported by released, cacheable contracts modules.
-/**
- * @template {ToolContract & {storedTagName: string}} T
- * @param {T} contract
- * @returns {T & {shapeTool: true}}
- */
-export function defineShapeContract(contract) {
-  return { ...contract, shapeTool: true };
 }

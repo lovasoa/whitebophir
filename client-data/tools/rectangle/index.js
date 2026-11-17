@@ -1,9 +1,8 @@
-import { RectangleContract } from "../contracts.js";
+import { TOOL_BY_ID } from "../manifest.js";
 import {
   constrainEqualSpanToBoard,
   createShapeToolBoot,
   makeBoxShapeUpdateMessage,
-  makeSeedShapeCreateMessage,
 } from "../shape_tool.js";
 
 export {
@@ -18,17 +17,11 @@ export {
   releaseShapeTool as release,
 } from "../shape_tool.js";
 
-export const toolId = "rectangle";
-export const drawsOnBoard = true;
-export const mouseCursor = "crosshair";
+const definition = TOOL_BY_ID["rectangle"];
 
-const contract = RectangleContract;
-
-/** @typedef {import("../shape_tool.js").ShapeCreateMessage<typeof contract.toolCode>} RectangleCreateMessage */
-/** @typedef {import("../shape_tool.js").ShapeBoxUpdateMessage<typeof contract.toolCode>} RectangleUpdateMessage */
-export { contract };
-export const shortcut = "r";
-export const secondary = {
+/** @typedef {import("../shape_tool.js").ShapeCreateMessage<typeof definition.id>} RectangleCreateMessage */
+/** @typedef {import("../shape_tool.js").ShapeBoxUpdateMessage<typeof definition.id>} RectangleUpdateMessage */
+const secondary = {
   name: "Square",
   icon: "tools/rectangle/icon-square.svg",
   active: false,
@@ -36,12 +29,9 @@ export const secondary = {
 
 /** @type {import("../shape_tool.js").ShapeToolConfig} */
 const config = {
-  contract,
+  definition,
   secondary,
   uidPrefix: "r",
-  isShapeElement: (element) =>
-    String(element?.tagName).toLowerCase() === contract.storedTagName,
-  makeCreateMessage: makeSeedShapeCreateMessage,
   constrainEndPosition: (state, x, y) => {
     const start = state.currentShape;
     if (!start) return;
@@ -53,19 +43,7 @@ const config = {
     state.endX = x;
     state.endY = y;
   },
-  makeUpdateMessage: (state, x, y) => {
-    const start = state.currentShape;
-    return start
-      ? makeBoxShapeUpdateMessage(contract.toolCode, start.id, start, x, y)
-      : null;
-  },
-  makeFallbackShape: (data) => ({
-    id: data.id,
-    x: data.x2,
-    y: data.y2,
-    x2: data.x2,
-    y2: data.y2,
-  }),
+  makeUpdateMessage: makeBoxShapeUpdateMessage,
   applyShapeGeometry: (rect, data) => {
     const rectangle = /** @type {SVGRectElement} */ (rect);
     const x = data.x ?? data.x2;

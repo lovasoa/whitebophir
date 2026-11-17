@@ -1,9 +1,5 @@
 import { getToolRuntimeAssetPath } from "../tools/tool-defaults.js";
-import { normalizeBoardAssetPath } from "./board_asset_path.js";
 import RateLimitCommon from "./rate_limit_common.js";
-
-// Cached AppTools modules import this name and pass it to AssetModule.
-export { normalizeBoardAssetPath } from "./board_asset_path.js";
 
 /** @import { AppConfigModule, AppIdentityModule, LiveBoardMessage, RateLimitKind } from "../../types/app-runtime" */
 
@@ -12,9 +8,10 @@ const RATE_LIMIT_KINDS = /** @type {RateLimitKind[]} */ (
 );
 
 export class AssetModule {
-  /** @param {(assetPath: string) => string} [resolveAssetPath] */
-  constructor(resolveAssetPath = normalizeBoardAssetPath) {
-    this.resolveAssetPath = resolveAssetPath;
+  /** @param {string} assetPath */
+  resolveAssetPath(assetPath) {
+    if (/^(?:\.{1,2}\/|\/|data:|https?:\/\/)/.test(assetPath)) return assetPath;
+    return new URL(`../${assetPath}`, import.meta.url).href;
   }
 
   /**

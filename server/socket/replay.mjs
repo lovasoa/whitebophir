@@ -1,7 +1,7 @@
 import { MutationType } from "../../client-data/js/message_tool_metadata.js";
 import observability from "../observability/index.mjs";
 import { readStoredSvgSeq } from "../persistence/svg_board_store.mjs";
-import { canAccessBoard, normalizeBoardName } from "./policy.mjs";
+import { boardPermissionsForSocket, normalizeBoardName } from "./policy.mjs";
 import { getSocketQueryValue } from "./request.mjs";
 
 const { logger, metrics, tracing } = observability;
@@ -48,7 +48,7 @@ function bindSocketBoard(socket, config) {
   if (boardName === null) {
     return { ok: false, reason: "invalid_board_name" };
   }
-  if (!canAccessBoard(config, boardName, socket)) {
+  if (!boardPermissionsForSocket(config, boardName, socket).canOpen()) {
     return { ok: false, reason: "access_forbidden" };
   }
 

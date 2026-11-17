@@ -11,7 +11,9 @@ const {
   withMockedNow,
 } = require("./test_helpers.js");
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
-const { Cursor, Pencil } = require("../client-data/tools/index.js");
+const {
+  TOOL_BY_ID: { cursor: Cursor, pencil: Pencil },
+} = require("../client-data/tools/manifest.js");
 
 require(SOCKETS_PATH);
 

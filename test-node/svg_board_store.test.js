@@ -402,7 +402,7 @@ test("updateRootMetadata rewrites only root metadata attributes", () => {
   assert.match(updated, /width="800"/);
 });
 
-test("writeBoardState preserves opaque shell while rewriting stored items", async () => {
+test("writeBoardState preserves the shell and rejects broken document structure", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-preserve-"),
   );
@@ -464,6 +464,17 @@ test("writeBoardState preserves opaque shell while rewriting stored items", asyn
     assert.ok(lineIndex !== -1);
     assert.ok(textIndex !== -1);
     assert.ok(lineIndex < textIndex);
+
+    const brokenSvg = rewritten.replace("</g>", "");
+    await fs.writeFile(svgPath(boardName, historyDir), brokenSvg);
+    await assert.rejects(
+      writeBoardState(boardName, {}, { readonly: true }, 13, historyDir),
+      /Unterminated drawingArea group/,
+    );
+    assert.equal(
+      await fs.readFile(svgPath(boardName, historyDir), "utf8"),
+      brokenSvg,
+    );
   });
 });
 
@@ -677,6 +688,17 @@ test("readCanonicalBoardState promotes a staged backup svg when the primary file
       code: "ENOENT",
     });
     assert.match(servedBaseline, /id="rect-1"/);
+
+    await fs.rename(
+      svgPath(boardName, historyDir),
+      `${svgPath(boardName, historyDir)}.bak`,
+    );
+    const stream = await svgBoardStore.streamServedBaseline(boardName, {
+      historyDir,
+    });
+    let streamedSvg = "";
+    for await (const chunk of stream) streamedSvg += chunk;
+    assert.equal(streamedSvg, stagedSvg);
   });
 });
 
@@ -1242,6 +1264,8 @@ for (const operation of ["sequence", "open", "write"]) {
     const original = '<svg data-wbo-seq="1"><g id="drawingArea"></g></svg>';
     await fs.writeFile(file, original);
     const failure = new Error(`injected ${operation} failure`);
+    /** @param {...any} args */
+    const failIo = (...args) => args[args.length - 1](failure);
     if (operation !== "sequence") {
       const createWriteStream = fsSync.createWriteStream;
       t.mock.method(
@@ -1252,8 +1276,9 @@ for (const operation of ["sequence", "open", "write"]) {
             ...(typeof options === "object" ? options : { encoding: options }),
             fs: {
               ...fsSync,
-              [operation]: /** @param {...any} args */ (...args) =>
-                args[args.length - 1](failure),
+              [operation]: failIo,
+              // Buffered chunks may use writev instead of write.
+              ...(operation === "write" ? { writev: failIo } : {}),
             },
           }),
       );

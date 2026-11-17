@@ -19,7 +19,9 @@ const {
 } = require("@opentelemetry/semantic-conventions");
 const { InMemorySpanExporter } = require("@opentelemetry/sdk-trace");
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
-const { Cursor } = require("../client-data/tools/index.js");
+const {
+  TOOL_BY_ID: { cursor: Cursor },
+} = require("../client-data/tools/manifest.js");
 
 const {
   MESSAGE_VALIDATION_PATH,
@@ -31,6 +33,12 @@ const {
   request,
   writeBoard,
 } = require("./test_helpers.js");
+
+const {
+  createLogRecord,
+  formatReadableLogRecord,
+  shouldEmitLogAtLevel,
+} = require("../server/observability/logging.mjs");
 
 const ROOT = path.join(__dirname, "..");
 const OBSERVABILITY_PATH = path.join(
@@ -555,11 +563,9 @@ test("active traces correlate log records and board.save spans", async () => {
           },
         },
         async function traceSave() {
-          const correlated = observability.__test.createLogRecord(
-            "info",
-            "board.saved",
-            { board: "trace-save" },
-          );
+          const correlated = createLogRecord("info", "board.saved", {
+            board: "trace-save",
+          });
           const config = createConfig({ HISTORY_DIR: historyDir });
           const board = new BoardData("trace-save", config);
           board.board = {
@@ -776,57 +782,45 @@ test("large standalone board loads create their own root span", async () => {
   );
 });
 
-test("formatReadableLogRecord only renders sampled span ids", async () => {
-  await withTracing({}, async ({ observability }) => {
-    const sampledLine = observability.formatReadableLogRecord({
-      hrTime: [0, 0],
-      severityText: "INFO",
-      severityNumber: 9,
-      body: "sampled",
-      eventName: "sampled.log",
-      attributes: {},
-      spanContext: {
-        traceId: "0123456789abcdef0123456789abcdef",
-        spanId: "0123456789abcdef",
-        traceFlags: 1,
-      },
-    });
-    const unsampledLine = observability.formatReadableLogRecord({
-      hrTime: [0, 0],
-      severityText: "INFO",
-      severityNumber: 9,
-      body: "unsampled",
-      eventName: "unsampled.log",
-      attributes: {},
-      spanContext: {
-        traceId: "fedcba9876543210fedcba9876543210",
-        spanId: "fedcba9876543210",
-        traceFlags: 0,
-      },
-    });
-
-    assert.match(sampledLine, /trace_id=0123456789abcdef0123456789abcdef/);
-    assert.match(sampledLine, /span_id=0123456789abcdef/);
-    assert.doesNotMatch(unsampledLine, /trace_id=/);
-    assert.doesNotMatch(unsampledLine, /span_id=/);
+test("formatReadableLogRecord only renders sampled span ids", () => {
+  const sampledLine = formatReadableLogRecord({
+    hrTime: [0, 0],
+    severityText: "INFO",
+    severityNumber: 9,
+    body: "sampled",
+    eventName: "sampled.log",
+    attributes: {},
+    spanContext: {
+      traceId: "0123456789abcdef0123456789abcdef",
+      spanId: "0123456789abcdef",
+      traceFlags: 1,
+    },
   });
+  const unsampledLine = formatReadableLogRecord({
+    hrTime: [0, 0],
+    severityText: "INFO",
+    severityNumber: 9,
+    body: "unsampled",
+    eventName: "unsampled.log",
+    attributes: {},
+    spanContext: {
+      traceId: "fedcba9876543210fedcba9876543210",
+      spanId: "fedcba9876543210",
+      traceFlags: 0,
+    },
+  });
+
+  assert.match(sampledLine, /trace_id=0123456789abcdef0123456789abcdef/);
+  assert.match(sampledLine, /span_id=0123456789abcdef/);
+  assert.doesNotMatch(unsampledLine, /trace_id=/);
+  assert.doesNotMatch(unsampledLine, /span_id=/);
 });
 
 test("LOG_LEVEL filters lower-severity logs", async () => {
-  const observability = getSharedObservability();
-  assert.equal(
-    observability.__test.shouldEmitLogAtLevel("debug", "warn"),
-    false,
-  );
-  assert.equal(
-    observability.__test.shouldEmitLogAtLevel("info", "warn"),
-    false,
-  );
-  assert.equal(observability.__test.shouldEmitLogAtLevel("warn", "warn"), true);
-  assert.equal(
-    observability.__test.shouldEmitLogAtLevel("error", "warn"),
-    true,
-  );
+  assert.equal(shouldEmitLogAtLevel("debug", "warn"), false);
+  assert.equal(shouldEmitLogAtLevel("info", "warn"), false);
+  assert.equal(shouldEmitLogAtLevel("warn", "warn"), true);
+  assert.equal(shouldEmitLogAtLevel("error", "warn"), true);
 });
 
 test("successful and invalid cursor broadcasts stay untraced without a parent span", async () => {

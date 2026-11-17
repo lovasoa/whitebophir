@@ -107,10 +107,6 @@ class LogfmtLogRecordExporter {
     }
 
     for (const record of records) {
-      const _level = normalizeSeverityText(
-        record.severityText,
-        record.severityNumber,
-      );
       const useStderr =
         record.severityNumber !== undefined &&
         record.severityNumber >= SeverityNumber.ERROR;
@@ -138,7 +134,7 @@ class LogfmtLogRecordExporter {
 }
 
 /**
- * @param {import("@opentelemetry/sdk-logs").ReadableLogRecord} record
+ * @param {Pick<import("@opentelemetry/sdk-logs").ReadableLogRecord, "hrTime" | "severityText" | "severityNumber" | "body" | "eventName" | "attributes" | "spanContext">} record
  * @param {{colorizeLevel?: boolean}=} options
  * @returns {string}
  */

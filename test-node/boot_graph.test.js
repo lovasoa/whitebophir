@@ -55,7 +55,11 @@ function assertClosureExcludes(closure, forbidden) {
 }
 
 test("pan-ready boot graph excludes full app and tool implementations", () => {
-  const closure = staticImportClosure("client-data/js/board_main.js");
+  const closure = new Set([
+    ...staticImportClosure("client-data/js/board_main.js"),
+    ...staticImportClosure("client-data/js/board_boot.js"),
+  ]);
+  assert.ok(closure.has("client-data/js/board_viewport.js"));
   assertClosureExcludes(closure, [
     "client-data/js/app_tools.js",
     "client-data/js/drawing_performance.js",
@@ -74,9 +78,7 @@ test("pan-ready boot graph excludes full app and tool implementations", () => {
     "client-data/js/message_common.js",
     "client-data/js/message_tool_metadata.js",
     "client-data/js/mutation_type.js",
-    "client-data/js/path-data-polyfill.js",
     "client-data/js/rate_limit_common.js",
-    "client-data/tools/index.js",
     "client-data/tools/manifest.js",
     "client-data/tools/tool-defaults.js",
     "client-data/tools/tool-order.js",
@@ -98,7 +100,6 @@ test("server tool contracts stay independent from tool interaction modules", () 
     "server/board/canonical_items.mjs",
   ]) {
     const closure = staticImportClosure(entry);
-    assertClosureExcludes(closure, ["client-data/tools/index.js"]);
     assert.equal(
       Array.from(closure).some((file) =>
         /^client-data\/tools\/[^/]+\/index\.js$/.test(file),
@@ -115,13 +116,26 @@ test("client tool metadata stays independent from tool implementations", () => {
     "client-data/js/rate_limit_common.js",
   ]) {
     const closure = staticImportClosure(entry);
-    assertClosureExcludes(closure, ["client-data/tools/index.js"]);
     assert.equal(
       Array.from(closure).some((file) =>
         /^client-data\/tools\/[^/]+\/index\.js$/.test(file),
       ),
       false,
       entry,
+    );
+  }
+});
+
+test("browser tools do not load server storage codecs", () => {
+  const { TOOL_IDS } = require("../client-data/tools/manifest.js");
+  for (const toolId of TOOL_IDS) {
+    assertClosureExcludes(
+      staticImportClosure(`client-data/tools/${toolId}/index.js`),
+      [
+        "client-data/tools/contracts.js",
+        "client-data/tools/shape_contract.js",
+        "client-data/tools/pencil/pencil_path.js",
+      ],
     );
   }
 });

@@ -4,9 +4,6 @@ import {
   readRawAttributeFromRange,
 } from "./svg_envelope.mjs";
 
-const STORED_ITEM_TAG_PATTERN = Object.keys(TOOL_BY_STORED_TAG_NAME).join("|");
-const STORED_ITEM_TAG_REGEX = new RegExp(`^<(${STORED_ITEM_TAG_PATTERN})\\b`);
-
 /**
  * @typedef {{raw: string, tagName: string, rawAttributes?: string, id: string | undefined, content?: string}} StoredSvgStreamEntry
  */
@@ -46,77 +43,21 @@ function readStartTagName(buffer, offset, openTagEnd) {
   let end = offset + 1;
   while (end < openTagEnd) {
     const char = buffer[end];
-    if (char === " " || char === "\n" || char === "\t" || char === "/") break;
+    if (char !== undefined && (char <= " " || char === "/")) break;
     end += 1;
   }
   return end > offset + 1 ? buffer.slice(offset + 1, end) : undefined;
 }
 
 /**
- * @param {string} buffer
- * @returns {{type: "suffix", leadingText: string, suffix: string, consumed: number} | {type: "item", leadingText: string, entry: StoredSvgStreamEntry, consumed: number} | null}
- */
-function tryExtractItemOrSuffix(buffer) {
-  let offset = 0;
-  while (offset < buffer.length && buffer[offset] !== "<") {
-    offset += 1;
-  }
-  const leadingText = buffer.slice(0, offset);
-  if (offset === buffer.length) return null;
-  if (buffer[offset + 1] === "/") {
-    const closeTagEnd = buffer.indexOf(">", offset + 2);
-    if (closeTagEnd === -1) return null;
-    if (buffer.slice(offset, closeTagEnd + 1) === "</g>") {
-      return {
-        type: "suffix",
-        leadingText,
-        suffix: buffer.slice(offset),
-        consumed: buffer.length,
-      };
-    }
-    throw new Error("Unexpected closing tag inside drawingArea");
-  }
-
-  const openTagEnd = buffer.indexOf(">", offset + 1);
-  if (openTagEnd === -1) return null;
-  const startTag = buffer.slice(offset, openTagEnd + 1);
-  const tagNameMatch = startTag.match(STORED_ITEM_TAG_REGEX);
-  if (!tagNameMatch) {
-    throw new Error(
-      `Unexpected direct child start tag ${JSON.stringify(startTag.slice(0, 32))} inside drawingArea`,
-    );
-  }
-  const tagName = tagNameMatch[1];
-  if (!tagName || !TOOL_BY_STORED_TAG_NAME[tagName]) {
-    throw new Error(`Unexpected direct child <${tagName}> inside drawingArea`);
-  }
-  const closeToken = `</${tagName}>`;
-  const closeTagStart = buffer.indexOf(closeToken, openTagEnd + 1);
-  if (closeTagStart === -1) return null;
-  const closeTagEnd = closeTagStart + closeToken.length;
-  const rawAttributes = buffer.slice(offset + 1 + tagName.length, openTagEnd);
-  return {
-    type: "item",
-    leadingText,
-    entry: {
-      raw: buffer.slice(offset, closeTagEnd),
-      tagName,
-      rawAttributes,
-      id: readRawAttribute(rawAttributes, "id"),
-      content: buffer.slice(openTagEnd + 1, closeTagStart),
-    },
-    consumed: closeTagEnd,
-  };
-}
-
-/**
- * Splits the next drawing-area child for rewrite. It returns enough structure
- * to match items by id while keeping attributes/content opaque for clean items.
+ * Splits a direct child without decoding its geometry. Rewrites need only its
+ * id and raw bytes; loads also request attributes and content for summaries.
  *
  * @param {string} buffer
+ * @param {boolean} materializeEntryDetails
  * @returns {{type: "suffix", leadingText: string, suffix: string, consumed: number} | {type: "item", leadingText: string, entry: StoredSvgStreamEntry, consumed: number} | null}
  */
-function tryExtractOpaqueItemOrSuffix(buffer) {
+function tryExtractItemOrSuffix(buffer, materializeEntryDetails) {
   let offset = 0;
   while (offset < buffer.length && buffer[offset] !== "<") {
     offset += 1;
@@ -140,7 +81,10 @@ function tryExtractOpaqueItemOrSuffix(buffer) {
   const openTagEnd = buffer.indexOf(">", offset + 1);
   if (openTagEnd === -1) return null;
   const tagName = readStartTagName(buffer, offset, openTagEnd);
-  if (!tagName || !TOOL_BY_STORED_TAG_NAME[tagName]) {
+  if (
+    !tagName ||
+    !Object.prototype.hasOwnProperty.call(TOOL_BY_STORED_TAG_NAME, tagName)
+  ) {
     throw new Error(`Unexpected direct child <${tagName}> inside drawingArea`);
   }
   const closeToken = `</${tagName}>`;
@@ -148,19 +92,20 @@ function tryExtractOpaqueItemOrSuffix(buffer) {
   if (closeTagStart === -1) return null;
   const closeTagEnd = closeTagStart + closeToken.length;
   const rawAttributesStart = offset + 1 + tagName.length;
+  /** @type {StoredSvgStreamEntry} */
+  const entry = {
+    raw: buffer.slice(offset, closeTagEnd),
+    tagName,
+    id: readRawAttributeFromRange(buffer, "id", rawAttributesStart, openTagEnd),
+  };
+  if (materializeEntryDetails) {
+    entry.rawAttributes = buffer.slice(rawAttributesStart, openTagEnd);
+    entry.content = buffer.slice(openTagEnd + 1, closeTagStart);
+  }
   return {
     type: "item",
     leadingText,
-    entry: {
-      raw: buffer.slice(offset, closeTagEnd),
-      tagName,
-      id: readRawAttributeFromRange(
-        buffer,
-        "id",
-        rawAttributesStart,
-        openTagEnd,
-      ),
-    },
+    entry,
     consumed: closeTagEnd,
   };
 }
@@ -178,16 +123,15 @@ function tryExtractOpaqueItemOrSuffix(buffer) {
 async function* streamStoredSvgStructure(input, options) {
   let buffer = "";
   let prefixDone = false;
-  const extractItemOrSuffix =
-    options?.materializeEntryDetails === false
-      ? tryExtractOpaqueItemOrSuffix
-      : tryExtractItemOrSuffix;
-  const iterator = input[Symbol.asyncIterator]();
+  const materializeEntryDetails = options?.materializeEntryDetails !== false;
+  let suffixDone = false;
 
-  while (true) {
-    const step = await iterator.next();
-    if (step.done) break;
-    buffer += String(step.value);
+  for await (const chunk of input) {
+    if (suffixDone) {
+      yield { type: "tail", chunk: String(chunk) };
+      continue;
+    }
+    buffer += String(chunk);
 
     if (!prefixDone) {
       const extractedPrefix = tryExtractPrefix(buffer);
@@ -200,7 +144,7 @@ async function* streamStoredSvgStructure(input, options) {
     }
 
     while (prefixDone) {
-      const extracted = extractItemOrSuffix(buffer);
+      const extracted = tryExtractItemOrSuffix(buffer, materializeEntryDetails);
       if (!extracted) break;
       buffer = buffer.slice(extracted.consumed);
       if (extracted.type === "suffix") {
@@ -209,11 +153,8 @@ async function* streamStoredSvgStructure(input, options) {
           leadingText: extracted.leadingText,
           suffix: extracted.suffix,
         };
-        while (true) {
-          const remaining = await iterator.next();
-          if (remaining.done) return;
-          yield { type: "tail", chunk: String(remaining.value) };
-        }
+        suffixDone = true;
+        break;
       }
       yield {
         type: "item",
@@ -226,7 +167,7 @@ async function* streamStoredSvgStructure(input, options) {
   if (!prefixDone) {
     throw new Error("Missing drawingArea group");
   }
-  throw new Error("Unterminated drawingArea group");
+  if (!suffixDone) throw new Error("Unterminated drawingArea group");
 }
 
 export { streamStoredSvgStructure };

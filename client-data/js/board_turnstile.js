@@ -142,6 +142,7 @@ export class TurnstileModule {
     this.pending = false;
     this.pendingWrites = /** @type {PendingWrite[]} */ ([]);
     this.overlayTimeout = null;
+    this.overlay = /** @type {HTMLElement | null} */ (null);
     turnstileModuleState.set(this, { Tools, ...options });
   }
 
@@ -232,31 +233,33 @@ export class TurnstileModule {
   }
 
   ensureElements() {
-    const { Tools } = getTurnstileModuleState(this);
-    const shell = Tools.ui.createModalShell({
-      overlayId: "turnstile-overlay",
-      dialogId: "turnstile-modal",
-      hiddenClass: "turnstile-overlay-hidden",
-      initiallyHidden: true,
-    });
-    let widget = document.getElementById("turnstile-widget");
-    if (!(widget instanceof HTMLElement)) {
-      widget = document.createElement("div");
-      widget.id = "turnstile-widget";
-      shell.dialog.appendChild(widget);
-    }
-    return shell;
+    if (this.overlay) return this.overlay;
+    const overlay = document.createElement("div");
+    overlay.id = "turnstile-overlay";
+    overlay.className = "wbo-modal-backdrop turnstile-overlay-hidden";
+    const panel = document.createElement("div");
+    panel.id = "turnstile-modal";
+    panel.className = "wbo-dialog";
+    panel.dir =
+      document.documentElement.dataset.uiDirection === "rtl" ? "rtl" : "ltr";
+    const widget = document.createElement("div");
+    widget.id = "turnstile-widget";
+    panel.appendChild(widget);
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    this.overlay = overlay;
+    return overlay;
   }
 
   /** @param {number} delay */
   showOverlay(delay) {
-    const shell = this.ensureElements();
+    const overlay = this.ensureElements();
     if (delay > 0) {
       this.overlayTimeout = window.setTimeout(() => {
-        shell.show();
+        overlay.classList.remove("turnstile-overlay-hidden");
       }, delay);
     } else {
-      shell.show();
+      overlay.classList.remove("turnstile-overlay-hidden");
     }
   }
 
@@ -265,8 +268,7 @@ export class TurnstileModule {
       clearTimeout(this.overlayTimeout);
       this.overlayTimeout = null;
     }
-    const overlay = document.getElementById("turnstile-overlay");
-    if (overlay) overlay.classList.add("turnstile-overlay-hidden");
+    this.overlay?.classList.add("turnstile-overlay-hidden");
   }
 
   refresh() {

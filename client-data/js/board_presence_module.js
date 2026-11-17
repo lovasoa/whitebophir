@@ -12,9 +12,41 @@ import {
 } from "./moderation_rules.js";
 import { SocketEvents } from "./socket_events.js";
 import { createToolIconBadge, updateToolIconBadge } from "./tool_icon_badge.js";
+import { createUiTemplate } from "./ui_template.js";
+
+const connectedUserRowTemplate = createUiTemplate(`
+  <li class="connected-user-row">
+    <span class="connected-user-visual"></span>
+    <div class="connected-user-main">
+      <a class="connected-user-main-link">
+        <div class="connected-user-name"><bdi class="connected-user-name-text" dir="auto"></bdi></div>
+        <span class="connected-user-meta"><span class="connected-user-time"></span></span>
+      </a>
+    </div>
+    <span class="connected-user-actions">
+      <button type="button" class="connected-user-action connected-user-friend"><span class="connected-user-friend-glyph" aria-hidden="true"></span></button>
+      <button type="button" class="connected-user-action connected-user-report"></button>
+    </span>
+  </li>
+`);
+const activeBanRowTemplate = createUiTemplate(`
+  <li class="active-ban-row">
+    <div>
+      <bdi class="active-ban-name" dir="auto"></bdi>
+      <time class="active-ban-meta"></time>
+      <span class="active-ban-meta"></span>
+    </div>
+    <button type="button" class="active-ban-unban"></button>
+  </li>
+`);
 
 /** @import { ActiveBan, AppToolsState, BoardMessage, ConnectedUser, ConnectedUserMap } from "../../types/app-runtime" */
-/** @typedef {HTMLLIElement} ConnectedUserRow */
+/** @typedef {{
+ * element: HTMLLIElement, link: HTMLAnchorElement,
+ * toolIcon: HTMLImageElement, toolBadge: HTMLSpanElement,
+ * name: HTMLElement, friend: HTMLButtonElement, friendGlyph: HTMLElement,
+ * meta: HTMLElement, joinedTime: HTMLElement, report: HTMLButtonElement,
+ * }} ConnectedUserRow */
 /** @typedef {"minute" | "hour" | "day"} ConnectedUserDurationUnit */
 /** @typedef {{kind: "now"} | {kind: "duration", count: number, unit: ConnectedUserDurationUnit, shortKey: string}} ConnectedUserRelativeTime */
 
@@ -23,6 +55,7 @@ export class PresenceModule {
   constructor(getTools) {
     this.getTools = getTools;
     this.users = /** @type {ConnectedUserMap} */ (new Map());
+    this.rows = /** @type {Map<string, ConnectedUserRow>} */ (new Map());
     this.friendStore = new FriendStore();
     this.friendStorageBound = false;
     this.bans = /** @type {ActiveBan[]} */ ([]);
@@ -30,6 +63,7 @@ export class PresenceModule {
     this.renderedCanUnban = false;
     this.panelOpen = false;
     this.renderScheduled = false;
+    this.scheduleActivityRender = () => this.schedulePresenceRender(false);
     /** @type {number | null} */
     this.staleTickId = null;
   }
@@ -71,20 +105,8 @@ export class PresenceModule {
       list.contains(document.activeElement)
         ? document.activeElement
         : null;
-    /** @type {Map<string, ConnectedUserRow>} */
-    const rowsBySocketId = new Map();
-    Array.from(list.children).forEach((child) => {
-      if (
-        child instanceof HTMLLIElement &&
-        child.dataset.socketId &&
-        child.classList.contains("connected-user-row")
-      ) {
-        rowsBySocketId.set(
-          child.dataset.socketId,
-          /** @type {ConnectedUserRow} */ (child),
-        );
-      }
-    });
+    const previousRows = this.rows;
+    this.rows = new Map();
 
     const currentSocketId = Tools.connection.socket?.id;
     const users = Array.from(this.users.values()).sort((left, right) =>
@@ -93,19 +115,16 @@ export class PresenceModule {
 
     users.forEach((user, index) => {
       const row =
-        rowsBySocketId.get(user.socketId) ||
-        createConnectedUserRow(this.getTools, user, this);
-      rowsBySocketId.delete(user.socketId);
-      updateConnectedUserRow(this.getTools, row, user);
+        previousRows.get(user.socketId) ||
+        createConnectedUserRow(this.getTools, this);
+      previousRows.delete(user.socketId);
+      this.rows.set(user.socketId, row);
+      updateConnectedUserRow(Tools, row, user);
       const currentChild = list.children[index];
-      if (currentChild !== row) {
-        list.insertBefore(row, currentChild || null);
-      }
+      if (currentChild !== row.element)
+        list.insertBefore(row.element, currentChild || null);
     });
-
-    rowsBySocketId.forEach((row) => {
-      row.remove();
-    });
+    for (const row of previousRows.values()) row.element.remove();
     if (
       focusedListControl?.isConnected &&
       document.activeElement !== focusedListControl
@@ -144,16 +163,14 @@ export class PresenceModule {
     const list = getRequiredElement("activeBansList");
     list.replaceChildren();
     for (const ban of this.bans) {
-      const row = document.createElement("li");
-      row.className = "active-ban-row";
-      const main = document.createElement("div");
-      const name = document.createElement("bdi");
-      name.className = "active-ban-name";
-      name.dir = "auto";
+      const row = activeBanRowTemplate();
+      const name = row.querySelector("bdi");
+      const time = row.querySelector("time");
+      const reason = row.querySelector("span");
+      const unban = row.querySelector("button");
+      if (!name || !time || !reason || !unban)
+        throw new Error("Invalid active ban row template.");
       name.textContent = ban.name;
-      main.appendChild(name);
-      const time = document.createElement("time");
-      time.className = "active-ban-meta";
       const date = new Date(ban.bannedAt);
       time.dateTime = date.toISOString();
       time.textContent = Tools.i18n.format("banned_at", {
@@ -162,19 +179,11 @@ export class PresenceModule {
           timeStyle: "short",
         }),
       });
-      main.appendChild(time);
-      const reason = document.createElement("span");
-      reason.className = "active-ban-meta";
       const rule = getModerationRule(ban.moderationRule);
       reason.textContent = Tools.i18n.t(
         rule ? rule.titleKey : "ban_reason_unspecified",
       );
-      main.appendChild(reason);
-      row.appendChild(main);
       if (canUnban) {
-        const unban = document.createElement("button");
-        unban.type = "button";
-        unban.className = "active-ban-unban";
         unban.textContent = Tools.i18n.t("unban");
         unban.setAttribute(
           "aria-label",
@@ -187,8 +196,7 @@ export class PresenceModule {
             banId: ban.id,
           });
         });
-        row.appendChild(unban);
-      }
+      } else unban.remove();
       list.appendChild(row);
     }
   }
@@ -266,41 +274,43 @@ export class PresenceModule {
   /**
    * @param {string | undefined} userId
    * @param {BoardMessage} message
+   * @param {string | undefined} [socketId]
    */
-  updateConnectedUsersFromActivity(userId, message) {
-    // Presence has three layers:
-    // - `socketId`: one live browser tab/socket connection. This is the most precise activity target.
-    // - `userId`: derived server-side from the shared user-secret cookie, so multiple tabs from one browser profile can share it.
-    // - displayed name: combines an IP-derived word with the `userId`, so it is human-readable but not a stable routing key.
-    // When a live message includes `socket`, update that exact row only. Falling back to `userId` keeps older/non-live paths working.
-    const messageSocketId = message.socket || null;
-    if (!userId && messageSocketId === null) return;
-    let changed = false;
+  updateConnectedUsersFromActivity(userId, message, socketId = message.socket) {
+    // A socket identifies one tab; userId may match multiple tabs. Live traffic
+    // always carries a socket ID, so it must not scan every connected user.
+    if (!userId && !socketId) return;
     const focusPoint = getMessageFocusPoint(message);
-    Array.from(this.users.values()).forEach((user) => {
-      if (!connectedUserMatchesActivity(user, userId, messageSocketId)) return;
-      changed =
-        applyConnectedUserActivity(
+    let changed = false;
+    if (socketId) {
+      const user = this.users.get(socketId);
+      if (user)
+        changed = applyConnectedUserActivity(
           user,
           message,
           focusPoint,
-          messageSocketId,
-          () => this.schedulePresenceRender(false),
-        ) || changed;
-    });
-    if (changed) this.schedulePresenceRender(false);
+          this.scheduleActivityRender,
+        );
+    } else {
+      for (const user of this.users.values()) {
+        if (user.userId !== userId) continue;
+        changed =
+          applyConnectedUserActivity(
+            user,
+            message,
+            focusPoint,
+            this.scheduleActivityRender,
+          ) || changed;
+      }
+    }
+    if (changed) this.scheduleActivityRender();
   }
 
   /** @param {BoardMessage} message */
   updateCurrentConnectedUserFromActivity(message) {
-    const Tools = this.getTools();
-    if (!Tools.connection.socket?.id) return;
-    const current = this.users.get(Tools.connection.socket.id);
-    if (!current) return;
-    this.updateConnectedUsersFromActivity(
-      current.userId,
-      Object.assign({}, message, { socket: current.socketId }),
-    );
+    const socketId = this.getTools().connection.socket?.id;
+    if (socketId)
+      this.updateConnectedUsersFromActivity(undefined, message, socketId);
   }
 
   initConnectedUsersUI() {
@@ -747,7 +757,7 @@ function hasCoarsePointer() {
   );
 }
 
-/** @param {ConnectedUserRow} row */
+/** @param {HTMLLIElement} row */
 function revealTouchConnectedUserRow(row) {
   if (!hasCoarsePointer()) return;
   const list = row.parentElement;
@@ -763,13 +773,24 @@ function revealTouchConnectedUserRow(row) {
 }
 
 /**
- * @param {() => AppToolsState} getTools
- * @param {ConnectedUserRow} row
+ * @param {AppToolsState} Tools
+ * @param {ConnectedUserRow} view
  * @param {ConnectedUser} user
  * @returns {void}
  */
-function updateConnectedUserRow(getTools, row, user) {
-  const Tools = getTools();
+function updateConnectedUserRow(Tools, view, user) {
+  const {
+    element: row,
+    link,
+    toolIcon,
+    toolBadge,
+    name,
+    friend,
+    friendGlyph,
+    meta,
+    joinedTime,
+    report,
+  } = view;
   row.dataset.socketId = user.socketId;
   row.dataset.userId = user.userId;
   row.classList.toggle(
@@ -792,136 +813,91 @@ function updateConnectedUserRow(getTools, row, user) {
   const focusHash = getConnectedUserFocusHash(Tools, user);
   row.classList.toggle("connected-user-row-jumpable", focusHash !== "");
 
-  const link = /** @type {HTMLAnchorElement | null} */ (
-    row.querySelector(".connected-user-main-link")
-  );
-  if (link) {
-    if (focusHash) {
-      link.setAttribute("href", focusHash);
-      link.removeAttribute("aria-disabled");
-      link.tabIndex = 0;
-    } else {
-      link.removeAttribute("href");
-      link.setAttribute("aria-disabled", "true");
-      link.tabIndex = -1;
-    }
+  if (focusHash) {
+    link.setAttribute("href", focusHash);
+    link.removeAttribute("aria-disabled");
+    link.tabIndex = 0;
+  } else {
+    link.removeAttribute("href");
+    link.setAttribute("aria-disabled", "true");
+    link.tabIndex = -1;
   }
 
-  const toolIcon = /** @type {HTMLImageElement | null} */ (
-    row.querySelector(".connected-user-toolIcon")
+  updateToolIconBadge(
+    toolIcon,
+    user.lastTool || "hand",
+    getConnectedUserToolLabel(Tools, user),
   );
-  if (toolIcon) {
-    updateToolIconBadge(
-      toolIcon,
-      user.lastTool || "hand",
-      getConnectedUserToolLabel(Tools, user),
-    );
+
+  const userColor = user.color || "#001f3f";
+  toolBadge.style.borderColor = userColor;
+  toolBadge.style.setProperty("--connected-user-pulse-color", userColor);
+  toolBadge.style.borderWidth = `${getConnectedUserRingWidth(user.size)}px`;
+  if (user.pulseUntil && user.pulseUntil > Date.now()) {
+    toolBadge.classList.add("active");
+    toolBadge.style.setProperty("--pulse-ms", `${user.pulseMs || 700}ms`);
+  } else {
+    toolBadge.classList.remove("active");
+    toolBadge.style.removeProperty("--pulse-ms");
   }
 
-  const toolBadge = /** @type {HTMLSpanElement | null} */ (
-    row.querySelector(".connected-user-toolBadge")
-  );
-  if (toolBadge) {
-    const userColor = user.color || "#001f3f";
-    toolBadge.style.borderColor = userColor;
-    toolBadge.style.setProperty("--connected-user-pulse-color", userColor);
-    toolBadge.style.borderWidth = `${getConnectedUserRingWidth(user.size)}px`;
-    if (user.pulseUntil && user.pulseUntil > Date.now()) {
-      toolBadge.classList.add("active");
-      toolBadge.style.setProperty("--pulse-ms", `${user.pulseMs || 700}ms`);
-    } else {
-      toolBadge.classList.remove("active");
-      toolBadge.style.removeProperty("--pulse-ms");
-    }
-  }
+  name.textContent = getConnectedUserDisplayName(user);
 
-  const name = /** @type {HTMLElement | null} */ (
-    row.querySelector(".connected-user-name-text")
+  const currentIdentityUser = isCurrentIdentityUser(
+    Tools,
+    Tools.presence.users,
+    user,
   );
-  if (name) {
-    name.textContent = getConnectedUserDisplayName(user);
-  }
-
-  const friend = /** @type {HTMLButtonElement | null} */ (
-    row.querySelector(".connected-user-friend")
-  );
-  if (friend) {
-    const currentIdentityUser = isCurrentIdentityUser(
-      Tools,
-      Tools.presence.users,
-      user,
-    );
-    const isFriend = user.friend === true;
-    const managesUser = Tools.access.canGrantTemporaryModerator === true;
-    const friendLabel = managesUser
-      ? Tools.i18n.format("moderation_action_title", { name: user.name })
-      : Tools.i18n.format(isFriend ? "remove_friend" : "mark_friend", {
-          name: user.name,
-        });
-    friend.hidden = currentIdentityUser;
-    const friendGlyph = friend.querySelector(".connected-user-friend-glyph");
-    if (friendGlyph) {
-      friendGlyph.textContent = isFriend ? "\u2665\uFE0E" : "\u2661";
-    }
-    friend.title = friendLabel;
-    friend.setAttribute("aria-label", friendLabel);
-    friend.setAttribute("aria-pressed", isFriend ? "true" : "false");
-    if (managesUser) friend.setAttribute("aria-haspopup", "dialog");
-    else friend.removeAttribute("aria-haspopup");
-    friend.classList.toggle("connected-user-friend-manager", managesUser);
-    friend.classList.toggle("connected-user-friend-active", isFriend);
-    row.classList.toggle("connected-user-row-friend", isFriend);
-  }
+  const isFriend = user.friend === true;
+  const managesUser = Tools.access.canGrantTemporaryModerator === true;
+  const friendLabel = managesUser
+    ? Tools.i18n.format("moderation_action_title", { name: user.name })
+    : Tools.i18n.format(isFriend ? "remove_friend" : "mark_friend", {
+        name: user.name,
+      });
+  friend.hidden = currentIdentityUser;
+  friendGlyph.textContent = isFriend ? "\u2665\uFE0E" : "\u2661";
+  friend.title = friendLabel;
+  friend.setAttribute("aria-label", friendLabel);
+  friend.setAttribute("aria-pressed", isFriend ? "true" : "false");
+  if (managesUser) friend.setAttribute("aria-haspopup", "dialog");
+  else friend.removeAttribute("aria-haspopup");
+  friend.classList.toggle("connected-user-friend-manager", managesUser);
+  friend.classList.toggle("connected-user-friend-active", isFriend);
+  row.classList.toggle("connected-user-row-friend", isFriend);
 
   row.classList.toggle("connected-user-row-readonly", user.canEdit === false);
 
-  const meta = /** @type {HTMLElement | null} */ (
-    row.querySelector(".connected-user-meta")
-  );
-  if (meta) {
-    if (user.disconnectedAt) {
-      meta.textContent = Tools.i18n.t("connected_user_left");
-    } else {
-      const relativeTime = getRelativeTimeState(user.joinedAt);
-      const joinedTime = document.createElement("span");
-      joinedTime.className = "connected-user-time";
-      joinedTime.textContent = formatShortRelativeTime(Tools, relativeTime);
-      joinedTime.title = formatJoinedTimeTitle(Tools, relativeTime);
+  if (user.disconnectedAt) {
+    meta.textContent = Tools.i18n.t("connected_user_left");
+  } else {
+    const relativeTime = getRelativeTimeState(user.joinedAt);
+    joinedTime.textContent = formatShortRelativeTime(Tools, relativeTime);
+    joinedTime.title = formatJoinedTimeTitle(Tools, relativeTime);
 
-      meta.textContent = inactive
-        ? `${Tools.i18n.t("connected_user_idle")} · `
-        : "";
-      meta.appendChild(joinedTime);
-    }
+    meta.textContent = inactive
+      ? `${Tools.i18n.t("connected_user_idle")} · `
+      : "";
+    meta.appendChild(joinedTime);
   }
 
-  const report = /** @type {HTMLButtonElement | null} */ (
-    row.querySelector(".connected-user-report")
-  );
-  if (report) {
-    const currentIdentityUser = isCurrentIdentityUser(
-      Tools,
-      Tools.presence.users,
-      user,
-    );
-    const reportLabel = user.reported
-      ? Tools.i18n.t(user.reportBanned ? "ban_applied" : "report_sent")
-      : getReportActionLabel(Tools, user.name);
-    report.textContent = user.reported
-      ? getReportSentGlyph()
-      : getReportActionGlyph();
-    report.title = reportLabel;
-    report.setAttribute("aria-label", reportLabel);
-    report.hidden = user.reported
-      ? false
-      : Tools.access.canReport === false ||
-        currentIdentityUser ||
-        user.canBan === true ||
-        !!user.disconnectedAt;
-    report.disabled =
-      currentIdentityUser || !!user.reported || !!user.reportPending;
-    report.classList.toggle("connected-user-report-latched", !!user.reported);
-  }
+  const reportLabel = user.reported
+    ? Tools.i18n.t(user.reportBanned ? "ban_applied" : "report_sent")
+    : getReportActionLabel(Tools, user.name);
+  report.textContent = user.reported
+    ? getReportSentGlyph()
+    : getReportActionGlyph();
+  report.title = reportLabel;
+  report.setAttribute("aria-label", reportLabel);
+  report.hidden = user.reported
+    ? false
+    : Tools.access.canReport === false ||
+      currentIdentityUser ||
+      user.canBan === true ||
+      !!user.disconnectedAt;
+  report.disabled =
+    currentIdentityUser || !!user.reported || !!user.reportPending;
+  report.classList.toggle("connected-user-report-latched", !!user.reported);
 }
 
 /**
@@ -992,33 +968,29 @@ function showConnectedUserManagementDialog(Tools, presence, user) {
 
 /**
  * @param {() => AppToolsState} getTools
- * @param {ConnectedUser} user
  * @param {PresenceModule} presence
  * @returns {ConnectedUserRow}
  */
-function createConnectedUserRow(getTools, user, presence) {
-  const row = /** @type {ConnectedUserRow} */ (document.createElement("li"));
-  row.className = "connected-user-row";
-
-  const visual = document.createElement("span");
-  visual.className = "connected-user-visual";
-  const { badge: toolBadge } = createToolIconBadge(
+function createConnectedUserRow(getTools, presence) {
+  const row = /** @type {HTMLLIElement} */ (connectedUserRowTemplate());
+  const { badge: toolBadge, icon: toolIcon } = createToolIconBadge(
     "connected-user-toolBadge",
     "connected-user-toolIcon",
   );
-  visual.appendChild(toolBadge);
-  row.appendChild(visual);
-
-  const main = document.createElement("div");
-  main.className = "connected-user-main";
-
-  const friend = document.createElement("button");
-  friend.type = "button";
-  friend.className = "connected-user-action connected-user-friend";
-  const friendGlyph = document.createElement("span");
-  friendGlyph.className = "connected-user-friend-glyph";
-  friendGlyph.setAttribute("aria-hidden", "true");
-  friend.appendChild(friendGlyph);
+  row.querySelector(".connected-user-visual")?.appendChild(toolBadge);
+  const view = /** @type {ConnectedUserRow} */ ({
+    element: row,
+    link: row.querySelector("a"),
+    toolIcon,
+    toolBadge,
+    name: row.querySelector("bdi"),
+    friend: row.querySelector(".connected-user-friend"),
+    friendGlyph: row.querySelector(".connected-user-friend-glyph"),
+    meta: row.querySelector(".connected-user-meta"),
+    joinedTime: row.querySelector(".connected-user-time"),
+    report: row.querySelector(".connected-user-report"),
+  });
+  const { friend, link, report } = view;
   friend.addEventListener("click", (evt) => {
     evt.preventDefault();
     evt.stopPropagation();
@@ -1037,34 +1009,7 @@ function createConnectedUserRow(getTools, user, presence) {
     }
     presence.toggleFriend(connectedUser.userId);
   });
-  const link = document.createElement("a");
-  link.className = "connected-user-main-link";
-
-  const name = document.createElement("div");
-  name.className = "connected-user-name";
-  const nameText = document.createElement("bdi");
-  nameText.className = "connected-user-name-text";
-  nameText.dir = "auto";
-  name.appendChild(nameText);
-  link.appendChild(name);
-
-  const meta = document.createElement("span");
-  meta.className = "connected-user-meta";
-  link.appendChild(meta);
-
-  main.appendChild(link);
-  link.addEventListener("click", () => {
-    revealTouchConnectedUserRow(row);
-  });
-  row.appendChild(main);
-
-  const actions = document.createElement("span");
-  actions.className = "connected-user-actions";
-  actions.appendChild(friend);
-
-  const report = document.createElement("button");
-  report.type = "button";
-  report.className = "connected-user-action connected-user-report";
+  link.addEventListener("click", () => revealTouchConnectedUserRow(row));
   report.addEventListener("click", (evt) => {
     evt.preventDefault();
     evt.stopPropagation();
@@ -1092,7 +1037,7 @@ function createConnectedUserRow(getTools, user, presence) {
       connectedUser.reportPending = false;
       connectedUser.reportBanned =
         typeof banDurationMs === "number" && banDurationMs > 0;
-      updateConnectedUserRow(getTools, row, connectedUser);
+      updateConnectedUserRow(getTools(), view, connectedUser);
       /** @type {import("../../types/app-runtime").ReportUserPayload} */
       const payload =
         banDurationMs !== undefined && moderationRule !== undefined
@@ -1102,7 +1047,7 @@ function createConnectedUserRow(getTools, user, presence) {
     };
     if (Tools.access.canBan === true) {
       connectedUser.reportPending = true;
-      updateConnectedUserRow(getTools, row, connectedUser);
+      updateConnectedUserRow(getTools(), view, connectedUser);
       void Tools.ui
         .showActionDialog({
           title: Tools.i18n.format("moderation_action_title", {
@@ -1148,37 +1093,19 @@ function createConnectedUserRow(getTools, user, presence) {
             return;
           }
           connectedUser.reportPending = false;
-          updateConnectedUserRow(getTools, row, connectedUser);
+          updateConnectedUserRow(getTools(), view, connectedUser);
         });
       return;
     }
     reportConnectedUser(undefined, undefined);
   });
-  actions.appendChild(report);
-  row.appendChild(actions);
-
-  updateConnectedUserRow(getTools, row, user);
-  return row;
-}
-
-/**
- * @param {ConnectedUser} user
- * @param {string | undefined} userId
- * @param {string | null} messageSocketId
- * @returns {boolean}
- */
-function connectedUserMatchesActivity(user, userId, messageSocketId) {
-  if (messageSocketId !== null) {
-    return user.socketId === messageSocketId;
-  }
-  return user.userId === userId;
+  return view;
 }
 
 /**
  * @param {ConnectedUser} user
  * @param {BoardMessage} message
  * @param {{x: number, y: number} | null} focusPoint
- * @param {string | null} messageSocketId
  * @param {() => void} scheduleActivityRender
  * @returns {boolean}
  */
@@ -1186,7 +1113,6 @@ function applyConnectedUserActivity(
   user,
   message,
   focusPoint,
-  messageSocketId,
   scheduleActivityRender,
 ) {
   let changed = false;
@@ -1219,16 +1145,9 @@ function applyConnectedUserActivity(
     user.lastTool = activityToolId;
     changed = true;
   }
-  if (
-    focusPoint &&
-    (!isCursorMessage ||
-      messageSocketId === null ||
-      messageSocketId === user.socketId)
-  ) {
-    const nextFocusX = /** @type {{x: number, y: number}} */ (focusPoint).x;
-    const nextFocusY = /** @type {{x: number, y: number}} */ (focusPoint).y;
-    if (user.position.x !== nextFocusX || user.position.y !== nextFocusY) {
-      user.position = { x: nextFocusX, y: nextFocusY };
+  if (focusPoint) {
+    if (user.position.x !== focusPoint.x || user.position.y !== focusPoint.y) {
+      user.position = focusPoint;
       changed = true;
     }
   }

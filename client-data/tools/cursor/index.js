@@ -28,7 +28,6 @@ import { MutationType } from "../../js/mutation_type.js";
 import { createBoardHtmlOverlay } from "../../js/board_html_overlay.js";
 import { getConnectedUserDisplayName } from "../../js/board_presence_module.js";
 import { getMessageActivityPoint } from "../../js/message_activity_point.js";
-import { getToolRuntimeAssetPath } from "../tool-defaults.js";
 import {
   createToolIconBadge,
   updateToolIconBadge,
@@ -39,12 +38,7 @@ import { TOOL_CODE_BY_ID, TOOL_ID_BY_CODE } from "../tool-order.js";
 /** @typedef {ReturnType<typeof boot>} CursorState */
 /** @typedef {ReturnType<typeof createBoardHtmlOverlay>} BoardHtmlOverlay */
 
-export const toolId = "cursor";
-const toolCode = TOOL_CODE_BY_ID[toolId];
-export const stylesheet = getToolRuntimeAssetPath(toolId, "cursor.css");
-export const mouseCursor = "crosshair";
-export const showMarker = true;
-export const alwaysOn = true;
+const toolCode = TOOL_CODE_BY_ID["cursor"];
 const CURSOR_TTL_MS = 1000 * 5;
 
 /**

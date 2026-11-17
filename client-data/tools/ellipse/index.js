@@ -1,9 +1,8 @@
-import { EllipseContract } from "../contracts.js";
+import { TOOL_BY_ID } from "../manifest.js";
 import {
   constrainEqualSpanToBoard,
   createShapeToolBoot,
   makeBoxShapeUpdateMessage,
-  makeSeedShapeCreateMessage,
   moveShapeTool,
 } from "../shape_tool.js";
 
@@ -19,20 +18,14 @@ export {
   releaseShapeTool as release,
 } from "../shape_tool.js";
 
-export const toolId = "ellipse";
-export const drawsOnBoard = true;
-export const mouseCursor = "crosshair";
+const definition = TOOL_BY_ID["ellipse"];
 
-const contract = EllipseContract;
-
-/** @typedef {import("../shape_tool.js").ShapeCreateMessage<typeof contract.toolCode>} EllipseCreateMessage */
-/** @typedef {import("../shape_tool.js").ShapeBoxUpdateMessage<typeof contract.toolCode>} EllipseUpdateMessage */
-export { contract };
-export const shortcut = "c";
+/** @typedef {import("../shape_tool.js").ShapeCreateMessage<typeof definition.id>} EllipseCreateMessage */
+/** @typedef {import("../shape_tool.js").ShapeBoxUpdateMessage<typeof definition.id>} EllipseUpdateMessage */
 
 /** @type {import("../shape_tool.js").ShapeToolConfig} */
 const config = {
-  contract,
+  definition,
   secondary: {
     name: "Circle",
     icon: "tools/ellipse/icon-circle.svg",
@@ -43,12 +36,6 @@ const config = {
     },
   },
   uidPrefix: "e",
-  isShapeElement: (element) =>
-    String(element?.tagName).toLowerCase() === contract.storedTagName,
-  makeCreateMessage: (state, id, x, y) => {
-    state.lastPos = { x, y };
-    return makeSeedShapeCreateMessage(state, id, x, y);
-  },
   constrainEndPosition: (state, x, y, evt) => {
     const start = state.currentShape;
     if (!start) return;
@@ -68,19 +55,7 @@ const config = {
     state.endX = x;
     state.endY = y;
   },
-  makeUpdateMessage: (state, x, y) => {
-    const start = state.currentShape;
-    return start
-      ? makeBoxShapeUpdateMessage(contract.toolCode, start.id, start, x, y)
-      : null;
-  },
-  makeFallbackShape: (data) => ({
-    id: data.id,
-    x: data.x2,
-    y: data.y2,
-    x2: data.x2,
-    y2: data.y2,
-  }),
+  makeUpdateMessage: makeBoxShapeUpdateMessage,
   applyShapeGeometry: (shape, data) => {
     const ellipse = /** @type {SVGEllipseElement} */ (shape);
     const x = data.x ?? data.x2;
@@ -91,5 +66,4 @@ const config = {
     ellipse.ry.baseVal.value = Math.abs(data.y2 - y) / 2;
   },
 };
-export const secondary = config.secondary;
 export const boot = createShapeToolBoot(config);

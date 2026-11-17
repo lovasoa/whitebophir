@@ -87,6 +87,32 @@ async function readBoardTouchAction(page: Page) {
 }
 
 test.describe("single-page interactions", () => {
+  test("tool buttons activate once with Enter and Space", async ({
+    boardPage,
+    page,
+  }) => {
+    await boardPage.gotoBoard("native-tool-buttons");
+    await boardPage.waitForToolBooted("rectangle");
+    const button = boardPage.tool("rectangle");
+    await button.focus();
+    await button.press("Enter");
+    await boardPage.expectCurrentTool("rectangle");
+    await expect(page.locator("html")).toHaveAttribute(
+      "data-active-tool-secondary",
+      "false",
+    );
+    await button.press("Space");
+    await expect(page.locator("html")).toHaveAttribute(
+      "data-active-tool-secondary",
+      "true",
+    );
+    await button.press("Enter");
+    await expect(page.locator("html")).toHaveAttribute(
+      "data-active-tool-secondary",
+      "false",
+    );
+  });
+
   test("authoritative delete removes queued copies that depend on a removed copy", async ({
     boardPage,
     server,
@@ -239,12 +265,15 @@ test.describe("single-page interactions", () => {
     await expect
       .poll(() =>
         page.evaluate(() => {
-          const selection = document.getElementById(
-            "selectionRect",
-          ) as unknown as SVGRectElement;
+          const overlay = document.getElementById("selectionRectOverlay");
+          if (!overlay) throw new Error("Missing selection overlay");
+          const selection =
+            window.WBOApp.viewportState.controller.clientRectToBoardRect(
+              overlay.getBoundingClientRect(),
+            );
           window.WBOApp.toolRegistry.current?.listeners.move?.(
-            selection.x.baseVal.value + selection.width.baseVal.value * 1.5,
-            selection.y.baseVal.value + selection.height.baseVal.value * 1.5,
+            selection.x + selection.width * 1.5,
+            selection.y + selection.height * 1.5,
             new MouseEvent("mousemove"),
             false,
           );
@@ -272,6 +301,86 @@ test.describe("single-page interactions", () => {
     await expect(page.locator("#selectionRectOverlay")).toBeHidden();
     await expect(page.locator("#seed-rect")).toHaveCount(0);
     await expect(peer.locator("#seed-rect")).toHaveCount(0);
+  });
+
+  test("selector single-click selection follows repeated scaling and reflection", async ({
+    boardPage,
+    server,
+    page,
+  }) => {
+    const boardName = "selector-repeated-scale";
+    await server.writeBoard(server.dataPath, boardName, {
+      rectangle: {
+        id: "rectangle",
+        type: "rect",
+        tool: "rectangle",
+        x: 300,
+        y: 300,
+        x2: 360,
+        y2: 340,
+        color: "#123456",
+        size: 4,
+      },
+    });
+    await boardPage.gotoBoard(boardName);
+    await boardPage.selectTool("hand");
+    await boardPage.moveSelection(
+      "rectangle",
+      { x: 320, y: 320 },
+      { x: 320, y: 320 },
+    );
+    const selection = page.locator("#selectionRectOverlay");
+    const handle = page.locator("#selectionButton-scaleHandle");
+    await expect(selection).toBeVisible();
+    await expect(handle).toBeVisible();
+    for (const [ratio, x, y, width, height] of [
+      [2, 300, 300, 60, 40],
+      [-1, 300, 300, 120, 80],
+      [0.5, 180, 220, 120, 80],
+    ] as const) {
+      expect(await selection.boundingBox()).toEqual({ x, y, width, height });
+      const transform = await page.evaluate((ratio) => {
+        const app = window.WBOApp;
+        const overlay = document.getElementById("selectionRectOverlay");
+        if (!overlay) throw new Error("Missing selection overlay");
+        const bounds = app.viewportState.controller.clientRectToBoardRect(
+          overlay.getBoundingClientRect(),
+        );
+        document
+          .getElementById("selectionButton-scaleHandle")
+          ?.dispatchEvent(new MouseEvent("mousedown"));
+        const x = bounds.x + bounds.width * ratio;
+        const y = bounds.y + bounds.height * ratio;
+        const tool = app.toolRegistry.current;
+        if (!tool) throw new Error("Missing selected tool");
+        tool.listeners.move?.(x, y, new MouseEvent("mousemove"), false);
+        tool.listeners.release?.(x, y, new MouseEvent("mouseup"), false);
+        const element = document.getElementById(
+          "rectangle",
+        ) as unknown as SVGGraphicsElement;
+        const matrix = element.transform.baseVal[0]?.matrix;
+        if (!matrix) throw new Error("Missing transform");
+        return { a: matrix.a, d: matrix.d, e: matrix.e, f: matrix.f };
+      }, ratio);
+      await server.waitForStoredBoard(server.dataPath, boardName, (board) =>
+        Object.entries(transform).every(
+          ([key, value]) => board.rectangle?.transform?.[key] === value,
+        ),
+      );
+    }
+    expect(await selection.boundingBox()).toEqual({
+      x: 180,
+      y: 220,
+      width: 60,
+      height: 40,
+    });
+    const transform = await page.locator("#rectangle").evaluate((element) => {
+      const { a, b, c, d, e, f } = (
+        element as SVGGraphicsElement
+      ).transform.baseVal.getItem(0).matrix;
+      return { a, b, c, d, e, f };
+    });
+    expect(transform).toEqual({ a: -1, b: 0, c: 0, d: -1, e: 5400, f: 5600 });
   });
 
   test("selector moves existing rectangle", async ({
@@ -919,7 +1028,8 @@ test.describe("single-page interactions", () => {
       )
       .toContain("124, 45, 18");
 
-    await boardPage.tool("pencil").click();
+    // Drawing is unavailable at this scale, but selecting its tool remains valid.
+    await boardPage.tool("pencil").click({ force: true });
     await boardPage.expectCurrentTool("pencil");
 
     await boardPage.page.evaluate(() => {
@@ -1146,14 +1256,16 @@ test.describe("single-page interactions", () => {
     await expect(page.locator("#seed-rect")).toBeVisible();
     await boardPage.selectTool("hand");
 
-    const measurement = await page.locator("#seed-rect").evaluate((element) => {
-      const before = element.getAttribute("transform");
-      const shape = element as SVGGraphicsElement & {
-        transformedBBox(): unknown;
-      };
-      const bounds = shape.transformedBBox();
-      return { before, after: element.getAttribute("transform"), bounds };
-    });
+    const measurement = await page
+      .locator("#seed-rect")
+      .evaluate(async (element) => {
+        const { transformedBBox } = await import(
+          window.WBOApp.assets.resolveAssetPath("js/intersect.js")
+        );
+        const before = element.getAttribute("transform");
+        const bounds = transformedBBox(element);
+        return { before, after: element.getAttribute("transform"), bounds };
+      });
     expect(measurement.before).toBeNull();
     expect(measurement.after).toBeNull();
     expect(measurement.bounds).toEqual({

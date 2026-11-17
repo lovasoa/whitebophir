@@ -1,4 +1,3 @@
-import { attachBoardDomToRuntime } from "./board_dom_bootstrap.js";
 import { createBoardNotices } from "./board_notices.js";
 import { updateDocumentTitle } from "./board_message_module.js";
 import {
@@ -8,17 +7,11 @@ import {
   parseEmbeddedJson,
   updateRecentBoards,
 } from "./board_page_state.js";
-import {
-  createInitialPreferences,
-  DEFAULT_COLOR_PRESETS,
-} from "./board_preferences.js";
 import { addToolShortcut } from "./board_tool_buttons.js";
 import { clampOpacity, LIMITS } from "./message_limits.js";
 import { isTextEntryTarget } from "./text_entry_target.js";
 
 /** @import { AppBoardState, AppToolsState, ColorPreset } from "../../types/app-runtime" */
-
-export { createInitialPreferences, DEFAULT_COLOR_PRESETS };
 
 const STYLE_PREVIEW_MIN_RADIUS = 4;
 const STYLE_PREVIEW_MAX_RADIUS = 15;
@@ -63,18 +56,6 @@ export class BoardShellModule {
     this.syncBoardNotice = /** @type {(state: AppBoardState) => void} */ (
       () => {}
     );
-  }
-
-  /**
-   * @param {Document} document
-   * @returns {Promise<void>}
-   */
-  async attachBoardDom(document) {
-    const Tools = this.getTools();
-    const baseline = await attachBoardDomToRuntime(Tools, document);
-    Tools.replay.authoritativeSeq = baseline.authoritativeSeq;
-    Tools.toolRegistry.normalizeServerRenderedElements();
-    Tools.toolRegistry.syncActiveToolInputPolicy();
   }
 
   initializePageChrome() {

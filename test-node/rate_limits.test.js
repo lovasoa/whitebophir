@@ -2,11 +2,8 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const {
-  Clear,
-  Eraser,
-  Pencil,
-  Text,
-} = require("../client-data/tools/index.js");
+  TOOL_BY_ID: { clear: Clear, eraser: Eraser, pencil: Pencil, text: Text },
+} = require("../client-data/tools/manifest.js");
 
 const {
   createConfig,

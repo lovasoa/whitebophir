@@ -94,39 +94,26 @@ function requestAuthority(request, config) {
 /**
  * @param {HttpRequest} request
  * @param {ServerConfig} config
- * @returns {string}
+ * @param {string} scheme
  */
-function requestServerAddress(request, config) {
+function requestServer(request, config, scheme) {
   const authority = requestAuthority(request, config);
-  if (authority) {
-    try {
-      return new URL(`${requestScheme(request, config)}://${authority}`)
-        .hostname;
-    } catch {}
-  }
-  return config.HOST || request.socket.localAddress || "localhost";
-}
-
-/**
- * @param {HttpRequest} request
- * @param {ServerConfig} config
- * @returns {number | undefined}
- */
-function requestServerPort(request, config) {
-  const authority = requestAuthority(request, config);
-  const scheme = requestScheme(request, config);
   if (authority) {
     try {
       const parsed = new URL(`${scheme}://${authority}`);
-      if (parsed.port) return Number(parsed.port);
-      return scheme === "https" ? 443 : 80;
+      return {
+        address: parsed.hostname,
+        port: parsed.port ? Number(parsed.port) : scheme === "https" ? 443 : 80,
+      };
     } catch {}
   }
-  if (typeof request.socket.localPort === "number") {
-    return request.socket.localPort;
-  }
   const configuredPort = Number(config.PORT);
-  return Number.isFinite(configuredPort) ? configuredPort : undefined;
+  return {
+    address: config.HOST || request.socket.localAddress || "localhost",
+    port:
+      request.socket.localPort ??
+      (Number.isFinite(configuredPort) ? configuredPort : undefined),
+  };
 }
 
 /**
@@ -246,79 +233,6 @@ function requestTraceAttributes(fields) {
 }
 
 /**
- * @param {{
- *   request: HttpRequest,
- *   response: HttpResponse,
- *   requestId: string,
- *   method: string,
- *   scheme: string,
- *   serverAddress: string,
- *   clientAddress: string,
- *   route: string,
- *   startedAt: number,
- *   requestError: unknown,
- *   requestSpan: import("@opentelemetry/api").Span | null,
- *   logFields: {[key: string]: unknown},
- * }} state
- * @returns {void}
- */
-function finalizeObservedRequest(state) {
-  const statusCode = state.response.statusCode || 200;
-  const durationMs = Date.now() - state.startedAt;
-  const routeTemplate = requestRouteTemplate(state.route);
-  const contentEncoding = responseContentEncoding(state.response);
-  const errorType =
-    state.requestError instanceof Error
-      ? state.requestError.name || "Error"
-      : statusCode >= 500
-        ? String(statusCode)
-        : undefined;
-
-  metrics.changeHttpActiveRequests({
-    change: -1,
-    method: state.method,
-    scheme: state.scheme,
-    serverAddress: state.serverAddress,
-  });
-  if (state.requestSpan) {
-    tracing.setSpanAttributes(state.requestSpan, {
-      [ATTR_HTTP_RESPONSE_STATUS_CODE]: statusCode,
-      [ATTR_HTTP_RESPONSE_HEADER("content-encoding")]: contentEncoding,
-    });
-    if (statusCode >= 500 && !state.requestError) {
-      state.requestSpan.setStatus({ code: tracing.SpanStatusCode.ERROR });
-    }
-  }
-
-  metrics.recordHttpRequest({
-    method: state.method,
-    route: routeTemplate,
-    scheme: state.scheme,
-    statusCode,
-    durationSeconds: durationMs / 1000,
-    responseContentEncoding: contentEncoding,
-    errorType,
-  });
-  const logTarget = classifyRequestLog(state.route, statusCode, durationMs);
-  if (logTarget) {
-    /** @type {{[key: string]: unknown}} */
-    const fields = {
-      request_id: state.requestId,
-      [ATTR_HTTP_REQUEST_METHOD]: state.method,
-      [ATTR_HTTP_RESPONSE_STATUS_CODE]: statusCode,
-      duration_ms: durationMs,
-      [ATTR_URL_PATH]: parseRequestUrl(state.request.url).pathname,
-      ...(routeTemplate ? { [ATTR_HTTP_ROUTE]: routeTemplate } : {}),
-      ...state.logFields,
-    };
-    if (statusCode >= 400) fields[ATTR_CLIENT_ADDRESS] = state.clientAddress;
-    if (state.requestError) fields.error = state.requestError;
-    logger[logTarget.level](logTarget.event, fields);
-  }
-  if (state.requestSpan) state.requestSpan.end();
-}
-
-/**
  * @param {HttpRequest} request
  * @param {HttpResponse} response
  * @param {ServerConfig} config
@@ -342,8 +256,11 @@ function observeRequest(request, response, config) {
   const startedAt = Date.now();
   const method = request.method || "GET";
   const scheme = requestScheme(request, config);
-  const serverAddress = requestServerAddress(request, config);
-  const serverPort = requestServerPort(request, config);
+  const { address: serverAddress, port: serverPort } = requestServer(
+    request,
+    config,
+    scheme,
+  );
   let route = "unknown";
   let clientAddress = request.socket.remoteAddress || "unknown";
   /** @type {unknown} */
@@ -381,20 +298,59 @@ function observeRequest(request, response, config) {
       requestSpan,
       parentContext,
       function finalizeRequestContext() {
-        finalizeObservedRequest({
-          request,
-          response,
-          requestId,
+        const statusCode = response.statusCode || 200;
+        const durationMs = Date.now() - startedAt;
+        const routeTemplate = requestRouteTemplate(route);
+        const contentEncoding = responseContentEncoding(response);
+        const errorType =
+          requestError instanceof Error
+            ? requestError.name || "Error"
+            : statusCode >= 500
+              ? String(statusCode)
+              : undefined;
+
+        metrics.changeHttpActiveRequests({
+          change: -1,
           method,
           scheme,
           serverAddress,
-          clientAddress,
-          route,
-          startedAt,
-          requestError,
-          requestSpan,
-          logFields,
         });
+        if (requestSpan) {
+          tracing.setSpanAttributes(requestSpan, {
+            [ATTR_HTTP_RESPONSE_STATUS_CODE]: statusCode,
+            [ATTR_HTTP_RESPONSE_HEADER("content-encoding")]: contentEncoding,
+          });
+          if (statusCode >= 500 && !requestError) {
+            requestSpan.setStatus({ code: tracing.SpanStatusCode.ERROR });
+          }
+        }
+
+        metrics.recordHttpRequest({
+          method,
+          route: routeTemplate,
+          scheme,
+          statusCode,
+          durationSeconds: durationMs / 1000,
+          responseContentEncoding: contentEncoding,
+          errorType,
+        });
+        const logTarget = classifyRequestLog(route, statusCode, durationMs);
+        if (logTarget) {
+          /** @type {{[key: string]: unknown}} */
+          const fields = {
+            request_id: requestId,
+            [ATTR_HTTP_REQUEST_METHOD]: method,
+            [ATTR_HTTP_RESPONSE_STATUS_CODE]: statusCode,
+            duration_ms: durationMs,
+            [ATTR_URL_PATH]: parseRequestUrl(request.url).pathname,
+            ...(routeTemplate ? { [ATTR_HTTP_ROUTE]: routeTemplate } : {}),
+            ...logFields,
+          };
+          if (statusCode >= 400) fields[ATTR_CLIENT_ADDRESS] = clientAddress;
+          if (requestError) fields.error = requestError;
+          logger[logTarget.level](logTarget.event, fields);
+        }
+        if (requestSpan) requestSpan.end();
       },
     );
   }

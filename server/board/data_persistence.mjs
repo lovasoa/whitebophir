@@ -363,19 +363,17 @@ async function unsafeSaveBoard(board) {
                         svgExtent: savedSvgExtent,
                       },
                     )
-                  : (
-                      await writeCanonicalBoardState(
-                        board.name,
-                        savedItemsById,
-                        savedPaintOrder,
-                        board.metadata,
-                        saveTargetSeq,
-                        {
-                          historyDir: board.historyDir,
-                          svgExtent: savedSvgExtent,
-                        },
-                      )
-                    ).persistedIds;
+                  : await writeCanonicalBoardState(
+                      board.name,
+                      savedItemsById,
+                      savedPaintOrder,
+                      board.metadata,
+                      saveTargetSeq,
+                      {
+                        historyDir: board.historyDir,
+                        svgExtent: savedSvgExtent,
+                      },
+                    );
               if (span) {
                 tracing.setSpanAttributes(
                   span,
@@ -395,7 +393,7 @@ async function unsafeSaveBoard(board) {
           board.markPersistedSeq(saveTargetSeq);
           finalizePersistedItems(board, savedItemsById, persistedIds);
           finishSuccessfulSaveSchedulingWindow(board);
-          board.trimPersistedMutationLog(startedAt);
+          trimPersistedMutationLog(board, startedAt);
           const savedFile = await stat(file).catch(async (error) => {
             if (errorCode(error) !== "ENOENT") {
               throw error;
@@ -665,14 +663,11 @@ export {
   clearSaveTimeout,
   computeScheduledSaveDelayMs,
   delaySave,
-  dirtyAgeMs,
   disposeBoard,
   finalizePersistedItems,
   hasDirtyItems,
   loadBoardData,
   saveBoard,
-  scheduleDirtySave,
   scheduleSaveTimeout,
-  trimPersistedMutationLog,
   unsafeSaveBoard,
 };

@@ -251,12 +251,6 @@ export type ToolNameMap<T> = {
 
 export type PendingMessages = ToolNameMap<BoardMessage[]>;
 
-export type PointerListenerMap<TListener> = {
-  press?: TListener;
-  move?: TListener;
-  release?: TListener;
-};
-
 export type ToolPointerListener = (
   x: number,
   y: number,
@@ -264,7 +258,11 @@ export type ToolPointerListener = (
   isTouchEvent: boolean,
 ) => unknown;
 
-export type ToolPointerListeners = PointerListenerMap<ToolPointerListener>;
+export type ToolPointerListeners = {
+  press?: ToolPointerListener;
+  move?: ToolPointerListener;
+  release?: ToolPointerListener;
+};
 
 export type CompiledToolListener = ((evt: Event) => unknown) & {
   target?: EventTarget | null;
@@ -287,7 +285,7 @@ export type ToolTouchPolicy = "app-gesture" | "native-pan";
 
 export type MaybeMountedAppTool = MountedAppTool | null;
 
-export type MountedAppTool = PointerListenerMap<ToolPointerListener> & {
+export type MountedAppTool = {
   name: string;
   shortcut?: string;
   icon: string;
@@ -487,12 +485,9 @@ export type AppSocket = {
   };
   connect: () => void;
   disconnect?: () => void;
-  destroy?: () => void;
   once: (eventName: string, handler: (...args: unknown[]) => void) => void;
   io?: { engine?: { close: () => void }; opts?: { query?: string } };
 };
-
-export type MessageHook = (message: BoardMessage) => void;
 
 export type ColorPreset = {
   color: string;
@@ -545,9 +540,6 @@ export type OptimisticJournalEntry = {
 };
 
 export type OptimisticJournalEntryInput = {
-  readonly affectedIds: OptimisticItemIdSet;
-  readonly dependsOn: OptimisticMutationIdSet;
-  readonly dependencyItemIds?: OptimisticItemIdSet;
   readonly rollback: OptimisticRollback;
   readonly message: ClientTrackedMessage;
 };
@@ -555,10 +547,7 @@ export type OptimisticJournalEntryInput = {
 export type OptimisticJournalState = {
   /** Takes ownership of entry.message and entry.rollback. Do not mutate them after append. */
   append: (entry: OptimisticJournalEntryInput) => OptimisticJournalEntry;
-  dependencyMutationIdsForItemIds: (
-    itemIds: OptimisticItemIdSet,
-  ) => OptimisticMutationIdSet;
-  promote: (clientMutationId: string) => OptimisticJournalEntry[];
+  promote: (clientMutationId: string) => void;
   reject: (clientMutationId: string) => OptimisticJournalEntry[];
   rejectByInvalidatedIds: (
     invalidatedIds: readonly string[],
@@ -582,7 +571,6 @@ export type ServerConfig = {
 
 export type ToolBootContext = {
   runtime: ToolRuntimeModules;
-  canDeferDraws?: boolean;
   assetUrl: (assetFile: string) => string;
 };
 
@@ -600,17 +588,6 @@ export type ToolRuntimeState = {
 };
 
 export type ToolModule<T = unknown> = {
-  toolId: string;
-  replaySafe?: boolean;
-  shortcut?: string;
-  oneTouch?: boolean;
-  alwaysOn?: boolean;
-  mouseCursor?: string;
-  helpText?: string;
-  secondary?: ToolSecondaryMode | null;
-  stylesheet?: string;
-  showMarker?: boolean;
-  requiredCapability?: ToolRequiredCapability | null;
   touchListenerOptions?: ToolListenerOptions;
   serverRenderedElementSelector?: string;
   press?(
@@ -822,7 +799,7 @@ export type AppAssetModule =
 
 /** Shared frontend UI primitives for chrome panels and dialogs. */
 export type AppUiModule =
-  import("../client-data/js/board_ui_module.js").UiModule;
+  typeof import("../client-data/js/board_ui_module.js").ui;
 
 /** Runtime id generation. */
 export type AppIdModule =
@@ -838,10 +815,41 @@ export type AppCoordinateModule = Pick<
   "toBoardCoordinate" | "pageCoordinateToBoard"
 >;
 
-/** Restricted runtime modules passed to tool boot. */
-export type ToolRuntimeModules = ReturnType<
-  typeof import("../client-data/js/board_tool_registry_module.js").createToolRuntimeModules
->;
+/** Dependencies available to drawing tools, shared with the application owners. */
+export type ToolRuntimeModules = {
+  board: AttachedBoardDomModule & BoardDomActions;
+  coordinates: AppCoordinateModule;
+  viewport: ViewportController;
+  writes: Pick<
+    AppWriteModule,
+    "drawAndSend" | "send" | "canBufferWrites" | "whenBoardWritable"
+  >;
+  identity: AppIdentityModule;
+  preferences: Pick<
+    AppPreferenceModule,
+    "getColor" | "getSize" | "setSize" | "getOpacity"
+  >;
+  rateLimits: Pick<AppRateLimitModule, "getEffectiveRateLimit">;
+  toolRegistry: Pick<
+    AppToolRegistryModule,
+    "current" | "change" | "flushPendingDraws"
+  >;
+  interaction: Pick<
+    AppInteractionModule,
+    | "drawingEvent"
+    | "showMarker"
+    | "showMyCursor"
+    | "suppressOwnCursor"
+    | "isOwnCursorSuppressed"
+  >;
+  config: AppConfigModule;
+  i18n: AppToolsState["i18n"];
+  ui: AppUiModule;
+  ids: AppIdModule;
+  connection: AppConnectionModule;
+  presence: AppPresenceModule;
+  permissions: Pick<AppAccessModule, "canEdit" | "canClear" | "canWrite">;
+};
 
 /** Runtime root composed only of documented modules. */
 export type AppToolsState = {

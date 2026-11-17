@@ -12,13 +12,15 @@ const {
 } = require("./test_helpers.js");
 const { MutationType } = require("../client-data/js/mutation_type.js");
 const {
-  Clear,
-  Cursor,
-  Eraser,
-  Hand,
-  Pencil,
-  Rectangle,
-} = require("../client-data/tools/index.js");
+  TOOL_BY_ID: {
+    clear: Clear,
+    cursor: Cursor,
+    eraser: Eraser,
+    hand: Hand,
+    pencil: Pencil,
+    rectangle: Rectangle,
+  },
+} = require("../client-data/tools/manifest.js");
 const USER_SECRET_COOKIE_NAME = "wbo-user-secret-v1";
 
 require(SOCKETS_PATH);

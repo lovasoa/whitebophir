@@ -1,35 +1,42 @@
 import { TOOL_ID_BY_CODE } from "../tools/tool-order.js";
 import { getContentMessageBounds } from "./board_extent.js";
-import { queuePendingMessage } from "./board_transport.js";
 import { getMutationType, MutationType } from "./message_tool_metadata.js";
 
-/** @import { AppIdentityModule, BoardMessage, MessageHook, ViewportController } from "../../types/app-runtime" */
+/** @import { AppIdentityModule, BoardMessage, ViewportController } from "../../types/app-runtime" */
 /** @typedef {import("./board_tool_registry_module.js").ToolRegistryModule} ToolRegistryModule */
 
 export class MessageModule {
   #toolRegistry;
   #identity;
+  #viewport;
 
   /**
    * @param {ToolRegistryModule} toolRegistry
    * @param {AppIdentityModule} identity
+   * @param {Pick<ViewportController, "ensureBoardExtentForBounds">} viewport
    */
-  constructor(toolRegistry, identity) {
-    this.hooks = /** @type {MessageHook[]} */ ([]);
+  constructor(toolRegistry, identity, viewport) {
     this.unreadCount = 0;
     this.#toolRegistry = toolRegistry;
     this.#identity = identity;
+    this.#viewport = viewport;
   }
 
-  /**
-   * @template T
-   * @param {((value: T) => void)[]} hooks
-   * @param {T} object
-   */
-  applyHooks(hooks, object) {
-    hooks.forEach((hook) => {
-      hook(object);
-    });
+  /** @param {BoardMessage} message */
+  observeMessage(message) {
+    this.#viewport.ensureBoardExtentForBounds(getContentMessageBounds(message));
+    const mutationType = getMutationType(message);
+    if (
+      document.hidden &&
+      mutationType !== MutationType.APPEND &&
+      mutationType !== MutationType.UPDATE
+    ) {
+      this.unreadCount++;
+      updateDocumentTitle(this, this.#identity);
+    }
+    for (const tool of Object.values(this.#toolRegistry.mounted)) {
+      tool?.onMessage?.(message);
+    }
   }
 
   /**
@@ -41,18 +48,14 @@ export class MessageModule {
     if (!name) return;
     const tool = this.#toolRegistry.mounted[name];
 
-    this.applyHooks(this.hooks, message);
+    this.observeMessage(message);
     if (tool) {
       tool.draw(message, false);
     } else {
-      queuePendingMessage(this.#toolRegistry.pendingMessages, name, message);
+      this.#toolRegistry.pendingMessages[name] ??= [];
+      this.#toolRegistry.pendingMessages[name].push(message);
       await this.#toolRegistry.bootTool(name);
     }
-  }
-
-  newUnreadMessage() {
-    this.unreadCount++;
-    updateDocumentTitle(this, this.#identity);
   }
 }
 
@@ -64,43 +67,4 @@ export function updateDocumentTitle(messages, identity) {
   document.title =
     (messages.unreadCount ? `(${messages.unreadCount}) ` : "") +
     `${identity.boardName} | WBO`;
-}
-
-/**
- * @param {ViewportController} viewport
- * @returns {MessageHook}
- */
-export function createResizeCanvasHook(viewport) {
-  return function resizeCanvas(m) {
-    viewport.ensureBoardExtentForBounds(getContentMessageBounds(m));
-  };
-}
-
-/**
- * @param {MessageModule} messages
- * @returns {MessageHook}
- */
-export function createUnreadCountHook(messages) {
-  return function updateUnreadCount(m) {
-    const mutationType = getMutationType(m);
-    if (
-      document.hidden &&
-      mutationType !== MutationType.APPEND &&
-      mutationType !== MutationType.UPDATE
-    ) {
-      messages.newUnreadMessage();
-    }
-  };
-}
-
-/**
- * @param {ToolRegistryModule} toolRegistry
- * @returns {MessageHook}
- */
-export function createToolNotificationHook(toolRegistry) {
-  return function notifyToolsOfMessage(m) {
-    Object.values(toolRegistry.mounted || {}).forEach((tool) => {
-      tool?.onMessage?.(m);
-    });
-  };
 }
