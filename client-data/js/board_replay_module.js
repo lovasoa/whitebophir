@@ -31,6 +31,7 @@ export class ReplayModule {
     this.logBoardEvent = logBoardEvent;
     this.awaitingSnapshot = true;
     this.hasAuthoritativeSnapshot = false;
+    this.synchronizedAt = /** @type {number | null} */ (null);
     this.refreshBaselineBeforeConnect = false;
     this.authoritativeSeq = 0;
     this.preSnapshotMessages = /** @type {IncomingBroadcast[]} */ ([]);
@@ -143,7 +144,7 @@ export class ReplayModule {
           : { authoritativeSeq: this.authoritativeSeq, incomingSeq: seq },
       );
       this.beginAuthoritativeResync();
-      Tools.connection.start();
+      Tools.connection.scheduleSocketReconnect();
       return false;
     }
     if (
@@ -165,13 +166,31 @@ export class ReplayModule {
         if (message.clientMutationId)
           Tools.writes.resolveBufferedWrite(message.clientMutationId);
         Tools.writes.pruneBufferedWritesForInvalidatingMessage(message);
-        await Tools.messages.messageForTool(message);
+        try {
+          await Tools.messages.messageForTool(message);
+        } catch (error) {
+          if (generation !== Tools.connection.generation) return false;
+          Tools.toolRegistry.pendingMessages = {};
+          if (!replay && !sequenced) return false;
+          this.logBoardEvent("error", "replay.apply_failed", {
+            seq: fromSeq + index + 1,
+            errorMessage: String(error),
+          });
+          // A failed write cannot advance the sequence. Hold the drawing and
+          // outbox for reload, since retrying would use the same runtime.
+          this.awaitingSnapshot = true;
+          this.preSnapshotMessages = [];
+          this.incomingBroadcastQueue = [];
+          Tools.connection.suspendUntilReload();
+          return false;
+        }
       }
       if (generation !== Tools.connection.generation) return false;
       if (replay || sequenced) this.authoritativeSeq = fromSeq + index + 1;
     }
     if (replay) {
       this.hasAuthoritativeSnapshot = true;
+      this.synchronizedAt = performance.now();
       this.authoritativeSeq = seq;
       this.awaitingSnapshot = false;
       this.refreshBaselineBeforeConnect = false;
