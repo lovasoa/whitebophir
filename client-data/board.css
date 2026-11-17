@@ -499,6 +499,11 @@ dialog.wbo-native-dialog::backdrop {
   overscroll-behavior: none;
 }
 
+/* Keep the streamed drawing hidden until boot applies the initial viewport. */
+#board:not([data-viewport-managed="true"]) > #canvas {
+  visibility: hidden;
+}
+
 #board[data-viewport-managed="true"] {
   position: relative;
 }

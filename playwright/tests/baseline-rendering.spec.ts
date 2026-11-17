@@ -3,6 +3,65 @@ import { boardSvgPath } from "../../server/persistence/svg_board_paths.mjs";
 import { expect, test } from "../fixtures/test";
 const { executionCount } = require("../../test-node/test_helpers.js");
 
+test("stored drawing first appears at the viewport from the URL", async ({
+  page,
+  boardPage,
+  server,
+}, testInfo) => {
+  const boardName = "baseline-first-paint";
+  await writeFile(
+    boardSvgPath(boardName, server.dataPath),
+    `<svg id="canvas" xmlns="http://www.w3.org/2000/svg" width="3000" height="2000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="0" data-wbo-readonly="false"><g id="drawingArea"><rect id="seed" x="300" y="240" width="120" height="80" fill="#123456"></rect></g><g id="cursors"></g></svg>`,
+  );
+
+  let startBoot!: () => void;
+  let loadFullRuntime!: () => void;
+  const boot = new Promise<void>((resolve) => {
+    startBoot = resolve;
+  });
+  const fullRuntime = new Promise<void>((resolve) => {
+    loadFullRuntime = resolve;
+  });
+  await page.route("**/js/board_main.js", async (route) => {
+    await boot;
+    await route.continue();
+  });
+  await page.route("**/js/board.js", async (route) => {
+    await fullRuntime;
+    await route.continue();
+  });
+
+  try {
+    await page.goto(`${boardPage.buildBoardUrl(boardName)}#100,80,0.5`, {
+      waitUntil: "domcontentloaded",
+    });
+    const drawing = page.locator("#drawingArea #seed");
+    await expect(page.locator("#toolID-hand")).toBeVisible();
+    await expect(drawing).toBeAttached();
+    await expect(drawing).toHaveCSS("visibility", "hidden");
+    await page.screenshot({ path: testInfo.outputPath("before-viewport.png") });
+
+    startBoot();
+    await expect(page.locator("html")).toHaveAttribute(
+      "data-board-phase",
+      "viewport-restored",
+    );
+    await expect(drawing).toBeVisible();
+    expect(await drawing.boundingBox()).toEqual({
+      x: 100,
+      y: 80,
+      width: 60,
+      height: 40,
+    });
+    await page.screenshot({
+      path: testInfo.outputPath("restored-viewport.png"),
+    });
+  } finally {
+    startBoot();
+    loadFullRuntime();
+  }
+});
+
 test("dense pencil baselines retain curves within the execution budget", async ({
   page,
   boardPage,
