@@ -2,6 +2,39 @@ import { expect, test } from "../fixtures/test";
 
 const cookieName = "wbo_anonymous_welcome_v1";
 
+test("the welcome stays in place when loading finishes", async ({
+  page,
+  server,
+}, testInfo) => {
+  let releaseSocketClient!: () => void;
+  const socketClient = new Promise<void>((resolve) => {
+    releaseSocketClient = resolve;
+  });
+  await page.route("**/socket.io/socket.io.js", async (route) => {
+    await socketClient;
+    await route.continue();
+  });
+
+  const welcome = page.locator("#boardNotice");
+  const status = page.getByRole("status");
+  let loadingBounds: Awaited<ReturnType<typeof welcome.boundingBox>>;
+  try {
+    await page.goto(`${server.serverUrl}/boards/anonymous?lang=en`, {
+      waitUntil: "domcontentloaded",
+    });
+    await expect(welcome).toBeVisible();
+    await expect(status).toHaveText("Loading");
+    loadingBounds = await welcome.boundingBox();
+    await page.screenshot({ path: testInfo.outputPath("welcome-loading.png") });
+  } finally {
+    releaseSocketClient();
+  }
+
+  await expect(status).toBeHidden();
+  await expect(welcome).toBeVisible();
+  expect(await welcome.boundingBox()).toEqual(loadingBounds);
+});
+
 test("anonymous welcome is dismissed for 30 days only after acknowledgement", async ({
   page,
   context,
