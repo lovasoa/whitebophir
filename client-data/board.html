@@ -63,14 +63,6 @@
 				</div>
 			</div>
 		</div>
-		<div id="boardStatusIndicator" class="board-status-card board-status-reconnecting" role="status"
-			aria-live="polite" data-state="reconnecting">
-			<span class="board-status-icon" aria-hidden="true"></span>
-			<div class="board-status-copy">
-				<div id="boardStatusTitle" class="board-status-title">{{translations.loading}}</div>
-				<div id="boardStatusNotice" class="board-status-detail board-status-detail-hidden"></div>
-			</div>
-		</div>
 		<section id="boardNotice" class="board-notice" dir="{{direction}}"
 			aria-labelledby="boardNoticeTitle" hidden>
 			<h2 id="boardNoticeTitle"></h2>
@@ -82,6 +74,14 @@
 				<button id="boardNoticeDismiss" type="button"></button>
 			</div>
 		</section>
+		<div id="boardStatusIndicator" class="board-status-card board-status-reconnecting" role="status"
+			aria-live="polite" data-state="reconnecting">
+			<span class="board-status-icon" aria-hidden="true"></span>
+			<div class="board-status-copy">
+				<div id="boardStatusTitle" class="board-status-title">{{translations.loading}}</div>
+				<div id="boardStatusNotice" class="board-status-detail board-status-detail-hidden"></div>
+			</div>
+		</div>
 	</div>
 
 	<div id="menu" tabindex="0" {{#hideMenu}}style="display:none;"{{/hideMenu}}>
