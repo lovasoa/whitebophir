@@ -1,6 +1,5 @@
 import { TOOL_ID_BY_CODE } from "../tools/tool-order.js";
 import { optimisticPrunePlanForAuthoritativeMessage } from "./authoritative_mutation_effects.js";
-import MessageCommon from "./message_common.js";
 import {
   collectOptimisticAffectedIds,
   collectOptimisticDependencyIds,
@@ -420,12 +419,7 @@ export class WriteModule {
     // Optimistically render the drawing immediately.
     mountedTool.draw(trackedData, true);
 
-    if (
-      MessageCommon.requiresTurnstile(Tools.identity.boardName, toolName) &&
-      Tools.config.serverConfig.TURNSTILE_SITE_KEY &&
-      Tools.access.canClear !== true &&
-      !Tools.turnstile.isValidated()
-    ) {
+    if (Tools.turnstile.needsValidation(toolName)) {
       Tools.optimistic.trackMutation(trackedData, rollback);
       Tools.turnstile.queueProtectedWrite(trackedData);
       return true;

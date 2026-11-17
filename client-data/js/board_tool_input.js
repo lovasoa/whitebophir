@@ -60,12 +60,16 @@ export function compileToolListeners(Tools, tool) {
    * @returns {CompiledToolListener}
    */
   function compilePointerListener(listener, isTouchEvent) {
+    const isPress = listener === tool.listeners.press;
+    const startsEditingGesture =
+      isPress && !!tool.requiredCapability && !!tool.listeners.release;
     return function handlePointer(evt) {
       if (
         tool === Tools.toolRegistry.current &&
         (Tools.toolRegistry.shouldDisableTool(tool.name) ||
-          (listener === tool.listeners.press &&
-            !Tools.toolRegistry.canInteractWithTool(tool.name)))
+          (isPress &&
+            (!Tools.toolRegistry.canInteractWithTool(tool.name) ||
+              Tools.turnstile.requestSelectedToolValidation())))
       ) {
         return true;
       }
@@ -120,6 +124,7 @@ export function compileToolListeners(Tools, tool) {
         }
         const touch = touchEvent.changedTouches[0];
         if (!touch) return true;
+        if (startsEditingGesture) Tools.turnstile.startToolGesture();
         return listener(
           Tools.coordinates.pageCoordinateToBoard(touch.pageX),
           Tools.coordinates.pageCoordinateToBoard(touch.pageY),
@@ -128,6 +133,7 @@ export function compileToolListeners(Tools, tool) {
         );
       }
       const mouseEvent = /** @type {MouseEvent} */ (evt);
+      if (startsEditingGesture) Tools.turnstile.startToolGesture();
       return listener(
         Tools.coordinates.pageCoordinateToBoard(mouseEvent.pageX),
         Tools.coordinates.pageCoordinateToBoard(mouseEvent.pageY),
@@ -148,6 +154,18 @@ export function compileToolListeners(Tools, tool) {
     };
   }
 
+  /** @param {CompiledToolListener} listener */
+  function finishEditingGestureAfter(listener) {
+    if (!tool.requiredCapability) return listener;
+    return (/** @type {Event} */ evt) => {
+      try {
+        return listener(evt);
+      } finally {
+        Tools.turnstile.finishToolGesture();
+      }
+    };
+  }
+
   const compiled = /** @type {CompiledToolListeners} */ ({});
   const touchDispatchState = /** @type {TouchDispatchState} */ ({
     browserOwnsActiveTouchSequence: false,
@@ -157,6 +175,7 @@ export function compileToolListeners(Tools, tool) {
   /** @param {TouchEvent} touchEvent */
   function cancelToolTouchGesture(touchEvent) {
     tool.cancelTouchGesture?.(touchEvent);
+    if (tool.requiredCapability) Tools.turnstile.finishToolGesture();
   }
 
   /** @param {TouchEvent} touchEvent */
@@ -183,9 +202,13 @@ export function compileToolListeners(Tools, tool) {
     compiled.touchmove = compilePointerListener(tool.listeners.move, true);
   }
   if (tool.listeners.release) {
-    compiled.mouseup = compilePointerListener(tool.listeners.release, false);
+    compiled.mouseup = finishEditingGestureAfter(
+      compilePointerListener(tool.listeners.release, false),
+    );
     compiled.mouseleave = compiled.mouseup;
-    const touchRelease = compilePointerListener(tool.listeners.release, true);
+    const touchRelease = finishEditingGestureAfter(
+      compilePointerListener(tool.listeners.release, true),
+    );
     compiled.touchleave = touchRelease;
     compiled.touchend = touchRelease;
     compiled.touchcancel = touchRelease;

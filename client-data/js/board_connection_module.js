@@ -5,7 +5,6 @@ import {
   buildSocketParams,
   normalizeSocketIOExtraHeaders,
 } from "./board_transport.js";
-import * as BoardTurnstile from "./board_turnstile.js";
 import { getModerationRule } from "./moderation_rules.js";
 import { ModerationDisconnectSources, SocketEvents } from "./socket_events.js";
 
@@ -335,16 +334,6 @@ export class ConnectionModule {
           "log",
           hadConnectedBefore ? "socket.reconnected" : "socket.connected",
         );
-        if (
-          hadConnectedBefore &&
-          Tools.config.serverConfig.TURNSTILE_SITE_KEY
-        ) {
-          Tools.turnstile.setValidation(null);
-          BoardTurnstile.resetTurnstileWidget(
-            BoardTurnstile.getTurnstileApi(),
-            Tools.turnstile.widgetId,
-          );
-        }
         Tools.connection.hasConnectedOnce = true;
         Tools.status.syncWriteStatusIndicator();
       });

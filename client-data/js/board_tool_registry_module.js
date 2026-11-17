@@ -146,7 +146,9 @@ export class ToolRegistryModule {
       await Tools.writes.whenBoardWritable();
       if (!this.shouldDisplayTool(toolName)) return false;
     }
-    return this.change(toolName) === true;
+    const changed = this.change(toolName) === true;
+    if (!tool.oneTouch) Tools.turnstile.requestSelectedToolValidation();
+    return changed;
   }
 
   /** @param {MountedAppTool} tool */
@@ -280,6 +282,7 @@ export class ToolRegistryModule {
       this.syncToolDisabledState(toolName);
     });
     this.syncCurrentToolChrome();
+    Tools.turnstile.requestSelectedToolValidation();
   }
 
   /** @param {MountedAppTool} tool */
@@ -625,6 +628,7 @@ function replaceCurrentTool(Tools, newTool) {
     Tools.toolRegistry.removeToolListeners(currentTool);
     currentTool.onquit && currentTool.onquit(newTool);
     Tools.interaction.releaseOwner(currentTool.name);
+    Tools.turnstile.finishToolGesture();
   }
   Tools.toolRegistry.addToolListeners(newTool);
   Tools.toolRegistry.current = newTool;
