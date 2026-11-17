@@ -49,6 +49,7 @@ import {
   countTextCreationActions,
   createRateLimitState,
   enforceBroadcastPreNormalization,
+  limitSocketHandshakes,
   rateLimitTestInternals,
   resetRateLimitMaps as resetSocketRateLimitMaps,
 } from "./rate_limits.mjs";
@@ -472,6 +473,7 @@ function resolveClientIp(socket, boardName, config) {
  */
 async function startIO(app, config) {
   io = new Server(app, { path: "/socket.io" });
+  io.engine.use(limitSocketHandshakes(config));
   io.use(
     (
       /** @type {AppSocket} */ socket,

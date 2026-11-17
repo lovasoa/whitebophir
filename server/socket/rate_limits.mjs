@@ -1,3 +1,4 @@
+import { ServerResponse } from "node:http";
 import RateLimitCommon from "../../client-data/js/rate_limit_common.js";
 import { SocketEvents } from "../../client-data/js/socket_events.js";
 import observability from "../observability/index.mjs";
@@ -6,6 +7,7 @@ import {
   pruneStaleEntries,
   touchExisting,
 } from "./bounded_state_map.mjs";
+import { resolveRequestClientIpSafe } from "./policy.mjs";
 
 const {
   countConstructiveActions,
@@ -19,13 +21,14 @@ const getEffectiveRateLimitDefinition =
   RateLimitCommon.getEffectiveRateLimitDefinition;
 const isRateLimitStateStale = RateLimitCommon.isRateLimitStateStale;
 const SERVER_RATE_LIMIT_CONFIG_FIELDS =
-  /** @type {{[key in RateLimitKind]: keyof ServerConfig}} */ (
+  /** @type {{[key in BroadcastRateLimitKind]: keyof ServerConfig}} */ (
     RateLimitCommon.SERVER_RATE_LIMIT_CONFIG_FIELDS
   );
 const { logger, metrics, tracing } = observability;
 
 /** @import { AppSocket, MessageData, NormalizedMessageData, RateLimitState as BaseRateLimitState, ServerConfig } from "../../types/server-runtime.d.ts" */
-/** @typedef {"general" | "constructive" | "destructive" | "text"} RateLimitKind */
+/** @typedef {"general" | "constructive" | "destructive" | "text"} BroadcastRateLimitKind */
+/** @typedef {BroadcastRateLimitKind | "connection"} RateLimitKind */
 /** @typedef {"disconnect" | "exceeded" | "expired" | "pruned"} RateLimitWindowOutcome */
 /**
  * @typedef {BaseRateLimitState & {
@@ -46,11 +49,14 @@ const { logger, metrics, tracing } = observability;
  * }} RateLimitRequest
  */
 
+const CONNECTIONS_PER_MINUTE = 30;
+const CONNECTION_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAP_MAX_SIZE = 4096;
 const RATE_LIMIT_STALE_SCAN_LIMIT = 16;
 
 /** @type {{[key in RateLimitKind]: Map<string, RateLimitState>}} */
 const rateLimitMaps = {
+  connection: new Map(),
   general: new Map(),
   constructive: new Map(),
   destructive: new Map(),
@@ -58,7 +64,7 @@ const rateLimitMaps = {
 };
 
 /**
- * @param {RateLimitKind} kind
+ * @param {BroadcastRateLimitKind} kind
  * @param {string} boardName
  * @param {ServerConfig} config
  * @returns {{limit: number, periodMs: number}}
@@ -85,7 +91,8 @@ function recordCompletedRateLimitWindow(kind, state, outcome) {
   const windowStart = Number(state.windowStart);
   if (!(limit > 0) || !(periodMs > 0) || !(used > 0)) return;
   if (!Number.isFinite(windowStart)) return;
-  if (state.metricRecordedWindowStart === windowStart) return;
+  if (kind === "connection" || state.metricRecordedWindowStart === windowStart)
+    return;
   metrics.recordRateLimitWindowUtilization({
     boardAnonymous: state.metricBoardAnonymous,
     kind: kind,
@@ -164,8 +171,76 @@ function getIpRateLimitState(kind, clientIp, now, periodMs) {
 }
 
 /**
- * @param {RateLimitRequest} request
  * @param {RateLimitKind} kind
+ * @param {string} clientIp
+ * @param {number} now
+ * @param {number} periodMs
+ * @param {number} cost
+ */
+function consumeIpRateLimit(kind, clientIp, now, periodMs, cost) {
+  const state = getIpRateLimitState(kind, clientIp, now, periodMs);
+  recordExpiredRateLimitWindowIfNeeded(kind, state, now);
+  const next = consumeFixedWindowRateLimit(state, cost, periodMs, now);
+  state.windowStart = next.windowStart;
+  state.count = next.count;
+  state.lastSeen = next.lastSeen;
+  return state;
+}
+
+/** @param {ServerConfig} config */
+export function limitSocketHandshakes(config) {
+  return (
+    /** @type {import("node:http").IncomingMessage & {_query: {sid?: string, transport?: string}}} */ request,
+    /** @type {unknown} */ response,
+    /** @type {() => void} */ next,
+  ) => {
+    // Engine.IO exposes its parsed query to middleware. Polling and upgrades
+    // for an established session carry a sid and spend no handshake budget.
+    const { sid, transport } = request._query;
+    if (
+      sid ||
+      request.method !== "GET" ||
+      (transport !== "polling" && transport !== "websocket")
+    ) {
+      next();
+      return;
+    }
+
+    const clientIp = resolveRequestClientIpSafe(config, request);
+    const now = Date.now();
+    const state = consumeIpRateLimit(
+      "connection",
+      clientIp,
+      now,
+      CONNECTION_WINDOW_MS,
+      1,
+    );
+    if (state.count <= CONNECTIONS_PER_MINUTE) {
+      next();
+      return;
+    }
+
+    const seconds = Math.ceil(
+      getRateLimitRemainingMs(state, CONNECTION_WINDOW_MS, now) / 1000,
+    );
+    if (response instanceof ServerResponse) {
+      response.writeHead(429, {
+        "Retry-After": seconds,
+        "Cache-Control": "no-store",
+      });
+      response.end();
+    } else {
+      // Engine.IO's upgrade response only stages headers for successful upgrades.
+      request.socket.end(
+        `HTTP/1.1 429 Too Many Requests\r\nRetry-After: ${seconds}\r\nCache-Control: no-store\r\nContent-Length: 0\r\nConnection: close\r\n\r\n`,
+      );
+    }
+  };
+}
+
+/**
+ * @param {RateLimitRequest} request
+ * @param {BroadcastRateLimitKind} kind
  * @param {number} cost
  * @returns {boolean}
  */
@@ -178,22 +253,13 @@ function enforceIpRateLimit(request, kind, cost) {
     request.boardName,
     request.config,
   );
-  const rateLimitState = getIpRateLimitState(
+  const rateLimitState = consumeIpRateLimit(
     kind,
     request.clientIp,
     request.now,
     limit.periodMs,
-  );
-  recordExpiredRateLimitWindowIfNeeded(kind, rateLimitState, request.now);
-  const nextState = consumeFixedWindowRateLimit(
-    rateLimitState,
     cost,
-    limit.periodMs,
-    request.now,
   );
-  rateLimitState.windowStart = nextState.windowStart;
-  rateLimitState.count = nextState.count;
-  rateLimitState.lastSeen = nextState.lastSeen;
   rateLimitState.metricBoardAnonymous = request.boardName === "anonymous";
   rateLimitState.metricLimit = limit.limit;
   rateLimitState.metricPeriodMs = limit.periodMs;

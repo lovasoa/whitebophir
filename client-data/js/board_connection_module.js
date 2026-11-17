@@ -378,6 +378,26 @@ export class ConnectionModule {
           authoritativeSeq: Tools.replay.authoritativeSeq,
         });
         Tools.connection.state = "disconnected";
+        // Socket.IO forwards the failed HTTP polling request with this error.
+        if (
+          error.description === 429 &&
+          error.context instanceof XMLHttpRequest
+        ) {
+          const retryAfter = error.context.getResponseHeader("Retry-After");
+          const retryAfterMs =
+            retryAfter && /^\d+$/.test(retryAfter)
+              ? normalizeAccessRefreshDelayMs(Number(retryAfter) * 1000)
+              : null;
+          if (retryAfterMs !== null) {
+            this.socket = null;
+            socket.disconnect?.();
+            this.scheduleSocketReconnect(retryAfterMs);
+            if (!this.reloadRequired) {
+              Tools.status.showRateLimitNotice("", retryAfterMs);
+            }
+            return;
+          }
+        }
         if (reason === "baseline_not_replayable") {
           this.logBoardEvent("warn", "replay.baseline_not_replayable", {
             authoritativeSeq: Tools.replay.authoritativeSeq,
