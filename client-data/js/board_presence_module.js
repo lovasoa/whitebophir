@@ -105,26 +105,26 @@ export class PresenceModule {
       list.contains(document.activeElement)
         ? document.activeElement
         : null;
-    const previousRows = this.rows;
-    this.rows = new Map();
-
     const currentSocketId = Tools.connection.socket?.id;
-    const users = Array.from(this.users.values()).sort((left, right) =>
+    const visibleUsers = getVisibleConnectedUsers(this.users, currentSocketId);
+    for (const [identity, row] of this.rows) {
+      if (visibleUsers.has(identity)) continue;
+      row.element.remove();
+      this.rows.delete(identity);
+    }
+    const users = Array.from(visibleUsers).sort(([, left], [, right]) =>
       compareConnectedUsersForDisplay(currentSocketId, left, right),
     );
 
-    users.forEach((user, index) => {
+    users.forEach(([identity, user], index) => {
       const row =
-        previousRows.get(user.socketId) ||
-        createConnectedUserRow(this.getTools, this);
-      previousRows.delete(user.socketId);
-      this.rows.set(user.socketId, row);
+        this.rows.get(identity) || createConnectedUserRow(this.getTools, this);
+      this.rows.set(identity, row);
       updateConnectedUserRow(Tools, row, user);
       const currentChild = list.children[index];
       if (currentChild !== row.element)
         list.insertBefore(row.element, currentChild || null);
     });
-    for (const row of previousRows.values()) row.element.remove();
     if (
       focusedListControl?.isConnected &&
       document.activeElement !== focusedListControl
@@ -132,7 +132,7 @@ export class PresenceModule {
       focusedListControl.focus({ preventScroll: true });
     }
     this.renderActiveBans();
-    syncConnectedUsersSummary(this, Tools);
+    syncConnectedUsersSummary(this, visibleUsers.size, Tools);
     schedulePresenceStaleTick(this);
   }
 
@@ -203,8 +203,7 @@ export class PresenceModule {
 
   /** @param {boolean} open */
   setConnectedUsersPanelOpen(open) {
-    const shouldOpen =
-      open && (getConnectedUsersCount(this.users) > 0 || this.bans.length > 0);
+    const shouldOpen = open && (this.users.size > 0 || this.bans.length > 0);
     const panel = getConnectedUsersPanel();
     const toggle = getConnectedUsersToggle();
     this.panelOpen = shouldOpen;
@@ -258,7 +257,7 @@ export class PresenceModule {
   /** @param {string} socketId */
   removeConnectedUser(socketId) {
     const user = this.users.get(socketId);
-    if (!user) return;
+    if (!user || user.disconnectedAt) return;
     clearConnectedUserTimers(user);
     user.disconnectedAt = Date.now();
     user.removeTimeoutId = window.setTimeout(() => {
@@ -321,7 +320,7 @@ export class PresenceModule {
       return;
     }
     this.panelOpen = toggle.getAttribute("aria-expanded") === "true";
-    syncConnectedUsersToggleLabel(Tools, this.users);
+    syncConnectedUsersSummary(this);
     if (!this.friendStorageBound) {
       this.friendStorageBound = true;
       this.friendStore.subscribe(() => this.syncFriendStates());
@@ -382,7 +381,7 @@ export function compareConnectedUsersForDisplay(currentSocketId, left, right) {
   if (leftIsFriend !== rightIsFriend) return leftIsFriend ? -1 : 1;
   return (
     left.name.localeCompare(right.name) ||
-    left.socketId.localeCompare(right.socketId)
+    left.userId.localeCompare(right.userId)
   );
 }
 
@@ -400,29 +399,50 @@ function getConnectedUsersList() {
 
 /**
  * @param {ConnectedUserMap} users
- * @returns {number}
+ * @param {string | undefined} [currentSocketId]
  */
-function getConnectedUsersCount(users) {
-  return Array.from(users.values()).filter((user) => !user.disconnectedAt)
-    .length;
+function getVisibleConnectedUsers(users, currentSocketId) {
+  const visible = /** @type {Map<string, ConnectedUser>} */ (new Map());
+  for (const user of users.values()) {
+    const identity = `${user.userId}\0${user.name}`;
+    const current = visible.get(identity);
+    if (current && !preferVisibleSocket(user, current, currentSocketId))
+      continue;
+    visible.set(identity, user);
+  }
+  return visible;
+}
+
+/**
+ * @param {ConnectedUser} user
+ * @param {ConnectedUser} current
+ * @param {string | undefined} currentSocketId
+ */
+function preferVisibleSocket(user, current, currentSocketId) {
+  if (user.socketId === currentSocketId) return true;
+  if (current.socketId === currentSocketId) return false;
+  if (!!user.disconnectedAt !== !!current.disconnectedAt)
+    return !user.disconnectedAt;
+  return (
+    (user.disconnectedAt || user.lastActivityAt || user.joinedAt || 0) >
+    (current.disconnectedAt || current.lastActivityAt || current.joinedAt || 0)
+  );
 }
 
 /**
  * @param {AppToolsState} Tools
- * @param {ConnectedUserMap} users
+ * @param {number} userCount
  */
-function syncConnectedUsersToggleLabel(Tools, users) {
+function syncConnectedUsersToggleLabel(Tools, userCount) {
   const toggle = getConnectedUsersToggle();
-  const label = /** @type {HTMLElement | null} */ (
-    toggle.querySelector(".tool-name")
-  );
-  const userCount = getConnectedUsersCount(users);
   const accessibleLabel = Tools.i18n.format("users_count", {
     count: String(userCount),
   });
+  if (toggle.getAttribute("aria-label") === accessibleLabel) return;
   toggle.setAttribute("aria-label", accessibleLabel);
   toggle.title = accessibleLabel;
-  if (!label) return;
+  const label = toggle.querySelector(".tool-name");
+  if (!(label instanceof HTMLElement)) return;
   if (userCount <= 1) {
     label.hidden = true;
     label.textContent = "";
@@ -442,18 +462,21 @@ function syncConnectedUsersToggleLabel(Tools, users) {
 
 /**
  * @param {PresenceModule} presence
+ * @param {number} [userCount]
  * @param {AppToolsState} [Tools]
  */
-function syncConnectedUsersSummary(presence, Tools = presence.getTools()) {
+function syncConnectedUsersSummary(
+  presence,
+  userCount = getVisibleConnectedUsers(presence.users).size,
+  Tools = presence.getTools(),
+) {
   const panel = getConnectedUsersPanel();
-  const users = presence.users;
-  const userCount = getConnectedUsersCount(users);
   const empty = userCount === 0 && presence.bans.length === 0;
   panel.dataset.empty = empty ? "true" : "false";
   if (empty && presence.panelOpen) {
     presence.setConnectedUsersPanelOpen(false);
   }
-  syncConnectedUsersToggleLabel(Tools, users);
+  syncConnectedUsersToggleLabel(Tools, userCount);
 }
 
 const CONNECTED_USER_RING_MIN_WIDTH = 2;
@@ -833,7 +856,7 @@ function updateConnectedUserRow(Tools, view, user) {
   toolBadge.style.borderColor = userColor;
   toolBadge.style.setProperty("--connected-user-pulse-color", userColor);
   toolBadge.style.borderWidth = `${getConnectedUserRingWidth(user.size)}px`;
-  if (user.pulseUntil && user.pulseUntil > Date.now()) {
+  if (!user.disconnectedAt && user.pulseUntil && user.pulseUntil > now) {
     toolBadge.classList.add("active");
     toolBadge.style.setProperty("--pulse-ms", `${user.pulseMs || 700}ms`);
   } else {
@@ -841,7 +864,8 @@ function updateConnectedUserRow(Tools, view, user) {
     toolBadge.style.removeProperty("--pulse-ms");
   }
 
-  name.textContent = getConnectedUserDisplayName(user);
+  const displayName = getConnectedUserDisplayName(user);
+  if (name.textContent !== displayName) name.textContent = displayName;
 
   const currentIdentityUser = isCurrentIdentityUser(
     Tools,
@@ -1027,6 +1051,10 @@ function createConnectedUserRow(getTools, presence) {
     ) {
       return;
     }
+    const updateReportRow = () => {
+      if (row.dataset.socketId === connectedUser.socketId)
+        updateConnectedUserRow(getTools(), view, connectedUser);
+    };
     /**
      * @param {number | undefined} banDurationMs
      * @param {string | undefined} moderationRule
@@ -1037,7 +1065,7 @@ function createConnectedUserRow(getTools, presence) {
       connectedUser.reportPending = false;
       connectedUser.reportBanned =
         typeof banDurationMs === "number" && banDurationMs > 0;
-      updateConnectedUserRow(getTools(), view, connectedUser);
+      updateReportRow();
       /** @type {import("../../types/app-runtime").ReportUserPayload} */
       const payload =
         banDurationMs !== undefined && moderationRule !== undefined
@@ -1047,7 +1075,7 @@ function createConnectedUserRow(getTools, presence) {
     };
     if (Tools.access.canBan === true) {
       connectedUser.reportPending = true;
-      updateConnectedUserRow(getTools(), view, connectedUser);
+      updateReportRow();
       void Tools.ui
         .showActionDialog({
           title: Tools.i18n.format("moderation_action_title", {
@@ -1093,7 +1121,7 @@ function createConnectedUserRow(getTools, presence) {
             return;
           }
           connectedUser.reportPending = false;
-          updateConnectedUserRow(getTools(), view, connectedUser);
+          updateReportRow();
         });
       return;
     }
