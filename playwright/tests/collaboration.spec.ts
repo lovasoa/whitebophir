@@ -1395,7 +1395,7 @@ test.describe("collaboration and rate limiting", () => {
     boardPage,
     page,
     server,
-    context,
+    browser,
   }) => {
     const boardName = "slow-start-stability";
     const serverOrigin = new URL(server.serverUrl).origin;
@@ -1467,7 +1467,7 @@ test.describe("collaboration and rate limiting", () => {
       },
     });
 
-    const peerPage = await context.newPage();
+    const peerPage = await browser.newPage();
     const peerBoard = createBoardPage(peerPage, server);
 
     await peerBoard.gotoBoard(boardName);
