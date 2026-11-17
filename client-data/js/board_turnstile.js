@@ -1,4 +1,5 @@
 import { TOOL_ID_BY_CODE } from "../tools/tool-order.js";
+import MessageCommon from "./message_common.js";
 import { SocketEvents } from "./socket_events.js";
 
 /** @typedef {import("../../types/app-runtime").AppToolsState} AppToolsState */
@@ -21,7 +22,7 @@ let turnstileScriptPromise = null;
 /**
  * @returns {TurnstileGlobal | undefined}
  */
-export function getTurnstileApi() {
+function getTurnstileApi() {
   return typeof turnstile !== "undefined" ? turnstile : undefined;
 }
 
@@ -30,7 +31,7 @@ export function getTurnstileApi() {
  * @param {number | undefined} defaultValidationWindowMs
  * @returns {TurnstileAck}
  */
-export function normalizeTurnstileAck(result, defaultValidationWindowMs) {
+function normalizeTurnstileAck(result, defaultValidationWindowMs) {
   if (result === true) {
     return {
       success: true,
@@ -42,45 +43,6 @@ export function normalizeTurnstileAck(result, defaultValidationWindowMs) {
     return /** @type {TurnstileAck} */ (result);
   }
   return { success: false };
-}
-
-/**
- * @param {unknown} result
- * @param {number | undefined} defaultValidationWindowMs
- * @returns {{validatedUntil: number, validationWindowMs: number}}
- */
-export function computeTurnstileValidation(result, defaultValidationWindowMs) {
-  const ack = normalizeTurnstileAck(result, defaultValidationWindowMs);
-  if (ack.success !== true) {
-    return { validatedUntil: 0, validationWindowMs: 0 };
-  }
-  const validationWindowMs =
-    Number(ack.validationWindowMs) || Number(defaultValidationWindowMs) || 0;
-  const safeWindowMs = Math.max(0, validationWindowMs - 5000);
-  return {
-    validatedUntil: safeWindowMs > 0 ? Date.now() + safeWindowMs : 0,
-    validationWindowMs: validationWindowMs,
-  };
-}
-
-/**
- * @param {unknown} api
- * @param {unknown} widgetId
- * @returns {boolean}
- */
-export function resetTurnstileWidget(api, widgetId) {
-  if (
-    api &&
-    typeof api === "object" &&
-    "reset" in api &&
-    typeof api.reset === "function" &&
-    widgetId !== null &&
-    widgetId !== undefined
-  ) {
-    api.reset(widgetId);
-    return true;
-  }
-  return false;
 }
 
 /**
@@ -137,11 +99,11 @@ export class TurnstileModule {
   constructor(Tools, options) {
     this.validatedUntil = 0;
     this.widgetId = /** @type {unknown | null} */ (null);
-    this.refreshTimeout = null;
+    this.activeToolGesture = false;
     this.retryTimeout = null;
     this.pending = false;
     this.pendingWrites = /** @type {PendingWrite[]} */ ([]);
-    this.overlayTimeout = null;
+    this.interactive = false;
     this.overlay = /** @type {HTMLElement | null} */ (null);
     turnstileModuleState.set(this, { Tools, ...options });
   }
@@ -150,11 +112,47 @@ export class TurnstileModule {
     return this.validatedUntil > Date.now();
   }
 
-  clearRefreshTimeout() {
-    if (this.refreshTimeout) {
-      clearTimeout(this.refreshTimeout);
-      this.refreshTimeout = null;
-    }
+  /** @param {string} toolName */
+  needsValidation(toolName) {
+    const { Tools } = getTurnstileModuleState(this);
+    return (
+      !!Tools.config.serverConfig.TURNSTILE_SITE_KEY &&
+      Tools.access.canClear !== true &&
+      MessageCommon.requiresTurnstile(Tools.identity.boardName, toolName) &&
+      !this.isValidated()
+    );
+  }
+
+  needsSelectedToolValidation() {
+    const { Tools } = getTurnstileModuleState(this);
+    const tool = Tools.toolRegistry.current;
+    return (
+      !!tool?.requiredCapability &&
+      this.needsValidation(tool.name) &&
+      Tools.toolRegistry.canInteractWithTool(tool.name)
+    );
+  }
+
+  hasChallengeDemand() {
+    return this.pendingWrites.length > 0 || this.needsSelectedToolValidation();
+  }
+
+  requestSelectedToolValidation() {
+    const needed = this.needsSelectedToolValidation();
+    if (needed && !this.retryTimeout) this.refresh();
+    if (!needed && this.pendingWrites.length === 0) this.hideOverlay();
+    return needed;
+  }
+
+  // If validation expires during a stroke, queue its edits until release.
+  startToolGesture() {
+    this.activeToolGesture = true;
+  }
+
+  finishToolGesture() {
+    if (!this.activeToolGesture) return;
+    this.activeToolGesture = false;
+    if (this.pendingWrites.length > 0) this.refresh();
   }
 
   clearRetryTimeout() {
@@ -164,21 +162,14 @@ export class TurnstileModule {
     }
   }
 
-  /** @param {number} validationWindowMs */
-  scheduleRefresh(validationWindowMs) {
-    const { Tools } = getTurnstileModuleState(this);
-    if (
-      !Tools.config.serverConfig.TURNSTILE_SITE_KEY ||
-      !(validationWindowMs > 0)
-    ) {
-      return;
-    }
-    this.clearRefreshTimeout();
-    const refreshDelay = Math.floor(validationWindowMs * 0.8);
-    if (!(refreshDelay > 0)) return;
-    this.refreshTimeout = window.setTimeout(() => {
-      this.refresh();
-    }, refreshDelay);
+  resetConnection() {
+    this.validatedUntil = 0;
+    this.pending = false;
+    this.activeToolGesture = false;
+    this.interactive = false;
+    this.pendingWrites = [];
+    this.clearRetryTimeout();
+    this.hideOverlay();
   }
 
   /**
@@ -186,9 +177,8 @@ export class TurnstileModule {
    * @param {number=} [delayMs]
    */
   scheduleRetry(reason, delayMs = TURNSTILE_RETRY_DELAY_MS) {
-    const { Tools, logBoardEvent } = getTurnstileModuleState(this);
-    if (!Tools.config.serverConfig.TURNSTILE_SITE_KEY) return;
-    if (this.pendingWrites.length === 0) return;
+    const { logBoardEvent } = getTurnstileModuleState(this);
+    if (!this.hasChallengeDemand()) return;
     this.clearRetryTimeout();
     logBoardEvent("warn", "turnstile.retry_scheduled", {
       reason,
@@ -203,24 +193,18 @@ export class TurnstileModule {
   /** @param {unknown} result */
   setValidation(result) {
     const { Tools } = getTurnstileModuleState(this);
-    this.clearRefreshTimeout();
     const ack = this.normalizeAck(result);
-    if (ack.success !== true) {
-      this.validatedUntil = 0;
-      return;
-    }
+    this.validatedUntil = 0;
+    if (ack.success !== true) return;
 
-    const validation = computeTurnstileValidation(
-      ack,
-      Number(Tools.config.serverConfig.TURNSTILE_VALIDATION_WINDOW_MS),
-    );
-    const validationWindowMs = validation.validationWindowMs;
-    this.validatedUntil = validation.validatedUntil;
+    const validationWindowMs =
+      Number(ack.validationWindowMs) ||
+      Number(Tools.config.serverConfig.TURNSTILE_VALIDATION_WINDOW_MS) ||
+      0;
+    const safetyMarginMs = Math.min(5000, Math.floor(validationWindowMs / 2));
+    const safeWindowMs = validationWindowMs - safetyMarginMs;
+    if (safeWindowMs > 0) this.validatedUntil = Date.now() + safeWindowMs;
     this.clearRetryTimeout();
-
-    if (validationWindowMs > 0) {
-      this.scheduleRefresh(validationWindowMs);
-    }
   }
 
   /** @param {unknown} result */
@@ -251,32 +235,24 @@ export class TurnstileModule {
     return overlay;
   }
 
-  /** @param {number} delay */
-  showOverlay(delay) {
-    const overlay = this.ensureElements();
-    if (delay > 0) {
-      this.overlayTimeout = window.setTimeout(() => {
-        overlay.classList.remove("turnstile-overlay-hidden");
-      }, delay);
-    } else {
-      overlay.classList.remove("turnstile-overlay-hidden");
-    }
+  showOverlay() {
+    this.ensureElements().classList.remove("turnstile-overlay-hidden");
   }
 
   hideOverlay() {
-    if (this.overlayTimeout) {
-      clearTimeout(this.overlayTimeout);
-      this.overlayTimeout = null;
-    }
     this.overlay?.classList.add("turnstile-overlay-hidden");
   }
 
   refresh() {
-    const { Tools, logBoardEvent } = getTurnstileModuleState(this);
-    if (!Tools.config.serverConfig.TURNSTILE_SITE_KEY) return;
+    const { logBoardEvent } = getTurnstileModuleState(this);
+    if (this.activeToolGesture || !this.hasChallengeDemand()) return;
+    if (this.pending) {
+      if (this.interactive) this.showOverlay();
+      return;
+    }
+    this.interactive = false;
     this.ensureElements();
     this.clearRetryTimeout();
-    if (this.pending) return;
 
     const api = getTurnstileApi();
     if (api) {
@@ -288,13 +264,8 @@ export class TurnstileModule {
 
     logBoardEvent("warn", "turnstile.script_unavailable");
     void loadTurnstileScript(logBoardEvent)
-      .then((loadedApi) => {
-        if (this.pendingWrites.length === 0) return;
-        if (this.widgetId === null) {
-          renderTurnstileWidget(this, loadedApi);
-        } else {
-          resetTurnstileChallenge(this, loadedApi);
-        }
+      .then(() => {
+        this.refresh();
       })
       .catch((error) => {
         logBoardEvent("error", "turnstile.script_load_failed", {
@@ -303,12 +274,6 @@ export class TurnstileModule {
         showTurnstileFailureStatus(this, "Security check could not load.");
         this.scheduleRetry("script_load_failed");
       });
-  }
-
-  showWidget() {
-    const { logBoardEvent } = getTurnstileModuleState(this);
-    logBoardEvent("log", "turnstile.widget_requested");
-    this.refresh();
   }
 
   /** @param {ClientTrackedMessage} data */
@@ -322,7 +287,7 @@ export class TurnstileModule {
       toolName,
       clientMutationId: data.clientMutationId,
     });
-    this.showWidget();
+    this.refresh();
   }
 
   flushPendingWrites() {
@@ -355,12 +320,13 @@ function getTurnstileModuleState(module) {
  * @param {string} reason
  */
 function showTurnstileFailureStatus(module, reason) {
+  if (!module.hasChallengeDemand()) return;
   const { Tools } = getTurnstileModuleState(module);
   Tools.status.showBoardStatus({
     hidden: false,
     state: "paused",
     title: `${Tools.i18n.t("turnstile_status_prefix")} ${reason}`,
-    detail: PENDING_WRITE_PRESERVED,
+    detail: module.pendingWrites.length > 0 ? PENDING_WRITE_PRESERVED : "",
   });
 }
 
@@ -420,9 +386,11 @@ function emitTurnstileToken(module, token) {
  * @returns {Promise<void>}
  */
 async function submitTurnstileToken(module, token) {
-  const { logBoardEvent } = getTurnstileModuleState(module);
+  const { Tools, logBoardEvent } = getTurnstileModuleState(module);
+  const generation = Tools.connection.generation;
   try {
     const result = await emitTurnstileToken(module, token);
+    if (generation !== Tools.connection.generation) return;
     const turnstileResult = module.normalizeAck(result);
     module.pending = false;
     if (turnstileResult.success) {
@@ -436,6 +404,7 @@ async function submitTurnstileToken(module, token) {
       result: turnstileResult,
     });
   } catch (error) {
+    if (generation !== Tools.connection.generation) return;
     module.pending = false;
     module.setValidation(null);
     logBoardEvent("error", "turnstile.submit_failed", {
@@ -466,7 +435,7 @@ function renderTurnstileWidget(module, api) {
       "refresh-expired": "manual",
       /** @param {string} token */
       callback: (token) => {
-        if (!Tools.connection.socket) {
+        if (!Tools.connection.socket?.connected) {
           module.pending = false;
           logBoardEvent("warn", "turnstile.submit_skipped", {
             reason: "socket_unavailable",
@@ -477,8 +446,10 @@ function renderTurnstileWidget(module, api) {
         void submitTurnstileToken(module, token);
       },
       "before-interactive-callback": () => {
+        module.interactive = true;
+        if (!module.hasChallengeDemand()) return;
         logBoardEvent("log", "turnstile.widget_shown");
-        module.showOverlay(0);
+        module.showOverlay();
       },
       "after-interactive-callback": () => {
         if (module.isValidated()) module.hideOverlay();

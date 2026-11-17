@@ -254,7 +254,7 @@ test("connection and replay discard superseded asynchronous work", async (t) => 
       discardBufferedWrites: noop,
       pruneBufferedWritesForInvalidatingMessage: noop,
     },
-    turnstile: { pendingWrites: [], hideOverlay: noop },
+    turnstile: { resetConnection: noop },
     interaction: { releaseAll: noop, isOwnCursorSuppressed: () => true },
     toolRegistry: {
       mounted: {},

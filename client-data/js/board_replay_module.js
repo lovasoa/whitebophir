@@ -101,8 +101,7 @@ export class ReplayModule {
     if (!options?.preserveBufferedWrites) {
       Tools.writes.discardBufferedWrites();
     }
-    Tools.turnstile.pendingWrites = [];
-    Tools.turnstile.hideOverlay();
+    Tools.turnstile.resetConnection();
     Tools.interaction.releaseAll();
     Tools.presence.clearConnectedUsers();
     Tools.dom.clearBoardCursors();
