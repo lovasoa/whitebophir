@@ -393,6 +393,8 @@ export type ClientSocketIncomingEventMap = {
   [SocketEvents.CONNECT]: undefined;
   [SocketEvents.CONNECT_ERROR]: {
     message?: string;
+    description?: unknown;
+    context?: unknown;
     data?: {
       reason?: string;
       latestSeq?: number;

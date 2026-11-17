@@ -165,6 +165,52 @@ test("access expiry schedules one replaceable authoritative reconnect", async (t
   assert.equal(reconnects, 1);
 });
 
+test("quick reconnects exhaust the retry budget even after successful sync", async (t) => {
+  const { ConnectionModule } = await import(
+    "../client-data/js/board_connection_module.js"
+  );
+  const browser = installBrowserHarness();
+  t.after(() => browser.restore());
+  const noop = () => {};
+  const replay = { synchronizedAt: /** @type {number | null} */ (null) };
+  const showReload = t.mock.fn();
+  const connection = new ConnectionModule(
+    () =>
+      /** @type {any} */ ({
+        replay,
+        writes: { clearBufferedWriteTimer: noop },
+        presence: { clearConnectedUsers: noop },
+        dom: { clearBoardCursors: noop },
+        status: { showUnknownMutationError: showReload },
+      }),
+    noop,
+  );
+  const connect = t.mock.method(connection, "start", async () => {
+    replay.synchronizedAt = performance.now();
+  });
+
+  connection.scheduleSocketReconnect();
+  browser.advanceTime(250);
+  assert.equal(connect.mock.callCount(), 1);
+  browser.advanceTime(30_000);
+
+  for (const delay of [250, 500, 1000, 2000, 4000]) {
+    connection.scheduleSocketReconnect();
+    browser.advanceTime(delay - 1);
+    assert.equal(connection.reloadRequired, false);
+    const attempts = connect.mock.callCount();
+    browser.advanceTime(1);
+    assert.equal(connect.mock.callCount(), attempts + 1);
+  }
+
+  connection.scheduleSocketReconnect();
+  connection.scheduleSocketReconnect();
+  browser.advanceTime(60_000);
+  assert.equal(connect.mock.callCount(), 6);
+  assert.equal(showReload.mock.callCount(), 1);
+  assert.equal(connection.reloadRequired, true);
+});
+
 test("connection and replay discard superseded asynchronous work", async (t) => {
   const { ConnectionModule } = await import(
     "../client-data/js/board_connection_module.js"

@@ -954,10 +954,7 @@ select {
   padding: 5px 7px;
   border-top: 1px solid #edf0f3;
   cursor: default;
-  transition:
-    background-color 120ms ease,
-    opacity 160ms ease;
-  animation: connected-user-enter 120ms ease-out;
+  transition: background-color 120ms ease;
 }
 
 .connected-user-row:first-child {
@@ -1173,10 +1170,6 @@ select {
   opacity: 0.58;
 }
 
-.connected-user-row-disconnected {
-  opacity: 0.45;
-}
-
 .connected-user-row-disconnected .connected-user-visual {
   filter: grayscale(1);
 }
@@ -1191,16 +1184,6 @@ select {
   color: #111111;
   opacity: 1;
   pointer-events: auto;
-}
-
-@keyframes connected-user-enter {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
 }
 
 @keyframes connected-user-pulse {

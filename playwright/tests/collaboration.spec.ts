@@ -42,9 +42,9 @@ test.describe("collaboration and rate limiting", () => {
   test("collaboration stays legible across two pages", async ({
     boardPage,
     server,
-    context,
+    browser,
   }) => {
-    const peerPage = await context.newPage();
+    const peerPage = await browser.newPage();
     const peerBoard = createBoardPage(peerPage, server);
 
     await boardPage.setSocketHeaders({
@@ -78,10 +78,11 @@ test.describe("collaboration and rate limiting", () => {
 
     const firstRows = await boardPage.readConnectedUsers();
     expect(firstRows.filter((row) => row.isSelf)).toHaveLength(1);
-    expect(firstRows.every((row) => row.reportHidden)).toBe(true);
-    expect(firstRows.every((row) => row.friendHidden)).toBe(true);
-
-    expect(firstRows[0]?.isSelf).toBe(true);
+    expect(firstRows[0]).toMatchObject({
+      isSelf: true,
+      reportHidden: true,
+      friendHidden: true,
+    });
     expect(firstRows[1]?.isSelf).toBe(false);
     expect(firstRows[0]?.fontWeight).toBe("700");
     expect(parseInt(firstRows[1]?.fontWeight ?? "", 10)).toBeLessThan(600);
@@ -988,121 +989,94 @@ test.describe("collaboration and rate limiting", () => {
     }
   });
 
-  test("same-session sockets keep separate activity in the user list", async ({
+  test("two tabs and quick reconnects keep one row per user", async ({
     boardPage,
+    browser,
     server,
-    context,
   }) => {
-    const peerPage = await context.newPage();
-    const peerBoard = createBoardPage(peerPage, server);
+    const peerContext = await browser.newContext();
+    try {
+      const peerPage = await peerContext.newPage();
+      const peerBoard = createBoardPage(peerPage, server);
+      const secondPage = await peerContext.newPage();
+      const secondBoard = createBoardPage(secondPage, server);
+      await boardPage.gotoBoard("presence-group");
+      // Load the second tab after the first has established the identity cookie.
+      await peerBoard.gotoBoard("presence-group");
+      await secondBoard.gotoBoard("presence-group");
+      await Promise.all([
+        boardPage.waitForSocketConnected(),
+        peerBoard.waitForSocketConnected(),
+        secondBoard.waitForSocketConnected(),
+      ]);
+      await expect
+        .poll(() =>
+          boardPage.page.evaluate(() => window.WBOApp.presence.users.size),
+        )
+        .toBe(3);
 
-    await boardPage.setSocketHeaders({
-      "X-Forwarded-For": DEFAULT_FORWARDED_IP,
-    });
-    await peerBoard.setSocketHeaders({
-      "X-Forwarded-For": DEFAULT_FORWARDED_IP,
-    });
+      await boardPage.connectedUsersToggle.click();
+      const remoteRows = boardPage.connectedUsersPanel.locator(
+        ".connected-user-row:not(.connected-user-row-self)",
+      );
+      await expect(remoteRows).toHaveCount(1);
+      await expect(boardPage.connectedUsersToggle).toHaveAccessibleName(
+        "Users: 2",
+      );
+      const originalRow = await remoteRows.elementHandle();
+      await expect(remoteRows).toHaveCSS("animation-name", "none");
 
-    await Promise.all([
-      boardPage.gotoBoard("same-session-activity"),
-      peerBoard.gotoBoard("same-session-activity"),
-    ]);
-    await Promise.all([
-      boardPage.waitForSocketConnected(),
-      peerBoard.waitForSocketConnected(),
-    ]);
+      const cursor = {
+        tool: Cursor.id,
+        type: MutationType.UPDATE,
+        x: 250,
+        y: 150,
+        color: "#00ff00",
+        size: 10,
+      };
+      await peerBoard.emitBroadcast(cursor);
+      await expect
+        .poll(async () => (await boardPage.readConnectedUsers())[1]?.color)
+        .toBe("rgb(0, 255, 0)");
+      await secondBoard.emitBroadcast({ ...cursor, color: "#ff0000" });
+      await expect
+        .poll(async () => (await boardPage.readConnectedUsers())[1]?.color)
+        .toBe("rgb(255, 0, 0)");
 
-    await boardPage.connectedUsersToggle.click();
-    await expect(boardPage.connectedUsersPanel).toBeVisible();
-    await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+      await secondPage.close();
+      const initialSocketId = await peerPage.evaluate(
+        () => window.WBOApp.connection.socket?.id ?? "",
+      );
+      await expect(remoteRows).toHaveAttribute(
+        "data-socket-id",
+        initialSocketId,
+      );
+      await peerBoard.forceSocketDisconnect();
+      await peerBoard.waitForSocketConnected();
+      const newSocketId = await peerPage.evaluate(
+        () => window.WBOApp.connection.socket?.id ?? "",
+      );
+      expect(newSocketId).not.toBe(initialSocketId);
+      await expect
+        .poll(() => originalRow.getAttribute("data-socket-id"))
+        .toBe(newSocketId);
+      await expect(remoteRows).toHaveCount(1);
+      await expect(boardPage.connectedUsersToggle).toHaveAccessibleName(
+        "Users: 2",
+      );
 
-    await expect
-      .poll(async () => {
-        const rows = await boardPage.readConnectedUsers();
-        const self = rows.find((row) => row.isSelf);
-        const remote = rows.find((row) => !row.isSelf);
-        return {
-          firstIsSelf: rows[0]?.isSelf ?? false,
-          selfFontWeight: self?.fontWeight ?? "",
-          remoteFontWeight: parseInt(remote?.fontWeight ?? "0", 10),
-          selfBorder: !!(self?.borderBottomColor ?? ""),
-        };
-      })
-      .toMatchObject({
-        firstIsSelf: true,
-        selfFontWeight: "700",
-        remoteFontWeight: expect.any(Number),
-        selfBorder: true,
-      });
-
-    await peerBoard.emitBroadcast({
-      tool: Cursor.id,
-      type: MutationType.UPDATE,
-      x: 250,
-      y: 150,
-      color: "#00ff00",
-      size: 10,
-    });
-
-    await expect
-      .poll(async () => {
-        const rows = await boardPage.readConnectedUsers();
-        const remote = rows.find((row) => !row.isSelf);
-        const ringWidth = parseFloat(remote?.ringWidth ?? "0");
-        return {
-          color: remote?.color ?? "",
-          ringVisible: ringWidth >= 2,
-        };
-      })
-      .toMatchObject({
-        color: "rgb(0, 255, 0)",
-        ringVisible: true,
-      });
-
-    await boardPage.drawRectangle(
-      "#ff0000",
-      { x: 1100, y: 800 },
-      { x: 1300, y: 1000 },
-      11,
-    );
-
-    await expect
-      .poll(async () => {
-        const rows = await boardPage.readConnectedUsers();
-        const self = rows.find((row) => row.isSelf);
-        const remote = rows.find((row) => !row.isSelf);
-        return {
-          self: {
-            color: self?.color ?? "",
-            ringWidth: parseFloat(self?.ringWidth ?? "0"),
-            tool: self?.tool ?? "",
-          },
-          remote: {
-            color: remote?.color ?? "",
-            ringWidth: parseFloat(remote?.ringWidth ?? "0"),
-            tool: remote?.tool ?? "",
-          },
-        };
-      })
-      .toMatchObject({
-        self: {
-          color: "rgb(255, 0, 0)",
-          tool: "Rectangle",
-        },
-        remote: {
-          color: "rgb(0, 255, 0)",
-          tool: "Hand",
-        },
-      });
-
-    const rows = await boardPage.readConnectedUsers();
-    const self = rows.find((row) => row.isSelf);
-    const remote = rows.find((row) => !row.isSelf);
-    expect(parseFloat(self?.ringWidth ?? "0")).toBeGreaterThanOrEqual(
-      parseFloat(remote?.ringWidth ?? "0"),
-    );
-
-    await peerPage.close();
+      await peerPage.close();
+      await expect(remoteRows).toHaveClass(/connected-user-row-disconnected/);
+      await expect(boardPage.connectedUsersToggle).toHaveAccessibleName(
+        "Users: 2",
+      );
+      await expect(remoteRows).toHaveCount(0);
+      await expect(boardPage.connectedUsersToggle).toHaveAccessibleName(
+        "Users: 1",
+      );
+    } finally {
+      await peerContext.close();
+    }
   });
 
   test("same-session pages use the server cookie identity and do not persist the secret in localStorage", async ({
@@ -1121,10 +1095,8 @@ test.describe("collaboration and rate limiting", () => {
     });
 
     const boardUrl = boardPage.buildBoardUrl("same-session-cookie-identity");
-    await Promise.all([
-      boardPage.gotoBoard("same-session-cookie-identity"),
-      peerBoard.gotoBoard("same-session-cookie-identity"),
-    ]);
+    await boardPage.gotoBoard("same-session-cookie-identity");
+    await peerBoard.gotoBoard("same-session-cookie-identity");
     await Promise.all([
       boardPage.waitForSocketConnected(),
       peerBoard.waitForSocketConnected(),
@@ -1147,16 +1119,21 @@ test.describe("collaboration and rate limiting", () => {
 
     await boardPage.connectedUsersToggle.click();
     await expect(boardPage.connectedUsersPanel).toBeVisible();
-    await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
-
+    await expect
+      .poll(() =>
+        boardPage.page.evaluate(() => {
+          const users = Array.from(window.WBOApp.presence.users.values());
+          return {
+            sockets: users.length,
+            identities: new Set(users.map((user) => user.userId)).size,
+          };
+        }),
+      )
+      .toEqual({ sockets: 2, identities: 1 });
     const rows = await boardPage.readConnectedUsers();
-    expect(new Set(rows.map((row) => row.name)).size).toBe(1);
-    expect(new Set(rows.map((row) => row.userId)).size).toBe(1);
-    const sameIdentityPeer = rows.find((row) => !row.isSelf);
-    expect(sameIdentityPeer).toMatchObject({
-      friendHidden: true,
-      reportHidden: true,
-    });
+    expect(rows).toMatchObject([
+      { isSelf: true, friendHidden: true, reportHidden: true },
+    ]);
 
     await peerPage.close();
   });
@@ -1164,10 +1141,10 @@ test.describe("collaboration and rate limiting", () => {
   test("connected user jump rows stay attached while cursor updates stream in", async ({
     boardPage,
     server,
-    context,
+    browser,
     page,
   }) => {
-    const peerPage = await context.newPage();
+    const peerPage = await browser.newPage();
     const peerBoard = createBoardPage(peerPage, server);
 
     await boardPage.setSocketHeaders({
@@ -1418,7 +1395,7 @@ test.describe("collaboration and rate limiting", () => {
     boardPage,
     page,
     server,
-    context,
+    browser,
   }) => {
     const boardName = "slow-start-stability";
     const serverOrigin = new URL(server.serverUrl).origin;
@@ -1490,7 +1467,7 @@ test.describe("collaboration and rate limiting", () => {
       },
     });
 
-    const peerPage = await context.newPage();
+    const peerPage = await browser.newPage();
     const peerBoard = createBoardPage(peerPage, server);
 
     await peerBoard.gotoBoard(boardName);

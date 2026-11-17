@@ -12,6 +12,9 @@ import { ModerationDisconnectSources, SocketEvents } from "./socket_events.js";
 /** @import { AppToolsState, BoardConnectionState, ModerationDisconnectPayload, SocketHeaders } from "../../types/app-runtime" */
 /** @typedef {{banDurationMs: number, moderationRule?: string, source: import("../../types/app-runtime").ModerationDisconnectSource, acknowledged: boolean, disconnected: boolean}} PendingModerationDisconnect */
 const ACCESS_REFRESH_GRACE_MS = 50;
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_RESET_AFTER_MS = 30_000;
+const INITIAL_RECONNECT_DELAY_MS = 250;
 const MAX_BROWSER_TIMEOUT_MS = 2_147_483_647;
 /** @type {Promise<typeof io> | null} */
 let socketIoReady = null;
@@ -175,6 +178,8 @@ export class ConnectionModule {
     this.generation = 0;
     this.starting = /** @type {Promise<void> | null} */ (null);
     this.reconnectTimerId = 0;
+    this.reconnectAttempts = 0;
+    this.reloadRequired = false;
     this.state = /** @type {BoardConnectionState} */ ("idle");
     this.hasConnectedOnce = false;
     this.socketIOExtraHeaders = /** @type {SocketHeaders | null} */ (null);
@@ -208,12 +213,27 @@ export class ConnectionModule {
   }
 
   /** @param {number} [delayMs] */
-  scheduleSocketReconnect(delayMs = 250) {
-    window.clearTimeout(this.reconnectTimerId);
-    this.reconnectTimerId = window.setTimeout(
-      () => this.start(),
-      Math.max(0, delayMs),
-    );
+  scheduleSocketReconnect(delayMs) {
+    if (this.reloadRequired || this.reconnectTimerId) return;
+    this.cancelAccessRefresh();
+    const synchronizedAt = this.getTools().replay.synchronizedAt;
+    if (
+      synchronizedAt !== null &&
+      performance.now() - synchronizedAt >= RECONNECT_RESET_AFTER_MS
+    ) {
+      this.reconnectAttempts = 0;
+    }
+    if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      this.suspendUntilReload();
+      return;
+    }
+    const retryDelay =
+      delayMs ?? INITIAL_RECONNECT_DELAY_MS * 2 ** this.reconnectAttempts;
+    this.reconnectTimerId = window.setTimeout(() => {
+      this.reconnectTimerId = 0;
+      this.reconnectAttempts++;
+      this.start();
+    }, retryDelay);
   }
 
   /** @param {PendingModerationDisconnect} notice */
@@ -225,6 +245,7 @@ export class ConnectionModule {
   }
 
   start() {
+    if (this.reloadRequired) return;
     if (this.starting) return this.starting;
     window.clearTimeout(this.reconnectTimerId);
     const Tools = this.getTools();
@@ -235,7 +256,9 @@ export class ConnectionModule {
     const generation = ++this.generation;
     this.socket?.disconnect?.();
     this.socket = null;
+    this.reconnectTimerId = 0;
     this.state = "connecting";
+    Tools.replay.synchronizedAt = null;
     Tools.replay.awaitingSnapshot = true;
     Tools.presence.clearConnectedUsers();
 
@@ -355,6 +378,26 @@ export class ConnectionModule {
           authoritativeSeq: Tools.replay.authoritativeSeq,
         });
         Tools.connection.state = "disconnected";
+        // Socket.IO forwards the failed HTTP polling request with this error.
+        if (
+          error.description === 429 &&
+          error.context instanceof XMLHttpRequest
+        ) {
+          const retryAfter = error.context.getResponseHeader("Retry-After");
+          const retryAfterMs =
+            retryAfter && /^\d+$/.test(retryAfter)
+              ? normalizeAccessRefreshDelayMs(Number(retryAfter) * 1000)
+              : null;
+          if (retryAfterMs !== null) {
+            this.socket = null;
+            socket.disconnect?.();
+            this.scheduleSocketReconnect(retryAfterMs);
+            if (!this.reloadRequired) {
+              Tools.status.showRateLimitNotice("", retryAfterMs);
+            }
+            return;
+          }
+        }
         if (reason === "baseline_not_replayable") {
           this.logBoardEvent("warn", "replay.baseline_not_replayable", {
             authoritativeSeq: Tools.replay.authoritativeSeq,
@@ -473,8 +516,24 @@ export class ConnectionModule {
       socket.connect();
     })().finally(() => {
       this.starting = null;
-      if (generation !== this.generation) void this.start();
+      if (generation !== this.generation && !this.reconnectTimerId)
+        void this.start();
     });
     return this.starting;
+  }
+
+  suspendUntilReload() {
+    this.reloadRequired = true;
+    this.generation++;
+    window.clearTimeout(this.reconnectTimerId);
+    this.cancelAccessRefresh();
+    this.socket?.disconnect?.();
+    this.socket = null;
+    this.state = "disconnected";
+    const Tools = this.getTools();
+    Tools.writes.clearBufferedWriteTimer();
+    Tools.presence.clearConnectedUsers();
+    Tools.dom.clearBoardCursors();
+    Tools.status.showUnknownMutationError("");
   }
 }

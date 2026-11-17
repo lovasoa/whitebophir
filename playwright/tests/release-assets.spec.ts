@@ -1,6 +1,6 @@
 import { MutationType } from "../../client-data/js/mutation_type.js";
 import { TOOL_CODE_BY_ID } from "../../client-data/tools/tool-order.js";
-import { expect, test } from "../fixtures/test";
+import { createBoardPage, expect, test } from "../fixtures/test";
 
 test.use({ serverOptions: { env: { NODE_ENV: "production" } } });
 
@@ -112,7 +112,7 @@ test("a rollout during deferred boot refreshes before connecting", async ({
   expect(documents).toBe(2);
 });
 
-test("a late asset failure asks for refresh without losing queued edits", async ({
+test("an unavailable replay tool asks for refresh without reconnecting or losing queued edits", async ({
   page,
   boardPage,
   server,
@@ -138,6 +138,11 @@ test("a late asset failure asks for refresh without losing queued edits", async 
     await toolCanFail;
     await route.fulfill({ status: 409 });
   });
+  const pageErrors: Error[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error));
+  const peerPage = await page.context().newPage();
+  const peerBoard = createBoardPage(peerPage, server);
+  await peerBoard.gotoBoard("late-release");
   await page.goto(`${server.serverUrl}/boards/late-release`, {
     waitUntil: "domcontentloaded",
   });
@@ -153,6 +158,37 @@ test("a late asset failure asks for refresh without losing queued edits", async 
     },
     { tool: TOOL_CODE_BY_ID.hand, type: MutationType.COPY },
   );
+  const rectangle = {
+    tool: TOOL_CODE_BY_ID.rectangle,
+    type: MutationType.CREATE,
+    x: 200,
+    y: 200,
+    x2: 250,
+    y2: 250,
+    color: "#123456",
+    size: 10,
+    opacity: 1,
+  };
+  await peerBoard.emitBroadcast({ ...rectangle, id: "remote-first" });
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        connected: window.WBOApp.connection.socket?.connected,
+        pending: window.WBOApp.toolRegistry.pendingMessages.rectangle?.some(
+          (message) => "id" in message && message.id === "remote-first",
+        ),
+      })),
+    )
+    .toEqual({ connected: true, pending: true });
+  await peerBoard.emitBroadcast({ ...rectangle, id: "remote-next" });
+  await page.waitForFunction(() =>
+    window.WBOApp.replay.incomingBroadcastQueue.some(
+      (message) =>
+        "mutation" in message &&
+        "id" in message.mutation &&
+        message.mutation.id === "remote-next",
+    ),
+  );
   rejectTool();
   await expect(page.locator("html")).toHaveAttribute(
     "data-board-phase",
@@ -161,8 +197,20 @@ test("a late asset failure asks for refresh without losing queued edits", async 
   await expect(page.locator("#boardStatusTitle")).toHaveText(
     "An unknown error occurred. Please reload the page.",
   );
+  await expect
+    .poll(() => boardPage.readConnectionAccessState())
+    .toMatchObject({
+      connected: false,
+      connectionState: "disconnected",
+    });
+  await page.evaluate(() => window.WBOApp.connection.start());
+  expect(await boardPage.readConnectionAccessState()).toMatchObject({
+    connected: false,
+    connectionState: "disconnected",
+  });
   expect(
     await page.evaluate(() => window.WBOApp.writes.bufferedWrites.length),
   ).toBe(1);
   await expect(page.locator("#pending")).toHaveCount(1);
+  expect(pageErrors).toEqual([]);
 });
