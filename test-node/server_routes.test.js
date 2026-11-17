@@ -1582,6 +1582,36 @@ test("board asset URLs pin HTML, modules, and styles to the released version", a
   }
 });
 
+test("retained module URLs serve the original release and reject missing assets", async () => {
+  const dirs = await createServerDirs();
+  const asset = "/assets/0.0.1/js/board_boot.js";
+  const originalModule = "export const release = '0.0.1';\n";
+  const file = path.join(dirs.webroot, asset);
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  await fs.writeFile(file, originalModule);
+
+  const app = await createTestServer(
+    createServerConfig(dirs, { IS_DEVELOPMENT: false }),
+  );
+  try {
+    const retained = await request(app, asset);
+    assert.equal(retained.statusCode, 200);
+    assert.equal(retained.body, originalModule);
+    assert.match(String(retained.headers["content-type"]), /javascript/);
+    assert.equal(
+      retained.headers["cache-control"],
+      "public, max-age=31536000, immutable",
+    );
+
+    const missing = await request(app, "/assets/0.0.1/js/board.js");
+    assert.equal(missing.statusCode, 409);
+    assert.equal(missing.headers["cache-control"], "no-store");
+    assert.equal(missing.body, "");
+  } finally {
+    await closeServer(app);
+  }
+});
+
 test("static assets are no-store in development and revalidate in production", async () => {
   const dirs = await createServerDirs();
 

@@ -1,7 +1,7 @@
 import path from "node:path";
+import { canonicalizeBoardName } from "../../client-data/js/board_name.js";
 import packageJson from "../../package.json" with { type: "json" };
 import { STATIC_RESOURCE_EXTENSIONS } from "../http/cache_policy.mjs";
-import { canonicalizeBoardName } from "../../client-data/js/board_name.js";
 import { serveError } from "../http/observation.mjs";
 import { boardExists } from "../persistence/svg_board_store.mjs";
 import { buildRandomBoardName } from "../shared/pronounceable_name.mjs";
@@ -21,10 +21,10 @@ function serveStaticAsset(ctx) {
     serveStaticFile(ctx);
     return;
   }
-  const [, , version, ...parts] = ctx.url.pathname.split("/");
-  if (version !== packageJson.version) {
-    ctx.response.writeHead(409, { "Cache-Control": "no-store" });
-    ctx.response.end();
+  const [, , version = "", ...parts] = ctx.url.pathname.split("/");
+  const current = version === packageJson.version;
+  if (!current && !/^\d+\.\d+\.\d+$/.test(version)) {
+    rejectUnavailableReleaseAsset(ctx.response);
     return;
   }
   const assetPath = `/${parts.join("/")}`;
@@ -37,7 +37,19 @@ function serveStaticAsset(ctx) {
       "public, max-age=31536000, immutable",
     );
   }
-  serveStaticFile(ctx, `${assetPath}${ctx.url.search}`);
+  if (current) {
+    serveStaticFile(ctx, `${assetPath}${ctx.url.search}`);
+  } else {
+    serveStaticFile(ctx, `${ctx.url.pathname}${ctx.url.search}`, () => {
+      rejectUnavailableReleaseAsset(ctx.response);
+    });
+  }
+}
+
+/** @param {import("node:http").ServerResponse} response */
+function rejectUnavailableReleaseAsset(response) {
+  response.writeHead(409, { "Cache-Control": "no-store" });
+  response.end();
 }
 
 /**
@@ -78,15 +90,21 @@ function serveBoardStaticAsset(ctx) {
 /**
  * @param {HttpRouteContext} ctx
  * @param {string=} nextUrl
+ * @param {(() => void)=} onMissing
  * @returns {void}
  */
-function serveStaticFile(ctx, nextUrl) {
+function serveStaticFile(ctx, nextUrl, onMissing) {
   ctx.request.url = nextUrl || `${ctx.url.pathname}${ctx.url.search}`;
-  ctx.runtime.fileserver(
+  const onError = serveError(
     ctx.request,
     ctx.response,
-    serveError(ctx.request, ctx.response, ctx.runtime.errorPage, ctx.observed),
+    ctx.runtime.errorPage,
+    ctx.observed,
   );
+  ctx.runtime.fileserver(ctx.request, ctx.response, (error) => {
+    if (onMissing && error === undefined) onMissing();
+    else onError(error);
+  });
 }
 
 /**
@@ -133,8 +151,8 @@ function redirectToDefaultBoard(ctx) {
 export {
   redirectToDefaultBoard,
   redirectToRandomBoard,
+  serveBoardStaticAsset,
   serveManifest,
   serveRulesPage,
-  serveBoardStaticAsset,
   serveStaticAsset,
 };
