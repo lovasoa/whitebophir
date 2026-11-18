@@ -299,6 +299,7 @@ export type MountedAppTool = {
   onstart: (oldTool: MaybeMountedAppTool) => void;
   onquit: (newTool: MountedAppTool) => void;
   onSocketDisconnect: () => void;
+  onEditAccessChange?: () => void;
   flushPendingDraws?: (message?: BoardMessage) => void;
   onPresenceDisplayChange?: () => void;
   onMutationRejected?: (message: BoardMessage, reason?: string) => void;
@@ -622,6 +623,7 @@ export type ToolModule<T = unknown> = {
   onstart?(state: T, oldTool: MaybeMountedAppTool): void;
   onquit?(state: T, newTool: MountedAppTool): void;
   onSocketDisconnect?(state: T): void;
+  onEditAccessChange?(state: T): void;
   flushPendingDraws?(state: T, message?: BoardMessage): void;
   onPresenceDisplayChange?(state: T): void;
   onMutationRejected?(state: T, message: BoardMessage, reason?: string): void;

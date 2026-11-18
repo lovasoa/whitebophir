@@ -6,7 +6,6 @@ import {
   getToolButton,
   syncActiveToolState,
   syncMountedToolButton,
-  toggleToolButtonMode,
   updateCurrentToolChrome,
 } from "./board_tool_buttons.js";
 import {
@@ -101,7 +100,7 @@ export class ToolRegistryModule {
       });
     }
     if (this.shouldDisplayTool(toolName)) {
-      syncMountedToolButton(Tools, toolName);
+      syncMountedToolButton(Tools, mountedTool);
     }
     this.syncToolDisabledState(toolName);
     if (mountedTool.alwaysOn === true) {
@@ -252,12 +251,19 @@ export class ToolRegistryModule {
   }
 
   syncRenderedToolAvailability() {
+    const Tools = this.getTools();
     this.getRenderedToolNames().forEach((toolName) => {
       const toolElem = getToolButton(toolName);
       if (!toolElem) return;
+      const wasHidden = toolElem.hidden;
       const visible = this.shouldDisplayTool(toolName);
       toolElem.hidden = !visible;
       if (!visible) return;
+      const tool = this.mounted[toolName];
+      if (tool) {
+        if (wasHidden) syncMountedToolButton(Tools, tool);
+        return;
+      }
       const icon = toolElem.querySelector(".tool-icon");
       if (icon instanceof HTMLImageElement && icon.dataset.iconUrl) {
         icon.src = icon.dataset.iconUrl;
@@ -563,6 +569,10 @@ function createMountedTool(Tools, toolModule, toolState, toolName) {
     onquit: toolModule.onquit?.bind(undefined, toolState) ?? noop,
     onSocketDisconnect:
       toolModule.onSocketDisconnect?.bind(undefined, toolState) ?? noop,
+    onEditAccessChange: toolModule.onEditAccessChange?.bind(
+      undefined,
+      toolState,
+    ),
     flushPendingDraws: toolModule.flushPendingDraws?.bind(undefined, toolState),
     onPresenceDisplayChange: toolModule.onPresenceDisplayChange?.bind(
       undefined,
@@ -608,13 +618,7 @@ async function bootToolPromise(Tools, toolName) {
 function toggleSecondaryTool(Tools, newTool) {
   if (!newTool.secondary) return;
   newTool.secondary.active = !newTool.secondary.active;
-  const props = newTool.secondary.active ? newTool.secondary : newTool;
-  toggleToolButtonMode(Tools, {
-    toolName: newTool.name,
-    labelKey: props.name,
-    icon: props.icon,
-    shortcut: newTool.shortcut,
-  });
+  syncMountedToolButton(Tools, newTool);
   if (newTool.secondary.switch) newTool.secondary.switch();
   syncActiveToolState(Tools);
   Tools.toolRegistry.syncActiveToolInputPolicy();

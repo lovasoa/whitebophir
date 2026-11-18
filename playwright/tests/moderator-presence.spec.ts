@@ -67,6 +67,9 @@ test("moderators do not see the no-moderator notice while their connection is pe
         moderationUnavailable: true,
       });
     await expect(page.locator("#boardNotice")).toBeHidden();
+    await expect(
+      boardPage.tool("hand").locator(".secondaryIcon"),
+    ).toBeVisible();
     await expect(boardPage.statusTitle).toHaveText(translations.en.loading);
     await page.screenshot({
       path: testInfo.outputPath("moderator-connecting.png"),
@@ -81,6 +84,126 @@ test("moderators do not see the no-moderator notice while their connection is pe
     releaseConnection();
     await page.unrouteAll({ behavior: "wait" });
   }
+});
+
+test("selection follows live edit access and cancels an interrupted move", async ({
+  page,
+  boardPage,
+  browser,
+  server,
+}, testInfo) => {
+  await server.writeBoard(server.dataPath, "moderated", {
+    shape: {
+      type: "rect",
+      id: "shape",
+      tool: "rectangle",
+      x: 360,
+      y: 320,
+      x2: 420,
+      y2: 360,
+      color: "#123456",
+      size: 4,
+    },
+  });
+  await boardPage.gotoBoard("moderated");
+  await boardPage.waitForSocketConnected();
+  await page.evaluate(() => window.WBOApp.viewportState.controller.setScale(1));
+  await page.locator("#boardNoticeDismiss").click();
+  await expect(boardPage.tool("rectangle")).toBeHidden();
+  // Incoming replay can mount a tool before the viewer can use its button.
+  await page.evaluate(async () => {
+    await window.WBOApp.toolRegistry.bootTool("rectangle");
+  });
+  await boardPage.selectTool("hand");
+  const shape = page.locator("#shape");
+  await shape.click({ position: { x: 1, y: 20 } });
+  const download = page.locator("#selectionButton-download");
+  const scaleHandle = page.locator("#selectionButton-scaleHandle");
+  await expect(download).toBeVisible();
+  await expect(scaleHandle).toBeHidden();
+
+  const moderator = await browser.newContext();
+  let committedTransform: string | null = null;
+  try {
+    await moderator.addCookies([
+      {
+        name: "wbo-user-secret-v1",
+        value: moderatorSecret,
+        url: server.serverUrl,
+      },
+    ]);
+    const moderatorBoard = createBoardPage(await moderator.newPage(), server);
+    await moderatorBoard.gotoBoard("moderated");
+    await boardPage.waitForBoardWritable();
+    await expect(scaleHandle).toBeVisible();
+    await expect(download).toBeVisible();
+    await page.screenshot({
+      path: testInfo.outputPath("editable-selector.png"),
+    });
+
+    const bounds = await shape.boundingBox();
+    if (!bounds) throw new Error("Missing selection shape");
+    const x = bounds.x + bounds.width / 2;
+    const y = bounds.y + bounds.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + 40, y);
+    await page.mouse.up();
+    await server.waitForStoredBoard(
+      server.dataPath,
+      "moderated",
+      (storedBoard) => storedBoard.shape?.transform?.e === 40,
+    );
+    committedTransform = await shape.getAttribute("transform");
+
+    await page.keyboard.press("r");
+    await boardPage.expectCurrentTool("rectangle");
+    await boardPage.selectTool("hand");
+    await shape.click({ position: { x: 1, y: 20 } });
+    await expect(scaleHandle).toBeVisible();
+    await page.mouse.move(x + 40, y);
+    await page.mouse.down();
+    await expect(download).toBeHidden();
+    await page.evaluate(
+      ({ x, y }) => {
+        // Force a preview frame without submitting another transform.
+        const now = performance.now;
+        performance.now = () => 0;
+        try {
+          document.getElementById("board")?.dispatchEvent(
+            new MouseEvent("mousemove", {
+              clientX: x + 65,
+              clientY: y,
+              buttons: 1,
+              cancelable: true,
+            }),
+          );
+        } finally {
+          performance.now = now;
+        }
+      },
+      { x, y },
+    );
+    await expect(shape).not.toHaveAttribute(
+      "transform",
+      committedTransform ?? "",
+    );
+  } finally {
+    await moderator.close();
+  }
+  await expect(boardPage.tool("rectangle")).toBeHidden();
+  await expect(page.locator("#selectionRectOverlay")).toBeHidden();
+  await page.mouse.move(650, 370);
+  await page.mouse.up();
+  await expect(shape).toHaveAttribute("transform", committedTransform ?? "");
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-active-tool-mode",
+    "Selector",
+  );
+  await page.locator("#boardNoticeDismiss").click();
+  await shape.click({ position: { x: 1, y: 20 } });
+  await expect(download).toBeVisible();
+  await expect(scaleHandle).toBeHidden();
 });
 
 test("moderator presence resumes editing and personal-info publications alert moderators", async ({

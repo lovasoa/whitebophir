@@ -1134,13 +1134,14 @@ test.describe("single-page interactions", () => {
     expect(downloaded.svg).not.toMatch(/board-hud|opcursor|hand-selection/);
   });
 
-  test("selector downloads only selected objects with cropped transformed bounds", async ({
+  test("read-only selector exports cropped objects without allowing edits", async ({
     boardPage,
     server,
     page,
     context,
-  }) => {
+  }, testInfo) => {
     await server.writeBoard(server.dataPath, "selection-download", {
+      __wbo_meta__: { readonly: true },
       "selected-back": {
         type: "rect",
         id: "selected-back",
@@ -1177,7 +1178,8 @@ test.describe("single-page interactions", () => {
       },
     });
     await boardPage.gotoBoard("selection-download");
-    await boardPage.waitForBoardWritable();
+    await boardPage.waitForSocketConnected();
+    await expect(boardPage.tool("pencil")).toBeHidden();
     await boardPage.selectTool("hand");
     const back = await page.locator("#selected-back").boundingBox();
     const front = await page.locator("#selected-front").boundingBox();
@@ -1192,10 +1194,26 @@ test.describe("single-page interactions", () => {
     await page.mouse.up();
     const download = page.locator("#selectionButton-download");
     await expect(download).toBeVisible();
+    await expect(page.locator("#selectionButton-delete")).toBeHidden();
+    await expect(page.locator("#selectionButton-duplicate")).toBeHidden();
+    await expect(page.locator("#selectionButton-scaleHandle")).toBeHidden();
+    const original = await page.locator("#drawingArea").innerHTML();
+    await page.mouse.move(left + 10, top + 10);
+    await page.mouse.down();
+    await page.mouse.move(right + 30, bottom + 30);
+    await page.mouse.up();
+    await page.keyboard.press("Delete");
+    await page.locator("body").dispatchEvent("keydown", { key: "d" });
+    await expect(page.locator("#drawingArea")).toHaveJSProperty(
+      "innerHTML",
+      original,
+    );
+    await page.screenshot({
+      path: testInfo.outputPath("readonly-selector.png"),
+    });
     await page.evaluate(() =>
       window.WBOApp.viewportState.controller.setScale(0.2),
     );
-    const original = await page.locator("#drawingArea").innerHTML();
     const captured = await boardPage.downloadSvg(download);
     expect(captured.name).toBe("selection-download-selection.svg");
     const exported = await context.newPage();
