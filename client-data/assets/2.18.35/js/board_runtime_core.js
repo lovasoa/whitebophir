@@ -1,0 +1,230 @@
+import { saveStoredColorPreference } from "./board_preferences.js";
+import { DEFAULT_BOARD_SCALE } from "./board_viewport.js";
+import { clampCoord, clampOpacity, clampSize } from "./message_limits.js";
+
+/** @import { AppConfigModule, AppInitialPreferences, ColorPreset } from "../../types/app-runtime" */
+
+/** @typedef {{status: "attached", board: HTMLElement, svg: SVGSVGElement, drawingArea: SVGGElement}} AttachedBoardDomRuntimeThis */
+/** @typedef {{status: "detached"} | AttachedBoardDomRuntimeThis} BoardDomRuntimeThis */
+
+/** @param {BoardDomRuntimeActions} actions */
+function getBoardDomRuntimeThis(actions) {
+  return /** @type {BoardDomRuntimeThis} */ (/** @type {unknown} */ (actions));
+}
+
+export class BoardDomRuntimeActions {
+  /**
+   * @param {string} name
+   * @param {{[key: string]: string | number | undefined}} [attrs]
+   */
+  createSVGElement(name, attrs) {
+    const dom = getBoardDomRuntimeThis(this);
+    if (dom.status !== "attached") {
+      throw new Error("Board SVG is not attached.");
+    }
+    const elem = /** @type {SVGElement} */ (
+      /** @type {unknown} */ (
+        document.createElementNS(dom.svg.namespaceURI, name)
+      )
+    );
+    if (!attrs) return elem;
+    Object.keys(attrs).forEach((key) => {
+      elem.setAttributeNS(null, key, String(attrs[key]));
+    });
+    return elem;
+  }
+
+  /**
+   * @param {HTMLElement} elem
+   * @param {number} x
+   * @param {number} y
+   */
+  positionElement(elem, x, y) {
+    elem.style.top = `${y}px`;
+    elem.style.left = `${x}px`;
+  }
+
+  clearBoardCursors() {
+    const dom = getBoardDomRuntimeThis(this);
+    if (dom.status !== "attached") return;
+    const cursors = dom.svg.getElementById("cursors");
+    if (cursors) cursors.innerHTML = "";
+    dom.board
+      .querySelectorAll(".opcursor-html")
+      .forEach((cursor) => cursor.remove());
+  }
+
+  resetBoardViewport() {
+    const dom = getBoardDomRuntimeThis(this);
+    if (dom.status !== "attached") return;
+    dom.drawingArea.innerHTML = "";
+    this.clearBoardCursors();
+  }
+}
+
+export class DetachedBoardDomRuntimeModule extends BoardDomRuntimeActions {
+  constructor() {
+    super();
+    this.status = /** @type {"detached"} */ ("detached");
+  }
+}
+
+export class AttachedBoardDomRuntimeModule extends BoardDomRuntimeActions {
+  /**
+   * @param {HTMLElement} board
+   * @param {SVGSVGElement} svg
+   * @param {SVGGElement} drawingArea
+   */
+  constructor(board, svg, drawingArea) {
+    super();
+    this.status = /** @type {"attached"} */ ("attached");
+    this.board = board;
+    this.svg = svg;
+    this.drawingArea = drawingArea;
+  }
+}
+
+const I18N_PLACEHOLDER_PATTERN = /\{([a-zA-Z0-9_]+)\}/g;
+
+export class I18nModule {
+  #translations;
+
+  /** @param {{[key: string]: string}} translations */
+  constructor(translations) {
+    this.#translations = translations;
+  }
+
+  /** @param {string} s */
+  t(s) {
+    const key = s.toLowerCase().replace(/[ -]/g, "_");
+    return this.#translations[key] || s;
+  }
+
+  /**
+   * @param {string} s
+   * @param {{[key: string]: string | number | undefined}} values
+   */
+  format(s, values) {
+    return this.t(s).replace(I18N_PLACEHOLDER_PATTERN, (match, key) => {
+      if (!Object.prototype.hasOwnProperty.call(values, key)) return match;
+      return values[key] ? String(values[key]) : "";
+    });
+  }
+}
+
+export class CoordinateModule {
+  #config;
+  #viewportState;
+
+  /**
+   * @param {AppConfigModule} config
+   * @param {ViewportStateModule} viewportState
+   */
+  constructor(config, viewportState) {
+    this.#config = config;
+    this.#viewportState = viewportState;
+  }
+
+  /** @param {unknown} value */
+  toBoardCoordinate(value) {
+    return clampCoord(value, this.#config.serverConfig.MAX_BOARD_SIZE);
+  }
+
+  /** @param {unknown} value */
+  pageCoordinateToBoard(value) {
+    return this.#viewportState.controller.pageCoordinateToBoard(value);
+  }
+}
+
+export class ViewportStateModule {
+  /** @param {import("../../types/app-runtime").ViewportController} controller */
+  constructor(controller) {
+    this.scale = DEFAULT_BOARD_SCALE;
+    this.controller = controller;
+    this.drawToolsAllowed = /** @type {boolean | null} */ (null);
+  }
+
+  install() {
+    this.controller.install();
+  }
+
+  restoreFromHash() {
+    this.controller.installHashObservers();
+    this.controller.applyFromHash();
+  }
+}
+
+export class PreferenceModule {
+  /**
+   * @param {ColorPreset[]} presets
+   * @param {AppInitialPreferences} initial
+   */
+  constructor(presets, initial) {
+    this.colorPresets = presets;
+    this.colorChooser = /** @type {HTMLInputElement | null} */ (null);
+    this.colorButtonsInitialized = false;
+    this.currentColor = initial.color;
+    /** @type number */
+    this.currentSize = clampSize(initial.size);
+    /** @type number */
+    this.currentOpacity = clampOpacity(initial.opacity);
+    /** @type AppInitialPreferences */
+    this.initial = initial;
+    /** @type {((color: string) => void)[]} */
+    this.colorChangeHandlers = [];
+    /** @type {((size: number) => void)[]} */
+    this.sizeChangeHandlers = [];
+    this.opacityChangeHandlers =
+      /** @type {((opacity: number) => void)[]} */ ([]);
+  }
+
+  getColor() {
+    return this.currentColor;
+  }
+
+  /** @param {string} color */
+  setColor(color) {
+    this.currentColor = color;
+    saveStoredColorPreference(color);
+    if (this.colorChooser) {
+      this.colorChooser.value = color;
+    }
+    this.colorChangeHandlers.forEach((handler) => {
+      handler(color);
+    });
+  }
+
+  getSize() {
+    return this.currentSize;
+  }
+
+  /** @param {number} value */
+  setSize(value) {
+    this.currentSize = clampSize(value);
+    const chooser = document.getElementById("chooseSize");
+    if (chooser instanceof HTMLInputElement) {
+      chooser.value = String(this.currentSize);
+    }
+    this.sizeChangeHandlers.forEach((handler) => {
+      handler(this.currentSize);
+    });
+    return this.currentSize;
+  }
+
+  getOpacity() {
+    return this.currentOpacity;
+  }
+
+  /** @param {number} value */
+  setOpacity(value) {
+    this.currentOpacity = clampOpacity(value);
+    const chooser = document.getElementById("chooseOpacity");
+    if (chooser instanceof HTMLInputElement) {
+      chooser.value = String(this.currentOpacity);
+    }
+    this.opacityChangeHandlers.forEach((handler) => {
+      handler(this.currentOpacity);
+    });
+    return this.currentOpacity;
+  }
+}
