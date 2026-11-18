@@ -44,7 +44,11 @@ export class AccessModule {
   /** @param {AppBoardState} boardState */
   applyBoardState(boardState) {
     const Tools = this.getTools();
+    const couldEdit = this.canEdit;
     this.boardState = boardState;
+    if (couldEdit !== this.canEdit) {
+      Tools.toolRegistry.current?.onEditAccessChange?.();
+    }
     Tools.shell.syncBoardNotice(boardState);
     Tools.connection.scheduleAccessRefresh(boardState.accessRefreshAfterMs);
     // Hide editing affordances whenever the user cannot edit (a read-only board,

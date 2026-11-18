@@ -1,3 +1,4 @@
+import { TOOL_BY_ID } from "../tools/manifest.js";
 import { getRequiredElement } from "./board_page_state.js";
 import { blurActiveElement } from "./board_tool_input.js";
 import { isTextEntryTarget } from "./text_entry_target.js";
@@ -43,6 +44,14 @@ function bindToolButton(Tools, button, toolName) {
   button.addEventListener("click", () => {
     void Tools.toolRegistry.activateTool(toolName);
   });
+  const shortcut = TOOL_BY_ID[toolName]?.shortcut;
+  if (shortcut) {
+    addToolShortcut(shortcut, () => {
+      if (!Tools.toolRegistry.shouldDisplayTool(toolName)) return;
+      void Tools.toolRegistry.activateTool(toolName);
+      blurActiveElement();
+    });
+  }
 }
 
 /**
@@ -75,31 +84,27 @@ function renderToolButtonLabel(label, translatedName, shortcut) {
 
 /**
  * @param {AppToolsState} Tools
- * @param {string} toolName
  * @param {MountedAppTool} tool
- * @returns {void}
  */
-function syncToolButton(Tools, toolName, tool) {
-  const button = getToolButton(toolName);
+export function syncMountedToolButton(Tools, tool) {
+  const button = getToolButton(tool.name);
   if (!button) return;
-  bindToolButton(Tools, button, toolName);
-  const parts = getRequiredToolButtonParts(toolName);
-  const translatedToolName = Tools.i18n.t(toolName);
-  renderToolButtonLabel(parts.label, translatedToolName, tool.shortcut);
-  button.setAttribute("aria-label", translatedToolName);
-  parts.primaryIcon.src = Tools.assets.resolveAssetPath(tool.icon);
+  const parts = getRequiredToolButtonParts(tool.name);
+  const mode = tool.secondary?.active ? tool.secondary : tool;
+  renderToolButtonLabel(parts.label, Tools.i18n.t(mode.name), tool.shortcut);
+  button.setAttribute("aria-label", Tools.i18n.t(tool.name));
+  parts.primaryIcon.src = Tools.assets.resolveAssetPath(mode.icon);
+  delete parts.primaryIcon.dataset.iconUrl;
   parts.primaryIcon.alt = "";
   button.classList.toggle("oneTouch", tool.oneTouch === true);
   button.classList.toggle("hasSecondary", !!tool.secondary);
   parts.primaryIcon.classList.toggle("primaryIcon", !!tool.secondary);
   button.removeAttribute("title");
-  if (tool.secondary && parts.secondaryIcon) {
-    parts.secondaryIcon.src = Tools.assets.resolveAssetPath(
-      tool.secondary.icon,
-    );
-    parts.secondaryIcon.alt = "";
-  } else if (parts.secondaryIcon) {
-    parts.secondaryIcon.src = "data:,";
+  if (parts.secondaryIcon) {
+    const alternate = tool.secondary?.active ? tool : tool.secondary;
+    parts.secondaryIcon.src = alternate
+      ? Tools.assets.resolveAssetPath(alternate.icon)
+      : "data:,";
     parts.secondaryIcon.alt = "";
   }
 }
@@ -139,27 +144,6 @@ export function addToolShortcut(key, callback) {
 }
 
 /**
- * @param {AppToolsState} Tools
- * @param {string} toolName
- * @returns {HTMLElement | null}
- */
-export function syncMountedToolButton(Tools, toolName) {
-  const tool = Tools.toolRegistry.mounted[toolName];
-  if (!tool) {
-    throw new Error(`Tool not registered before rendering: ${toolName}`);
-  }
-  if (tool.shortcut) {
-    addToolShortcut(tool.shortcut, () => {
-      void Tools.toolRegistry.activateTool(toolName);
-      blurActiveElement();
-    });
-  }
-  syncToolButton(Tools, toolName, tool);
-  Tools.toolRegistry.syncToolDisabledState(toolName);
-  return getToolButton(toolName);
-}
-
-/**
  * @param {string} oldToolName
  * @param {string} newToolName
  * @returns {void}
@@ -175,28 +159,6 @@ function changeActiveToolButton(oldToolName, newToolName) {
     newTool.classList.add("curTool");
     newTool.setAttribute("aria-current", "true");
   }
-}
-
-/**
- * @param {AppToolsState} Tools
- * @param {{ toolName: string, labelKey: string, icon: string, shortcut?: string }} params
- *   `labelKey` is the i18n id for the row label. `shortcut` is the primary key hint (same in secondary mode).
- * @returns {void}
- */
-export function toggleToolButtonMode(
-  Tools,
-  { toolName, labelKey, icon, shortcut },
-) {
-  const parts = getRequiredToolButtonParts(toolName);
-  const secondaryIcon = parts.secondaryIcon;
-  if (!secondaryIcon) {
-    throw new Error(`Missing secondary icon for tool ${toolName}`);
-  }
-  const primaryIconSrc = parts.primaryIcon.src;
-  parts.primaryIcon.src = secondaryIcon.src;
-  secondaryIcon.src = primaryIconSrc;
-  parts.primaryIcon.src = Tools.assets.resolveAssetPath(icon);
-  renderToolButtonLabel(parts.label, Tools.i18n.t(labelKey), shortcut);
 }
 
 /**

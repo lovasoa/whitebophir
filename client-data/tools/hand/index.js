@@ -54,7 +54,8 @@ import { deleteBoardElementById } from "../eraser/index.js";
 /** @typedef {{type?: unknown, id?: unknown, transform?: unknown, newid?: unknown, _children?: unknown}} HandMessageCandidate */
 /** @typedef {{x: number, y: number, width: number, height: number}} BoardRect */
 /** @typedef {ReturnType<typeof createBoardHtmlOverlay>} BoardHtmlOverlay */
-/** @typedef {{ name: string, element: HTMLButtonElement, overlay: BoardHtmlOverlay, origWidth: number, origHeight: number, drawCallback: (button: SelectionButton, rect: BoardRect, scale:number) => BoardRect, clickCallback: (x:number, y:number, evt: { preventDefault(): void }) => void }} SelectionButton */
+/** @typedef {{ overlay: BoardHtmlOverlay, origWidth: number, origHeight: number, requiresEdit: boolean, drawCallback: (button: SelectionButton, rect: BoardRect, scale:number) => BoardRect }} SelectionButton */
+/** @typedef {{ label?: string, requiresEdit?: boolean }} SelectionButtonOptions */
 /** @typedef {{x: number, y: number}} HandPointSelection */
 /** @typedef {BoardRect} HandScaleSelection */
 /** @typedef {{pan: true}} HandPanSelection */
@@ -219,6 +220,10 @@ function createInitialState(Tools, assetUrl) {
     initialSelectionRect: /** @type {BoardRect | null} */ (null),
     currentTransform: /** @type {HandTransformHandler | null} */ (null),
     transformElements: /** @type {TransformState[]} */ ([]),
+    transformPreview:
+      /** @type {{element: SVGGraphicsElement, transform: string | null}[] | null} */ (
+        null
+      ),
     selectorState: 0,
     selectionRunId: 0,
     lastSent: 0,
@@ -272,9 +277,9 @@ function selectionActionButtonX(state, preferred) {
  * @param {string} icon
  * @param {number} index
  * @param {() => void} onClick
- * @param {string} [label]
+ * @param {SelectionButtonOptions} [options]
  */
-function createActionButton(state, name, icon, index, onClick, label) {
+function createActionButton(state, name, icon, index, onClick, options) {
   return createButton(
     state,
     name,
@@ -284,13 +289,15 @@ function createActionButton(state, name, icon, index, onClick, label) {
     (me, rect, scale) => ({
       x:
         selectionActionButtonX(state, rect.x) +
-        (index * (me.origWidth + 2)) / scale,
+        (options?.requiresEdit === false && !state.Tools.permissions.canEdit
+          ? 0
+          : (index * (me.origWidth + 2)) / scale),
       y: selectionActionButtonY(rect, me.origHeight, scale),
       width: me.origWidth / scale,
       height: me.origHeight / scale,
     }),
     onClick,
-    label,
+    options,
   );
 }
 
@@ -335,7 +342,7 @@ function createState(Tools, assetUrl) {
       "../download/icon",
       2,
       () => downloadBoardSvg(state.Tools, state.selectedEls),
-      state.Tools.i18n.t("download"),
+      { label: Tools.i18n.t("download"), requiresEdit: false },
     ),
   ];
   state.blockedSelectionButtons.forEach((buttonIndex) => {
@@ -345,14 +352,12 @@ function createState(Tools, assetUrl) {
   });
   state.boundDeleteShortcut = (e) => deleteShortcut(state, e);
   state.boundDuplicateShortcut = (e) => duplicateShortcut(state, e);
-  state.secondary = Tools.permissions.canEdit
-    ? {
-        name: "Selector",
-        icon: "tools/hand/selector.svg",
-        active: false,
-        switch: () => switchTool(state),
-      }
-    : null;
+  state.secondary = {
+    name: "Selector",
+    icon: "tools/hand/selector.svg",
+    active: false,
+    switch: () => switchTool(state),
+  };
   return state;
 }
 
@@ -376,16 +381,18 @@ function getParentMathematics(el) {
 
 /** @param {HandState} state */
 function deleteSelection(state) {
+  if (!state.Tools.permissions.canEdit || state.selectedEls.length === 0)
+    return;
   /** @type {HandDeleteChildMessage[]} */
   const msgs = state.selectedEls.map((el) => createDeleteChildMessage(el.id));
   state.Tools.writes.drawAndSend(createBatchMessage(msgs));
-  state.selectedEls = [];
-  hideSelectionUI(state);
+  clearSelection(state);
 }
 
 /** @param {HandState} state */
 function duplicateSelection(state) {
   if (
+    !state.Tools.permissions.canEdit ||
     state.selectorState !== state.selectorStates.pointing ||
     state.selectedEls.length === 0
   ) {
@@ -456,7 +463,7 @@ function eventBoardPoint(state, event) {
  * @param {number} height
  * @param {(button: SelectionButton, rect: BoardRect, scale:number) => BoardRect} drawCallback
  * @param {(x:number, y:number, evt: { preventDefault(): void }) => void} clickCallback
- * @param {string} [label]
+ * @param {SelectionButtonOptions} [options]
  * @returns {SelectionButton}
  */
 function createButton(
@@ -467,7 +474,7 @@ function createButton(
   height,
   drawCallback,
   clickCallback,
-  label,
+  { label, requiresEdit = true } = {},
 ) {
   const element = document.createElement("button");
   element.id = `selectionButton-${name}`;
@@ -484,8 +491,6 @@ function createButton(
 
   /** @type {SelectionButton} */
   const button = {
-    name,
-    element,
     overlay: createBoardHtmlOverlay({
       board: state.Tools.board,
       viewport: state.Tools.viewport,
@@ -493,31 +498,32 @@ function createButton(
     }),
     origWidth: width,
     origHeight: height,
+    requiresEdit,
     drawCallback,
-    clickCallback,
   };
+
+  /** @param {MouseEvent | TouchEvent} event */
+  function runAction(event) {
+    if (requiresEdit && !state.Tools.permissions.canEdit) return;
+    const point = eventBoardPoint(state, event);
+    clickCallback(point.x, point.y, event);
+  }
 
   element.addEventListener("mousedown", (event) => {
     stopSelectionButtonEvent(event);
-    if (name !== "scaleHandle") return;
-    const point = eventBoardPoint(state, event);
-    clickCallback(point.x, point.y, event);
+    if (name === "scaleHandle") runAction(event);
   });
   element.addEventListener(
     "touchstart",
     (event) => {
       stopSelectionButtonEvent(event);
-      if (name !== "scaleHandle") return;
-      const point = eventBoardPoint(state, event);
-      clickCallback(point.x, point.y, event);
+      if (name === "scaleHandle") runAction(event);
     },
     { passive: false },
   );
   element.addEventListener("click", (event) => {
     stopSelectionButtonEvent(event);
-    if (name === "scaleHandle") return;
-    const point = eventBoardPoint(state, event);
-    clickCallback(point.x, point.y, event);
+    if (name !== "scaleHandle") runAction(event);
   });
 
   return button;
@@ -562,9 +568,14 @@ function syncSelectionChrome(state) {
 /** @param {HandState} state */
 function showSelectionButtons(state) {
   syncSelectionChrome(state);
+  const canEdit = state.Tools.permissions.canEdit;
   for (let i = 0; i < state.selectionButtons.length; i++) {
     const button = state.selectionButtons[i];
     if (!button) continue;
+    if (button.requiresEdit && !canEdit) {
+      button.overlay.hide();
+      continue;
+    }
     button.overlay.syncBoardRect(() =>
       state.selectionRect
         ? button.drawCallback(
@@ -592,6 +603,19 @@ function hideSelectionUI(state) {
   state.selectionRect = null;
 }
 
+/** @param {HandState} state */
+function clearSelection(state) {
+  flushPendingDraws(state);
+  state.selectionRunId += 1;
+  state.selected = null;
+  state.selectedEls = [];
+  state.transformElements = [];
+  state.initialSelectionRect = null;
+  state.currentTransform = null;
+  state.selectorState = state.selectorStates.pointing;
+  hideSelectionUI(state);
+}
+
 /** @param {HandState} state @returns {boolean} */
 function ensureCurrentSelection(state) {
   let current = state.selectedEls.length !== 0;
@@ -603,14 +627,7 @@ function ensureCurrentSelection(state) {
   if (current) return true;
 
   // A removal or same-ID replacement invalidates the whole transform gesture.
-  state.selectionRunId += 1;
-  state.selected = null;
-  state.selectedEls = [];
-  state.transformElements = [];
-  state.initialSelectionRect = null;
-  state.currentTransform = null;
-  state.selectorState = state.selectorStates.pointing;
-  hideSelectionUI(state);
+  clearSelection(state);
   return false;
 }
 
@@ -920,12 +937,31 @@ function dispatchTransform(state, msg, force) {
   const now = performance.now();
   if (force || now - state.lastSent > 70) {
     state.lastSent = now;
+    flushPendingDraws(state);
     if (state.Tools.writes.drawAndSend(msg) !== false) {
       state.Tools.viewport.ensureBoardExtentForBounds(validation.bounds);
     }
   } else {
-    draw(state, msg, true);
+    // Pointer feedback between submitted writes is temporary. Save the SVG
+    // before the first preview so cancellation can restore the last write.
+    state.transformPreview ??= state.selectedEls.map((element) => ({
+      element,
+      transform: element.getAttribute("transform"),
+    }));
+    for (const child of msg._children) drawHandChild(state, child);
     state.Tools.viewport.ensureBoardExtentForBounds(validation.bounds);
+  }
+}
+
+/** @param {HandState} state */
+export function flushPendingDraws(state) {
+  const preview = state.transformPreview;
+  if (!preview) return;
+  state.transformPreview = null;
+  for (const { element, transform } of preview) {
+    if (state.Tools.board.svg.getElementById(element.id) !== element) continue;
+    if (transform === null) element.removeAttribute("transform");
+    else element.setAttribute("transform", transform);
   }
 }
 
@@ -1002,6 +1038,7 @@ export function draw(state, data, isLocal = false) {
     });
     return;
   }
+  flushPendingDraws(state);
   const children = isBatchMessage(data) ? data._children : [data];
   for (const child of children) drawHandChild(state, child);
   if (!isLocal) {
@@ -1076,24 +1113,32 @@ function clickSelector(state, x, y, evt) {
     y >= state.selectionRect.y &&
     y <= state.selectionRect.y + state.selectionRect.height
   ) {
-    hideSelectionButtons(state);
-    startMovingElements(state, x, y, evt);
-  } else if (
+    if (state.Tools.permissions.canEdit) {
+      hideSelectionButtons(state);
+      startMovingElements(state, x, y, evt);
+    }
+    return;
+  }
+
+  hideSelectionUI(state);
+  const parent =
     evt.target &&
     state.Tools.board.drawingArea.contains(/** @type {Node} */ (evt.target))
-  ) {
-    hideSelectionUI(state);
-    const parent = getParentMathematics(evt.target);
-    if (!parent) {
-      startSelector(state, x, y, evt);
-      return;
-    }
-    state.selectedEls = [parent];
-    state.selectionRect = transformedBBoxToBoardRect(transformedBBox(parent));
+      ? getParentMathematics(evt.target)
+      : null;
+  if (!parent) {
+    startSelector(state, x, y, evt);
+    return;
+  }
+  state.selectedEls = [parent];
+  state.selectionRect = transformedBBoxToBoardRect(transformedBBox(parent));
+  if (state.Tools.permissions.canEdit) {
     startMovingElements(state, x, y, evt);
   } else {
-    hideSelectionButtons(state);
-    startSelector(state, x, y, evt);
+    evt.preventDefault();
+    state.selectionRunId += 1;
+    state.selectorState = state.selectorStates.pointing;
+    showSelectionButtons(state);
   }
 }
 
@@ -1107,6 +1152,7 @@ function releaseSelector(state) {
   }
   if (state.selectedEls.length !== 0) showSelectionButtons(state);
   state.transformElements = [];
+  state.currentTransform = null;
   state.selectorState = state.selectorStates.pointing;
 }
 
@@ -1182,9 +1228,7 @@ function isSelectorActive(state) {
  * @returns {void}
  */
 function resetHandUiState(state) {
-  state.selectionRunId += 1;
-  state.selected = null;
-  hideSelectionUI(state);
+  clearSelection(state);
   window.removeEventListener("keydown", state.boundDeleteShortcut);
   window.removeEventListener("keydown", state.boundDuplicateShortcut);
 }
@@ -1257,6 +1301,11 @@ function duplicateShortcut(state, e) {
 /** @param {HandState} state */
 function switchTool(state) {
   resetHandUiState(state);
+  onstart(state);
+}
+
+/** @param {HandState} state */
+export function onstart(state) {
   if (isSelectorActive(state)) {
     window.addEventListener("keydown", state.boundDeleteShortcut);
     window.addEventListener("keydown", state.boundDuplicateShortcut);
@@ -1274,11 +1323,21 @@ export function onquit(state) {
 }
 
 /** @param {HandState} state */
+export function onEditAccessChange(state) {
+  if (!isSelectorActive(state)) return;
+  if (state.selectorState === state.selectorStates.transform) {
+    if (!state.Tools.permissions.canEdit) clearSelection(state);
+  } else if (state.selectedEls.length !== 0) {
+    showSelectionButtons(state);
+  }
+}
+
+/** @param {HandState} state */
 export function getTouchPolicy(state) {
   return isSelectorActive(state) ? "app-gesture" : "native-pan";
 }
 
 /** @param {HandState} state */
 export function onSocketDisconnect(state) {
-  return onquit(state);
+  clearSelection(state);
 }
