@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="{{language}}" dir="{{direction}}" data-wbo-version="{{appVersion}}">
+
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>WBO — {{translations.unknown_error_reload_page}}</title>
+	<style>
+		:root {
+			--wbo-background: #fcfcfd;
+			--wbo-accent: #abc6c6;
+			--wbo-accent-strong: #90b0b0;
+			--wbo-text-muted: #6b7280;
+		}
+
+		*,
+		*::before,
+		*::after {
+			box-sizing: border-box;
+			margin: 0;
+		}
+
+		html {
+			background: var(--wbo-background);
+			font-family: Liberation Sans, sans-serif;
+			font-weight: 300;
+			font-size: 15px;
+			color: #111827;
+			min-height: 100%;
+		}
+
+		body {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			min-height: 100vh;
+			padding: 24px;
+		}
+
+		@keyframes wobble {
+			0% {
+				transform: rotate(0deg);
+			}
+
+			25% {
+				transform: rotate(-4deg);
+			}
+
+			75% {
+				transform: rotate(4deg);
+			}
+
+			100% {
+				transform: rotate(0deg);
+			}
+		}
+
+		.smiley {
+			font-family: monospace;
+			font-size: 6em;
+			font-weight: 400;
+			color: var(--wbo-accent);
+			line-height: 1;
+			animation: wobble 6s ease-in-out infinite;
+			animation-delay: 2s;
+			user-select: none;
+			cursor: default;
+		}
+
+		.smiley:hover {
+			animation-play-state: paused;
+		}
+
+		.message {
+			margin-top: 24px;
+			font-size: 15px;
+			font-weight: 300;
+			color: var(--wbo-text-muted);
+			text-align: center;
+			line-height: 1.5;
+			max-width: 360px;
+		}
+
+		.home-link {
+			display: inline-block;
+			margin-top: 32px;
+			padding: 9px 20px;
+			font-size: 13px;
+			font-weight: 400;
+			font-family: Liberation Sans, sans-serif;
+			color: #111827;
+			text-decoration: none;
+			background: linear-gradient(var(--wbo-accent), var(--wbo-accent-strong));
+			border-radius: 4px;
+			box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+			transition: box-shadow 0.1s;
+		}
+
+		.home-link:hover {
+			box-shadow: 0 0 5px #0074d9;
+		}
+
+		.home-link:focus,
+		.home-link:active {
+			box-shadow: inset 0 1px 3px rgba(16, 24, 40, 0.15);
+			outline: none;
+		}
+	</style>
+	{{{htmlHeadSnippet}}}
+</head>
+
+<body>
+	<div class="smiley" aria-hidden="true">:-(</div>
+	<p class="message">{{translations.unknown_error_reload_page}}</p>
+	<a class="home-link" href="{{baseHref}}">{{translations.back_to_home}}</a>
+</body>
+
+</html>
