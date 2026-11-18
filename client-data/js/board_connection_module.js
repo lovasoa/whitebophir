@@ -178,6 +178,7 @@ export class ConnectionModule {
     this.starting = /** @type {Promise<void> | null} */ (null);
     this.reconnectTimerId = 0;
     this.reconnectAttempts = 0;
+    this.reconnectOnVisibleAt = /** @type {number | null} */ (null);
     this.reloadRequired = false;
     this.state = /** @type {BoardConnectionState} */ ("idle");
     this.hasConnectedOnce = false;
@@ -215,6 +216,10 @@ export class ConnectionModule {
   scheduleSocketReconnect(delayMs) {
     if (this.reloadRequired || this.reconnectTimerId) return;
     this.cancelAccessRefresh();
+    if (document.hidden) {
+      this.reconnectOnVisibleAt = performance.now() + (delayMs ?? 0);
+      return;
+    }
     const synchronizedAt = this.getTools().replay.synchronizedAt;
     if (
       synchronizedAt !== null &&
@@ -230,9 +235,23 @@ export class ConnectionModule {
       delayMs ?? INITIAL_RECONNECT_DELAY_MS * 2 ** this.reconnectAttempts;
     this.reconnectTimerId = window.setTimeout(() => {
       this.reconnectTimerId = 0;
+      if (document.hidden) {
+        this.reconnectOnVisibleAt = performance.now();
+        return;
+      }
       this.reconnectAttempts++;
       this.start();
     }, retryDelay);
+  }
+
+  handleVisibilityChange() {
+    if (this.socket?.connected)
+      this.socket.emit(SocketEvents.TAB_HIDDEN, document.hidden);
+    if (!document.hidden && this.reconnectOnVisibleAt !== null) {
+      const delay = Math.max(0, this.reconnectOnVisibleAt - performance.now());
+      this.reconnectOnVisibleAt = null;
+      this.scheduleSocketReconnect(delay);
+    }
   }
 
   /** @param {PendingModerationDisconnect} notice */
@@ -245,8 +264,13 @@ export class ConnectionModule {
 
   start() {
     if (this.reloadRequired) return;
+    if (document.hidden) {
+      this.reconnectOnVisibleAt ??= performance.now();
+      return;
+    }
     if (this.starting) return this.starting;
     window.clearTimeout(this.reconnectTimerId);
+    this.reconnectOnVisibleAt = null;
     const Tools = this.getTools();
     if (this.socket)
       Tools.replay.beginAuthoritativeResync({
@@ -307,6 +331,10 @@ export class ConnectionModule {
 
       const ioClient = await whenSocketIoReady();
       if (generation !== this.generation) return;
+      if (document.hidden) {
+        this.reconnectOnVisibleAt ??= performance.now();
+        return;
+      }
       const socket = ioClient.connect("", socketParams);
       this.socket = socket;
 
@@ -335,6 +363,7 @@ export class ConnectionModule {
           hadConnectedBefore ? "socket.reconnected" : "socket.connected",
         );
         Tools.connection.hasConnectedOnce = true;
+        if (document.hidden) socket.emit(SocketEvents.TAB_HIDDEN, true);
         Tools.status.syncWriteStatusIndicator();
       });
       on(SocketEvents.BROADCAST, (msg) => {
@@ -483,6 +512,7 @@ export class ConnectionModule {
       on(SocketEvents.DISCONNECT, (reason) => {
         if (reason === "io client disconnect") return;
         Tools.connection.state = "disconnected";
+        Tools.messages.markUnreadCountUnknown();
         const moderationNotice = Tools.connection.pendingModerationDisconnect;
         if (moderationNotice) {
           moderationNotice.disconnected = true;
@@ -515,6 +545,7 @@ export class ConnectionModule {
     this.reloadRequired = true;
     this.generation++;
     window.clearTimeout(this.reconnectTimerId);
+    this.reconnectOnVisibleAt = null;
     this.cancelAccessRefresh();
     this.socket?.disconnect?.();
     this.socket = null;

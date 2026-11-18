@@ -1,5 +1,5 @@
-import { createBoardNotices } from "./board_notices.js";
 import { updateDocumentTitle } from "./board_message_module.js";
+import { createBoardNotices } from "./board_notices.js";
 import {
   DEFAULT_BOARD_STATE,
   getRequiredElement,
@@ -392,7 +392,7 @@ export class BoardShellModule {
   bindPageLifecycleEvents() {
     window.addEventListener("focus", () => {
       const Tools = this.getTools();
-      Tools.messages.unreadCount = 0;
+      if (Tools.messages.unreadCount !== null) Tools.messages.unreadCount = 0;
       updateDocumentTitle(Tools.messages, Tools.identity);
       if (Tools.writes.bufferedWrites.length > 0) {
         Tools.writes.pumpBufferedWrites();
@@ -401,6 +401,7 @@ export class BoardShellModule {
 
     document.addEventListener("visibilitychange", () => {
       const Tools = this.getTools();
+      Tools.connection.handleVisibilityChange();
       if (!document.hidden && Tools.writes.bufferedWrites.length > 0) {
         Tools.writes.pumpBufferedWrites();
       }

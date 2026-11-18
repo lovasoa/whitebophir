@@ -16,6 +16,7 @@ export const SocketEvents = Object.freeze({
   USER_REPORTED: "user_reported",
   USER_JOINED: "user_joined",
   USER_LEFT: "user_left",
+  TAB_HIDDEN: "tab_hidden",
 });
 
 export const ModerationDisconnectSources = Object.freeze({

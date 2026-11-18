@@ -1043,7 +1043,9 @@ test.describe("collaboration and rate limiting", () => {
         .poll(async () => (await boardPage.readConnectedUsers())[1]?.color)
         .toBe("rgb(255, 0, 0)");
 
-      await secondPage.close();
+      await secondPage.evaluate(() => {
+        window.WBOApp.connection.socket?.disconnect?.();
+      });
       const initialSocketId = await peerPage.evaluate(
         () => window.WBOApp.connection.socket?.id ?? "",
       );
@@ -1051,6 +1053,7 @@ test.describe("collaboration and rate limiting", () => {
         "data-socket-id",
         initialSocketId,
       );
+      await peerPage.bringToFront();
       await peerBoard.forceSocketDisconnect();
       await peerBoard.waitForSocketConnected();
       const newSocketId = await peerPage.evaluate(
@@ -1065,7 +1068,11 @@ test.describe("collaboration and rate limiting", () => {
         "Users: 2",
       );
 
-      await peerPage.close();
+      // Exercise Socket.IO departure without relying on page teardown to
+      // deliver it before the presence assertion.
+      await peerPage.evaluate(() => {
+        window.WBOApp.connection.socket?.disconnect?.();
+      });
       await expect(remoteRows).toHaveClass(/connected-user-row-disconnected/);
       await expect(boardPage.connectedUsersToggle).toHaveAccessibleName(
         "Users: 2",

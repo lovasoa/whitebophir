@@ -26,8 +26,8 @@ import {
   normalizeBroadcastData,
 } from "./policy.mjs";
 import {
-  boardUserDebugFields,
   boardModeratorExpiresAt,
+  boardUserDebugFields,
   buildUserId,
   buildUserName,
   cleanupBoardUserMap,
@@ -69,6 +69,7 @@ import { handleTurnstileTokenMessage } from "./turnstile.mjs";
 
 const { Server } = socketIO;
 const { logger, metrics, tracing } = observability;
+const HIDDEN_TAB_TIMEOUT_MS = 15 * 60 * 1000;
 
 /** @import { AppSocket, MessageData, NormalizedMessageData, ServerConfig, SetTemporaryModeratorPayload, TurnstileAckCallback } from "../../types/server-runtime.d.ts" */
 /** @typedef {{type: number, fromSeq: number, seq: number, _children: NormalizedMessageData[]}} ConnectionReplayBatch */
@@ -673,6 +674,26 @@ async function handleSocketConnection(socket, config) {
   updateActiveSocketConnectionsGauge();
   metrics.recordSocketConnection("connected");
 
+  // The browser only reports transitions. It need not run a timer while hidden.
+  let hiddenTabTimer =
+    /** @type {ReturnType<typeof setTimeout> | undefined} */ (undefined);
+  onSocketEvent(
+    socket,
+    SocketEvents.TAB_HIDDEN,
+    (/** @type {unknown} */ hidden) => {
+      if (hidden === false) {
+        clearTimeout(hiddenTabTimer);
+        hiddenTabTimer = undefined;
+      } else if (hidden === true && hiddenTabTimer === undefined) {
+        hiddenTabTimer = setTimeout(
+          () => socket.disconnect(true),
+          HIDDEN_TAB_TIMEOUT_MS,
+        );
+        hiddenTabTimer.unref?.();
+      }
+    },
+  );
+
   onSocketEvent(socket, "error", function onSocketError(error) {
     logger.error("socket.error", {
       socket: socket.id,
@@ -838,6 +859,7 @@ async function handleSocketConnection(socket, config) {
     socket,
     "disconnecting",
     async function onDisconnecting(/** @type {string} */ _reason) {
+      clearTimeout(hiddenTabTimer);
       activeSockets.delete(socket.id);
       syncedPersistentSockets.delete(socket.id);
       updateActiveSocketConnectionsGauge();
