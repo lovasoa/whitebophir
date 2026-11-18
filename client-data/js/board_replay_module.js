@@ -193,6 +193,7 @@ export class ReplayModule {
       this.authoritativeSeq = seq;
       this.awaitingSnapshot = false;
       this.refreshBaselineBeforeConnect = false;
+      Tools.messages.resetUnknownUnreadCount();
       Tools.writes.pumpBufferedWrites();
       this.incomingBroadcastQueue =
         BoardMessageReplay.filterBufferedMessagesAfterSeqReplay(

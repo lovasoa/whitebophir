@@ -455,6 +455,7 @@ export type TurnstileAck = TurnstileSuccessAck | TurnstileFailureAck;
 
 export type ClientSocketOutgoingEventArgs = {
   [SocketEvents.BROADCAST]: [message: LiveBoardMessage];
+  [SocketEvents.TAB_HIDDEN]: [hidden: boolean];
   [SocketEvents.REPORT_USER]: [payload: ReportUserPayload];
   [SocketEvents.UNBAN_USER]: [payload: { banId: string }];
   [SocketEvents.SET_TEMPORARY_MODERATOR]: [

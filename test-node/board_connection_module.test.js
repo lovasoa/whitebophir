@@ -250,6 +250,7 @@ test("connection and replay discard superseded asynchronous work", async (t) => 
       pruneForAuthoritativeMessage: noop,
     },
     writes: {
+      pumpBufferedWrites: noop,
       isWritePaused: () => false,
       discardBufferedWrites: noop,
       pruneBufferedWritesForInvalidatingMessage: noop,
@@ -273,11 +274,14 @@ test("connection and replay discard superseded asynchronous work", async (t) => 
   assert.deepEqual(Tools.replay.incomingBroadcastQueue, []);
   /** @type {Array<Map<string, (...args: any[]) => void>>} */
   const socketHandlers = [];
+  const emit = t.mock.fn();
   const connect = t.mock.fn(() => {
     const handlers = new Map();
     socketHandlers.push(handlers);
     return {
       id: "socket",
+      connected: true,
+      emit,
       on: (
         /** @type {string} */ event,
         /** @type {(...args: any[]) => void} */ handler,
@@ -350,17 +354,65 @@ test("connection and replay discard superseded asynchronous work", async (t) => 
   assert.equal(Tools.writes.serverRateLimitedUntil, undefined);
   socketHandlers[1]?.get(SocketEvents.USER_JOINED)?.({ socketId: "current" });
   assert.equal(joined.mock.callCount(), 1);
+
+  Object.defineProperty(document, "hidden", {
+    value: true,
+    configurable: true,
+  });
+  Tools.connection.handleVisibilityChange();
+  assert.deepEqual(emit.mock.calls.slice(-1)[0]?.arguments, [
+    SocketEvents.TAB_HIDDEN,
+    true,
+  ]);
+  Object.defineProperty(document, "hidden", { value: false });
+  Tools.connection.handleVisibilityChange();
+  assert.deepEqual(emit.mock.calls.slice(-1)[0]?.arguments, [
+    SocketEvents.TAB_HIDDEN,
+    false,
+  ]);
+  Object.defineProperty(document, "hidden", { value: true });
+  Tools.connection.handleVisibilityChange();
+  Tools.messages.unreadCount = 12;
+  const onDisconnect = socketHandlers[1]?.get(SocketEvents.DISCONNECT);
+  assert.ok(onDisconnect);
+  Tools.connection.socket.connected = false;
+  onDisconnect("io server disconnect");
+  assert.equal(document.title, "(?) test | WBO");
+  browser.advanceTime(60_000);
+  assert.equal(connect.mock.callCount(), 2);
+
+  Object.defineProperty(document, "hidden", { value: false });
+  Tools.connection.handleVisibilityChange();
+  Tools.connection.handleVisibilityChange();
+  browser.advanceTime(0);
+  await Tools.connection.starting;
+  assert.equal(connect.mock.callCount(), 3);
+  const foregroundHandlers = socketHandlers[2];
+  assert.ok(foregroundHandlers);
+  foregroundHandlers.get(SocketEvents.CONNECT)?.();
+  assert.equal(document.title, "(?) test | WBO");
+  const seq = Tools.replay.authoritativeSeq;
+  assert.equal(
+    await Tools.replay.processIncomingBroadcast({
+      fromSeq: seq,
+      seq,
+      _children: [],
+    }),
+    true,
+  );
+  assert.equal(document.title, "test | WBO");
+
   Tools.i18n = { t: (/** @type {string} */ key) => key };
   Tools.ui = { showModerationDisconnectNotice: () => Promise.resolve() };
   const acknowledge = t.mock.fn();
-  const moderationNotice = socketHandlers[1]?.get(
+  const moderationNotice = foregroundHandlers.get(
     SocketEvents.MODERATION_DISCONNECT,
   );
   assert.ok(moderationNotice);
   moderationNotice({ banDurationMs: 0, source: "moderator" }, acknowledge);
   assert.equal(acknowledge.mock.callCount(), 1);
   Tools.replay.beginAuthoritativeResync();
-  socketHandlers[1]?.get(SocketEvents.USER_JOINED)?.({
+  foregroundHandlers.get(SocketEvents.USER_JOINED)?.({
     socketId: "superseded",
   });
   moderationNotice({ banDurationMs: 0, source: "moderator" }, acknowledge);

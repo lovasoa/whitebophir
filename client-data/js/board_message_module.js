@@ -16,10 +16,21 @@ export class MessageModule {
    * @param {Pick<ViewportController, "ensureBoardExtentForBounds">} viewport
    */
   constructor(toolRegistry, identity, viewport) {
-    this.unreadCount = 0;
+    this.unreadCount = /** @type {number | null} */ (0);
     this.#toolRegistry = toolRegistry;
     this.#identity = identity;
     this.#viewport = viewport;
+  }
+
+  markUnreadCountUnknown() {
+    this.unreadCount = null;
+    updateDocumentTitle(this, this.#identity);
+  }
+
+  resetUnknownUnreadCount() {
+    if (this.unreadCount !== null) return;
+    this.unreadCount = 0;
+    updateDocumentTitle(this, this.#identity);
   }
 
   /** @param {BoardMessage} message */
@@ -28,6 +39,7 @@ export class MessageModule {
     const mutationType = getMutationType(message);
     if (
       document.hidden &&
+      this.unreadCount !== null &&
       mutationType !== MutationType.APPEND &&
       mutationType !== MutationType.UPDATE
     ) {
@@ -64,7 +76,7 @@ export class MessageModule {
  * @param {AppIdentityModule} identity
  */
 export function updateDocumentTitle(messages, identity) {
-  document.title =
-    (messages.unreadCount ? `(${messages.unreadCount}) ` : "") +
-    `${identity.boardName} | WBO`;
+  const count = messages.unreadCount;
+  const prefix = count === null ? "(?) " : count ? `(${count}) ` : "";
+  document.title = `${prefix}${identity.boardName} | WBO`;
 }
