@@ -1,0 +1,25 @@
+{
+  "name": "WBO — {{translations.collaborative_whiteboard}}",
+  "short_name": "WBO",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ccdfdf",
+  "description": "{{translations.tagline}}",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "1024x1024",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "favicon.ico",
+      "sizes": "16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}
