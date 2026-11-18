@@ -463,8 +463,8 @@ function installBrowserHarness(options = {}) {
       const eventListeners = listeners.get(event.type) || [];
       for (const listener of eventListeners) listener(event);
     },
-    /** @param {(target: any) => boolean} isIntersecting */
-    installIntersectionObserver(isIntersecting) {
+    /** @param {(target: any) => {left: number, top: number, right: number, bottom: number} | null} getIntersectingBounds */
+    installIntersectionObserver(getIntersectingBounds) {
       class HarnessIntersectionObserver {
         /** @param {(entries: any[]) => void} callback */
         constructor(callback) {
@@ -476,13 +476,12 @@ function installBrowserHarness(options = {}) {
         observe(target) {
           Promise.resolve().then(() => {
             if (this.disconnected) return;
-            const selected = isIntersecting(target);
+            const bounds = getIntersectingBounds(target);
             this.callback([
               {
                 target,
-                isIntersecting: selected,
-                intersectionRatio: selected ? 1 : 0,
-                boundingClientRect: { width: 20, height: 20 },
+                isIntersecting: bounds !== null,
+                boundingClientRect: bounds,
               },
             ]);
           });

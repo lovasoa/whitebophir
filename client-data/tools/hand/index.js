@@ -733,6 +733,7 @@ function calculateSelectionWithIntersectionObserver(state, selectable) {
 
   const viewportRect = getSelectionViewportRect(state);
   if (!viewportRect) return Promise.resolve([]);
+  const { left, top, right, bottom } = viewportRect;
   const rootMargin = selectionRectRootMargin(viewportRect);
   if (!rootMargin) return Promise.resolve([]);
 
@@ -752,7 +753,18 @@ function calculateSelectionWithIntersectionObserver(state, selectable) {
         const entry = entries[index];
         if (!entry) continue;
         seen.add(entry.target);
-        if (entry.isIntersecting) selected.add(entry.target);
+        if (!entry.isIntersecting) continue;
+        // Check all edges, since the intersection ratio can be 1 for a
+        // zero-area target that only touches the selection.
+        const bounds = entry.boundingClientRect;
+        if (
+          bounds.left >= left &&
+          bounds.top >= top &&
+          bounds.right <= right &&
+          bounds.bottom <= bottom
+        ) {
+          selected.add(entry.target);
+        }
       }
     }
 

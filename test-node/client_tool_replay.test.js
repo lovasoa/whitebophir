@@ -2576,8 +2576,10 @@ test("Hand selector stops at the last valid transform", async () => {
 test("Hand selector keeps the original element selected after duplicate", async () => {
   const harness = createHarness();
   const handTool = await harness.loadTool("hand");
-  harness.time.installIntersectionObserver(
-    (/** @type {any} */ target) => target.id === "r-1",
+  harness.time.installIntersectionObserver((/** @type {any} */ target) =>
+    target.id === "r-1"
+      ? { left: 100, top: 100, right: 160, bottom: 140 }
+      : null,
   );
   let nextId = 1;
 
@@ -2650,8 +2652,10 @@ test("Hand selector keeps the original element selected after duplicate", async 
 test("Hand selector ignores stale async selection after transform starts", async () => {
   const harness = createHarness();
   const handTool = await harness.loadTool("hand");
-  harness.time.installIntersectionObserver(
-    (/** @type {any} */ target) => target.id === "r-1",
+  harness.time.installIntersectionObserver((/** @type {any} */ target) =>
+    target.id === "r-1"
+      ? { left: 100, top: 100, right: 160, bottom: 140 }
+      : null,
   );
 
   const rect = globalAny.Tools.dom.createSVGElement("rect");
@@ -2687,12 +2691,15 @@ test("Hand selector ignores stale async selection after transform starts", async
   });
 });
 
-test("Hand box selection can use IntersectionObserver without target bbox reads", async () => {
+test("Hand box selection requires full containment without target bbox reads", async () => {
   const harness = createHarness();
   const handTool = await harness.loadTool("hand");
-  harness.time.installIntersectionObserver(
-    (/** @type {any} */ target) => target.id === "io-selected",
-  );
+  harness.time.installIntersectionObserver((/** @type {any} */ target) => {
+    if (target.id === "io-selected") {
+      return { left: 50, top: 100, right: 160, bottom: 140 };
+    }
+    return { left: 80, top: 130, right: 300, bottom: 130 };
+  });
   let nextId = 1;
   globalAny.Tools.ids.generateUID = (/** @type {string} */ prefix) => {
     nextId += 1;
@@ -2701,18 +2708,19 @@ test("Hand box selection can use IntersectionObserver without target bbox reads"
 
   const selectedRect = globalAny.Tools.dom.createSVGElement("rect");
   selectedRect.id = "io-selected";
-  selectedRect.x.baseVal.value = 100;
+  selectedRect.x.baseVal.value = 50;
   selectedRect.y.baseVal.value = 100;
-  selectedRect.width.baseVal.value = 60;
+  selectedRect.width.baseVal.value = 110;
   selectedRect.height.baseVal.value = 40;
   selectedRect.getBBox = () => {
     throw new Error("target getBBox should not be called");
   };
   globalAny.Tools.drawingArea.appendChild(selectedRect);
 
-  const rejectedRect = globalAny.Tools.dom.createSVGElement("rect");
-  rejectedRect.id = "io-rejected";
-  globalAny.Tools.drawingArea.appendChild(rejectedRect);
+  const partialLine = globalAny.Tools.dom.createSVGElement("line");
+  partialLine.id = "io-partial";
+  partialLine.getBBox = selectedRect.getBBox;
+  globalAny.Tools.drawingArea.appendChild(partialLine);
 
   handTool.secondary.active = true;
   handTool.secondary.switch();
