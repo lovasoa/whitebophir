@@ -1,8 +1,5 @@
-<svg role="img" version="1.1" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" id="root">
-    <title>Handle</title>
-    <g id="handle" transform="matrix(2.3668 2.3668 -2.3668 2.3668 13.98 -131.11)" fill="#ff002d">
-        <g transform="translate(-.5821 .16648)" fill="#f00">
-            <rect transform="rotate(-45)" x="-2.9234" y="40.131" width="5.7222" height="5.8388" ry=".34186" fill="#bdaddf" fill-opacity=".99078" stroke="#000" stroke-linejoin="round" stroke-width=".23901" />
-        </g>
-    </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+  stroke="#315b52" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+  <title>Resize</title>
+  <path d="m6 18 12-12m-6 0h6v6M6 12v6h6"/>
 </svg>

@@ -15,7 +15,12 @@ export function createPrivacyWarning(i18n, input) {
   panel.appendChild(message);
   const dismiss = document.createElement("button");
   dismiss.type = "button";
-  dismiss.textContent = "×";
+  dismiss.innerHTML = `
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" aria-hidden="true">
+      <path d="m6 6 12 12M18 6 6 18"/>
+    </svg>
+  `;
   dismiss.setAttribute("aria-label", i18n.t("personal_information_dismiss"));
   // Keep the editor focused (and the mobile keyboard open) on pointer dismissal.
   dismiss.addEventListener("pointerdown", (event) => event.preventDefault());

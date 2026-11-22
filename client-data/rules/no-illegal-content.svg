@@ -1,3 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-  <title>no-illegal-content</title>
-  <path d="M5 3h14v18H5z"/><path d="M8 7h8M8 11h8M8 15h5"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+  stroke="#315b52" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <title>Scales of justice</title>
+  <path d="M12 3v18m-5 0h10M5.5 7h13"/>
+  <path d="m2.5 13 3-6 3 6a3 3 0 0 1-6 0Zm13 0 3-6 3 6a3 3 0 0 1-6 0Z"/>
+</svg>

@@ -481,7 +481,12 @@ test.describe("collaboration and rate limiting", () => {
         await expect(banReport).toBeVisible();
         await expect(banReport).toBeDisabled();
         await expect(banReport).toHaveAttribute("aria-label", "Ban applied");
-        await expect(banReport).toHaveText("✓");
+        await expect(
+          banReport.locator(".connected-user-report-check"),
+        ).toBeVisible();
+        await expect(
+          banReport.locator(".connected-user-report-flag"),
+        ).toBeHidden();
         await page.evaluate(() => {
           document
             .querySelector<HTMLButtonElement>(

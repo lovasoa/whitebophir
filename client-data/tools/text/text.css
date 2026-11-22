@@ -58,13 +58,15 @@ text {
 }
 
 #textPrivacyWarning button {
+  display: grid;
+  place-items: center;
   flex: none;
   min-width: 28px;
   min-height: 28px;
+  padding: 0;
   border: 1px solid #d1d5db;
   border-radius: 2px;
   background: white;
   color: #374151;
-  font-size: 20px;
   cursor: pointer;
 }

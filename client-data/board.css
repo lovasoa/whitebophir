@@ -87,18 +87,15 @@ html[data-ui-direction="rtl"]
 }
 
 .moderation-disconnect-icon {
-  display: grid;
-  place-items: center;
-  flex: 0 0 56px;
-  width: 56px;
-  height: 56px;
-  margin-bottom: 14px;
-  border: 2px solid #b45309;
+  display: block;
+  box-sizing: border-box;
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 12px;
+  padding: 6px;
+  background: #fff2e8;
   border-radius: 50%;
   color: #9a3412;
-  font-size: 34px;
-  font-weight: 700;
-  line-height: 1;
 }
 
 .moderation-disconnect-title {
@@ -542,9 +539,20 @@ dialog.wbo-native-dialog::backdrop {
 
 .hand-selection-button img {
   display: block;
-  width: 100%;
-  height: 100%;
+  width: 18px;
+  height: 18px;
   pointer-events: none;
+}
+
+#selectionButton-scaleHandle {
+  border-color: #477166;
+  background: #edf4f1;
+  cursor: nwse-resize;
+}
+
+#selectionButton-scaleHandle img {
+  width: 12px;
+  height: 12px;
 }
 
 #menu,
@@ -561,8 +569,8 @@ select {
   height: 14px;
   flex: 0 0 auto;
   border-radius: 999px;
-  border: 2px solid var(--board-control-border-strong);
-  border-top-color: var(--board-accent);
+  border: 2px solid #d9e3df;
+  border-top-color: #396b5f;
   box-sizing: border-box;
 }
 
@@ -718,7 +726,6 @@ select {
 
 .board-status-reconnecting .board-status-icon {
   animation: board-status-spin 0.8s linear infinite;
-  border-top-color: var(--board-accent-strong);
 }
 
 .board-status-paused {
@@ -796,7 +803,6 @@ select {
   flex: 0 0 auto;
   width: 22px;
   height: 22px;
-  opacity: 0.92;
 }
 
 .board-presence-toggle .tool-name {
@@ -882,12 +888,10 @@ select {
   width: 24px;
   height: 24px;
   border-radius: var(--board-control-radius);
-  color: #6b7280;
 }
 
 .board-rules-link:hover {
   background: var(--board-control-bg-active);
-  color: #374151;
 }
 
 .active-bans-section {
@@ -1056,7 +1060,7 @@ select {
   border: 0;
   border-radius: 2px;
   background: transparent;
-  color: #8a919b;
+  color: #52616d;
   cursor: pointer;
   line-height: 1;
   transition:
@@ -1068,8 +1072,6 @@ select {
 
 .connected-user-friend {
   position: relative;
-  font-family: Arial, sans-serif;
-  font-size: 13px;
 }
 
 .connected-user-friend::after {
@@ -1098,6 +1100,10 @@ select {
 
 .connected-user-friend-active {
   color: #805866;
+}
+
+.connected-user-friend-active svg {
+  fill: currentColor;
 }
 
 .connected-user-friend[hidden] {
@@ -1146,13 +1152,13 @@ select {
   display: none;
 }
 
-.connected-user-report {
-  background: transparent;
-  color: #59616d;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 24px;
-  text-align: center;
+.connected-user-report-check,
+.connected-user-report-latched .connected-user-report-flag {
+  display: none;
+}
+
+.connected-user-report-latched .connected-user-report-check {
+  display: inline;
 }
 
 .connected-user-report:hover:not([disabled]) {
@@ -1363,6 +1369,10 @@ select {
 }
 
 #menu img.tool-icon {
+  width: 24px;
+  height: 24px;
+  margin: 8px;
+  vertical-align: top;
   pointer-events: none;
 }
 
@@ -1411,9 +1421,8 @@ select {
   display: inline-flex;
 }
 
-#menu .tool.hasSecondary .tool-icon {
-  margin-top: 0px;
-  margin-left: 0px;
+#menu .tool.hasSecondary .primaryIcon {
+  transform: translate(-2px, -2px);
 }
 
 #menu .tool .tool-icon.secondaryIcon {
@@ -1423,10 +1432,13 @@ select {
 #menu .tool.hasSecondary .tool-icon.secondaryIcon {
   display: block;
   position: absolute;
-  bottom: 0px;
-  left: 26px;
-  width: 12px;
-  height: 12px;
+  bottom: 1px;
+  left: 25px;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  border-radius: var(--board-control-radius);
+  background: inherit;
 }
 
 input {
@@ -1467,6 +1479,9 @@ input {
 }
 
 #menu #stylePreview.tool-icon {
+  width: 28px;
+  height: 28px;
+  margin: 6px;
   overflow: visible;
 }
 

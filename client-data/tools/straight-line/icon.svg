@@ -1,4 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" height="60" width="60" viewBox="0 0 60 60">
-    <title>Line</title>
-    <path d="M12.06 50.69l23.1-14.25-12.3-16.36 18.8-13.02" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+  stroke="#263846" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <title>Line</title>
+  <path d="M5 19 19 5"/>
+  <circle cx="5" cy="19" r="1.5" fill="#263846" stroke="none"/>
+  <circle cx="19" cy="5" r="1.5" fill="#263846" stroke="none"/>
 </svg>

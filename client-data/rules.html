@@ -8,8 +8,9 @@
     <link rel="stylesheet" href="rules.css" />
     <meta name="description" content="{{translations.community_rules_intro}}" />
     <link rel="icon" type="image/x-icon" sizes="16x16" href="favicon.ico" />
-    <link rel="apple-touch-icon" href="favicon.svg" />
-    <link rel="mask-icon" href="favicon.svg" color="black" />
+    <link rel="icon" type="image/svg+xml" sizes="any" href="favicon.svg" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <link rel="mask-icon" href="favicon-mask.svg" color="#275248" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta property="og:url" content="{{canonicalUrl}}" />
     <meta property="og:image" content="{{baseUrl}}/favicon.svg" />
@@ -46,10 +47,8 @@
         <ol class="rules-list">
           {{#moderationRules}}
           <li data-rule-id="{{id}}">
-            <div class="rules-list-heading">
-              <img class="moderation-rule-icon" src="{{iconPath}}" alt="" aria-hidden="true" />
-              <h3>{{title}}</h3>
-            </div>
+            <img class="moderation-rule-icon" width="32" height="32" src="{{iconPath}}" alt="" />
+            <h3>{{title}}</h3>
             {{#paragraphs}}
             <p>{{.}}</p>
             {{/paragraphs}}

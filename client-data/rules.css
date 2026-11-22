@@ -22,7 +22,7 @@
   min-width: 0;
   background: var(--wbo-surface);
   border: 1px solid var(--wbo-border);
-  padding: 34px 42px;
+  padding: 34px clamp(18px, 5vw, 42px);
 }
 
 .rules-card h2 {
@@ -51,6 +51,9 @@
 .rules-list li {
   border-bottom: 1px solid #eef0f3;
   counter-increment: rules;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  column-gap: 12px;
   padding: 20px 0;
 }
 
@@ -64,25 +67,21 @@
   font-size: 18px;
   gap: 10px;
   line-height: 1.35;
-  margin: 0 0 10px;
+  margin: 4px 0 0;
 }
 
-.rules-list-heading {
-  align-items: center;
-  display: flex;
-  gap: 12px;
+.rules-list .moderation-rule-icon {
+  display: block;
+  grid-column: 1;
+  grid-row: 1;
+  box-sizing: border-box;
+  padding: 4px;
+  border-radius: var(--wbo-radius-panel);
+  background: #edf4f1;
 }
 
-.rules-list-heading .moderation-rule-icon {
-  color: #59616d;
-  flex: 0 0 28px;
-  height: 28px;
-  width: 28px;
-}
-
-.rules-list-heading h3 {
-  flex: 1 1 auto;
-  min-width: 0;
+.rules-list :is(h3, p) {
+  grid-column: 2;
 }
 
 .rules-list h3::before {
@@ -96,7 +95,6 @@
   color: #374151;
   line-height: 1.65;
   margin: 8px 0 0;
-  margin-inline-start: 40px;
 }
 
 .rules-back {

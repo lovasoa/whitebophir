@@ -24,8 +24,19 @@ const connectedUserRowTemplate = createUiTemplate(`
       </a>
     </div>
     <span class="connected-user-actions">
-      <button type="button" class="connected-user-action connected-user-friend"><span class="connected-user-friend-glyph" aria-hidden="true"></span></button>
-      <button type="button" class="connected-user-action connected-user-report"></button>
+      <button type="button" class="connected-user-action connected-user-friend">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 20 4.8 13a4.6 4.6 0 0 1 6.5-6.5l.7.7.7-.7a4.6 4.6 0 1 1 6.5 6.5Z"/>
+        </svg>
+      </button>
+      <button type="button" class="connected-user-action connected-user-report">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path class="connected-user-report-flag" d="M5 21V4h7l1.5 2H20v10h-7l-1.5-2H5"/>
+          <path class="connected-user-report-check" d="m5 12 4 4 10-9"/>
+        </svg>
+      </button>
     </span>
   </li>
 `);
@@ -44,7 +55,7 @@ const activeBanRowTemplate = createUiTemplate(`
 /** @typedef {{
  * element: HTMLLIElement, link: HTMLAnchorElement,
  * toolIcon: HTMLImageElement, toolBadge: HTMLSpanElement,
- * name: HTMLElement, friend: HTMLButtonElement, friendGlyph: HTMLElement,
+ * name: HTMLElement, friend: HTMLButtonElement,
  * meta: HTMLElement, joinedTime: HTMLElement, report: HTMLButtonElement,
  * }} ConnectedUserRow */
 /** @typedef {"minute" | "hour" | "day"} ConnectedUserDurationUnit */
@@ -761,16 +772,6 @@ function getReportActionLabel(Tools, name) {
   );
 }
 
-/** @returns {string} */
-function getReportActionGlyph() {
-  return "\u2691\uFE0E";
-}
-
-/** @returns {string} */
-function getReportSentGlyph() {
-  return "\u2713";
-}
-
 /** @returns {boolean} */
 function hasCoarsePointer() {
   return (
@@ -809,7 +810,6 @@ function updateConnectedUserRow(Tools, view, user) {
     toolBadge,
     name,
     friend,
-    friendGlyph,
     meta,
     joinedTime,
     report,
@@ -880,7 +880,6 @@ function updateConnectedUserRow(Tools, view, user) {
         name: user.name,
       });
   friend.hidden = currentIdentityUser;
-  friendGlyph.textContent = isFriend ? "\u2665\uFE0E" : "\u2661";
   friend.title = friendLabel;
   friend.setAttribute("aria-label", friendLabel);
   friend.setAttribute("aria-pressed", isFriend ? "true" : "false");
@@ -908,9 +907,6 @@ function updateConnectedUserRow(Tools, view, user) {
   const reportLabel = user.reported
     ? Tools.i18n.t(user.reportBanned ? "ban_applied" : "report_sent")
     : getReportActionLabel(Tools, user.name);
-  report.textContent = user.reported
-    ? getReportSentGlyph()
-    : getReportActionGlyph();
   report.title = reportLabel;
   report.setAttribute("aria-label", reportLabel);
   report.hidden = user.reported
@@ -1009,7 +1005,6 @@ function createConnectedUserRow(getTools, presence) {
     toolBadge,
     name: row.querySelector("bdi"),
     friend: row.querySelector(".connected-user-friend"),
-    friendGlyph: row.querySelector(".connected-user-friend-glyph"),
     meta: row.querySelector(".connected-user-meta"),
     joinedTime: row.querySelector(".connected-user-time"),
     report: row.querySelector(".connected-user-report"),

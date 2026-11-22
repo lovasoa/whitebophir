@@ -324,7 +324,12 @@ const createConfirmation = createUiTemplate(`
 
 const createModerationNotice = createUiTemplate(`
   <div>
-    <div class="moderation-disconnect-icon" aria-hidden="true">!</div>
+    <svg class="moderation-disconnect-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"/>
+      <path d="M12 7.5v5"/>
+      <circle cx="12" cy="16" r="1" fill="currentColor" stroke="none"/>
+    </svg>
     <div class="moderation-disconnect-title" id="moderation-disconnect-title"></div>
     <p class="moderation-disconnect-message" id="moderation-disconnect-message"></p>
     <div class="moderation-disconnect-rule">

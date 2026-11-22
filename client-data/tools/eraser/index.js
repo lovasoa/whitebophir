@@ -172,6 +172,6 @@ export function boot(ctx) {
     board: ctx.runtime.board,
     writes: ctx.runtime.writes,
     erasing: false,
-    mouseCursor: `url('${ctx.assetUrl("icon.svg")}') 8 24, crosshair`,
+    mouseCursor: `url('${ctx.assetUrl("cursor.svg")}') 8 24, crosshair`,
   };
 }

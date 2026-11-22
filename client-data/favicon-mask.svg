@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none"
+  stroke="#000" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+  <title>WBO</title>
+  <rect x="12" y="14" width="40" height="28" rx="4"/>
+  <path d="m20 24 5 9 7-6 7 6 5-9M32 42v9m-8 0h16"/>
+</svg>

@@ -333,7 +333,7 @@ function createInitialState(ctx) {
       icon: "tools/pencil/whiteout_tape.svg",
       active: false,
     }),
-    mouseCursor: `url('${ctx.assetUrl("cursor.svg")}'), crosshair`,
+    mouseCursor: `url('${ctx.assetUrl("cursor.svg")}') 2 2, crosshair`,
   };
 }
 
