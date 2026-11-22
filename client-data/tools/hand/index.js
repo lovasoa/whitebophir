@@ -32,6 +32,7 @@ import {
 import { createBoardHtmlOverlay } from "../../js/board_html_overlay.js";
 import { safePreventDefault } from "../../js/board_viewport.js";
 import { logFrontendEvent } from "../../js/frontend_logging.js";
+import { createUiIcon, setUiIconUrl } from "../../js/ui_icon.js";
 import { transformedBBox } from "../../js/intersect.js";
 import MessageCommon from "../../js/message_common.js";
 import { MutationType } from "../../js/message_tool_metadata.js";
@@ -483,11 +484,9 @@ function createButton(
   element.setAttribute("aria-label", label ?? name);
   if (label) element.title = label;
   element.style.display = "none";
-  const image = document.createElement("img");
-  image.alt = "";
-  image.draggable = false;
-  image.src = state.assetUrl(`${icon}.svg`);
-  element.appendChild(image);
+  const glyph = createUiIcon("selection-icon");
+  setUiIconUrl(glyph, state.assetUrl(`${icon}.svg`));
+  element.appendChild(glyph);
 
   /** @type {SelectionButton} */
   const button = {

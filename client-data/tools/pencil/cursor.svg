@@ -1,9 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 60 60">
-  <title>Pencil</title>
-  <defs/>
-  <g fill="none" stroke="#000" stroke-width="2">
-    <path d="M41.06 33.83c.6-2.8-4.52-5.04-4.65-5.1l-21-23.03L3.18 16.83l21 23.04v.02s1.84 5.48 4.65 5.09a17.85 17.85 0 0012.23-11.14z"/>
-    <path fill="#000" stroke="none" d="M1.18 1.39l.68 5.97 4.97-4.73-5.69-1.26"/>
-    <path d="M32.5 32.38L11.76 9.48M28.33 36.3L7.35 13.39M15.21 5.26L1.1 1.43l1.68 15.22M36.41 28.74l-11.8 11.62h0"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+  stroke="CanvasText" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <title>Pencil cursor</title>
+  <path fill="Canvas" d="m2 2 5.8 1.3 11.4 11.4a2 2 0 0 1 0 2.8l-1.7 1.7a2 2 0 0 1-2.8 0L3.3 7.8Z"/>
+  <path d="m12.6 17.1 4.5-4.5"/>
 </svg>

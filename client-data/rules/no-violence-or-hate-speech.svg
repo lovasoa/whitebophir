@@ -1,3 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-  <title>no-violence-or-hate-speech</title>
-  <path d="m13 2-9 12h7l-1 8 9-12h-7z"/><path d="M3 5h2M19 5h2M5 19l1.5-1.5M19 19l-1.5-1.5"/></svg>
+<svg id="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <title>Nonviolence</title>
+  <circle cx="12" cy="12" r="8.75"/>
+  <path d="M12 3.25v17.5M5.75 18.25 12 12l6.25 6.25"/>
+</svg>

@@ -1,3 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-  <title>no-pornography</title>
-  <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.5"/><path d="m4 4 16 16"/></svg>
+<svg id="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <title>Hidden content</title>
+  <path d="M3 8.5c2 3.7 5.2 6 9 6s7-2.3 9-6"/>
+  <path d="m5.5 12-2.25 2.5M9.5 14.25l-.75 3.25m5.75-3.25.75 3.25m3.25-5.5 2.25 2.5"/>
+</svg>

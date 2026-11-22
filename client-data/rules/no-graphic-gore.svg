@@ -1,3 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-  <title>no-graphic-gore</title>
-  <path d="M12 3C9 7 6 10 6 14a6 6 0 0 0 12 0c0-4-3-7-6-11ZM3 3l18 18"/></svg>
+<svg id="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <title>Blood</title>
+  <path d="M12 2.75c-1.75 3.75-6.5 7.75-6.5 12a6.5 6.5 0 0 0 13 0c0-4.25-4.75-8.25-6.5-12Z"/>
+  <path d="M9 15a3 3 0 0 0 2.25 2.75"/>
+</svg>

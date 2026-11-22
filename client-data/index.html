@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <title>WBO — {{translations.collaborative_whiteboard}}</title>
     <base href="{{baseHref}}" />
+    <link rel="stylesheet" href="icons.css" />
     <link rel="stylesheet" href="index.css" />
     <meta name="description" content="{{translations.tagline}}" />
     <meta
@@ -30,7 +31,10 @@
       <h1>WBO</h1>
       <nav class="lang-selector">
         <details>
-          <summary><span>{{language}}</span></summary>
+          <summary>
+            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="language.svg#icon"></use></svg>
+            <span>{{language}}</span>
+          </summary>
           <ul>
             {{#languageLinks}}
             <li>
@@ -109,14 +113,18 @@
             class="smallink"
             rel="external"
             title="Instagram"
-            ><img alt="instagram" src="instagram.svg" width="30" height="30"
-          /></a>
+            aria-label="Instagram"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><use href="instagram.svg#icon"></use></svg>
+          </a>
           <a
             href="https://github.com/lovasoa/whitebophir"
             class="smallink"
             rel="external"
             title="{{translations.view_source}}"
-            ><img alt="github" src="github.svg" width="30" height="30" />
+            aria-label="{{translations.view_source}}"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><use href="github.svg#icon"></use></svg>
           </a>
         </footer>
       </div>

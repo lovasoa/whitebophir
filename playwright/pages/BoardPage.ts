@@ -366,9 +366,6 @@ window.turnstile = {
         const toolBadge = row.querySelector(
           ".connected-user-toolBadge",
         ) as HTMLElement | null;
-        const toolIcon = row.querySelector(
-          ".connected-user-toolIcon",
-        ) as HTMLImageElement | null;
         const nameComputed = name ? window.getComputedStyle(name) : null;
         const rowComputed =
           row instanceof HTMLElement ? window.getComputedStyle(row) : null;
@@ -379,7 +376,7 @@ window.turnstile = {
           userId: row instanceof HTMLElement ? (row.dataset.userId ?? "") : "",
           name: name?.textContent ?? "",
           meta: meta?.textContent ?? "",
-          tool: toolIcon?.title ?? "",
+          tool: toolBadge?.title ?? "",
           isSelf: row.classList.contains("connected-user-row-self"),
           reportDisabled: !!(report && (report as HTMLButtonElement).disabled),
           reportHidden: !!(report && (report as HTMLButtonElement).hidden),
@@ -1127,7 +1124,7 @@ window.turnstile = {
       const cursor = document.getElementById("cursor-me");
       if (!(cursor instanceof HTMLElement)) return null;
       const style = window.getComputedStyle(cursor);
-      const icon = cursor.querySelector(".opcursor-toolIcon");
+      const icon = cursor.querySelector(".opcursor-toolIcon use");
       const board = document.getElementById("board");
       if (!board) return null;
       const rect = cursor.getBoundingClientRect();
@@ -1139,10 +1136,7 @@ window.turnstile = {
         opacity: style.getPropertyValue("--opcursor-opacity").trim(),
         sampleSize: style.getPropertyValue("--opcursor-sample-size").trim(),
         name: cursor.querySelector(".opcursor-name")?.textContent ?? "",
-        iconSrc:
-          icon instanceof HTMLImageElement
-            ? (icon.getAttribute("src") ?? "")
-            : "",
+        iconSrc: icon?.getAttribute("href") ?? "",
       };
     });
   }

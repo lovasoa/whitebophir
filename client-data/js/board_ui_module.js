@@ -1,4 +1,5 @@
 import { createUiTemplate } from "./ui_template.js";
+import { setUiIconUrl } from "./ui_icon.js";
 
 /**
  * @typedef {{
@@ -324,11 +325,16 @@ const createConfirmation = createUiTemplate(`
 
 const createModerationNotice = createUiTemplate(`
   <div>
-    <div class="moderation-disconnect-icon" aria-hidden="true">!</div>
+    <svg class="moderation-disconnect-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"/>
+      <path d="M12 7.5v5"/>
+      <circle cx="12" cy="16" r="1" fill="currentColor" stroke="none"/>
+    </svg>
     <div class="moderation-disconnect-title" id="moderation-disconnect-title"></div>
     <p class="moderation-disconnect-message" id="moderation-disconnect-message"></p>
     <div class="moderation-disconnect-rule">
-      <img class="moderation-disconnect-rule-icon" alt="" aria-hidden="true">
+      <svg class="moderation-disconnect-rule-icon" viewBox="0 0 24 24" aria-hidden="true"><use></use></svg>
       <div class="moderation-disconnect-rule-heading"></div>
       <div class="moderation-disconnect-rule-title"></div>
       <p class="moderation-disconnect-rule-body"></p>
@@ -355,7 +361,7 @@ const createActionContent = createUiTemplate(`
 const createActionChoice = /** @type {() => HTMLButtonElement} */ (
   createUiTemplate(`
   <button type="button">
-    <img class="moderation-action-rule-icon" alt="">
+    <svg class="moderation-action-rule-icon" viewBox="0 0 24 24" aria-hidden="true"><use></use></svg>
     <span></span>
   </button>
 `)
@@ -501,10 +507,10 @@ export function showActionDialog(options) {
             button.classList.add("moderation-action-duration");
           if (choice.variant)
             button.classList.add(`wbo-dialog-button-${choice.variant}`);
-          const icon = /** @type {HTMLImageElement} */ (
-            button.querySelector("img")
+          const icon = /** @type {SVGSVGElement} */ (
+            button.querySelector("svg")
           );
-          if (choice.iconUrl) icon.src = choice.iconUrl;
+          if (choice.iconUrl) setUiIconUrl(icon, choice.iconUrl);
           else icon.remove();
           const label = /** @type {HTMLElement} */ (
             button.querySelector("span")
@@ -586,10 +592,10 @@ export function showModerationDisconnectNotice(options) {
         content.querySelector(".moderation-disconnect-rule")
       );
       if (options.ruleTitle) {
-        const ruleIcon = /** @type {HTMLImageElement} */ (
+        const ruleIcon = /** @type {SVGSVGElement} */ (
           content.querySelector(".moderation-disconnect-rule-icon")
         );
-        if (options.ruleIconUrl) ruleIcon.src = options.ruleIconUrl;
+        if (options.ruleIconUrl) setUiIconUrl(ruleIcon, options.ruleIconUrl);
         else ruleIcon.remove();
         text(".moderation-disconnect-rule-heading", options.ruleHeading || "");
         text(".moderation-disconnect-rule-title", options.ruleTitle);

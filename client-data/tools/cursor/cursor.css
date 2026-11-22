@@ -92,7 +92,7 @@
   display: block;
   width: 16px;
   height: 16px;
-  object-fit: contain;
+  color: var(--wbo-icon-ink);
 }
 
 .opcursor-name {

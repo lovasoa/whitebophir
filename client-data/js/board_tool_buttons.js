@@ -2,16 +2,17 @@ import { TOOL_BY_ID } from "../tools/manifest.js";
 import { getRequiredElement } from "./board_page_state.js";
 import { blurActiveElement } from "./board_tool_input.js";
 import { isTextEntryTarget } from "./text_entry_target.js";
+import { setUiIconUrl } from "./ui_icon.js";
 
 /** @import { AppToolsState, MountedAppTool } from "../../types/app-runtime" */
 
 /**
  * @param {string} toolName
- * @returns {{button: HTMLElement, primaryIcon: HTMLImageElement, secondaryIcon: HTMLImageElement | null, label: HTMLElement}}
+ * @returns {{button: HTMLElement, primaryIcon: SVGSVGElement, secondaryIcon: SVGSVGElement | null, label: HTMLElement}}
  */
 function getRequiredToolButtonParts(toolName) {
   const button = getRequiredElement(`toolID-${toolName}`);
-  const primaryIcon = /** @type {HTMLImageElement | null} */ (
+  const primaryIcon = /** @type {SVGSVGElement | null} */ (
     button.querySelector(".tool-icon")
   );
   const label = /** @type {HTMLElement | null} */ (
@@ -23,7 +24,7 @@ function getRequiredToolButtonParts(toolName) {
   return {
     button: button,
     primaryIcon: primaryIcon,
-    secondaryIcon: /** @type {HTMLImageElement | null} */ (
+    secondaryIcon: /** @type {SVGSVGElement | null} */ (
       button.querySelector(".secondaryIcon")
     ),
     label: label,
@@ -93,19 +94,17 @@ export function syncMountedToolButton(Tools, tool) {
   const mode = tool.secondary?.active ? tool.secondary : tool;
   renderToolButtonLabel(parts.label, Tools.i18n.t(mode.name), tool.shortcut);
   button.setAttribute("aria-label", Tools.i18n.t(tool.name));
-  parts.primaryIcon.src = Tools.assets.resolveAssetPath(mode.icon);
-  delete parts.primaryIcon.dataset.iconUrl;
-  parts.primaryIcon.alt = "";
+  setUiIconUrl(parts.primaryIcon, Tools.assets.resolveAssetPath(mode.icon));
   button.classList.toggle("oneTouch", tool.oneTouch === true);
   button.classList.toggle("hasSecondary", !!tool.secondary);
   parts.primaryIcon.classList.toggle("primaryIcon", !!tool.secondary);
   button.removeAttribute("title");
-  if (parts.secondaryIcon) {
-    const alternate = tool.secondary?.active ? tool : tool.secondary;
-    parts.secondaryIcon.src = alternate
-      ? Tools.assets.resolveAssetPath(alternate.icon)
-      : "data:,";
-    parts.secondaryIcon.alt = "";
+  const alternate = tool.secondary?.active ? tool : tool.secondary;
+  if (parts.secondaryIcon && alternate) {
+    setUiIconUrl(
+      parts.secondaryIcon,
+      Tools.assets.resolveAssetPath(alternate.icon),
+    );
   }
 }
 

@@ -1,3 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-  <title>respect-moderation-decisions</title>
-  <path d="M12 3 20 6v5c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg>
+<svg id="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <title>Moderation</title>
+  <path d="m12 3 8 3v5c0 4.7-3.4 8.1-8 10.25C7.4 19.1 4 15.7 4 11V6Z"/>
+  <path d="m8.25 11.75 2.5 2.5 5-5.25"/>
+</svg>

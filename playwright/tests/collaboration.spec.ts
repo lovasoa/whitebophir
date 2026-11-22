@@ -103,9 +103,7 @@ test.describe("collaboration and rate limiting", () => {
             ".opcursor-html:not(#cursor-me)",
           );
           if (!(remoteCursor instanceof HTMLElement)) return null;
-          const icon = remoteCursor.querySelector(
-            ".opcursor-toolIcon",
-          ) as HTMLImageElement | null;
+          const icon = remoteCursor.querySelector(".opcursor-toolIcon use");
           const rect = remoteCursor.getBoundingClientRect();
           const board = document.getElementById("board");
           if (!board) return null;
@@ -114,7 +112,7 @@ test.describe("collaboration and rate limiting", () => {
             x: Math.round(rect.left - boardRect.left),
             y: Math.round(rect.top - boardRect.top),
             transition: getComputedStyle(remoteCursor).transitionProperty,
-            icon: icon?.getAttribute("src") ?? "",
+            icon: icon?.getAttribute("href") ?? "",
           };
         }),
       )
@@ -481,7 +479,12 @@ test.describe("collaboration and rate limiting", () => {
         await expect(banReport).toBeVisible();
         await expect(banReport).toBeDisabled();
         await expect(banReport).toHaveAttribute("aria-label", "Ban applied");
-        await expect(banReport).toHaveText("✓");
+        await expect(
+          banReport.locator(".connected-user-report-check"),
+        ).toBeVisible();
+        await expect(
+          banReport.locator(".connected-user-report-flag"),
+        ).toBeHidden();
         await page.evaluate(() => {
           document
             .querySelector<HTMLButtonElement>(
@@ -1528,11 +1531,9 @@ test.describe("collaboration and rate limiting", () => {
             color: style.getPropertyValue("--opcursor-color").trim(),
             name:
               remoteCursor.querySelector(".opcursor-name")?.textContent ?? "",
-            icon: (
-              remoteCursor.querySelector(
-                ".opcursor-toolIcon",
-              ) as HTMLImageElement | null
-            )?.getAttribute("src"),
+            icon: remoteCursor
+              .querySelector(".opcursor-toolIcon use")
+              ?.getAttribute("href"),
             oldSvgCursorCount:
               document.querySelectorAll("#cursors .opcursor").length,
           };

@@ -1,0 +1,17 @@
+:root {
+  --wbo-icon-ink: #293c43;
+  --wbo-icon-muted: #56686c;
+  --wbo-icon-accent: #346455;
+  --wbo-icon-danger: #a03634;
+  --wbo-icon-surface: #edf4f0;
+}
+
+@media (forced-colors: active) {
+  :root {
+    --wbo-icon-ink: CanvasText;
+    --wbo-icon-muted: CanvasText;
+    --wbo-icon-accent: CanvasText;
+    --wbo-icon-danger: CanvasText;
+    --wbo-icon-surface: Canvas;
+  }
+}

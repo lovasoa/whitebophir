@@ -179,11 +179,15 @@ footer {
 }
 
 footer a {
-  opacity: 0.3;
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  color: var(--wbo-icon-muted);
 }
 
-footer a:hover {
-  opacity: 1;
+footer a:is(:hover, :focus-visible) {
+  color: var(--wbo-icon-ink);
 }
 
 .surface-card {
@@ -200,8 +204,19 @@ footer a:hover {
 }
 
 .lang-selector summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--wbo-border);
+  border-radius: var(--wbo-radius-panel);
+  background: var(--wbo-surface);
+  color: var(--wbo-icon-ink);
+  font-size: 13px;
+  font-weight: 500;
+  text-transform: uppercase;
   cursor: pointer;
-  display: block;
   list-style: none;
 }
 
@@ -213,14 +228,24 @@ footer a:hover {
   content: "";
 }
 
-.lang-selector span {
-  padding-top: 9px;
-  background-image: url(./label.svg);
-  height: 65px;
-  width: 70px;
-  text-align: center;
-  display: block;
-  background-repeat: no-repeat;
+.lang-selector summary::after {
+  width: 5px;
+  height: 5px;
+  margin: -3px 2px 0;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+  content: "";
+}
+
+.lang-selector details[open] summary::after {
+  transform: rotate(225deg);
+  margin-top: 3px;
+}
+
+.lang-selector :is(details[open] summary, summary:hover) {
+  color: var(--wbo-icon-accent);
+  background: var(--wbo-icon-surface);
 }
 
 .lang-selector ul {
@@ -229,8 +254,8 @@ footer a:hover {
   border: 1px solid var(--wbo-border);
   border-radius: var(--wbo-radius-control);
   position: absolute;
-  top: 100%;
-  right: 0;
+  top: calc(100% - 6px);
+  right: 10px;
   width: 160px;
   max-height: min(320px, calc(100vh - 90px));
   overflow-y: auto;

@@ -1,3 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-  <title>no-spam</title>
-  <rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 5 9 8 9-8M3 3l18 18"/></svg>
+<svg id="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <title>Repeated posts</title>
+  <path d="M7 3.5h11a2.5 2.5 0 0 1 2.5 2.5v10"/>
+  <rect x="3.5" y="7.5" width="13" height="13" rx="2"/>
+  <path d="M7.5 12h5m-5 4H11"/>
+</svg>

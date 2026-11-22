@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
+  stroke="CanvasText" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <title>Eraser cursor</title>
+  <path fill="Canvas" d="m4.5 14.5 9-9a2 2 0 0 1 2.8 0l4 4a2 2 0 0 1 0 2.8L14.5 18h-8l-2-2a1 1 0 0 1 0-1.5Z"/>
+  <path d="m8.4 10.6 7 7"/>
+</svg>
