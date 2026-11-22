@@ -64,12 +64,12 @@ test("getModerationRule returns the correct rule or undefined", async () => {
   assert.equal(getModerationRule(undefined), undefined);
 });
 
-test("each rule has a corresponding SVG icon file on disk", async () => {
+test("each rule's SVG exposes the fragment used by the rules page and dialogs", async () => {
   const { MODERATION_RULES } = await import(
     "../client-data/js/moderation_rules.js"
   );
   for (const { iconFile } of MODERATION_RULES) {
     const iconPath = path.join(RULES_DIR, iconFile);
-    assert.ok(fs.existsSync(iconPath), `Missing SVG icon: ${iconFile}`);
+    assert.match(fs.readFileSync(iconPath, "utf8"), /\bid="icon"/, iconFile);
   }
 });

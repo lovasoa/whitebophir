@@ -1,7 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-  stroke="#315b52" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <title>Safety warning</title>
-  <path d="M10.5 4.5a1.7 1.7 0 0 1 3 0l7.2 12.7a1.9 1.9 0 0 1-1.6 2.8H4.9a1.9 1.9 0 0 1-1.6-2.8Z"/>
-  <path d="M12 9v4"/>
-  <circle cx="12" cy="16.5" r="1" fill="#315b52" stroke="none"/>
+<svg id="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <title>Nonviolence</title>
+  <circle cx="12" cy="12" r="8.75"/>
+  <path d="M12 3.25v17.5M5.75 18.25 12 12l6.25 6.25"/>
 </svg>

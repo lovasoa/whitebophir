@@ -418,16 +418,14 @@ function makeCursorMessageFromActivity(state, message) {
 /**
  * @param {Element} element
  * @param {string} className
- * @returns {HTMLElement | null}
+ * @returns {Element | null}
  */
 function getCursorPart(element, className) {
   if (
     "querySelector" in element &&
     typeof element.querySelector === "function"
   ) {
-    return /** @type {HTMLElement | null} */ (
-      element.querySelector(`.${className}`)
-    );
+    return element.querySelector(`.${className}`);
   }
   const children = Array.isArray(/** @type {any} */ (element).children)
     ? /** @type {any} */ (element).children
@@ -451,7 +449,7 @@ function updateCursorContent(state, cursor, message) {
   const text = getCursorName(state, message);
   if (name && name.textContent !== text) name.textContent = text;
 
-  const toolIcon = /** @type {HTMLImageElement | null} */ (
+  const toolIcon = /** @type {SVGSVGElement | null} */ (
     getCursorPart(cursor, "opcursor-toolIcon")
   );
   if (toolIcon) {

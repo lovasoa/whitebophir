@@ -1,6 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-  stroke="#a12f35" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<svg id="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <title>Clear board</title>
-  <rect x="3" y="4" width="18" height="13" rx="2"/>
-  <path d="M12 17v4m-4 0h8M9.5 8l5 5m0-5-5 5"/>
+  <g transform="rotate(38 12 12)">
+    <path d="M12 2v8M9 10h6l3 9a16 16 0 0 1-12 0Z"/>
+    <path d="M8 13h8m-4 4v3"/>
+  </g>
 </svg>

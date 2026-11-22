@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-  stroke="#263846" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<svg id="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <title>Whiteout tape</title>
-  <path d="M7 9a6.2 6.2 0 1 1 4.3 10.8H4v-4.5Z"/>
-  <circle cx="13" cy="13" r="2"/>
-  <path d="M4 20h16"/>
+  <path d="m3 16 10-10a5 5 0 1 1 6.1 7.8l-12 5.5Z"/>
+  <circle cx="16.5" cy="9.5" r="1.5"/>
+  <path d="M3 20h4"/>
 </svg>

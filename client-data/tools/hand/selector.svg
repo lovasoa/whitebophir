@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-  stroke="#263846" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<svg id="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <title>Selection</title>
-  <path d="M4 8V4h4m8 0h4v4m0 8v4h-4m-8 0H4v-4M11 4h2m7 7v2m-9 7h2m-9-9v2"/>
+  <path d="M4 9V4h5m6 0h5v5m0 6v5h-5m-6 0H4v-5"/>
 </svg>

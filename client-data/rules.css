@@ -77,7 +77,8 @@
   box-sizing: border-box;
   padding: 4px;
   border-radius: var(--wbo-radius-panel);
-  background: #edf4f1;
+  color: var(--wbo-icon-accent);
+  background: var(--wbo-icon-surface);
 }
 
 .rules-list :is(h3, p) {

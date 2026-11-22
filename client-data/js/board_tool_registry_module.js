@@ -264,10 +264,10 @@ export class ToolRegistryModule {
         if (wasHidden) syncMountedToolButton(Tools, tool);
         return;
       }
-      const icon = toolElem.querySelector(".tool-icon");
-      if (icon instanceof HTMLImageElement && icon.dataset.iconUrl) {
-        icon.src = icon.dataset.iconUrl;
-        delete icon.dataset.iconUrl;
+      const use = toolElem.querySelector(".tool-icon use[data-icon-url]");
+      if (use instanceof SVGUseElement && use.dataset.iconUrl) {
+        use.setAttribute("href", use.dataset.iconUrl);
+        delete use.dataset.iconUrl;
       }
       if (this.lazyBootEnabled) void this.bootTool(toolName);
     });

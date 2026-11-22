@@ -1,7 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-  stroke="#263846" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <title>Orthogonal line</title>
-  <path d="M4 17h8V7h8"/>
-  <circle cx="4" cy="17" r="1.5" fill="#263846" stroke="none"/>
-  <circle cx="20" cy="7" r="1.5" fill="#263846" stroke="none"/>
+<svg id="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <title>Snapped line</title>
+  <path d="M4 12h16M4 9v6m16-6v6"/>
 </svg>

@@ -188,6 +188,9 @@ function createBaseElement(store, tagName) {
     parentNode: null,
     parentElement: null,
     children: /** @type {any[]} */ ([]),
+    get firstElementChild() {
+      return this.children[0] ?? null;
+    },
     textContent: "",
     appendChild: function (/** @type {any} */ child) {
       child.parentNode = this;
@@ -1525,9 +1528,12 @@ test("Cursor renders presence as a viewport-scaled HTML overlay", async () => {
     findElementByClass(peerCursor, "opcursor-name")?.textContent,
     "\u2764\uFE0F \u{1F338} Peer User",
   );
-  assert.equal(
-    findElementByClass(peerCursor, "opcursor-toolIcon")?.src,
-    "../tools/hand/icon.svg",
+  assert.match(
+    findElementByClass(
+      peerCursor,
+      "opcursor-toolIcon",
+    )?.firstElementChild?.getAttribute("href"),
+    /\/tools\/hand\/icon\.svg#icon$/,
   );
   assert.equal(findElementByClass(peerCursor, "opcursor-styleSwatch"), null);
   assert.equal(harness.elementsById.has("cursors"), false);
@@ -1580,9 +1586,12 @@ test("Cursor follows peer drawing activity messages", async () => {
     findElementByClass(peerCursor, "opcursor-name")?.textContent,
     "\u{1F338} Peer User",
   );
-  assert.equal(
-    findElementByClass(peerCursor, "opcursor-toolIcon")?.src,
-    "../tools/pencil/icon.svg",
+  assert.match(
+    findElementByClass(
+      peerCursor,
+      "opcursor-toolIcon",
+    )?.firstElementChild?.getAttribute("href"),
+    /\/tools\/pencil\/icon\.svg#icon$/,
   );
 
   cursorTool.onMessage({
@@ -1598,9 +1607,12 @@ test("Cursor follows peer drawing activity messages", async () => {
   harness.time.advanceTime(16);
 
   assert.equal(peerCursor.style.transform, "translate3d(200px, 220px, 0)");
-  assert.equal(
-    findElementByClass(peerCursor, "opcursor-toolIcon")?.src,
-    "../tools/rectangle/icon.svg",
+  assert.match(
+    findElementByClass(
+      peerCursor,
+      "opcursor-toolIcon",
+    )?.firstElementChild?.getAttribute("href"),
+    /\/tools\/rectangle\/icon\.svg#icon$/,
   );
 });
 

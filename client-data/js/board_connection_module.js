@@ -485,7 +485,9 @@ export class ConnectionModule {
               ruleHeading: Tools.i18n.t("moderation_rule_focus"),
               ruleTitle: rule ? Tools.i18n.t(rule.titleKey) : undefined,
               ruleBody: rule ? Tools.i18n.t(rule.bodyKeys[0] || "") : undefined,
-              ruleIconUrl: rule ? `../rules/${rule.iconFile}` : undefined,
+              ruleIconUrl: rule
+                ? Tools.assets.resolveAssetPath(`rules/${rule.iconFile}`)
+                : undefined,
             })
             .then(() => {
               notice.acknowledged = true;

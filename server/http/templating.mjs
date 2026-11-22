@@ -486,7 +486,6 @@ class BoardTemplate extends Template {
         id: tool.toolId,
         label: params.translations[tool.translationKey] || tool.label,
         iconUrl,
-        initialIconUrl: visible ? iconUrl : "data:,",
         visible,
       };
     });

@@ -56,18 +56,16 @@ for system boundaries and [README.md](./README.md) for running an instance.
 
 ## Frontend
 
-- Preserve the compact whiteboard shell and unobstructed left tool rail. Use
-  existing CSS and controls before adding a visual convention.
-- Use white/near-white surfaces, thin cool-gray borders, muted green accents,
-  tight radii (2px controls, 4px panels), and compact type (13px primary).
-- Hide idle status. Scale-disabled tools remain selectable and explain why
-  drawing is blocked.
-- Localize user-visible strings through `Tools.i18n`; add natural, contextual
-  translations in **every** supported language in
-  [translations.json](./server/http/translations.json).
-- Use the shared tool manifest, message metadata, rate-limit math, and moderation
-  rules; do not recreate their lists in UI or server code.
-- Keep moderation (`canBan`) and destructive editing (`canClear`) checks distinct.
+- Preserve WBO's mark unless explicitly asked to rebrand. Reuse controls and keep
+  the compact left rail unobstructed.
+- Use white or near-white surfaces, thin cool-gray borders, muted green accents,
+  13px primary type, 2px control radii and 4px panel radii.
+- Check silhouettes, spacing and strokes at the smallest display size. UI icons
+  inherit `currentColor` from shared CSS variables in every state.
+- Hide idle status. Keep scale-disabled tools selectable and explain the limit.
+- Localize naturally through `Tools.i18n` in every [supported language](./server/http/translations.json).
+- Share the tool manifest, message metadata, rate limits and moderation rules.
+  Keep `canBan` distinct from `canClear`.
 
 ## Validation
 

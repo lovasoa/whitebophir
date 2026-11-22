@@ -183,11 +183,11 @@ footer a {
   place-items: center;
   width: 36px;
   height: 36px;
-  opacity: 0.68;
+  color: var(--wbo-icon-muted);
 }
 
 footer a:is(:hover, :focus-visible) {
-  opacity: 1;
+  color: var(--wbo-icon-ink);
 }
 
 .surface-card {
@@ -212,7 +212,7 @@ footer a:is(:hover, :focus-visible) {
   border: 1px solid var(--wbo-border);
   border-radius: var(--wbo-radius-panel);
   background: var(--wbo-surface);
-  color: #263846;
+  color: var(--wbo-icon-ink);
   font-size: 13px;
   font-weight: 500;
   text-transform: uppercase;
@@ -228,13 +228,6 @@ footer a:is(:hover, :focus-visible) {
   content: "";
 }
 
-.lang-selector summary::before {
-  width: 16px;
-  height: 16px;
-  background: url(./language.svg) center / contain no-repeat;
-  content: "";
-}
-
 .lang-selector summary::after {
   width: 5px;
   height: 5px;
@@ -245,8 +238,14 @@ footer a:is(:hover, :focus-visible) {
   content: "";
 }
 
+.lang-selector details[open] summary::after {
+  transform: rotate(225deg);
+  margin-top: 3px;
+}
+
 .lang-selector :is(details[open] summary, summary:hover) {
-  background: #f2f7f5;
+  color: var(--wbo-icon-accent);
+  background: var(--wbo-icon-surface);
 }
 
 .lang-selector ul {

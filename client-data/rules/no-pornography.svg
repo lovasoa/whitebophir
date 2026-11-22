@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-  stroke="#315b52" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <title>Sensitive content</title>
-  <path d="m3 3 18 18M10.5 6c.5-.1 1-.2 1.5-.2 5.5 0 9 6.2 9 6.2-.5.9-1.2 1.8-2 2.6M13.5 18c-.5.1-1 .2-1.5.2C6.5 18.2 3 12 3 12c.6-1 1.4-2 2.3-3"/>
-  <path d="M12.5 9a3 3 0 0 1 2.5 2.5m-6 1A3 3 0 0 0 11.5 15"/>
+<svg id="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <title>Hidden content</title>
+  <path d="M3 8.5c2 3.7 5.2 6 9 6s7-2.3 9-6"/>
+  <path d="m5.5 12-2.25 2.5M9.5 14.25l-.75 3.25m5.75-3.25.75 3.25m3.25-5.5 2.25 2.5"/>
 </svg>

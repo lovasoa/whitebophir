@@ -1,7 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-  stroke="#263846" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<svg id="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <title>Line</title>
-  <path d="M5 19 19 5"/>
-  <circle cx="5" cy="19" r="1.5" fill="#263846" stroke="none"/>
-  <circle cx="19" cy="5" r="1.5" fill="#263846" stroke="none"/>
+  <path d="m4 19 16-14"/>
 </svg>

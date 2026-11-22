@@ -909,9 +909,17 @@ test("board pages are no-store in development and pin assets to the release", as
       response.body,
       /<button type="button" class="tool disabledTool"[^>]*id="toolID-pencil"[^>]*aria-disabled="true">/,
     );
-    assert.ok(response.body.includes(`"${assetBase}tools/pencil/icon.svg"`));
-    assert.match(response.body, /fetchpriority="low"/);
-    assert.ok(response.body.includes(`"${assetBase}users.svg"`));
+    assert.ok(
+      response.body.includes(
+        `<use href="${assetBase}tools/pencil/icon.svg#icon"`,
+      ),
+    );
+    assert.ok(
+      response.body.includes(
+        `<use data-icon-url="${assetBase}tools/clear/icon.svg#icon"`,
+      ),
+    );
+    assert.ok(response.body.includes(`href="${assetBase}users.svg#icon"`));
     assert.match(response.body, /id="styleTool"/);
     assert.match(response.body, /id="stylePreviewDot"/);
     assert.doesNotMatch(response.body, /\?v=/);
