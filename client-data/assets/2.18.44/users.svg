@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <title>Users</title>
+  <g
+    stroke="currentColor"
+    stroke-width="1.9"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <circle cx="8.75" cy="8.25" r="2.75" />
+    <path d="M4 17.75c0-2.83 2.36-4.75 5.25-4.75s5.25 1.92 5.25 4.75" />
+    <circle cx="16.75" cy="9.5" r="2.25" />
+    <path d="M13.75 17.25c0-1.93 1.68-3.25 3.9-3.25 1.5 0 2.86.62 3.6 1.8" />
+  </g>
+</svg>
