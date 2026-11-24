@@ -6,6 +6,11 @@ const loadedBoards = new Map();
 /** @type {Map<string, Map<number, number>>} */
 const replayPinsByBoard = new Map();
 
+const REPLAY_PIN_SWEEP_INTERVAL_MS = 60 * 1000;
+
+/** @type {NodeJS.Timeout | undefined} */
+let replayPinSweepTimer;
+
 /**
  * @param {string} boardName
  * @returns {BoardPromise | undefined}
@@ -86,41 +91,18 @@ function pruneReplayPins(boardName, nowMs) {
   return pins;
 }
 
-/** Sweep at most this often, so board pages do not pay a full scan each time. */
-const REPLAY_PIN_SWEEP_INTERVAL_MS = 60 * 1000;
-
-/** @type {number} */
-let lastReplayPinSweepMs = 0;
-
-/**
- * Removes expired pins for every board. HTTP-only views (crawlers, previews)
- * never come back to their board, so pruning just the requested board lets one
- * dead entry per served board name live until the process restarts.
- * @param {number} [nowMs]
- * @returns {number} boards removed
- */
-function pruneExpiredReplayPins(nowMs = Date.now()) {
-  let removed = 0;
-  for (const [boardName, pins] of replayPinsByBoard) {
-    for (const [seq, expiresAtMs] of pins) {
-      if (expiresAtMs <= nowMs) pins.delete(seq);
+/** Schedule cleanup even when no more board requests arrive. */
+function scheduleReplayPinSweep() {
+  if (replayPinSweepTimer || replayPinsByBoard.size === 0) return;
+  replayPinSweepTimer = setTimeout(() => {
+    replayPinSweepTimer = undefined;
+    const nowMs = Date.now();
+    for (const boardName of replayPinsByBoard.keys()) {
+      pruneReplayPins(boardName, nowMs);
     }
-    if (pins.size === 0) {
-      replayPinsByBoard.delete(boardName);
-      removed += 1;
-    }
-  }
-  return removed;
-}
-
-/**
- * @param {number} nowMs
- * @returns {void}
- */
-function sweepExpiredReplayPins(nowMs) {
-  if (nowMs - lastReplayPinSweepMs < REPLAY_PIN_SWEEP_INTERVAL_MS) return;
-  lastReplayPinSweepMs = nowMs;
-  pruneExpiredReplayPins(nowMs);
+    scheduleReplayPinSweep();
+  }, REPLAY_PIN_SWEEP_INTERVAL_MS);
+  process.unref(replayPinSweepTimer);
 }
 
 /**
@@ -133,12 +115,12 @@ function pinReplayBaseline(boardName, baselineSeq, expiresAtMs) {
   const normalizedSeq = normalizeSeq(baselineSeq);
   const normalizedExpiry = normalizeExpiry(expiresAtMs);
   if (normalizedExpiry === null) return;
-  sweepExpiredReplayPins(Date.now());
   const pins = ensureReplayPins(boardName);
   const currentExpiry = pins.get(normalizedSeq) || 0;
   if (normalizedExpiry > currentExpiry) {
     pins.set(normalizedSeq, normalizedExpiry);
   }
+  scheduleReplayPinSweep();
 }
 
 /**
@@ -200,7 +182,8 @@ function discardPinnedReplayBaselinesBefore(
 function resetBoardRegistry() {
   loadedBoards.clear();
   replayPinsByBoard.clear();
-  lastReplayPinSweepMs = 0;
+  clearTimeout(replayPinSweepTimer);
+  replayPinSweepTimer = undefined;
 }
 
 export {
@@ -211,7 +194,6 @@ export {
   getNextReplayPinExpiry,
   listLoadedBoards,
   pinReplayBaseline,
-  pruneExpiredReplayPins,
   resetBoardRegistry,
   setLoadedBoard,
 };

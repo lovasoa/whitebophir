@@ -4,40 +4,29 @@ const {
   getMinPinnedReplayBaselineSeq,
   getNextReplayPinExpiry,
   pinReplayBaseline,
-  pruneExpiredReplayPins,
   resetBoardRegistry,
 } = require("../server/board/registry.mjs");
 
 const minute = 60 * 1000;
 
-test("pruneExpiredReplayPins drops expired pins for boards that are never touched again", (t) => {
-  t.mock.timers.enable({ apis: ["Date"], now: 1_000_000 });
+test("expired replay pins are swept even without further board requests", (t) => {
+  const now = 1_000_000;
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"], now });
   resetBoardRegistry();
   t.after(resetBoardRegistry);
 
-  pinReplayBaseline("crawler-1", 7, 1_000_000 - 1_000);
-  pinReplayBaseline("crawler-2", 7, 1_000_000 - 1_000);
-  pinReplayBaseline("active", 3, 1_000_000 + minute);
+  pinReplayBaseline("crawler-1", 7, now + minute);
+  t.mock.timers.tick(minute / 2);
+  pinReplayBaseline("crawler-2", 7, now + minute);
+  pinReplayBaseline("active", 3, now + 2 * minute);
 
-  assert.equal(pruneExpiredReplayPins(1_000_000), 2);
-  assert.equal(getMinPinnedReplayBaselineSeq("active", 1_000_000), 3);
-});
+  t.mock.timers.tick(minute / 2);
 
-test("a later board view sweeps pins left behind by earlier HTTP-only views", (t) => {
-  t.mock.timers.enable({ apis: ["Date"], now: 1_000_000 });
-  resetBoardRegistry();
-  t.after(resetBoardRegistry);
+  // Read as of the original time so the getter cannot prune these pins itself.
+  assert.equal(getMinPinnedReplayBaselineSeq("crawler-1", now), null);
+  assert.equal(getMinPinnedReplayBaselineSeq("crawler-2", now), null);
+  assert.equal(getNextReplayPinExpiry("active"), now + 2 * minute);
 
-  // Two bot views that leave without opening a socket, plus a real view.
-  pinReplayBaseline("crawler-1", 7, 1_000_000 + 30_000);
-  pinReplayBaseline("crawler-2", 7, 1_000_000 + 30_000);
-  pinReplayBaseline("active", 3, 1_000_000 + 90_000);
-
-  t.mock.timers.setTime(1_061_000);
-  pinReplayBaseline("fresh", 1, 1_061_000 + minute);
-
-  // The sweep, not a per-board read, removed the two crawler boards.
-  assert.equal(pruneExpiredReplayPins(1_061_000), 0);
-  assert.equal(getNextReplayPinExpiry("active", 1_061_000), 1_090_000);
-  assert.equal(getMinPinnedReplayBaselineSeq("fresh", 1_061_000), 1);
+  t.mock.timers.tick(minute);
+  assert.equal(getMinPinnedReplayBaselineSeq("active", now), null);
 });
