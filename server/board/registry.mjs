@@ -1,15 +1,11 @@
 /** @typedef {Promise<import("./data.mjs").BoardData>} BoardPromise */
+/** @typedef {{ expiresAtMs: number, timer: NodeJS.Timeout }} ReplayPin */
 
 /** @type {Map<string, BoardPromise>} */
 const loadedBoards = new Map();
 
-/** @type {Map<string, Map<number, number>>} */
+/** @type {Map<string, Map<number, ReplayPin>>} */
 const replayPinsByBoard = new Map();
-
-const REPLAY_PIN_SWEEP_INTERVAL_MS = 60 * 1000;
-
-/** @type {NodeJS.Timeout | undefined} */
-let replayPinSweepTimer;
 
 /**
  * @param {string} boardName
@@ -63,7 +59,7 @@ function normalizeExpiry(value) {
 
 /**
  * @param {string} boardName
- * @returns {Map<number, number>}
+ * @returns {Map<number, ReplayPin>}
  */
 function ensureReplayPins(boardName) {
   const existing = replayPinsByBoard.get(boardName);
@@ -75,34 +71,28 @@ function ensureReplayPins(boardName) {
 
 /**
  * @param {string} boardName
+ * @param {Map<number, ReplayPin>} pins
+ * @param {number} seq
+ * @param {ReplayPin} pin
+ */
+function deleteReplayPin(boardName, pins, seq, pin) {
+  clearTimeout(pin.timer);
+  pins.delete(seq);
+  if (pins.size === 0) replayPinsByBoard.delete(boardName);
+}
+
+/**
+ * @param {string} boardName
  * @param {number} nowMs
- * @returns {Map<number, number> | null}
+ * @returns {Map<number, ReplayPin> | null}
  */
 function pruneReplayPins(boardName, nowMs) {
   const pins = replayPinsByBoard.get(boardName);
   if (!pins) return null;
-  for (const [seq, expiresAtMs] of pins) {
-    if (expiresAtMs <= nowMs) pins.delete(seq);
+  for (const [seq, pin] of pins) {
+    if (pin.expiresAtMs <= nowMs) deleteReplayPin(boardName, pins, seq, pin);
   }
-  if (pins.size === 0) {
-    replayPinsByBoard.delete(boardName);
-    return null;
-  }
-  return pins;
-}
-
-/** Schedule cleanup even when no more board requests arrive. */
-function scheduleReplayPinSweep() {
-  if (replayPinSweepTimer || replayPinsByBoard.size === 0) return;
-  replayPinSweepTimer = setTimeout(() => {
-    replayPinSweepTimer = undefined;
-    const nowMs = Date.now();
-    for (const boardName of replayPinsByBoard.keys()) {
-      pruneReplayPins(boardName, nowMs);
-    }
-    scheduleReplayPinSweep();
-  }, REPLAY_PIN_SWEEP_INTERVAL_MS);
-  process.unref(replayPinSweepTimer);
+  return pins.size > 0 ? pins : null;
 }
 
 /**
@@ -114,13 +104,38 @@ function scheduleReplayPinSweep() {
 function pinReplayBaseline(boardName, baselineSeq, expiresAtMs) {
   const normalizedSeq = normalizeSeq(baselineSeq);
   const normalizedExpiry = normalizeExpiry(expiresAtMs);
-  if (normalizedExpiry === null) return;
+  if (normalizedExpiry === null || normalizedExpiry <= 0) return;
   const pins = ensureReplayPins(boardName);
-  const currentExpiry = pins.get(normalizedSeq) || 0;
-  if (normalizedExpiry > currentExpiry) {
-    pins.set(normalizedSeq, normalizedExpiry);
+  const current = pins.get(normalizedSeq);
+  if (current) {
+    current.expiresAtMs = Math.max(current.expiresAtMs, normalizedExpiry);
+    return;
   }
-  scheduleReplayPinSweep();
+
+  /**
+   * @param {number} deadlineMs
+   * @returns {NodeJS.Timeout}
+   */
+  function scheduleExpiry(deadlineMs) {
+    // Node treats timeout delays above the signed 32-bit limit as 1 ms.
+    const delay = Math.min(Math.ceil(deadlineMs - Date.now()), 0x7fffffff);
+    const timer = setTimeout(() => {
+      if (Date.now() < pin.expiresAtMs) {
+        // A later view extended this pin, or the deadline has not arrived yet.
+        pin.timer = scheduleExpiry(pin.expiresAtMs);
+      } else {
+        deleteReplayPin(boardName, pins, normalizedSeq, pin);
+      }
+    }, delay);
+    process.unref(timer);
+    return timer;
+  }
+
+  const pin = {
+    expiresAtMs: normalizedExpiry,
+    timer: scheduleExpiry(normalizedExpiry),
+  };
+  pins.set(normalizedSeq, pin);
 }
 
 /**
@@ -147,7 +162,7 @@ function getNextReplayPinExpiry(boardName, nowMs = Date.now()) {
   const pins = pruneReplayPins(boardName, nowMs);
   if (!pins) return null;
   let nextExpiry = null;
-  for (const expiresAtMs of pins.values()) {
+  for (const { expiresAtMs } of pins.values()) {
     nextExpiry =
       nextExpiry === null ? expiresAtMs : Math.min(nextExpiry, expiresAtMs);
   }
@@ -170,10 +185,10 @@ function discardPinnedReplayBaselinesBefore(
   const pins = pruneReplayPins(boardName, nowMs);
   if (!pins) return;
   const normalizedPersistedSeq = normalizeSeq(persistedSeq);
-  for (const seq of pins.keys()) {
-    if (seq < normalizedPersistedSeq) pins.delete(seq);
+  for (const [seq, pin] of pins) {
+    if (seq < normalizedPersistedSeq)
+      deleteReplayPin(boardName, pins, seq, pin);
   }
-  if (pins.size === 0) replayPinsByBoard.delete(boardName);
 }
 
 /**
@@ -181,9 +196,10 @@ function discardPinnedReplayBaselinesBefore(
  */
 function resetBoardRegistry() {
   loadedBoards.clear();
+  for (const pins of replayPinsByBoard.values()) {
+    for (const pin of pins.values()) clearTimeout(pin.timer);
+  }
   replayPinsByBoard.clear();
-  clearTimeout(replayPinSweepTimer);
-  replayPinSweepTimer = undefined;
 }
 
 export {
