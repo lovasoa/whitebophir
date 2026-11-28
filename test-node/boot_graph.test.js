@@ -42,7 +42,11 @@ function staticImportClosure(entry) {
   }
 
   walk(entryPath);
-  return new Set(Array.from(seen, (file) => path.relative(ROOT, file)));
+  return new Set(
+    Array.from(seen, (file) =>
+      path.relative(ROOT, file).split(path.sep).join("/"),
+    ),
+  );
 }
 
 /**

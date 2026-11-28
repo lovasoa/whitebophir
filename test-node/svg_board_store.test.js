@@ -832,7 +832,9 @@ test("readBoardDocumentState falls back to legacy json metadata and generated in
       "utf8",
     );
 
-    for (let i = 0; i < 10_000; i++) {
+    // NTFS caps hard links per file at 1,024; 1,000 keeps the fixture portable.
+    const unusedCount = process.platform === "win32" ? 1_000 : 10_000;
+    for (let i = 0; i < unusedCount; i++) {
       await fs.link(source, jsonPath(`unused-${i}`, historyDir));
     }
     const rejectDirectoryScan = () => {
