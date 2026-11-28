@@ -37,6 +37,25 @@ export function isAuthoritativeReplayBatch(message) {
 }
 
 /**
+ * Classifies a sequenced mutation against the last applied sequence. A
+ * sequenced message at or below the current sequence has already been applied
+ * (stale); the one directly after it is next; anything further ahead is a gap
+ * that replay has to fill first.
+ *
+ * @param {IncomingBroadcast} message
+ * @param {number} authoritativeSeq
+ * @returns {"unsequenced" | "stale" | "next" | "gap"}
+ */
+export function classifySequencedMutationSeq(message, authoritativeSeq) {
+  if (!isSequencedMutationBroadcast(message)) return "unsequenced";
+  const seq = normalizeSeq(message.seq);
+  const current = normalizeSeq(authoritativeSeq);
+  if (seq <= current) return "stale";
+  if (seq === current + 1) return "next";
+  return "gap";
+}
+
+/**
  * @param {Exclude<IncomingBroadcast, AuthoritativeReplayBatch>} message
  * @returns {BoardMessage}
  */

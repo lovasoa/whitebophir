@@ -118,7 +118,13 @@ export class ReplayModule {
     const generation = Tools.connection.generation;
     const replay = BoardMessageReplay.isAuthoritativeReplayBatch(msg);
     const sequenced = BoardMessageReplay.isSequencedMutationBroadcast(msg);
-    if (sequenced && msg.seq <= this.authoritativeSeq) return false;
+    if (
+      BoardMessageReplay.classifySequencedMutationSeq(
+        msg,
+        this.authoritativeSeq,
+      ) === "stale"
+    )
+      return false;
     const fromSeq = replay ? msg.fromSeq : this.authoritativeSeq;
     const seq = replay || sequenced ? msg.seq : fromSeq;
     const children = replay
