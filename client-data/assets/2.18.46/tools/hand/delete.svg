@@ -1,0 +1,5 @@
+<svg id="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">
+  <title>Delete</title>
+  <path d="M4 6h16M9 6V4h6v2M6 6l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13M12 10v6"/>
+</svg>

@@ -1,0 +1,1342 @@
+/**
+ *						  WHITEBOPHIR
+ *********************************************************
+ * @licstart  The following is the entire license notice for the
+ *	JavaScript code in this page.
+ *
+ * Copyright (C) 2013  Ophir LOJKINE
+ *
+ *
+ * The JavaScript code in this page is free software: you can
+ * redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GNU GPL) as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option)
+ * any later version.  The code is distributed WITHOUT ANY WARRANTY;
+ * without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE.  See the GNU GPL for more details.
+ *
+ * As additional permission under GNU GPL version 3 section 7, you
+ * may distribute non-source (e.g., minimized or compacted) forms of
+ * that code without the copy of the GNU GPL normally required by
+ * section 4, provided you include this license notice and a URL
+ * through which recipients can access the Corresponding Source.
+ *
+ * @licend
+ */
+
+import { downloadBoardSvg } from "../../js/board_export.js";
+import {
+  extendBoundsWithBounds,
+  measureSvgElementBoundsAfterTransform,
+} from "../../js/board_extent.js";
+import { createBoardHtmlOverlay } from "../../js/board_html_overlay.js";
+import { safePreventDefault } from "../../js/board_viewport.js";
+import { logFrontendEvent } from "../../js/frontend_logging.js";
+import { createUiIcon, setUiIconUrl } from "../../js/ui_icon.js";
+import { transformedBBox } from "../../js/intersect.js";
+import MessageCommon from "../../js/message_common.js";
+import { MutationType } from "../../js/message_tool_metadata.js";
+import { TOOL_CODE_BY_ID } from "../tool-order.js";
+import { deleteBoardElementById } from "../eraser/index.js";
+
+/** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
+/** @typedef {{a:number, b:number, c:number, d:number, e:number, f:number}} TransformState */
+/** @typedef {ReturnType<typeof createUpdateChildMessage>} HandUpdateChildMessage */
+/** @typedef {ReturnType<typeof createDeleteChildMessage>} HandDeleteChildMessage */
+/** @typedef {ReturnType<typeof createCopyChildMessage>} HandCopyChildMessage */
+/** @typedef {HandUpdateChildMessage | HandDeleteChildMessage | HandCopyChildMessage} HandChildMessage */
+/** @typedef {ReturnType<typeof createBatchMessage>} HandBatchMessage */
+/** @template {HandChildMessage} TChild @typedef {{tool: typeof TOOL_CODE_BY_ID.hand} & TChild} HandSingleMessage */
+/** @typedef {HandSingleMessage<HandUpdateChildMessage>} HandUpdateMessage */
+/** @typedef {HandSingleMessage<HandDeleteChildMessage>} HandDeleteMessage */
+/** @typedef {HandSingleMessage<HandCopyChildMessage>} HandCopyMessage */
+/** @typedef {HandUpdateMessage | HandDeleteMessage | HandCopyMessage | HandBatchMessage} HandDrawMessage */
+/** @typedef {HandDrawMessage | HandChildMessage} HandRenderableMessage */
+/** @typedef {{type?: unknown, id?: unknown, transform?: unknown, newid?: unknown, _children?: unknown}} HandMessageCandidate */
+/** @typedef {{x: number, y: number, width: number, height: number}} BoardRect */
+/** @typedef {ReturnType<typeof createBoardHtmlOverlay>} BoardHtmlOverlay */
+/** @typedef {{ overlay: BoardHtmlOverlay, origWidth: number, origHeight: number, requiresEdit: boolean, drawCallback: (button: SelectionButton, rect: BoardRect, scale:number) => BoardRect }} SelectionButton */
+/** @typedef {{ label?: string, requiresEdit?: boolean }} SelectionButtonOptions */
+/** @typedef {{x: number, y: number}} HandPointSelection */
+/** @typedef {BoardRect} HandScaleSelection */
+/** @typedef {{pan: true}} HandPanSelection */
+/** @typedef {HandPointSelection | HandScaleSelection | HandPanSelection | null} HandSelection */
+/** @typedef {(x: number, y: number, force: boolean) => void} HandTransformHandler */
+/** @typedef {(e: { key: string, target: EventTarget | null }) => void} HandShortcutHandler */
+/** @typedef {{ name: string, icon: string, active: boolean, switch?: () => void }} HandSecondary */
+
+const INTERSECTION_SELECTION_TIMEOUT_MS = 120;
+
+export const touchListenerOptions = { passive: true };
+
+/**
+ * @param {EventTarget | null} target
+ * @returns {target is SVGGraphicsElement & { id: string }}
+ */
+function isSelectableElement(target) {
+  return !!(
+    target &&
+    typeof target === "object" &&
+    "id" in target &&
+    "transform" in target &&
+    "getBBox" in target
+  );
+}
+
+/**
+ * @param {EventTarget | null} target
+ * @returns {target is EventTarget & { matches(selector: string): boolean }}
+ */
+function isMatchableTarget(target) {
+  return !!(target && typeof target === "object" && "matches" in target);
+}
+
+/**
+ * @param {unknown} value
+ * @returns {HandMessageCandidate | null}
+ */
+function handMessageCandidate(value) {
+  return value && typeof value === "object"
+    ? /** @type {HandMessageCandidate} */ (value)
+    : null;
+}
+
+/**
+ * @param {unknown} value
+ * @returns {value is TransformState}
+ */
+function isTransformState(value) {
+  if (!value || typeof value !== "object") return false;
+  const transform = /** @type {Partial<TransformState>} */ (value);
+  return (
+    typeof transform.a === "number" &&
+    typeof transform.b === "number" &&
+    typeof transform.c === "number" &&
+    typeof transform.d === "number" &&
+    typeof transform.e === "number" &&
+    typeof transform.f === "number"
+  );
+}
+
+/**
+ * @param {unknown} value
+ * @returns {value is HandBatchMessage}
+ */
+function isBatchMessage(value) {
+  const message = handMessageCandidate(value);
+  return !!message && Array.isArray(message._children);
+}
+
+/**
+ * @param {unknown} child
+ * @returns {child is HandChildMessage}
+ */
+function isHandChildMessage(child) {
+  const message = handMessageCandidate(child);
+  if (!message || typeof message.id !== "string") return false;
+  switch (message.type) {
+    case MutationType.UPDATE:
+      return isTransformState(message.transform);
+    case MutationType.DELETE:
+      return true;
+    case MutationType.COPY:
+      return typeof message.newid === "string";
+    default:
+      return false;
+  }
+}
+
+/**
+ * @param {unknown} value
+ * @returns {value is HandRenderableMessage}
+ */
+function isHandRenderableMessage(value) {
+  if (isBatchMessage(value)) return value._children.every(isHandChildMessage);
+  return isHandChildMessage(value);
+}
+
+/**
+ * @param {string} id
+ * @param {TransformState} transform
+ */
+function createUpdateChildMessage(id, transform) {
+  return {
+    type: MutationType.UPDATE,
+    id,
+    transform,
+  };
+}
+
+/** @param {string} id */
+function createDeleteChildMessage(id) {
+  return {
+    type: MutationType.DELETE,
+    id,
+  };
+}
+
+/**
+ * @param {string} id
+ * @param {string} newid
+ */
+function createCopyChildMessage(id, newid) {
+  return {
+    type: MutationType.COPY,
+    id,
+    newid,
+  };
+}
+
+/** @param {HandChildMessage[]} children */
+function createBatchMessage(children) {
+  return {
+    tool: TOOL_CODE_BY_ID.hand,
+    _children: children,
+  };
+}
+
+/** @typedef {Pick<ToolRuntimeModules, "config" | "permissions" | "writes" | "ids" | "board" | "viewport" | "identity" | "toolRegistry" | "i18n">} HandRuntime */
+/** @typedef {ReturnType<typeof createInitialState>} HandState */
+
+/**
+ * @param {HandRuntime} Tools
+ * @param {(assetFile: string) => string} assetUrl
+ */
+function createInitialState(Tools, assetUrl) {
+  return {
+    Tools,
+    assetUrl,
+    selectorStates: {
+      pointing: 0,
+      selecting: 1,
+      transform: 2,
+    },
+    selected: /** @type {HandSelection} */ (null),
+    selectedEls: /** @type {(SVGGraphicsElement & { id: string })[]} */ ([]),
+    selectionRect: /** @type {BoardRect | null} */ (null),
+    selectionChrome: /** @type {HTMLElement} */ (/** @type {unknown} */ (null)),
+    selectionOverlay: /** @type {BoardHtmlOverlay} */ (
+      /** @type {unknown} */ (null)
+    ),
+    initialSelectionRect: /** @type {BoardRect | null} */ (null),
+    currentTransform: /** @type {HandTransformHandler | null} */ (null),
+    transformElements: /** @type {TransformState[]} */ ([]),
+    transformPreview:
+      /** @type {{element: SVGGraphicsElement, transform: string | null}[] | null} */ (
+        null
+      ),
+    selectorState: 0,
+    selectionRunId: 0,
+    lastSent: 0,
+    blockedSelectionButtons:
+      Tools.config.serverConfig.BLOCKED_SELECTION_BUTTONS || [],
+    selectionButtons: /** @type {SelectionButton[]} */ ([]),
+    boundDeleteShortcut: /** @type {HandShortcutHandler} */ (() => {}),
+    boundDuplicateShortcut: /** @type {HandShortcutHandler} */ (() => {}),
+    secondary: /** @type {HandSecondary | null} */ (null),
+  };
+}
+
+/**
+ * @param {BoardRect} rect
+ * @param {number} buttonHeight
+ * @param {number} scale
+ * @returns {number}
+ */
+function selectionActionButtonY(rect, buttonHeight, scale) {
+  const gap = 3 / scale;
+  const preferred = rect.y - buttonHeight / scale - gap;
+  const visibleTop = (document.documentElement.scrollTop || 0) / scale;
+  if (preferred >= visibleTop) return preferred;
+  return rect.y + rect.height + gap;
+}
+
+/**
+ * @param {HandState} state
+ * @param {number} preferred
+ * @returns {number}
+ */
+function selectionActionButtonX(state, preferred) {
+  const menu = document.getElementById("menu");
+  const rect =
+    menu &&
+    typeof menu.getBoundingClientRect === "function" &&
+    menu.getBoundingClientRect();
+  if (!rect || rect.right <= 0) return preferred;
+  const boardRect = state.Tools.viewport.clientRectToBoardRect({
+    left: rect.right + 4,
+    top: 0,
+    width: 0,
+    height: 0,
+  });
+  return Math.max(preferred, boardRect.x);
+}
+
+/**
+ * @param {HandState} state
+ * @param {string} name
+ * @param {string} icon
+ * @param {number} index
+ * @param {() => void} onClick
+ * @param {SelectionButtonOptions} [options]
+ */
+function createActionButton(state, name, icon, index, onClick, options) {
+  return createButton(
+    state,
+    name,
+    icon,
+    24,
+    24,
+    (me, rect, scale) => ({
+      x:
+        selectionActionButtonX(state, rect.x) +
+        (options?.requiresEdit === false && !state.Tools.permissions.canEdit
+          ? 0
+          : (index * (me.origWidth + 2)) / scale),
+      y: selectionActionButtonY(rect, me.origHeight, scale),
+      width: me.origWidth / scale,
+      height: me.origHeight / scale,
+    }),
+    onClick,
+    options,
+  );
+}
+
+/**
+ * @param {HandRuntime} Tools
+ * @param {(assetFile: string) => string} assetUrl
+ */
+function createState(Tools, assetUrl) {
+  const state = createInitialState(Tools, assetUrl);
+  state.selectionChrome = createSelectionChrome();
+  state.selectionOverlay = createBoardHtmlOverlay({
+    board: Tools.board,
+    viewport: Tools.viewport,
+    element: state.selectionChrome,
+  });
+  state.selectionButtons = [
+    createActionButton(state, "delete", "delete", 0, () =>
+      deleteSelection(state),
+    ),
+    createActionButton(state, "duplicate", "duplicate", 1, () =>
+      duplicateSelection(state),
+    ),
+    createButton(
+      state,
+      "scaleHandle",
+      "handle",
+      14,
+      14,
+      (me, rect, scale) => {
+        return {
+          x: rect.x + rect.width - me.origWidth / (2 * scale),
+          y: rect.y + rect.height - me.origHeight / (2 * scale),
+          width: me.origWidth / scale,
+          height: me.origHeight / scale,
+        };
+      },
+      (x, y, evt) => startScalingTransform(state, x, y, evt),
+    ),
+    createActionButton(
+      state,
+      "download",
+      "../download/icon",
+      2,
+      () => downloadBoardSvg(state.Tools, state.selectedEls),
+      { label: Tools.i18n.t("download"), requiresEdit: false },
+    ),
+  ];
+  state.blockedSelectionButtons.forEach((buttonIndex) => {
+    if (typeof buttonIndex === "number") {
+      delete state.selectionButtons[buttonIndex];
+    }
+  });
+  state.boundDeleteShortcut = (e) => deleteShortcut(state, e);
+  state.boundDuplicateShortcut = (e) => duplicateShortcut(state, e);
+  state.secondary = {
+    name: "Selector",
+    icon: "tools/hand/selector.svg",
+    active: false,
+    switch: () => switchTool(state),
+  };
+  return state;
+}
+
+/**
+ * @param {EventTarget | null} el
+ * @returns {(SVGGraphicsElement & { id: string }) | null}
+ */
+function getParentMathematics(el) {
+  if (!isSelectableElement(el)) return null;
+  let selected = el;
+  for (let parent = el.parentElement; parent; parent = parent.parentElement) {
+    if (
+      isSelectableElement(parent) &&
+      parent.tagName === "svg" &&
+      parent.getAttribute("class") === "MathElement"
+    )
+      selected = parent;
+  }
+  return selected;
+}
+
+/** @param {HandState} state */
+function deleteSelection(state) {
+  if (!state.Tools.permissions.canEdit || state.selectedEls.length === 0)
+    return;
+  /** @type {HandDeleteChildMessage[]} */
+  const msgs = state.selectedEls.map((el) => createDeleteChildMessage(el.id));
+  state.Tools.writes.drawAndSend(createBatchMessage(msgs));
+  clearSelection(state);
+}
+
+/** @param {HandState} state */
+function duplicateSelection(state) {
+  if (
+    !state.Tools.permissions.canEdit ||
+    state.selectorState !== state.selectorStates.pointing ||
+    state.selectedEls.length === 0
+  ) {
+    return;
+  }
+  /** @type {HandCopyChildMessage[]} */
+  const msgs = [];
+  for (let i = 0; i < state.selectedEls.length; i++) {
+    const selectedElement = state.selectedEls[i];
+    if (!selectedElement) continue;
+    const id = selectedElement.id;
+    msgs[i] = createCopyChildMessage(id, state.Tools.ids.generateUID(id[0]));
+  }
+  state.Tools.writes.drawAndSend(createBatchMessage(msgs));
+}
+
+function createSelectionChrome() {
+  const element = document.createElement("div");
+  element.id = "selectionRectOverlay";
+  element.className = "hand-selection-rect";
+  element.style.display = "none";
+  return element;
+}
+
+/**
+ * @param {MouseEvent | TouchEvent} event
+ * @param {"pageX" | "pageY" | "clientX" | "clientY"} axis
+ * @returns {number}
+ */
+function getPointerCoordinate(event, axis) {
+  if ("changedTouches" in event) {
+    const touch = event.changedTouches[0];
+    return touch ? touch[axis] || 0 : 0;
+  }
+  return event[axis] || 0;
+}
+
+/**
+ * @param {Event} event
+ * @returns {void}
+ */
+function stopSelectionButtonEvent(event) {
+  event.preventDefault();
+  event.stopPropagation();
+}
+
+/**
+ * @param {HandState} state
+ * @param {MouseEvent | TouchEvent} event
+ * @returns {{x: number, y: number}}
+ */
+function eventBoardPoint(state, event) {
+  return {
+    x: state.Tools.viewport.pageCoordinateToBoard(
+      getPointerCoordinate(event, "pageX"),
+    ),
+    y: state.Tools.viewport.pageCoordinateToBoard(
+      getPointerCoordinate(event, "pageY"),
+    ),
+  };
+}
+
+/**
+ * @param {HandState} state
+ * @param {string} name
+ * @param {string} icon
+ * @param {number} width
+ * @param {number} height
+ * @param {(button: SelectionButton, rect: BoardRect, scale:number) => BoardRect} drawCallback
+ * @param {(x:number, y:number, evt: { preventDefault(): void }) => void} clickCallback
+ * @param {SelectionButtonOptions} [options]
+ * @returns {SelectionButton}
+ */
+function createButton(
+  state,
+  name,
+  icon,
+  width,
+  height,
+  drawCallback,
+  clickCallback,
+  { label, requiresEdit = true } = {},
+) {
+  const element = document.createElement("button");
+  element.id = `selectionButton-${name}`;
+  element.className = "hand-selection-button";
+  element.type = "button";
+  element.setAttribute("aria-label", label ?? name);
+  if (label) element.title = label;
+  element.style.display = "none";
+  const glyph = createUiIcon("selection-icon");
+  setUiIconUrl(glyph, state.assetUrl(`${icon}.svg`));
+  element.appendChild(glyph);
+
+  /** @type {SelectionButton} */
+  const button = {
+    overlay: createBoardHtmlOverlay({
+      board: state.Tools.board,
+      viewport: state.Tools.viewport,
+      element,
+    }),
+    origWidth: width,
+    origHeight: height,
+    requiresEdit,
+    drawCallback,
+  };
+
+  /** @param {MouseEvent | TouchEvent} event */
+  function runAction(event) {
+    if (requiresEdit && !state.Tools.permissions.canEdit) return;
+    const point = eventBoardPoint(state, event);
+    clickCallback(point.x, point.y, event);
+  }
+
+  element.addEventListener("mousedown", (event) => {
+    stopSelectionButtonEvent(event);
+    if (name === "scaleHandle") runAction(event);
+  });
+  element.addEventListener(
+    "touchstart",
+    (event) => {
+      stopSelectionButtonEvent(event);
+      if (name === "scaleHandle") runAction(event);
+    },
+    { passive: false },
+  );
+  element.addEventListener("click", (event) => {
+    stopSelectionButtonEvent(event);
+    if (name !== "scaleHandle") runAction(event);
+  });
+
+  return button;
+}
+
+/** @param {HandState} state */
+function getCurrentScale(state) {
+  const rawScale = state.Tools.viewport.getScale();
+  return Number.isFinite(rawScale) && rawScale > 0 ? rawScale : 1;
+}
+
+/**
+ * @param {{r:[number,number], a:[number,number], b:[number,number]}} bbox
+ * @returns {BoardRect}
+ */
+function transformedBBoxToBoardRect(bbox) {
+  const x1 = bbox.r[0];
+  const y1 = bbox.r[1];
+  const x2 = bbox.r[0] + bbox.a[0];
+  const y2 = bbox.r[1] + bbox.a[1];
+  const x3 = bbox.r[0] + bbox.b[0];
+  const y3 = bbox.r[1] + bbox.b[1];
+  const x4 = bbox.r[0] + bbox.a[0] + bbox.b[0];
+  const y4 = bbox.r[1] + bbox.a[1] + bbox.b[1];
+  const left = Math.min(x1, x2, x3, x4);
+  const top = Math.min(y1, y2, y3, y4);
+  const right = Math.max(x1, x2, x3, x4);
+  const bottom = Math.max(y1, y2, y3, y4);
+  return {
+    x: left,
+    y: top,
+    width: right - left,
+    height: bottom - top,
+  };
+}
+
+/** @param {HandState} state */
+function syncSelectionChrome(state) {
+  state.selectionOverlay.syncBoardRect(() => state.selectionRect);
+}
+
+/** @param {HandState} state */
+function showSelectionButtons(state) {
+  syncSelectionChrome(state);
+  const canEdit = state.Tools.permissions.canEdit;
+  for (let i = 0; i < state.selectionButtons.length; i++) {
+    const button = state.selectionButtons[i];
+    if (!button) continue;
+    if (button.requiresEdit && !canEdit) {
+      button.overlay.hide();
+      continue;
+    }
+    button.overlay.syncBoardRect(() =>
+      state.selectionRect
+        ? button.drawCallback(
+            button,
+            state.selectionRect,
+            getCurrentScale(state),
+          )
+        : null,
+    );
+  }
+}
+
+/** @param {HandState} state */
+function hideSelectionButtons(state) {
+  for (let i = 0; i < state.selectionButtons.length; i++) {
+    const button = state.selectionButtons[i];
+    if (button) button.overlay.hide();
+  }
+}
+
+/** @param {HandState} state */
+function hideSelectionUI(state) {
+  hideSelectionButtons(state);
+  state.selectionOverlay.hide();
+  state.selectionRect = null;
+}
+
+/** @param {HandState} state */
+function clearSelection(state) {
+  flushPendingDraws(state);
+  state.selectionRunId += 1;
+  state.selected = null;
+  state.selectedEls = [];
+  state.transformElements = [];
+  state.initialSelectionRect = null;
+  state.currentTransform = null;
+  state.selectorState = state.selectorStates.pointing;
+  hideSelectionUI(state);
+}
+
+/** @param {HandState} state @returns {boolean} */
+function ensureCurrentSelection(state) {
+  let current = state.selectedEls.length !== 0;
+  for (let i = 0; current && i < state.selectedEls.length; i++) {
+    const element = state.selectedEls[i];
+    current =
+      !!element && state.Tools.board.svg.getElementById(element.id) === element;
+  }
+  if (current) return true;
+
+  // A removal or same-ID replacement invalidates the whole transform gesture.
+  clearSelection(state);
+  return false;
+}
+
+/** @param {HandState} state */
+function captureTransforms(state) {
+  state.transformElements = state.selectedEls.map((el) => {
+    const { a, b, c, d, e, f } = getTransformMatrix(state, el);
+    return { a, b, c, d, e, f };
+  });
+  state.initialSelectionRect = state.selectionRect;
+}
+
+/**
+ * @param {HandState} state
+ * @param {number} x
+ * @param {number} y
+ * @param {{ preventDefault(): void }} evt
+ */
+function startMovingElements(state, x, y, evt) {
+  evt.preventDefault();
+  if (!ensureCurrentSelection(state)) return;
+  state.selectionRunId += 1;
+  state.selectorState = state.selectorStates.transform;
+  state.currentTransform = (moveX, moveY, force) =>
+    moveSelection(state, moveX, moveY, force);
+  state.selected = { x: x, y: y };
+  captureTransforms(state);
+}
+
+/**
+ * @param {HandState} state
+ * @param {number} _x
+ * @param {number} _y
+ * @param {{ preventDefault(): void }} evt
+ */
+function startScalingTransform(state, _x, _y, evt) {
+  evt.preventDefault();
+  if (!ensureCurrentSelection(state)) return;
+  hideSelectionButtons(state);
+  state.selectionRunId += 1;
+  state.selectorState = state.selectorStates.transform;
+  state.selected = state.selectionRect;
+  captureTransforms(state);
+  state.currentTransform = (moveX, moveY, force) =>
+    scaleSelection(state, moveX, moveY, force);
+}
+
+/**
+ * @param {HandState} state
+ * @param {number} x
+ * @param {number} y
+ * @param {{ preventDefault(): void }} evt
+ */
+function startSelector(state, x, y, evt) {
+  evt.preventDefault();
+  state.selectionRunId += 1;
+  state.selected = { x: x, y: y };
+  state.selectedEls = [];
+  state.selectorState = state.selectorStates.selecting;
+  state.selectionRect = { x, y, width: 0, height: 0 };
+  syncSelectionChrome(state);
+}
+
+/** @param {HandState} state @returns {(SVGGraphicsElement & { id: string })[]} */
+function getSelectableElements(state) {
+  const elements = state.Tools.board.drawingArea.children;
+  const selectable = [];
+  for (let i = 0; i < elements.length; i++) {
+    const element = elements[i];
+    if (element && isSelectableElement(element)) {
+      selectable.push(element);
+    }
+  }
+  return selectable;
+}
+
+/**
+ * @param {HandState} state
+ * @returns {{left: number, top: number, right: number, bottom: number} | null}
+ */
+function getSelectionViewportRect(state) {
+  if (!state.selectionRect) return null;
+  const viewportRect = state.Tools.viewport.boardRectToViewportRect(
+    state.selectionRect,
+  );
+  return viewportRect.right > viewportRect.left &&
+    viewportRect.bottom > viewportRect.top
+    ? viewportRect
+    : null;
+}
+
+/**
+ * @param {{left: number, top: number, right: number, bottom: number}} rect
+ * @returns {string | null}
+ */
+function selectionRectRootMargin(rect) {
+  const viewportWidth =
+    document.documentElement.clientWidth || window.innerWidth || 0;
+  const viewportHeight =
+    document.documentElement.clientHeight || window.innerHeight || 0;
+  if (viewportWidth <= 0 || viewportHeight <= 0) return null;
+
+  const left = Math.max(0, Math.min(viewportWidth, rect.left));
+  const top = Math.max(0, Math.min(viewportHeight, rect.top));
+  const right = Math.max(0, Math.min(viewportWidth, rect.right));
+  const bottom = Math.max(0, Math.min(viewportHeight, rect.bottom));
+  if (right <= left || bottom <= top) return null;
+
+  return `${-top}px ${right - viewportWidth}px ${bottom - viewportHeight}px ${-left}px`;
+}
+
+/**
+ * @param {HandState} state
+ * @param {(SVGGraphicsElement & { id: string })[]} selectable
+ * @returns {Promise<(SVGGraphicsElement & { id: string })[]>}
+ */
+function calculateSelectionWithIntersectionObserver(state, selectable) {
+  if (selectable.length === 0) return Promise.resolve([]);
+  if (typeof IntersectionObserver !== "function") return Promise.resolve([]);
+
+  const viewportRect = getSelectionViewportRect(state);
+  if (!viewportRect) return Promise.resolve([]);
+  const { left, top, right, bottom } = viewportRect;
+  const rootMargin = selectionRectRootMargin(viewportRect);
+  if (!rootMargin) return Promise.resolve([]);
+
+  return new Promise((resolve) => {
+    /** @type {Set<Element>} */
+    const selected = new Set();
+    let settled = false;
+    /** @type {Set<Element>} */
+    const seen = new Set();
+    /** @type {IntersectionObserver | null} */
+    let observer = null;
+    let timeout = 0;
+
+    /** @param {IntersectionObserverEntry[]} entries */
+    function collect(entries) {
+      for (let index = 0; index < entries.length; index++) {
+        const entry = entries[index];
+        if (!entry) continue;
+        seen.add(entry.target);
+        if (!entry.isIntersecting) continue;
+        // Check all edges, since the intersection ratio can be 1 for a
+        // zero-area target that only touches the selection.
+        const bounds = entry.boundingClientRect;
+        if (
+          bounds.left >= left &&
+          bounds.top >= top &&
+          bounds.right <= right &&
+          bounds.bottom <= bottom
+        ) {
+          selected.add(entry.target);
+        }
+      }
+    }
+
+    /** @param {(SVGGraphicsElement & { id: string })[]} value */
+    function finish(value) {
+      if (settled) return;
+      settled = true;
+      if (observer) observer.disconnect();
+      window.clearTimeout(timeout);
+      resolve(value);
+    }
+
+    observer = new IntersectionObserver(
+      (entries) => {
+        collect(entries);
+        if (seen.size >= selectable.length) {
+          finish(selectable.filter((element) => selected.has(element)));
+        }
+      },
+      {
+        root: null,
+        rootMargin,
+        threshold: 0,
+      },
+    );
+    // Do not fall back to getBBox() here: a board-wide SVG bbox scan forces
+    // synchronous layout on dense boards and can freeze or crash the page.
+    timeout = window.setTimeout(() => {
+      if (!observer) {
+        finish([]);
+        return;
+      }
+      collect(observer.takeRecords());
+      finish(
+        seen.size >= selectable.length
+          ? selectable.filter((element) => selected.has(element))
+          : [],
+      );
+    }, INTERSECTION_SELECTION_TIMEOUT_MS);
+    for (let index = 0; index < selectable.length; index++) {
+      const element = selectable[index];
+      if (element) observer.observe(element);
+    }
+  });
+}
+
+/**
+ * @param {HandState} state
+ * @param {(SVGGraphicsElement & { id: string })[]} selected
+ * @param {number} runId
+ */
+function finishSelection(state, selected, runId) {
+  if (runId !== state.selectionRunId) return;
+  state.selectedEls = selected;
+  if (state.selectedEls.length === 0) hideSelectionUI(state);
+  else showSelectionButtons(state);
+}
+
+/**
+ * @param {HandState} state
+ * @param {number} runId
+ * @returns {Promise<void> | void}
+ */
+function selectElementsInSelectionRect(state, runId) {
+  return calculateSelectionWithIntersectionObserver(
+    state,
+    getSelectableElements(state),
+  ).then((selected) => finishSelection(state, selected, runId));
+}
+
+/**
+ * @param {HandState} state
+ * @param {number} x
+ * @param {number} y
+ * @param {boolean} force
+ */
+function moveSelection(state, x, y, force) {
+  if (
+    !state.selected ||
+    !("x" in state.selected) ||
+    !state.initialSelectionRect
+  )
+    return;
+  if (!ensureCurrentSelection(state)) return;
+  const dx = x - state.selected.x;
+  const dy = y - state.selected.y;
+  /** @type {HandUpdateChildMessage[]} */
+  const msgs = state.selectedEls.map((el, i) => {
+    const oldTransform = state.transformElements[i];
+    if (!oldTransform) {
+      throw new Error("Mover: Missing transform state while moving.");
+    }
+    return createUpdateChildMessage(el.id, {
+      a: oldTransform.a,
+      b: oldTransform.b,
+      c: oldTransform.c,
+      d: oldTransform.d,
+      e: dx + oldTransform.e,
+      f: dy + oldTransform.f,
+    });
+  });
+  state.selectionRect = {
+    ...state.initialSelectionRect,
+    x: state.initialSelectionRect.x + dx,
+    y: state.initialSelectionRect.y + dy,
+  };
+  syncSelectionChrome(state);
+  dispatchTransform(state, createBatchMessage(msgs), force);
+}
+
+/**
+ * @param {HandState} state
+ * @param {number} x
+ * @param {number} y
+ * @param {boolean} force
+ */
+function scaleSelection(state, x, y, force) {
+  const origin = state.initialSelectionRect;
+  if (!origin || !origin.width || !origin.height) return;
+  if (!ensureCurrentSelection(state)) return;
+  const rx = (x - origin.x) / origin.width;
+  const ry = (y - origin.y) / origin.height;
+  /** @type {HandUpdateChildMessage[]} */
+  const msgs = state.selectedEls.map((el, i) => {
+    const oldTransform = state.transformElements[i];
+    if (!oldTransform) {
+      throw new Error("Mover: Missing transform state while scaling.");
+    }
+    return createUpdateChildMessage(el.id, {
+      a: oldTransform.a * rx,
+      b: oldTransform.b,
+      c: oldTransform.c,
+      d: oldTransform.d * ry,
+      e: origin.x * (1 - rx) + oldTransform.e * rx,
+      f: origin.y * (1 - ry) + oldTransform.f * ry,
+    });
+  });
+
+  state.selectionRect = {
+    x: Math.min(origin.x, x),
+    y: Math.min(origin.y, y),
+    width: Math.abs(x - origin.x),
+    height: Math.abs(y - origin.y),
+  };
+  syncSelectionChrome(state);
+  dispatchTransform(state, createBatchMessage(msgs), force);
+}
+
+/** @param {HandState} state @param {HandBatchMessage} msg @param {boolean} force */
+function dispatchTransform(state, msg, force) {
+  const validation = validateTransformBatch(state, msg);
+  if (!validation.ok) return;
+  const now = performance.now();
+  if (force || now - state.lastSent > 70) {
+    state.lastSent = now;
+    flushPendingDraws(state);
+    if (state.Tools.writes.drawAndSend(msg) !== false) {
+      state.Tools.viewport.ensureBoardExtentForBounds(validation.bounds);
+    }
+  } else {
+    // Pointer feedback between submitted writes is temporary. Save the SVG
+    // before the first preview so cancellation can restore the last write.
+    state.transformPreview ??= state.selectedEls.map((element) => ({
+      element,
+      transform: element.getAttribute("transform"),
+    }));
+    for (const child of msg._children) drawHandChild(state, child);
+    state.Tools.viewport.ensureBoardExtentForBounds(validation.bounds);
+  }
+}
+
+/** @param {HandState} state */
+export function flushPendingDraws(state) {
+  const preview = state.transformPreview;
+  if (!preview) return;
+  state.transformPreview = null;
+  for (const { element, transform } of preview) {
+    if (state.Tools.board.svg.getElementById(element.id) !== element) continue;
+    if (transform === null) element.removeAttribute("transform");
+    else element.setAttribute("transform", transform);
+  }
+}
+
+/**
+ * @param {HandState} state
+ * @param {HandBatchMessage} msg
+ * @returns {{ok: true, bounds: {minX: number, minY: number, maxX: number, maxY: number} | null} | {ok: false}}
+ */
+function validateTransformBatch(state, msg) {
+  const maxBoardSize = state.Tools.config.serverConfig.MAX_BOARD_SIZE;
+  let bounds = null;
+  for (let index = 0; index < msg._children.length; index++) {
+    const child = msg._children[index];
+    if (child?.type !== MutationType.UPDATE) continue;
+    const element = state.Tools.board.svg.getElementById(child.id);
+    if (!isSelectableElement(element)) return { ok: false };
+    const effectiveBounds = measureSvgElementBoundsAfterTransform(
+      element,
+      child.transform,
+    );
+    if (MessageCommon.isBoundsInvalid(effectiveBounds, maxBoardSize)) {
+      return { ok: false };
+    }
+    bounds = extendBoundsWithBounds(bounds, effectiveBounds);
+  }
+  return { ok: true, bounds };
+}
+
+/** @param {HandState} state @param {number} x @param {number} y */
+function updateRect(state, x, y) {
+  if (!state.selected || !("x" in state.selected)) return;
+  state.selectionRect = {
+    x: Math.min(x, state.selected.x),
+    y: Math.min(y, state.selected.y),
+    width: Math.abs(x - state.selected.x),
+    height: Math.abs(y - state.selected.y),
+  };
+  syncSelectionChrome(state);
+}
+
+/**
+ * @param {HandState} state
+ * @param {SVGGraphicsElement | SVGRectElement} elem
+ * @returns {{ a:number, b:number, c:number, d:number, e:number, f:number }}
+ */
+function getTransformMatrix(state, elem) {
+  let transform = null;
+  for (let i = 0; i < elem.transform.baseVal.numberOfItems; ++i) {
+    const baseVal = elem.transform.baseVal[i];
+    if (baseVal && baseVal.type === SVGTransform.SVG_TRANSFORM_MATRIX) {
+      transform = baseVal;
+      break;
+    }
+  }
+  if (transform == null) {
+    transform = elem.transform.baseVal.createSVGTransformFromMatrix(
+      state.Tools.board.svg.createSVGMatrix(),
+    );
+    elem.transform.baseVal.appendItem(transform);
+  }
+  return transform.matrix;
+}
+
+/**
+ * @param {HandState} state
+ * @param {unknown} data
+ * @param {boolean} [isLocal]
+ */
+export function draw(state, data, isLocal = false) {
+  if (!isHandRenderableMessage(data)) {
+    logFrontendEvent("error", "tool.hand.draw_invalid_type", {
+      mutationType: handMessageCandidate(data)?.type,
+      message: data,
+    });
+    return;
+  }
+  flushPendingDraws(state);
+  const children = isBatchMessage(data) ? data._children : [data];
+  for (const child of children) drawHandChild(state, child);
+  if (!isLocal) {
+    // Finish every SVG write before measuring. Reading getBBox() between
+    // transform writes forces layout once per item, freezing dense boards.
+    let bounds = null;
+    for (const child of children) {
+      if (child.type !== MutationType.UPDATE) continue;
+      const element = state.Tools.board.svg.getElementById(child.id);
+      if (!element) continue;
+      bounds = extendBoundsWithBounds(
+        bounds,
+        measureSvgElementBoundsAfterTransform(element, child.transform),
+      );
+    }
+    if (bounds) state.Tools.viewport.ensureBoardExtentForBounds(bounds);
+  }
+}
+
+/** @param {HandState} state @param {HandChildMessage} data */
+function drawHandChild(state, data) {
+  switch (data.type) {
+    case MutationType.UPDATE: {
+      const elem = state.Tools.board.svg.getElementById(data.id);
+      if (!elem) {
+        throw new Error("Mover: Tried to move an element that does not exist.");
+      }
+      const tmatrix = getTransformMatrix(
+        state,
+        /** @type {SVGGraphicsElement & { id: string }} */ (elem),
+      );
+      tmatrix.a = data.transform.a;
+      tmatrix.b = data.transform.b;
+      tmatrix.c = data.transform.c;
+      tmatrix.d = data.transform.d;
+      tmatrix.e = data.transform.e;
+      tmatrix.f = data.transform.f;
+      break;
+    }
+    case MutationType.COPY: {
+      const sourceElement = state.Tools.board.svg.getElementById(data.id);
+      if (!isSelectableElement(sourceElement)) {
+        throw new Error("Mover: Tried to copy an element that does not exist.");
+      }
+      const newElement = /** @type {SVGGraphicsElement & { id: string }} */ (
+        sourceElement.cloneNode(true)
+      );
+      newElement.id = data.newid;
+      state.Tools.board.drawingArea.appendChild(newElement);
+      break;
+    }
+    case MutationType.DELETE:
+      // Apply the delete synchronously rather than re-entering the async
+      // messageForTool() pipeline, so a hand batch delete completes before
+      // sequence state advances and does not re-trigger generic message hooks.
+      deleteBoardElementById(state.Tools.board, data.id);
+      break;
+  }
+}
+
+/**
+ * @param {HandState} state
+ * @param {number} x
+ * @param {number} y
+ * @param {{ target: EventTarget | null, preventDefault(): void }} evt
+ */
+function clickSelector(state, x, y, evt) {
+  if (
+    state.selectionRect &&
+    x >= state.selectionRect.x &&
+    x <= state.selectionRect.x + state.selectionRect.width &&
+    y >= state.selectionRect.y &&
+    y <= state.selectionRect.y + state.selectionRect.height
+  ) {
+    if (state.Tools.permissions.canEdit) {
+      hideSelectionButtons(state);
+      startMovingElements(state, x, y, evt);
+    }
+    return;
+  }
+
+  hideSelectionUI(state);
+  const parent =
+    evt.target &&
+    state.Tools.board.drawingArea.contains(/** @type {Node} */ (evt.target))
+      ? getParentMathematics(evt.target)
+      : null;
+  if (!parent) {
+    startSelector(state, x, y, evt);
+    return;
+  }
+  state.selectedEls = [parent];
+  state.selectionRect = transformedBBoxToBoardRect(transformedBBox(parent));
+  if (state.Tools.permissions.canEdit) {
+    startMovingElements(state, x, y, evt);
+  } else {
+    evt.preventDefault();
+    state.selectionRunId += 1;
+    state.selectorState = state.selectorStates.pointing;
+    showSelectionButtons(state);
+  }
+}
+
+/** @param {HandState} state @returns {Promise<void> | void} */
+function releaseSelector(state) {
+  if (state.selectorState === state.selectorStates.selecting) {
+    const runId = state.selectionRunId;
+    state.transformElements = [];
+    state.selectorState = state.selectorStates.pointing;
+    return selectElementsInSelectionRect(state, runId);
+  }
+  if (state.selectedEls.length !== 0) showSelectionButtons(state);
+  state.transformElements = [];
+  state.currentTransform = null;
+  state.selectorState = state.selectorStates.pointing;
+}
+
+/**
+ * @param {HandState} state
+ * @param {number} x
+ * @param {number} y
+ * @param {{ target: EventTarget | null, preventDefault(): void }} _evt
+ * @param {boolean} force
+ */
+function moveSelector(state, x, y, _evt, force) {
+  if (state.selectorState === state.selectorStates.selecting) {
+    updateRect(state, x, y);
+  } else if (
+    state.selectorState === state.selectorStates.transform &&
+    state.currentTransform
+  ) {
+    state.currentTransform(x, y, force);
+  }
+}
+
+/**
+ * @param {HandState} state
+ * @param {number} _x
+ * @param {number} _y
+ * @param {MouseEvent | TouchEvent} evt
+ * @param {boolean} isTouchEvent
+ */
+function startHand(state, _x, _y, evt, isTouchEvent) {
+  void _x;
+  void _y;
+  if (isTouchEvent) return;
+  if (!safePreventDefault(evt)) return;
+  state.Tools.viewport.beginPan(
+    getPointerCoordinate(evt, "clientX"),
+    getPointerCoordinate(evt, "clientY"),
+  );
+  state.selected = { pan: true };
+}
+
+/**
+ * @param {HandState} state
+ * @param {number} _x
+ * @param {number} _y
+ * @param {MouseEvent | TouchEvent} evt
+ * @param {boolean} isTouchEvent
+ */
+function moveHand(state, _x, _y, evt, isTouchEvent) {
+  void _x;
+  void _y;
+  if (isTouchEvent) return;
+  if (state.selected && !("width" in state.selected)) {
+    if (!safePreventDefault(evt)) return;
+    state.Tools.viewport.movePan(
+      getPointerCoordinate(evt, "clientX"),
+      getPointerCoordinate(evt, "clientY"),
+    );
+  }
+}
+
+/** @param {HandState} state */
+function endHand(state) {
+  state.Tools.viewport.endPan();
+}
+
+/** @param {HandState} state */
+function isSelectorActive(state) {
+  return !!(state.secondary && state.secondary.active);
+}
+
+/**
+ * @param {HandState} state
+ * @returns {void}
+ */
+function resetHandUiState(state) {
+  clearSelection(state);
+  window.removeEventListener("keydown", state.boundDeleteShortcut);
+  window.removeEventListener("keydown", state.boundDuplicateShortcut);
+}
+
+/**
+ * @param {HandState} state
+ * @param {number} x
+ * @param {number} y
+ * @param {MouseEvent | TouchEvent} evt
+ * @param {boolean} isTouchEvent
+ */
+export function press(state, x, y, evt, isTouchEvent) {
+  if (!isSelectorActive(state)) startHand(state, x, y, evt, isTouchEvent);
+  else clickSelector(state, x, y, evt);
+}
+
+/**
+ * @param {HandState} state
+ * @param {number} x
+ * @param {number} y
+ * @param {MouseEvent | TouchEvent} evt
+ * @param {boolean} isTouchEvent
+ */
+export function move(state, x, y, evt, isTouchEvent) {
+  if (!isSelectorActive(state)) moveHand(state, x, y, evt, isTouchEvent);
+  else moveSelector(state, x, y, evt, false);
+}
+
+/**
+ * @param {HandState} state
+ * @param {number} x
+ * @param {number} y
+ * @param {MouseEvent | TouchEvent} evt
+ * @param {boolean} isTouchEvent
+ */
+export function release(state, x, y, evt, isTouchEvent) {
+  if (!isSelectorActive(state)) {
+    if (!isTouchEvent) {
+      moveHand(state, x, y, evt, false);
+      endHand(state);
+    }
+  } else moveSelector(state, x, y, evt, true);
+  const result = isSelectorActive(state) ? releaseSelector(state) : undefined;
+  state.selected = null;
+  return result;
+}
+
+/** @param {HandState} state @param {{ key: string, target: EventTarget | null }} e */
+function deleteShortcut(state, e) {
+  if (
+    e.key === "Delete" &&
+    (!isMatchableTarget(e.target) ||
+      !e.target.matches("input[type=text], textarea"))
+  ) {
+    deleteSelection(state);
+  }
+}
+
+/** @param {HandState} state @param {{ key: string, target: EventTarget | null }} e */
+function duplicateShortcut(state, e) {
+  if (
+    e.key === "d" &&
+    (!isMatchableTarget(e.target) ||
+      !e.target.matches("input[type=text], textarea"))
+  ) {
+    duplicateSelection(state);
+  }
+}
+
+/** @param {HandState} state */
+function switchTool(state) {
+  resetHandUiState(state);
+  onstart(state);
+}
+
+/** @param {HandState} state */
+export function onstart(state) {
+  if (isSelectorActive(state)) {
+    window.addEventListener("keydown", state.boundDeleteShortcut);
+    window.addEventListener("keydown", state.boundDuplicateShortcut);
+  }
+}
+
+/** @param {ToolBootContext} ctx */
+export function boot(ctx) {
+  return createState(ctx.runtime, ctx.assetUrl);
+}
+
+/** @param {HandState} state */
+export function onquit(state) {
+  resetHandUiState(state);
+}
+
+/** @param {HandState} state */
+export function onEditAccessChange(state) {
+  if (!isSelectorActive(state)) return;
+  if (state.selectorState === state.selectorStates.transform) {
+    if (!state.Tools.permissions.canEdit) clearSelection(state);
+  } else if (state.selectedEls.length !== 0) {
+    showSelectionButtons(state);
+  }
+}
+
+/** @param {HandState} state */
+export function getTouchPolicy(state) {
+  return isSelectorActive(state) ? "app-gesture" : "native-pan";
+}
+
+/** @param {HandState} state */
+export function onSocketDisconnect(state) {
+  clearSelection(state);
+}
