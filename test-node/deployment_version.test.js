@@ -9,7 +9,7 @@ test("release preparation accepts only upstream master CI or validated upstream 
   const workflow = readFileSync(
     new URL("../.github/workflows/deploy.yml", import.meta.url),
     "utf8",
-  );
+  ).replace(/\r\n/g, "\n");
   const condition = workflow
     .match(/^ {2}prepare:\n[\s\S]*?^ {4}if: >-\n((?: {6}.*\n)+)/m)?.[1]
     ?.replace(/needs\.validate-tag/g, "needs['validate-tag']");
@@ -74,7 +74,9 @@ test("release hook requires the tag to match the package version", {
   assert.notEqual(run(`v${packageJson.version}`, "v0.0.0").status, 0);
 });
 
-test("automatic releases reject fork and missing repository identities before writing", async (t) => {
+test("automatic releases reject fork and missing repository identities before writing", {
+  skip: process.platform === "win32",
+}, async (t) => {
   const fs = await import("node:fs/promises");
   const os = await import("node:os");
   const path = await import("node:path");
@@ -110,7 +112,9 @@ test("automatic releases reject fork and missing repository identities before wr
 });
 
 // Local repositories exercise the real version/tag push without publishing.
-test("automatic releases bump both manifests and skip stale CI", async (t) => {
+test("automatic releases bump both manifests and skip stale CI", {
+  skip: process.platform === "win32",
+}, async (t) => {
   const fs = await import("node:fs/promises");
   const os = await import("node:os");
   const path = await import("node:path");
